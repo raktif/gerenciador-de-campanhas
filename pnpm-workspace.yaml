@@ -1,0 +1,22 @@
+packages:
+  - '.'
+
+# pnpm 11 moved workspace settings out of package.json/.npmrc. Keep this
+# explicit because Electron Forge requires physical, hoisted dependencies.
+nodeLinker: hoisted
+saveExact: true
+strictPeerDependencies: true
+
+# Forge 7.11.2 references this published package through a Git URL.
+# Pinning the equivalent registry release preserves pnpm 11's exotic
+# subdependency protection while keeping the stable Forge line.
+overrides:
+  '@electron/rebuild>@electron/node-gyp': 10.2.0-electron.2
+
+allowBuilds:
+  # v13 ships N-API prebuilds for every supported target. Running pnpm's
+  # implicit binding.gyp fallback would unnecessarily require Python/MSVC.
+  better-sqlite3: false
+  electron: true
+  electron-winstaller: true
+  esbuild: true

@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.22.0
+          cache: pnpm
+      - run: corepack enable
+      - run: corepack pnpm@11.24.0 install --frozen-lockfile
+      - run: corepack pnpm@11.24.0 verify
+      - run: corepack pnpm@11.24.0 test:e2e
+
+  package:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.22.0
+          cache: pnpm
+      - run: corepack enable
+      - run: corepack pnpm@11.24.0 install --frozen-lockfile
+      - run: corepack pnpm@11.24.0 package
+      - if: runner.os != 'Linux'
+        run: corepack pnpm@11.24.0 test:package
+      - if: runner.os == 'Linux'
+        run: xvfb-run --auto-servernum corepack pnpm@11.24.0 test:package
+      - uses: actions/upload-artifact@v4
+        with:
+          name: package-${{ runner.os }}
+          path: out/
+          if-no-files-found: error
