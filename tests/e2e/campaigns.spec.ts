@@ -121,6 +121,12 @@ test('configura tipos de entidade isolados na campanha e os recupera após reini
     await window.getByRole('button', { name: 'Criar primeiro tipo' }).click();
     await window.getByLabel('Nome plural').fill('Personagens');
     await window.getByLabel('Nome singular').fill('Personagem');
+    await window.getByLabel('Identificador (slug)').fill('Personagens');
+    await window.getByRole('button', { name: 'Criar tipo de entidade' }).click();
+    await expect(window.getByRole('alert')).toContainText(
+      'O identificador deve usar apenas letras minúsculas sem acentos, números e hífens simples.',
+    );
+    await expect(window.getByRole('button', { name: 'Criar tipo de entidade' })).toBeEnabled();
     await window.getByLabel('Identificador (slug)').fill('personagens');
     await window.getByLabel('Descrição').fill('Pessoas que movem a história.');
     await window.getByLabel('Ícone ou símbolo').fill('P');
@@ -154,6 +160,12 @@ test('configura tipos de entidade isolados na campanha e os recupera após reini
     await expect(window.getByText('Nenhuma definição de campo criada')).toBeVisible();
     await window.getByRole('button', { name: 'Criar primeiro campo' }).click();
     await window.getByLabel('Rótulo *').fill('Nome');
+    await window.getByLabel('Chave *').fill('nome_completo');
+    await window.getByRole('button', { name: 'Criar definição de campo' }).click();
+    await expect(window.getByRole('alert')).toContainText(
+      'A chave deve usar apenas letras minúsculas sem acentos, números e hífens simples.',
+    );
+    await expect(window.getByRole('button', { name: 'Criar definição de campo' })).toBeEnabled();
     await window.getByLabel('Chave *').fill('nome');
     await window.getByLabel('Descrição').fill('Nome pelo qual a pessoa é conhecida.');
     await window.getByLabel('Papel semântico').selectOption('name');

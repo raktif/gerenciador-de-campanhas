@@ -47,38 +47,48 @@ export function FieldDefinitionManager({
   async function create(values: FieldDefinitionCreateValues): Promise<void> {
     setBusy(true);
     setError(null);
-    const result = await window.campaignManager.fieldDefinitions.create({
-      campaignId: campaign.id,
-      entityTypeId: entityType.id,
-      ...values,
-    });
-    if (result.ok) {
-      setFields((items) => [...items, result.data].sort(compare));
-      setView('list');
-      setAnnouncement(`Campo “${result.data.label}” criado.`);
-    } else setError(result.error.message);
-    setBusy(false);
+    try {
+      const result = await window.campaignManager.fieldDefinitions.create({
+        campaignId: campaign.id,
+        entityTypeId: entityType.id,
+        ...values,
+      });
+      if (result.ok) {
+        setFields((items) => [...items, result.data].sort(compare));
+        setView('list');
+        setAnnouncement(`Campo “${result.data.label}” criado.`);
+      } else setError(result.error.message);
+    } catch {
+      setError(validationFailureMessage);
+    } finally {
+      setBusy(false);
+    }
   }
   async function update(patch: FieldDefinitionPatch): Promise<void> {
     if (editing === null) return;
     setBusy(true);
     setError(null);
-    const result = await window.campaignManager.fieldDefinitions.update({
-      campaignId: campaign.id,
-      entityTypeId: entityType.id,
-      id: editing.id,
-      revision: editing.revision,
-      patch,
-    });
-    if (result.ok) {
-      setFields((items) =>
-        items.map((item) => (item.id === result.data.id ? result.data : item)).sort(compare),
-      );
-      setEditing(null);
-      setView('list');
-      setAnnouncement(`Campo “${result.data.label}” atualizado.`);
-    } else setError(result.error.message);
-    setBusy(false);
+    try {
+      const result = await window.campaignManager.fieldDefinitions.update({
+        campaignId: campaign.id,
+        entityTypeId: entityType.id,
+        id: editing.id,
+        revision: editing.revision,
+        patch,
+      });
+      if (result.ok) {
+        setFields((items) =>
+          items.map((item) => (item.id === result.data.id ? result.data : item)).sort(compare),
+        );
+        setEditing(null);
+        setView('list');
+        setAnnouncement(`Campo “${result.data.label}” atualizado.`);
+      } else setError(result.error.message);
+    } catch {
+      setError(validationFailureMessage);
+    } finally {
+      setBusy(false);
+    }
   }
   async function lifecycle(): Promise<void> {
     if (pending === null) return;
@@ -343,3 +353,5 @@ const primaryClass =
 const secondaryClass =
   'rounded-xl border border-stone-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 disabled:opacity-60';
 const backClass = 'mb-6 rounded-lg px-2 py-1 text-sm font-semibold text-slate-600';
+const validationFailureMessage =
+  'Não foi possível validar os dados. Revise os campos e tente novamente.';

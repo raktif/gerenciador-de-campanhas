@@ -44,6 +44,8 @@ interface FormValues {
   sortOrder: string;
 }
 
+const stableKeyPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
 export function FieldDefinitionForm(props: FormProps): React.JSX.Element {
   const [values, setValues] = useState<FormValues>(() =>
     props.mode === 'create' ? emptyValues : toFormValues(props.field),
@@ -59,6 +61,12 @@ export function FieldDefinitionForm(props: FormProps): React.JSX.Element {
     event.preventDefault();
     try {
       const normalized = normalize(values);
+      if (!stableKeyPattern.test(normalized.key)) {
+        setValidationError(
+          'A chave deve usar apenas letras minúsculas sem acentos, números e hífens simples.',
+        );
+        return;
+      }
       if (props.mode === 'create') {
         void props.onSubmit(normalized);
         return;
@@ -120,6 +128,10 @@ export function FieldDefinitionForm(props: FormProps): React.JSX.Element {
               required
             />
           </div>
+          <p className="-mt-5 text-xs text-slate-500">
+            A chave aceita letras minúsculas sem acentos, números e hífens simples. Exemplo:
+            objetivo-principal.
+          </p>
           <div>
             <label className={labelClass} htmlFor="field-description">
               Descrição

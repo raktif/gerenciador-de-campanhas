@@ -73,43 +73,53 @@ export function EntityTypeManager({
   async function createEntityType(values: EntityTypeCreateValues): Promise<void> {
     setBusy(true);
     setError(null);
-    const result = await window.campaignManager.entityTypes.create({
-      campaignId: campaign.id,
-      ...values,
-    });
-    if (result.ok) {
-      setEntityTypes((current) => [...current, result.data].sort(compareEntityTypes));
-      setView('list');
-      setAnnouncement(`Tipo “${result.data.name}” criado.`);
-    } else {
-      setError(result.error.message);
+    try {
+      const result = await window.campaignManager.entityTypes.create({
+        campaignId: campaign.id,
+        ...values,
+      });
+      if (result.ok) {
+        setEntityTypes((current) => [...current, result.data].sort(compareEntityTypes));
+        setView('list');
+        setAnnouncement(`Tipo “${result.data.name}” criado.`);
+      } else {
+        setError(result.error.message);
+      }
+    } catch {
+      setError(validationFailureMessage);
+    } finally {
+      setBusy(false);
     }
-    setBusy(false);
   }
 
   async function updateEntityType(patch: EntityTypePatch): Promise<void> {
     if (editing === null) return;
     setBusy(true);
     setError(null);
-    const result = await window.campaignManager.entityTypes.update({
-      campaignId: campaign.id,
-      id: editing.id,
-      revision: editing.revision,
-      patch,
-    });
-    if (result.ok) {
-      setEntityTypes((current) =>
-        current
-          .map((entityType) => (entityType.id === result.data.id ? result.data : entityType))
-          .sort(compareEntityTypes),
-      );
-      setEditing(null);
-      setView('list');
-      setAnnouncement(`Tipo “${result.data.name}” atualizado.`);
-    } else {
-      setError(result.error.message);
+    try {
+      const result = await window.campaignManager.entityTypes.update({
+        campaignId: campaign.id,
+        id: editing.id,
+        revision: editing.revision,
+        patch,
+      });
+      if (result.ok) {
+        setEntityTypes((current) =>
+          current
+            .map((entityType) => (entityType.id === result.data.id ? result.data : entityType))
+            .sort(compareEntityTypes),
+        );
+        setEditing(null);
+        setView('list');
+        setAnnouncement(`Tipo “${result.data.name}” atualizado.`);
+      } else {
+        setError(result.error.message);
+      }
+    } catch {
+      setError(validationFailureMessage);
+    } finally {
+      setBusy(false);
     }
-    setBusy(false);
   }
 
   async function applyLifecycle(): Promise<void> {
@@ -421,3 +431,5 @@ const secondaryButtonClassName =
   'rounded-xl border border-stone-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-stone-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 disabled:opacity-60';
 const backButtonClassName =
   'mb-6 inline-flex items-center gap-2 rounded-lg px-2 py-1 text-sm font-semibold text-slate-600 hover:text-slate-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700';
+const validationFailureMessage =
+  'Não foi possível validar os dados. Revise os campos e tente novamente.';
