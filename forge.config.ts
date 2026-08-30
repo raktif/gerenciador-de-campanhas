@@ -15,7 +15,9 @@ const config: ForgeConfig = {
     asar: true,
     executableName: 'gerenciador-de-campanhas',
   },
-  rebuildConfig: {},
+  // better-sqlite3 13 distributes universal Node-API binaries. Rebuilding it
+  // locally is unnecessary and would make development depend on node-gyp.
+  rebuildConfig: { onlyModules: [] },
   hooks: {
     packageAfterPrune: async (_forgeConfig, buildPath) => {
       // Forge's production-prune step does not currently retain external

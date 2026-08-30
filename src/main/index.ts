@@ -7,6 +7,10 @@ import {
 } from './bootstrap/application';
 import { scheduleSquirrelUninstallCleanup } from './squirrel/uninstall-cleanup';
 
+// Evita depender do compositor de GPU: algumas sessões remotas/VMs corporativas
+// nunca produzem o primeiro frame, deixando a janela invisível indefinidamente.
+app.disableHardwareAcceleration();
+
 let runningApplication: RunningApplication | null = null;
 const isPackageSmokeTest = process.env.PHASE_ZERO_PACKAGE_SMOKE === '1';
 

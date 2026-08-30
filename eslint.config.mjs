@@ -10,6 +10,7 @@ export default tseslint.config(
       'coverage/**',
       'playwright-report/**',
       'eslint.config.mjs',
+      'scripts/build-e2e.mjs',
       'scripts/package-smoke.mjs',
     ],
   },

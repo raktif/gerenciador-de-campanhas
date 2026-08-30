@@ -30,7 +30,3 @@ export interface PhaseZeroGateway {
   readTest(input?: EmptyInput): Promise<Result<PhaseZeroTestRecord | null>>;
   openDataDirectory(input?: EmptyInput): Promise<Result<OpenDataDirectoryResult>>;
 }
-
-export interface CampaignManagerGateway {
-  phaseZero: PhaseZeroGateway;
-}

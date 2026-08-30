@@ -67,7 +67,7 @@ try {
   const sqlite = database.prepare('SELECT sqlite_version() AS version').get();
   database.close();
 
-  if (schema.version !== 1) throw new Error(`Schema inesperado: ${schema.version}`);
+  if (schema.version !== 7) throw new Error(`Schema inesperado: ${schema.version}`);
   process.stdout.write(
     `Pacote validado (startup=ok, schema=${schema.version}, sqlite=${sqlite.version}, FTS5=ok).\n`,
   );
