@@ -1,4 +1,4 @@
-import type { CampaignManagerGateway } from '../core/contracts/phase-zero';
+import type { CampaignManagerGateway } from '../core/contracts/gateway';
 
 declare global {
   interface Window {

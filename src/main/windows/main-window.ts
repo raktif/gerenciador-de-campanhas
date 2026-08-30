@@ -19,7 +19,15 @@ export function createMainWindow(): BrowserWindow {
     },
   });
 
-  mainWindow.once('ready-to-show', () => mainWindow.show());
+  const showOnce = (): void => {
+    if (!mainWindow.isDestroyed() && !mainWindow.isVisible()) mainWindow.show();
+  };
+  mainWindow.once('ready-to-show', showOnce);
+  // Em algumas sessões remotas/VMs corporativas o compositor nunca emite
+  // 'ready-to-show'; este time-out evita que a janela fique invisível para sempre.
+  const fallbackShowTimer = setTimeout(showOnce, 3000);
+  mainWindow.once('closed', () => clearTimeout(fallbackShowTimer));
+
   mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   mainWindow.webContents.on('will-attach-webview', (event) => event.preventDefault());
 

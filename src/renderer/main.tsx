@@ -1,6 +1,6 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { PhaseZeroApp } from './app/phase-zero-app';
+import { CampaignApp } from './app/campaign-app';
 import './styles.css';
 
 const root = document.querySelector<HTMLDivElement>('#root');
@@ -11,6 +11,6 @@ if (root === null) {
 
 createRoot(root).render(
   <StrictMode>
-    <PhaseZeroApp />
+    <CampaignApp />
   </StrictMode>,
 );
