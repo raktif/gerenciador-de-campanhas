@@ -43,6 +43,8 @@ const emptyValues: FormValues = {
   sortOrder: '0',
 };
 
+const stableKeyPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
 export function EntityTypeForm(props: EntityTypeFormProps): React.JSX.Element {
   const [values, setValues] = useState<FormValues>(() =>
     props.mode === 'create' ? emptyValues : toFormValues(props.entityType),
@@ -56,6 +58,12 @@ export function EntityTypeForm(props: EntityTypeFormProps): React.JSX.Element {
 
   function submit(event: React.SyntheticEvent<HTMLFormElement, SubmitEvent>): void {
     event.preventDefault();
+    if (!stableKeyPattern.test(values.slug.trim())) {
+      setValidationError(
+        'O identificador deve usar apenas letras minúsculas sem acentos, números e hífens simples.',
+      );
+      return;
+    }
     if (props.mode === 'create') {
       void props.onSubmit(toCreateEntityTypeValues(values));
       return;
