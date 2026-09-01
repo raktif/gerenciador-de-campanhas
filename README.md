@@ -25,6 +25,13 @@ Por padrão os dados ficam em `userData/campaign-manager-data`. `APP_DATA_DIR` p
 
 Consulte [configuração de desenvolvimento](docs/development/setup.md), [arquitetura e segurança](docs/architecture/overview.md) e [empacotamento](docs/release/packaging.md).
 
+O refinamento técnico e a divisão incremental da próxima etapa estão em
+[Fase 2 — Refinamento técnico](docs/development/phase-2-refinement.md).
+
+As atividades 2.1 e 2.2 entregam a fundação persistente de relações e cronologia e o gerenciamento
+completo de tipos de relação. Relações entre entidades e visualização do grafo começam na atividade
+2.3.
+
 ## Estado e limites
 
 A Fase 1 ainda não inclui relações entre entidades, etiquetas, busca textual de conteúdo, inserção rápida em massa, sessões, eventos, caixa de entrada, relógios, demandas, consequências, biblioteca de PDFs ou IA — previstos para fases seguintes. Campos do tipo `entity_reference`/`entity_reference_list` são aceitos no modelo de dados, mas ainda não são editáveis pela interface (dependem do módulo de relações). A infraestrutura FTS5 criada na Fase 0 permanece reservada para a futura busca. Assinatura de código, notarização e publicação automática dependem de certificados e credenciais de release. Os makers para Windows, macOS e Linux estão configurados, mas cada artefato deve ser produzido no respectivo sistema operacional.

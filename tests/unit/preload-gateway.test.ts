@@ -4,6 +4,7 @@ import {
   entityChannels,
   entityTypeChannels,
   fieldDefinitionChannels,
+  relationshipTypeChannels,
 } from '../../src/core/contracts/ipc-channels';
 import {
   createCampaignManagerGateway,
@@ -20,6 +21,7 @@ describe('gateway do preload', () => {
       'entityTypes',
       'fieldDefinitions',
       'phaseZero',
+      'relationshipTypes',
     ]);
     expect(Object.keys(gateway.campaigns).sort()).toEqual([
       'archive',
@@ -41,6 +43,14 @@ describe('gateway do preload', () => {
       'update',
     ]);
     expect(Object.keys(gateway.fieldDefinitions).sort()).toEqual([
+      'archive',
+      'create',
+      'get',
+      'list',
+      'restore',
+      'update',
+    ]);
+    expect(Object.keys(gateway.relationshipTypes).sort()).toEqual([
       'archive',
       'create',
       'get',
@@ -93,6 +103,24 @@ describe('gateway do preload', () => {
     });
     await gateway.entityTypes.archive(entityTypeLifecycle);
     await gateway.entityTypes.restore(entityTypeLifecycle);
+    const relationshipTypeIdentity = {
+      campaignId: identity.id,
+      id: '15000000-0000-4000-8000-000000000001',
+    };
+    const relationshipTypeLifecycle = { ...relationshipTypeIdentity, revision: 1 };
+    await gateway.relationshipTypes.create({
+      campaignId: identity.id,
+      name: '  Trabalha em  ',
+      slug: 'trabalha-em',
+    });
+    await gateway.relationshipTypes.get(relationshipTypeIdentity);
+    await gateway.relationshipTypes.list({ campaignId: identity.id });
+    await gateway.relationshipTypes.update({
+      ...relationshipTypeLifecycle,
+      patch: { inverseName: '  Emprega  ' },
+    });
+    await gateway.relationshipTypes.archive(relationshipTypeLifecycle);
+    await gateway.relationshipTypes.restore(relationshipTypeLifecycle);
     const fieldIdentity = {
       campaignId: identity.id,
       entityTypeId: entityTypeIdentity.id,
@@ -179,6 +207,40 @@ describe('gateway do preload', () => {
       },
       { channel: entityTypeChannels.archive, input: entityTypeLifecycle },
       { channel: entityTypeChannels.restore, input: entityTypeLifecycle },
+      {
+        channel: relationshipTypeChannels.create,
+        input: {
+          campaignId: identity.id,
+          name: 'Trabalha em',
+          slug: 'trabalha-em',
+          inverseName: null,
+          description: null,
+          semanticRole: null,
+          isSymmetric: false,
+          allowedSourceTypeIds: null,
+          allowedTargetTypeIds: null,
+          icon: null,
+          color: null,
+          sortOrder: 0,
+        },
+      },
+      { channel: relationshipTypeChannels.get, input: relationshipTypeIdentity },
+      {
+        channel: relationshipTypeChannels.list,
+        input: {
+          campaignId: identity.id,
+          limit: 50,
+          filters: { isArchived: false },
+          sort: 'sortOrder',
+          order: 'asc',
+        },
+      },
+      {
+        channel: relationshipTypeChannels.update,
+        input: { ...relationshipTypeLifecycle, patch: { inverseName: 'Emprega' } },
+      },
+      { channel: relationshipTypeChannels.archive, input: relationshipTypeLifecycle },
+      { channel: relationshipTypeChannels.restore, input: relationshipTypeLifecycle },
       {
         channel: fieldDefinitionChannels.create,
         input: {

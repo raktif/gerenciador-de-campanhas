@@ -25,6 +25,7 @@ type CampaignFormProps = CommonCampaignFormProps &
         onLifecycle: (action: LifecycleAction) => Promise<void>;
         onManageEntityTypes: () => void;
         onManageEntities: () => void;
+        onManageRelationshipTypes: () => void;
         onSubmit: (patch: CampaignPatch) => Promise<void>;
       }
   );
@@ -137,6 +138,14 @@ export function CampaignForm(props: CampaignFormProps): React.JSX.Element {
                   type="button"
                 >
                   Gerenciar tipos de entidade
+                </button>
+                <button
+                  className="rounded-xl bg-amber-700 px-5 py-3 font-semibold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700"
+                  disabled={busy}
+                  onClick={props.onManageRelationshipTypes}
+                  type="button"
+                >
+                  Tipos de relação
                 </button>
               </div>
             </div>

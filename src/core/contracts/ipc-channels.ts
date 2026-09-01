@@ -24,6 +24,15 @@ export const entityTypeChannels = {
   restore: 'entity-types:restore',
 } as const;
 
+export const relationshipTypeChannels = {
+  create: 'relationship-types:create',
+  get: 'relationship-types:get',
+  list: 'relationship-types:list',
+  update: 'relationship-types:update',
+  archive: 'relationship-types:archive',
+  restore: 'relationship-types:restore',
+} as const;
+
 export const fieldDefinitionChannels = {
   create: 'field-definitions:create',
   get: 'field-definitions:get',

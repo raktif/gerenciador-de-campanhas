@@ -19,6 +19,15 @@ import {
 } from '../../core/contracts/entities';
 import type { CampaignManagerGateway } from '../../core/contracts/gateway';
 import {
+  createRelationshipTypeInputSchema,
+  getRelationshipTypeInputSchema,
+  relationshipTypeLifecycleInputSchema,
+  relationshipTypePageRequestSchema,
+  updateRelationshipTypeInputSchema,
+  type RelationshipType,
+  type RelationshipTypePageResult,
+} from '../../core/contracts/relationship-types';
+import {
   createEntityTypeInputSchema,
   entityTypeLifecycleInputSchema,
   entityTypePageRequestSchema,
@@ -42,6 +51,7 @@ import {
   entityTypeChannels,
   fieldDefinitionChannels,
   phaseZeroChannels,
+  relationshipTypeChannels,
 } from '../../core/contracts/ipc-channels';
 import {
   emptyInputSchema,
@@ -105,6 +115,44 @@ export function createCampaignManagerGateway(invokeIpc: IpcInvoker): CampaignMan
         invoke<EntityType>(entityTypeChannels.archive, input, entityTypeLifecycleInputSchema),
       restore: (input) =>
         invoke<EntityType>(entityTypeChannels.restore, input, entityTypeLifecycleInputSchema),
+    },
+    relationshipTypes: {
+      create: (input) =>
+        invoke<RelationshipType>(
+          relationshipTypeChannels.create,
+          input,
+          createRelationshipTypeInputSchema,
+        ),
+      get: (input) =>
+        invoke<RelationshipType>(
+          relationshipTypeChannels.get,
+          input,
+          getRelationshipTypeInputSchema,
+        ),
+      list: (input) =>
+        invoke<RelationshipTypePageResult>(
+          relationshipTypeChannels.list,
+          input,
+          relationshipTypePageRequestSchema,
+        ),
+      update: (input) =>
+        invoke<RelationshipType>(
+          relationshipTypeChannels.update,
+          input,
+          updateRelationshipTypeInputSchema,
+        ),
+      archive: (input) =>
+        invoke<RelationshipType>(
+          relationshipTypeChannels.archive,
+          input,
+          relationshipTypeLifecycleInputSchema,
+        ),
+      restore: (input) =>
+        invoke<RelationshipType>(
+          relationshipTypeChannels.restore,
+          input,
+          relationshipTypeLifecycleInputSchema,
+        ),
     },
     fieldDefinitions: {
       create: (input) =>

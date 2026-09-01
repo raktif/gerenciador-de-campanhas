@@ -8,16 +8,19 @@ import { EntityRepository } from '../../db/repositories/entity-repository';
 import { EntityTypeRepository } from '../../db/repositories/entity-type-repository';
 import { FieldDefinitionRepository } from '../../db/repositories/field-definition-repository';
 import { PhaseZeroRepository } from '../../db/repositories/phase-zero-repository';
+import { RelationshipTypeRepository } from '../../db/repositories/relationship-type-repository';
 import { registerCampaignIpcHandlers } from '../ipc/campaign-handlers';
 import { registerEntityIpcHandlers } from '../ipc/entity-handlers';
 import { registerEntityTypeIpcHandlers } from '../ipc/entity-type-handlers';
 import { registerFieldDefinitionIpcHandlers } from '../ipc/field-definition-handlers';
 import { registerPhaseZeroIpcHandlers } from '../ipc/phase-zero-handlers';
+import { registerRelationshipTypeIpcHandlers } from '../ipc/relationship-type-handlers';
 import { CampaignService } from '../services/campaign-service';
 import { EntityService } from '../services/entity-service';
 import { EntityTypeService } from '../services/entity-type-service';
 import { FieldDefinitionService } from '../services/field-definition-service';
 import { PhaseZeroService } from '../services/phase-zero-service';
+import { RelationshipTypeService } from '../services/relationship-type-service';
 import { createMainWindow } from '../windows/main-window';
 
 export interface RunningApplication {
@@ -47,6 +50,7 @@ export async function bootstrapApplication(): Promise<RunningApplication> {
   const entityTypeRepository = new EntityTypeRepository(database.orm);
   const fieldDefinitionRepository = new FieldDefinitionRepository(database.orm);
   const entityRepository = new EntityRepository(database.orm);
+  const relationshipTypeRepository = new RelationshipTypeRepository(database.orm);
   const window = createMainWindow();
   const service = new PhaseZeroService({
     applicationVersion: app.getVersion(),
@@ -97,6 +101,16 @@ export async function bootstrapApplication(): Promise<RunningApplication> {
     logger,
     authorizedWebContentsId: window.webContents.id,
   });
+  const relationshipTypeService = new RelationshipTypeService({
+    repository: relationshipTypeRepository,
+    campaigns: campaignRepository,
+    entityTypes: entityTypeRepository,
+  });
+  const unregisterRelationshipTypeIpc = registerRelationshipTypeIpcHandlers(ipcMain, {
+    service: relationshipTypeService,
+    logger,
+    authorizedWebContentsId: window.webContents.id,
+  });
   await logger.info('Aplicação inicializada.', { applicationVersion: app.getVersion() });
   let disposed = false;
 
@@ -111,6 +125,7 @@ export async function bootstrapApplication(): Promise<RunningApplication> {
       unregisterEntityTypeIpc();
       unregisterFieldDefinitionIpc();
       unregisterEntityIpc();
+      unregisterRelationshipTypeIpc();
       database.close();
     },
   };

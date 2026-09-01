@@ -4,8 +4,9 @@ import { CampaignForm } from '../features/campaigns/campaign-form';
 import { CampaignList } from '../features/campaigns/campaign-list';
 import { EntityManager } from '../features/entities/entity-manager';
 import { EntityTypeManager } from '../features/entity-types/entity-type-manager';
+import { RelationshipTypeManager } from '../features/relationship-types/relationship-type-manager';
 
-type Screen = 'campaigns' | 'create' | 'edit' | 'entityTypes' | 'entities';
+type Screen = 'campaigns' | 'create' | 'edit' | 'entityTypes' | 'entities' | 'relationshipTypes';
 type CampaignStatus = Campaign['status'];
 type LifecycleAction = 'archive' | 'restore' | 'moveToTrash';
 
@@ -174,6 +175,8 @@ export function CampaignApp(): React.JSX.Element {
             <EntityTypeManager campaign={selectedCampaign} onBack={() => setScreen('edit')} />
           ) : screen === 'entities' && selectedCampaign !== null ? (
             <EntityManager campaign={selectedCampaign} onBack={() => setScreen('edit')} />
+          ) : screen === 'relationshipTypes' && selectedCampaign !== null ? (
+            <RelationshipTypeManager campaign={selectedCampaign} onBack={() => setScreen('edit')} />
           ) : screen === 'edit' && selectedCampaign !== null ? (
             <CampaignForm
               busy={creating}
@@ -185,6 +188,7 @@ export function CampaignApp(): React.JSX.Element {
               onLifecycle={changeLifecycle}
               onManageEntities={() => setScreen('entities')}
               onManageEntityTypes={() => setScreen('entityTypes')}
+              onManageRelationshipTypes={() => setScreen('relationshipTypes')}
               onSubmit={updateCampaign}
             />
           ) : (

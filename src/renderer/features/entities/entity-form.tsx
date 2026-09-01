@@ -48,9 +48,7 @@ export function EntityForm(props: EntityFormProps): React.JSX.Element {
   const [originKind, setOriginKind] = useState<Entity['originKind']>(
     props.mode === 'edit' ? props.entity.originKind : 'manual',
   );
-  const [sourceId, setSourceId] = useState(
-    props.mode === 'edit' ? (props.entity.sourceId ?? '') : '',
-  );
+  const sourceId = props.mode === 'edit' ? props.entity.sourceId : null;
   const [fields, setFields] = useState<FieldDefinition[]>([]);
   const [fieldsLoading, setFieldsLoading] = useState(true);
   const [values, setValues] = useState<Record<string, string>>(() =>
@@ -95,7 +93,7 @@ export function EntityForm(props: EntityFormProps): React.JSX.Element {
         knowledgeState,
         visibility,
         originKind,
-        sourceId: sourceId.trim() === '' ? null : sourceId.trim(),
+        sourceId,
         fieldValues,
       });
     } catch (error) {
@@ -225,16 +223,6 @@ export function EntityForm(props: EntityFormProps): React.JSX.Element {
                 <option value="ai">IA</option>
                 <option value="generator">Gerador</option>
               </select>
-            </label>
-            <label className={`${labelClass} md:col-span-2`}>
-              Identificador da fonte
-              <input
-                className={inputClass}
-                disabled={props.busy}
-                maxLength={200}
-                onChange={(event) => setSourceId(event.target.value)}
-                value={sourceId}
-              />
             </label>
           </fieldset>
 
