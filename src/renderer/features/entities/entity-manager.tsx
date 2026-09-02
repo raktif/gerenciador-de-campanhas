@@ -94,6 +94,7 @@ export function EntityManager({
       originKind: values.originKind,
       sourceId: values.sourceId,
       fieldValues: values.fieldValues,
+      referenceValues: values.referenceValues,
     });
     if (!result.ok) {
       setError(result.error.message);
@@ -126,6 +127,7 @@ export function EntityManager({
         sourceId: values.sourceId,
       },
       fieldValues: values.fieldValues,
+      referenceValues: values.referenceValues,
     });
     if (!result.ok) {
       setError(result.error.message);

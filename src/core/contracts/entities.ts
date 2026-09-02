@@ -53,6 +53,10 @@ export const fieldValueInputSchema = z
   .object({ fieldDefinitionId: z.uuid(), value: z.json() })
   .strict();
 export type FieldValueInput = z.infer<typeof fieldValueInputSchema>;
+export const entityReferenceValueInputSchema = z
+  .object({ fieldDefinitionId: z.uuid(), entityIds: z.array(z.uuid()).max(100) })
+  .strict();
+export type EntityReferenceValueInput = z.infer<typeof entityReferenceValueInputSchema>;
 
 export const createEntityInputSchema = z
   .object({
@@ -66,6 +70,7 @@ export const createEntityInputSchema = z
     originKind: z.enum(originKinds).default(manualNarrativeDefaults.originKind),
     sourceId: nullableSourceIdSchema.default(null),
     fieldValues: z.array(fieldValueInputSchema).default([]),
+    referenceValues: z.array(entityReferenceValueInputSchema).default([]),
   })
   .strict();
 export type CreateEntityInput = z.output<typeof createEntityInputSchema>;
@@ -92,10 +97,14 @@ export const updateEntityInputSchema = z
     revision: z.number().int().positive(),
     patch: entityPatchSchema.optional(),
     fieldValues: z.array(fieldValueInputSchema).optional(),
+    referenceValues: z.array(entityReferenceValueInputSchema).optional(),
   })
   .strict()
   .refine(
-    (input) => input.patch !== undefined || input.fieldValues !== undefined,
+    (input) =>
+      input.patch !== undefined ||
+      input.fieldValues !== undefined ||
+      input.referenceValues !== undefined,
     'Informe ao menos uma alteração.',
   );
 export type UpdateEntityInput = z.infer<typeof updateEntityInputSchema>;

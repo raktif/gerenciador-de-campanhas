@@ -10,9 +10,9 @@ IPC assíncrono, serviços no processo principal e SQLite acessado apenas pela c
 A Fase 2 termina quando uma campanha puder representar conexões e acontecimentos, registrar uma
 sessão e capturar informações durante o jogo, integralmente sem IA.
 
-Estado atual: os incrementos 2.0 (refinamento), 2.1 (fundação narrativa persistente) e 2.2 (tipos de
-relação) estão concluídos. A interface permite administrar tipos direcionais e simétricos; relações
-entre entidades começam no incremento 2.3.
+Estado atual: os incrementos 2.0 (refinamento), 2.1 (fundação narrativa persistente), 2.2 (tipos de
+relação) e 2.3 (relações e campos de referência) estão concluídos. Lista textual e navegação de
+vizinhança começam no incremento 2.4.
 
 ## Escopo
 
@@ -118,6 +118,8 @@ Critério de saída: o usuário configura um tipo direcionado e um simétrico em
 eles apareçam em outra.
 
 ### 2.3 — Relações e campos de referência
+
+Estado: concluída em 2026-09-02.
 
 - implementar CRUD e regras de origem/destino;
 - normalizar relações simétricas e sinalizar possíveis duplicatas;

@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { EntityType } from '../../core/contracts/entity-types';
 import type { FieldDefinition } from '../../core/contracts/field-definitions';
+import type { RelationshipType } from '../../core/contracts/relationship-types';
 import type {
   CreateEntityInput,
   Entity,
@@ -9,6 +10,7 @@ import type {
   EntityPageRequest,
   EntityPageResult,
   FieldValueInput,
+  EntityReferenceValueInput,
   UpdateEntityInput,
 } from '../../core/contracts/entities';
 import { AppError } from '../../core/errors/app-error';
@@ -16,10 +18,15 @@ import type {
   EntityPersistencePatch,
   EntityRepositoryUpdate,
   FieldValuePersistence,
+  ReferenceRelationshipSync,
 } from '../../db/repositories/entity-repository';
 
 export interface EntityRepositoryPort {
-  insert(entity: Entity, values: FieldValuePersistence[]): EntityDetails;
+  insert(
+    entity: Entity,
+    values: FieldValuePersistence[],
+    references?: ReferenceRelationshipSync[],
+  ): EntityDetails;
   findById(campaignId: string, id: string): Entity | null;
   getDetails(campaignId: string, id: string): EntityDetails | null;
   list(request: EntityPageRequest): EntityPageResult;
@@ -27,6 +34,7 @@ export interface EntityRepositoryPort {
     input: EntityRepositoryUpdate,
     updatedAt: string,
     values?: FieldValuePersistence[],
+    references?: ReferenceRelationshipSync[],
   ): EntityDetails;
 }
 export interface EntityTypeLookupPort {
@@ -34,6 +42,9 @@ export interface EntityTypeLookupPort {
 }
 export interface FieldDefinitionLookupPort {
   findById(campaignId: string, entityTypeId: string, id: string): FieldDefinition | null;
+}
+export interface EntityRelationshipTypeLookupPort {
+  findById(campaignId: string, id: string): RelationshipType | null;
 }
 
 export class EntityService {
@@ -44,6 +55,7 @@ export class EntityService {
       repository: EntityRepositoryPort;
       entityTypes: EntityTypeLookupPort;
       fieldDefinitions: FieldDefinitionLookupPort;
+      relationshipTypes?: EntityRelationshipTypeLookupPort;
       createId?: () => string;
       now?: () => string;
     },
@@ -56,25 +68,29 @@ export class EntityService {
     this.requireActiveEntityType(input.campaignId, input.entityTypeId);
     const timestamp = this.now();
     const values = this.prepareValues(input.campaignId, input.entityTypeId, input.fieldValues);
-    return this.dependencies.repository.insert(
-      {
-        id: this.createId(),
-        campaignId: input.campaignId,
-        entityTypeId: input.entityTypeId,
-        name: input.name,
-        summary: input.summary,
-        canonState: input.canonState,
-        knowledgeState: input.knowledgeState,
-        visibility: input.visibility,
-        originKind: input.originKind,
-        sourceId: input.sourceId,
-        createdAt: timestamp,
-        updatedAt: timestamp,
-        archivedAt: null,
-        revision: 1,
-      },
-      values,
+    const entity = {
+      id: this.createId(),
+      campaignId: input.campaignId,
+      entityTypeId: input.entityTypeId,
+      name: input.name,
+      summary: input.summary,
+      canonState: input.canonState,
+      knowledgeState: input.knowledgeState,
+      visibility: input.visibility,
+      originKind: input.originKind,
+      sourceId: input.sourceId,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      archivedAt: null,
+      revision: 1,
+    };
+    const references = this.prepareReferences(
+      input.campaignId,
+      entity,
+      input.referenceValues,
+      timestamp,
     );
+    return this.dependencies.repository.insert(entity, values, references);
   }
 
   public get(input: { campaignId: string; id: string }): EntityDetails {
@@ -102,6 +118,15 @@ export class EntityService {
       input.fieldValues === undefined
         ? undefined
         : this.prepareValues(input.campaignId, targetTypeId, input.fieldValues);
+    const references =
+      input.referenceValues === undefined
+        ? undefined
+        : this.prepareReferences(
+            input.campaignId,
+            { ...current, entityTypeId: targetTypeId },
+            input.referenceValues,
+            this.now(),
+          );
     return this.dependencies.repository.update(
       {
         campaignId: input.campaignId,
@@ -111,6 +136,7 @@ export class EntityService {
       },
       this.now(),
       values,
+      references,
     );
   }
 
@@ -176,7 +202,7 @@ export class EntityService {
     inputs: FieldValueInput[],
   ): FieldValuePersistence[] {
     const seen = new Set<string>();
-    return inputs.map((input) => {
+    const prepared = inputs.map((input) => {
       if (seen.has(input.fieldDefinitionId))
         throw new AppError(
           'DUPLICATE_FIELD_VALUE',
@@ -203,6 +229,124 @@ export class EntityService {
         );
       return toPersistenceValue(this.createId(), definition, input.value);
     });
+    return prepared;
+  }
+
+  private prepareReferences(
+    campaignId: string,
+    entity: Pick<Entity, 'id' | 'entityTypeId'>,
+    inputs: EntityReferenceValueInput[],
+    timestamp: string,
+  ): ReferenceRelationshipSync[] {
+    const seen = new Set<string>();
+    const prepared = inputs.map((input) => {
+      if (seen.has(input.fieldDefinitionId))
+        throw new AppError(
+          'DUPLICATE_REFERENCE_VALUE',
+          'Um campo de referência foi informado mais de uma vez.',
+          { fieldDefinitionId: input.fieldDefinitionId },
+        );
+      seen.add(input.fieldDefinitionId);
+      const definition = this.dependencies.fieldDefinitions.findById(
+        campaignId,
+        entity.entityTypeId,
+        input.fieldDefinitionId,
+      );
+      if (definition === null || definition.isArchived)
+        throw new AppError(
+          'FIELD_DEFINITION_NOT_FOUND',
+          'A definição do campo de referência não foi encontrada.',
+          { fieldDefinitionId: input.fieldDefinitionId },
+        );
+      if (
+        (definition.dataType !== 'entity_reference' &&
+          definition.dataType !== 'entity_reference_list') ||
+        definition.referenceRelationshipTypeId === null ||
+        definition.referenceDirection === null
+      )
+        throw new AppError(
+          'INVALID_FIELD_REFERENCE_CONFIG',
+          'O campo não possui uma relação de referência configurada.',
+          { fieldDefinitionId: definition.id },
+        );
+      if (definition.dataType === 'entity_reference' && input.entityIds.length > 1)
+        throw new AppError('INVALID_REFERENCE_VALUE', 'Este campo aceita apenas uma entidade.', {
+          fieldDefinitionId: definition.id,
+        });
+      const relationshipType =
+        this.dependencies.relationshipTypes?.findById(
+          campaignId,
+          definition.referenceRelationshipTypeId,
+        ) ?? null;
+      if (relationshipType === null || relationshipType.isArchived)
+        throw new AppError(
+          'INVALID_RELATIONSHIP_TYPE_STATE',
+          'O tipo de relação do campo não está disponível.',
+          { relationshipTypeId: definition.referenceRelationshipTypeId },
+        );
+      const uniqueIds = [...new Set(input.entityIds)];
+      const rows = uniqueIds.map((targetId) => {
+        const target = this.requireEntity(campaignId, targetId);
+        if (
+          target.archivedAt !== null ||
+          (definition.allowedTargetTypeIds !== null &&
+            !definition.allowedTargetTypeIds.includes(target.entityTypeId))
+        )
+          throw new AppError(
+            'INVALID_FIELD_REFERENCE_TARGET',
+            'Uma entidade selecionada não é permitida neste campo.',
+            { targetId },
+          );
+        let sourceEntityId = definition.referenceDirection === 'outgoing' ? entity.id : target.id;
+        let targetEntityId = definition.referenceDirection === 'outgoing' ? target.id : entity.id;
+        if (relationshipType.isSymmetric && sourceEntityId.localeCompare(targetEntityId) > 0)
+          [sourceEntityId, targetEntityId] = [targetEntityId, sourceEntityId];
+        return {
+          id: this.createId(),
+          campaignId,
+          relationshipTypeId: relationshipType.id,
+          sourceEntityId,
+          targetEntityId,
+          description: null,
+          strength: null,
+          canonState: 'accepted' as const,
+          knowledgeState: 'fact' as const,
+          visibility: 'gm' as const,
+          originKind: 'manual' as const,
+          sourceId: null,
+          validFromEventId: null,
+          validToEventId: null,
+          createdAt: timestamp,
+          updatedAt: timestamp,
+          archivedAt: null,
+          revision: 1,
+        };
+      });
+      return {
+        relationshipTypeId: relationshipType.id,
+        direction: definition.referenceDirection,
+        symmetric: relationshipType.isSymmetric,
+        relationships: rows,
+      };
+    });
+    const consolidated = new Map<string, ReferenceRelationshipSync>();
+    for (const reference of prepared) {
+      const key = `${reference.relationshipTypeId}:${reference.direction}`;
+      const current = consolidated.get(key);
+      if (current === undefined) consolidated.set(key, reference);
+      else
+        current.relationships.push(
+          ...reference.relationships.filter(
+            (row) =>
+              !current.relationships.some(
+                (existing) =>
+                  existing.sourceEntityId === row.sourceEntityId &&
+                  existing.targetEntityId === row.targetEntityId,
+              ),
+          ),
+        );
+    }
+    return [...consolidated.values()];
   }
 }
 

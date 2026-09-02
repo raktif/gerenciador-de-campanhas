@@ -33,6 +33,15 @@ export const relationshipTypeChannels = {
   restore: 'relationship-types:restore',
 } as const;
 
+export const relationshipChannels = {
+  create: 'relationships:create',
+  get: 'relationships:get',
+  list: 'relationships:list',
+  update: 'relationships:update',
+  archive: 'relationships:archive',
+  restore: 'relationships:restore',
+} as const;
+
 export const fieldDefinitionChannels = {
   create: 'field-definitions:create',
   get: 'field-definitions:get',

@@ -22,6 +22,7 @@ describe('gateway do preload', () => {
       'fieldDefinitions',
       'phaseZero',
       'relationshipTypes',
+      'relationships',
     ]);
     expect(Object.keys(gateway.campaigns).sort()).toEqual([
       'archive',
@@ -295,6 +296,7 @@ describe('gateway do preload', () => {
           originKind: 'manual',
           sourceId: null,
           fieldValues: [],
+          referenceValues: [],
         },
       },
       { channel: entityChannels.get, input: entityIdentity },

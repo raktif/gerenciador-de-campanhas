@@ -1,5 +1,10 @@
 import { useEffect, useState } from 'react';
-import type { Entity, FieldValue, FieldValueInput } from '../../../core/contracts/entities';
+import type {
+  Entity,
+  EntityReferenceValueInput,
+  FieldValue,
+  FieldValueInput,
+} from '../../../core/contracts/entities';
 import type { EntityType } from '../../../core/contracts/entity-types';
 import type { FieldDefinition } from '../../../core/contracts/field-definitions';
 
@@ -12,6 +17,7 @@ export interface EntityFormSubmitValues {
   originKind: Entity['originKind'];
   sourceId: string | null;
   fieldValues: FieldValueInput[];
+  referenceValues: EntityReferenceValueInput[];
 }
 
 type EntityFormProps = {
@@ -54,6 +60,8 @@ export function EntityForm(props: EntityFormProps): React.JSX.Element {
   const [values, setValues] = useState<Record<string, string>>(() =>
     props.mode === 'edit' ? toFieldValueTexts(props.fieldValues) : {},
   );
+  const [referenceValues, setReferenceValues] = useState<Record<string, string[]>>({});
+  const [referenceEntities, setReferenceEntities] = useState<Entity[]>([]);
   const [validationError, setValidationError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -76,6 +84,73 @@ export function EntityForm(props: EntityFormProps): React.JSX.Element {
     };
   }, [entityTypeId, props.campaign.id]);
 
+  useEffect(() => {
+    let cancelled = false;
+    const relationRequest =
+      props.mode === 'edit'
+        ? window.campaignManager.relationships.list({
+            campaignId: props.campaign.id,
+            limit: 100,
+            filters: { archived: false, entityId: props.entity.id },
+          })
+        : Promise.resolve(null);
+    void Promise.all([
+      window.campaignManager.entities.list({
+        campaignId: props.campaign.id,
+        limit: 100,
+        filters: { archived: false },
+      }),
+      relationRequest,
+      window.campaignManager.relationshipTypes.list({
+        campaignId: props.campaign.id,
+        limit: 100,
+        filters: { isArchived: false },
+      }),
+    ]).then(([entityResult, relationshipResult, typeResult]) => {
+      if (cancelled) return;
+      if (entityResult.ok)
+        setReferenceEntities(
+          entityResult.data.items.filter(
+            (item) => props.mode !== 'edit' || item.id !== props.entity.id,
+          ),
+        );
+      if (props.mode === 'edit' && relationshipResult?.ok) {
+        const selected: Record<string, string[]> = {};
+        for (const field of fields) {
+          if (field.referenceRelationshipTypeId === null || field.referenceDirection === null)
+            continue;
+          const symmetric =
+            typeResult.ok &&
+            typeResult.data.items.some(
+              (type) => type.id === field.referenceRelationshipTypeId && type.isSymmetric,
+            );
+          selected[field.id] = relationshipResult.data.items
+            .filter((item) => item.relationshipTypeId === field.referenceRelationshipTypeId)
+            .filter((item) =>
+              symmetric
+                ? item.sourceEntityId === props.entity.id || item.targetEntityId === props.entity.id
+                : field.referenceDirection === 'outgoing'
+                  ? item.sourceEntityId === props.entity.id
+                  : item.targetEntityId === props.entity.id,
+            )
+            .map((item) =>
+              symmetric
+                ? item.sourceEntityId === props.entity.id
+                  ? item.targetEntityId
+                  : item.sourceEntityId
+                : field.referenceDirection === 'outgoing'
+                  ? item.targetEntityId
+                  : item.sourceEntityId,
+            );
+        }
+        setReferenceValues(selected);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [fields, props.campaign.id, props.mode, props.mode === 'edit' ? props.entity.id : 'create']);
+
   function submit(event: React.SyntheticEvent<HTMLFormElement, SubmitEvent>): void {
     event.preventDefault();
     setValidationError(null);
@@ -85,6 +160,15 @@ export function EntityForm(props: EntityFormProps): React.JSX.Element {
     }
     try {
       const fieldValues = toFieldValueInputs(fields, values);
+      const references = fields
+        .filter(
+          (field) =>
+            field.dataType === 'entity_reference' || field.dataType === 'entity_reference_list',
+        )
+        .map((field) => ({
+          fieldDefinitionId: field.id,
+          entityIds: referenceValues[field.id] ?? [],
+        }));
       void props.onSubmit({
         entityTypeId,
         name: name.trim(),
@@ -95,6 +179,7 @@ export function EntityForm(props: EntityFormProps): React.JSX.Element {
         originKind,
         sourceId,
         fieldValues,
+        referenceValues: references,
       });
     } catch (error) {
       setValidationError(error instanceof Error ? error.message : 'Valores de campo inválidos.');
@@ -236,15 +321,35 @@ export function EntityForm(props: EntityFormProps): React.JSX.Element {
               <p className="text-sm text-slate-500 md:col-span-2">
                 Os campos personalizados podem ficar em branco; apenas nome e tipo são obrigatórios.
               </p>
-              {fields.map((field) => (
-                <FieldValueInputControl
-                  disabled={props.busy}
-                  field={field}
-                  key={field.id}
-                  onChange={(value) => setValues((current) => ({ ...current, [field.id]: value }))}
-                  value={values[field.id] ?? ''}
-                />
-              ))}
+              {fields.map((field) =>
+                field.dataType === 'entity_reference' ||
+                field.dataType === 'entity_reference_list' ? (
+                  <ReferenceInputControl
+                    disabled={props.busy}
+                    entities={referenceEntities.filter(
+                      (entity) =>
+                        field.allowedTargetTypeIds === null ||
+                        field.allowedTargetTypeIds.includes(entity.entityTypeId),
+                    )}
+                    field={field}
+                    key={field.id}
+                    onChange={(selected) =>
+                      setReferenceValues((current) => ({ ...current, [field.id]: selected }))
+                    }
+                    value={referenceValues[field.id] ?? []}
+                  />
+                ) : (
+                  <FieldValueInputControl
+                    disabled={props.busy}
+                    field={field}
+                    key={field.id}
+                    onChange={(value) =>
+                      setValues((current) => ({ ...current, [field.id]: value }))
+                    }
+                    value={values[field.id] ?? ''}
+                  />
+                ),
+              )}
             </fieldset>
           )}
 
@@ -377,6 +482,64 @@ function FieldValueInputControl({
         value={value}
       />
     </label>
+  );
+}
+
+function ReferenceInputControl({
+  field,
+  entities,
+  value,
+  onChange,
+  disabled,
+}: {
+  field: FieldDefinition;
+  entities: Entity[];
+  value: string[];
+  onChange: (value: string[]) => void;
+  disabled: boolean;
+}): React.JSX.Element {
+  if (field.dataType === 'entity_reference')
+    return (
+      <label className={labelClass}>
+        {field.label}
+        <select
+          className={inputClass}
+          disabled={disabled}
+          value={value[0] ?? ''}
+          onChange={(event) => onChange(event.target.value === '' ? [] : [event.target.value])}
+        >
+          <option value="">Nenhuma</option>
+          {entities.map((entity) => (
+            <option key={entity.id} value={entity.id}>
+              {entity.name}
+            </option>
+          ))}
+        </select>
+      </label>
+    );
+  return (
+    <fieldset className="rounded-xl border border-stone-200 p-4">
+      <legend className="px-1 text-sm font-semibold">{field.label}</legend>
+      <div className="mt-2 grid gap-2">
+        {entities.map((entity) => (
+          <label className="flex items-center gap-2 text-sm" key={entity.id}>
+            <input
+              checked={value.includes(entity.id)}
+              disabled={disabled}
+              type="checkbox"
+              onChange={(event) =>
+                onChange(
+                  event.target.checked
+                    ? [...value, entity.id]
+                    : value.filter((id) => id !== entity.id),
+                )
+              }
+            />
+            {entity.name}
+          </label>
+        ))}
+      </div>
+    </fieldset>
   );
 }
 

@@ -19,6 +19,16 @@ import {
 } from '../../core/contracts/entities';
 import type { CampaignManagerGateway } from '../../core/contracts/gateway';
 import {
+  createRelationshipInputSchema,
+  getRelationshipInputSchema,
+  relationshipLifecycleInputSchema,
+  relationshipPageRequestSchema,
+  updateRelationshipInputSchema,
+  type Relationship,
+  type RelationshipMutationResult,
+  type RelationshipPageResult,
+} from '../../core/contracts/relationships';
+import {
   createRelationshipTypeInputSchema,
   getRelationshipTypeInputSchema,
   relationshipTypeLifecycleInputSchema,
@@ -52,6 +62,7 @@ import {
   fieldDefinitionChannels,
   phaseZeroChannels,
   relationshipTypeChannels,
+  relationshipChannels,
 } from '../../core/contracts/ipc-channels';
 import {
   emptyInputSchema,
@@ -153,6 +164,32 @@ export function createCampaignManagerGateway(invokeIpc: IpcInvoker): CampaignMan
           input,
           relationshipTypeLifecycleInputSchema,
         ),
+    },
+    relationships: {
+      create: (input) =>
+        invoke<RelationshipMutationResult>(
+          relationshipChannels.create,
+          input,
+          createRelationshipInputSchema,
+        ),
+      get: (input) =>
+        invoke<Relationship>(relationshipChannels.get, input, getRelationshipInputSchema),
+      list: (input) =>
+        invoke<RelationshipPageResult>(
+          relationshipChannels.list,
+          input,
+          relationshipPageRequestSchema,
+        ),
+      update: (input) =>
+        invoke<RelationshipMutationResult>(
+          relationshipChannels.update,
+          input,
+          updateRelationshipInputSchema,
+        ),
+      archive: (input) =>
+        invoke<Relationship>(relationshipChannels.archive, input, relationshipLifecycleInputSchema),
+      restore: (input) =>
+        invoke<Relationship>(relationshipChannels.restore, input, relationshipLifecycleInputSchema),
     },
     fieldDefinitions: {
       create: (input) =>

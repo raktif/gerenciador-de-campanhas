@@ -5,8 +5,16 @@ import { CampaignList } from '../features/campaigns/campaign-list';
 import { EntityManager } from '../features/entities/entity-manager';
 import { EntityTypeManager } from '../features/entity-types/entity-type-manager';
 import { RelationshipTypeManager } from '../features/relationship-types/relationship-type-manager';
+import { RelationshipManager } from '../features/relationships/relationship-manager';
 
-type Screen = 'campaigns' | 'create' | 'edit' | 'entityTypes' | 'entities' | 'relationshipTypes';
+type Screen =
+  | 'campaigns'
+  | 'create'
+  | 'edit'
+  | 'entityTypes'
+  | 'entities'
+  | 'relationshipTypes'
+  | 'relationships';
 type CampaignStatus = Campaign['status'];
 type LifecycleAction = 'archive' | 'restore' | 'moveToTrash';
 
@@ -177,6 +185,8 @@ export function CampaignApp(): React.JSX.Element {
             <EntityManager campaign={selectedCampaign} onBack={() => setScreen('edit')} />
           ) : screen === 'relationshipTypes' && selectedCampaign !== null ? (
             <RelationshipTypeManager campaign={selectedCampaign} onBack={() => setScreen('edit')} />
+          ) : screen === 'relationships' && selectedCampaign !== null ? (
+            <RelationshipManager campaign={selectedCampaign} onBack={() => setScreen('edit')} />
           ) : screen === 'edit' && selectedCampaign !== null ? (
             <CampaignForm
               busy={creating}
@@ -189,6 +199,7 @@ export function CampaignApp(): React.JSX.Element {
               onManageEntities={() => setScreen('entities')}
               onManageEntityTypes={() => setScreen('entityTypes')}
               onManageRelationshipTypes={() => setScreen('relationshipTypes')}
+              onManageRelationships={() => setScreen('relationships')}
               onSubmit={updateCampaign}
             />
           ) : (

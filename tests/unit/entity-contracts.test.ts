@@ -20,6 +20,7 @@ describe('contratos de entidades', () => {
       originKind: 'manual',
       sourceId: null,
       fieldValues: [],
+      referenceValues: [],
     });
   });
   it('rejeita atualização sem alterações', () => {
