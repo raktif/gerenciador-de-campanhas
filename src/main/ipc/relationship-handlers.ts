@@ -6,6 +6,8 @@ import {
   getRelationshipInputSchema,
   relationshipLifecycleInputSchema,
   relationshipMutationResultSchema,
+  relationshipNeighborhoodInputSchema,
+  relationshipNeighborhoodResultSchema,
   relationshipPageRequestSchema,
   relationshipPageResultSchema,
   relationshipSchema,
@@ -57,6 +59,18 @@ export function registerRelationshipIpcHandlers(
           relationshipPageResultSchema,
           dependencies,
           (value) => dependencies.service.list(value),
+        ),
+    },
+    {
+      channel: relationshipChannels.neighborhood,
+      handler: (event, input) =>
+        executeIpcHandler(
+          event,
+          input,
+          relationshipNeighborhoodInputSchema,
+          relationshipNeighborhoodResultSchema,
+          dependencies,
+          (value) => dependencies.service.neighborhood(value),
         ),
     },
     {

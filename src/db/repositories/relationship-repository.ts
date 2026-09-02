@@ -5,6 +5,7 @@ import {
   desc,
   eq,
   gt,
+  inArray,
   isNotNull,
   isNull,
   lt,
@@ -30,6 +31,9 @@ const cursorSchema = z
     campaignId: z.uuid(),
     relationshipTypeId: z.uuid().optional(),
     entityId: z.uuid().optional(),
+    canonState: z.string().optional(),
+    knowledgeState: z.string().optional(),
+    visibility: z.string().optional(),
     archived: z.boolean(),
     order: z.enum(['asc', 'desc']),
     updatedAt: z.string(),
@@ -41,6 +45,14 @@ export interface RelationshipRepositoryUpdate {
   id: string;
   revision: number;
   patch: RelationshipPatch | { archivedAt: string | null };
+}
+export interface AdjacentRelationshipQuery {
+  campaignId: string;
+  entityIds: string[];
+  relationshipTypeIds: string[];
+  canonStates: Relationship['canonState'][];
+  knowledgeStates: Relationship['knowledgeState'][];
+  visibilities: Relationship['visibility'][];
 }
 
 export class RelationshipRepository {
@@ -82,6 +94,33 @@ export class RelationshipRepository {
       .all();
   }
 
+  public listActiveAdjacent(query: AdjacentRelationshipQuery): Relationship[] {
+    if (query.entityIds.length === 0) return [];
+    const endpointFilter = or(
+      inArray(relationships.sourceEntityId, query.entityIds),
+      inArray(relationships.targetEntityId, query.entityIds),
+    );
+    const filters: SQL[] = [
+      eq(relationships.campaignId, query.campaignId),
+      isNull(relationships.archivedAt),
+    ];
+    if (endpointFilter !== undefined) filters.push(endpointFilter);
+    if (query.relationshipTypeIds.length > 0)
+      filters.push(inArray(relationships.relationshipTypeId, query.relationshipTypeIds));
+    if (query.canonStates.length > 0)
+      filters.push(inArray(relationships.canonState, query.canonStates));
+    if (query.knowledgeStates.length > 0)
+      filters.push(inArray(relationships.knowledgeState, query.knowledgeStates));
+    if (query.visibilities.length > 0)
+      filters.push(inArray(relationships.visibility, query.visibilities));
+    return this.database
+      .select()
+      .from(relationships)
+      .where(and(...filters))
+      .orderBy(asc(relationships.updatedAt), asc(relationships.id))
+      .all();
+  }
+
   public list(request: RelationshipPageRequest): RelationshipPageResult {
     const cursor = request.cursor === undefined ? null : decodeCursor(request.cursor, request);
     const compare = request.order === 'asc' ? gt : lt;
@@ -99,6 +138,15 @@ export class RelationshipRepository {
             eq(relationships.sourceEntityId, request.filters.entityId),
             eq(relationships.targetEntityId, request.filters.entityId),
           ),
+      request.filters.canonState === undefined
+        ? undefined
+        : eq(relationships.canonState, request.filters.canonState),
+      request.filters.knowledgeState === undefined
+        ? undefined
+        : eq(relationships.knowledgeState, request.filters.knowledgeState),
+      request.filters.visibility === undefined
+        ? undefined
+        : eq(relationships.visibility, request.filters.visibility),
       cursor === null
         ? undefined
         : or(
@@ -143,7 +191,7 @@ export class RelationshipRepository {
         this.database
           .select({ total: count() })
           .from(relationships)
-          .where(and(...filters.slice(0, 4).filter((value): value is SQL => value !== undefined)))
+          .where(and(...filters.slice(0, -1).filter((value): value is SQL => value !== undefined)))
           .get()?.total ?? 0,
     };
   }
@@ -187,6 +235,9 @@ function decodeCursor(
       parsed.campaignId !== request.campaignId ||
       parsed.relationshipTypeId !== request.filters.relationshipTypeId ||
       parsed.entityId !== request.filters.entityId ||
+      parsed.canonState !== request.filters.canonState ||
+      parsed.knowledgeState !== request.filters.knowledgeState ||
+      parsed.visibility !== request.filters.visibility ||
       parsed.archived !== request.filters.archived ||
       parsed.order !== request.order
     )

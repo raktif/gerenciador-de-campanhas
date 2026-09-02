@@ -40,6 +40,7 @@ export const relationshipChannels = {
   update: 'relationships:update',
   archive: 'relationships:archive',
   restore: 'relationships:restore',
+  neighborhood: 'relationships:neighborhood',
 } as const;
 
 export const fieldDefinitionChannels = {

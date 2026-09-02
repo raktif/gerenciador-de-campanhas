@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { entitySchema } from './entities';
 import {
   canonStates,
   knowledgeStates,
@@ -115,6 +116,9 @@ export const relationshipPageRequestSchema = z
       .object({
         relationshipTypeId: z.uuid().optional(),
         entityId: z.uuid().optional(),
+        canonState: z.enum(canonStates).optional(),
+        knowledgeState: z.enum(knowledgeStates).optional(),
+        visibility: z.enum(visibilityStates).optional(),
         archived: z.boolean().default(false),
       })
       .strict()
@@ -133,6 +137,54 @@ export const relationshipPageResultSchema = z
   })
   .strict();
 
+export const relationshipNeighborhoodInputSchema = z
+  .object({
+    campaignId: z.uuid(),
+    entityId: z.uuid(),
+    depth: z.number().int().min(1).max(3).default(1),
+    maxEntities: z.number().int().positive().max(250).default(100),
+    maxRelationships: z.number().int().positive().max(500).default(200),
+    filters: z
+      .object({
+        relationshipTypeIds: z.array(z.uuid()).max(100).default([]),
+        canonStates: z.array(z.enum(canonStates)).max(canonStates.length).default([]),
+        knowledgeStates: z.array(z.enum(knowledgeStates)).max(knowledgeStates.length).default([]),
+        visibilities: z.array(z.enum(visibilityStates)).max(visibilityStates.length).default([]),
+      })
+      .strict()
+      .default({
+        relationshipTypeIds: [],
+        canonStates: [],
+        knowledgeStates: [],
+        visibilities: [],
+      }),
+  })
+  .strict();
+export type RelationshipNeighborhoodInput = z.output<typeof relationshipNeighborhoodInputSchema>;
+export type RelationshipNeighborhoodInputRequest = z.input<
+  typeof relationshipNeighborhoodInputSchema
+>;
+
+export const relationshipNeighborhoodNodeSchema = z
+  .object({
+    entity: entitySchema,
+    depth: z.number().int().min(0).max(3),
+    pathEntityIds: z.array(z.uuid()).min(1).max(4),
+    viaRelationshipId: z.uuid().nullable(),
+  })
+  .strict();
+export type RelationshipNeighborhoodNode = z.infer<typeof relationshipNeighborhoodNodeSchema>;
+
+export const relationshipNeighborhoodResultSchema = z
+  .object({
+    rootEntityId: z.uuid(),
+    nodes: z.array(relationshipNeighborhoodNodeSchema),
+    relationships: z.array(relationshipSchema),
+    truncated: z.boolean(),
+  })
+  .strict();
+export type RelationshipNeighborhoodResult = z.infer<typeof relationshipNeighborhoodResultSchema>;
+
 export interface RelationshipGateway {
   create(input: CreateRelationshipInputRequest): Promise<Result<RelationshipMutationResult>>;
   get(input: GetRelationshipInput): Promise<Result<Relationship>>;
@@ -140,4 +192,7 @@ export interface RelationshipGateway {
   update(input: UpdateRelationshipInput): Promise<Result<RelationshipMutationResult>>;
   archive(input: RelationshipLifecycleInput): Promise<Result<Relationship>>;
   restore(input: RelationshipLifecycleInput): Promise<Result<Relationship>>;
+  neighborhood(
+    input: RelationshipNeighborhoodInputRequest,
+  ): Promise<Result<RelationshipNeighborhoodResult>>;
 }

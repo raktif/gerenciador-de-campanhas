@@ -22,10 +22,12 @@ import {
   createRelationshipInputSchema,
   getRelationshipInputSchema,
   relationshipLifecycleInputSchema,
+  relationshipNeighborhoodInputSchema,
   relationshipPageRequestSchema,
   updateRelationshipInputSchema,
   type Relationship,
   type RelationshipMutationResult,
+  type RelationshipNeighborhoodResult,
   type RelationshipPageResult,
 } from '../../core/contracts/relationships';
 import {
@@ -190,6 +192,12 @@ export function createCampaignManagerGateway(invokeIpc: IpcInvoker): CampaignMan
         invoke<Relationship>(relationshipChannels.archive, input, relationshipLifecycleInputSchema),
       restore: (input) =>
         invoke<Relationship>(relationshipChannels.restore, input, relationshipLifecycleInputSchema),
+      neighborhood: (input) =>
+        invoke<RelationshipNeighborhoodResult>(
+          relationshipChannels.neighborhood,
+          input,
+          relationshipNeighborhoodInputSchema,
+        ),
     },
     fieldDefinitions: {
       create: (input) =>

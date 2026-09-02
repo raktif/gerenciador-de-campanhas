@@ -4,6 +4,7 @@ import {
   entityChannels,
   entityTypeChannels,
   fieldDefinitionChannels,
+  relationshipChannels,
   relationshipTypeChannels,
 } from '../../src/core/contracts/ipc-channels';
 import {
@@ -56,6 +57,15 @@ describe('gateway do preload', () => {
       'create',
       'get',
       'list',
+      'restore',
+      'update',
+    ]);
+    expect(Object.keys(gateway.relationships).sort()).toEqual([
+      'archive',
+      'create',
+      'get',
+      'list',
+      'neighborhood',
       'restore',
       'update',
     ]);
@@ -326,6 +336,33 @@ describe('gateway do preload', () => {
     expect(() => gateway.campaigns.create({ name: '   ' })).toThrow();
     expect(() => gateway.entityTypes.list({ campaignId: 'campanha-inválida' })).toThrow();
     expect(invocations).toHaveLength(0);
+  });
+
+  it('normaliza a consulta de vizinhança antes de invocar o IPC', async () => {
+    const invocations: Invocation[] = [];
+    const gateway = createCampaignManagerGateway(createInvoker(invocations));
+    await gateway.relationships.neighborhood({
+      campaignId: '00000000-0000-4000-8000-000000000001',
+      entityId: '30000000-0000-4000-8000-000000000001',
+    });
+    expect(invocations).toEqual([
+      {
+        channel: relationshipChannels.neighborhood,
+        input: {
+          campaignId: '00000000-0000-4000-8000-000000000001',
+          entityId: '30000000-0000-4000-8000-000000000001',
+          depth: 1,
+          maxEntities: 100,
+          maxRelationships: 200,
+          filters: {
+            relationshipTypeIds: [],
+            canonStates: [],
+            knowledgeStates: [],
+            visibilities: [],
+          },
+        },
+      },
+    ]);
   });
 });
 

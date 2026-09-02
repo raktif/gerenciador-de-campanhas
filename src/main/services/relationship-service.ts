@@ -6,6 +6,8 @@ import type {
   Relationship,
   RelationshipLifecycleInput,
   RelationshipMutationResult,
+  RelationshipNeighborhoodInput,
+  RelationshipNeighborhoodResult,
   RelationshipPageRequest,
   RelationshipPageResult,
   RelationshipPatch,
@@ -13,6 +15,7 @@ import type {
 } from '../../core/contracts/relationships';
 import { AppError } from '../../core/errors/app-error';
 import type { RelationshipRepositoryUpdate } from '../../db/repositories/relationship-repository';
+import type { AdjacentRelationshipQuery } from '../../db/repositories/relationship-repository';
 
 export interface RelationshipRepositoryPort {
   insert(relationship: Relationship): Relationship;
@@ -25,6 +28,7 @@ export interface RelationshipRepositoryPort {
     exceptId?: string,
   ): Relationship[];
   list(request: RelationshipPageRequest): RelationshipPageResult;
+  listActiveAdjacent(query: AdjacentRelationshipQuery): Relationship[];
   update(input: RelationshipRepositoryUpdate, updatedAt: string): Relationship;
 }
 export interface RelationshipTypeLookupPort {
@@ -74,6 +78,68 @@ export class RelationshipService {
     if (input.filters.entityId !== undefined)
       this.requireEntity(input.campaignId, input.filters.entityId);
     return this.dependencies.repository.list(input);
+  }
+
+  public neighborhood(input: RelationshipNeighborhoodInput): RelationshipNeighborhoodResult {
+    const root = this.requireEntity(input.campaignId, input.entityId);
+    for (const relationshipTypeId of input.filters.relationshipTypeIds)
+      this.requireRelationshipType(input.campaignId, relationshipTypeId);
+
+    const nodes = new Map<string, RelationshipNeighborhoodResult['nodes'][number]>([
+      [root.id, { entity: root, depth: 0, pathEntityIds: [root.id], viaRelationshipId: null }],
+    ]);
+    const foundRelationships = new Map<string, Relationship>();
+    let frontier = [root.id];
+    let truncated = false;
+
+    for (let depth = 1; depth <= input.depth && frontier.length > 0; depth += 1) {
+      const adjacent = this.dependencies.repository.listActiveAdjacent({
+        campaignId: input.campaignId,
+        entityIds: frontier,
+        ...input.filters,
+      });
+      const frontierSet = new Set(frontier);
+      const nextFrontier: string[] = [];
+      for (const relationship of adjacent) {
+        const fromId = frontierSet.has(relationship.sourceEntityId)
+          ? relationship.sourceEntityId
+          : relationship.targetEntityId;
+        const nextId =
+          fromId === relationship.sourceEntityId
+            ? relationship.targetEntityId
+            : relationship.sourceEntityId;
+        const nextKnown = nodes.has(nextId);
+        if (!nextKnown && nodes.size >= input.maxEntities) {
+          truncated = true;
+          continue;
+        }
+        if (!foundRelationships.has(relationship.id)) {
+          if (foundRelationships.size >= input.maxRelationships) {
+            truncated = true;
+            continue;
+          }
+          foundRelationships.set(relationship.id, relationship);
+        }
+        if (nextKnown) continue;
+        const entity = this.requireEntity(input.campaignId, nextId);
+        const parent = nodes.get(fromId);
+        if (parent === undefined) continue;
+        nodes.set(nextId, {
+          entity,
+          depth,
+          pathEntityIds: [...parent.pathEntityIds, nextId],
+          viaRelationshipId: relationship.id,
+        });
+        nextFrontier.push(nextId);
+      }
+      frontier = nextFrontier;
+    }
+    return {
+      rootEntityId: root.id,
+      nodes: [...nodes.values()],
+      relationships: [...foundRelationships.values()],
+      truncated,
+    };
   }
   public update(input: UpdateRelationshipInput): RelationshipMutationResult {
     const current = this.requireRelationship(input.campaignId, input.id);

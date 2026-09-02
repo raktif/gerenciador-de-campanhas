@@ -3,6 +3,7 @@ import type { Campaign } from '../../../core/contracts/campaigns';
 import type { Entity } from '../../../core/contracts/entities';
 import type { RelationshipType } from '../../../core/contracts/relationship-types';
 import type { Relationship } from '../../../core/contracts/relationships';
+import { RelationshipNeighborhood } from './relationship-neighborhood';
 
 interface FormState {
   relationshipTypeId: string;
@@ -121,6 +122,12 @@ export function RelationshipManager({
   const entityName = (id: string) =>
     entities.find((item) => item.id === id)?.name ?? 'Entidade arquivada';
   const typeName = (id: string) => types.find((item) => item.id === id)?.name ?? 'Tipo arquivado';
+  const relationshipLabel = (item: Relationship): string => {
+    const type = types.find((candidate) => candidate.id === item.relationshipTypeId);
+    const connector =
+      type?.isSymmetric === true ? `— ${type.name} —` : `— ${typeName(item.relationshipTypeId)} →`;
+    return `${entityName(item.sourceEntityId)} ${connector} ${entityName(item.targetEntityId)}`;
+  };
   return (
     <section aria-labelledby="relationships-title">
       <button className={backClass} onClick={onBack} type="button">
@@ -137,6 +144,7 @@ export function RelationshipManager({
           Conecte os elementos do mundo usando os tipos de relação da campanha.
         </p>
       </header>
+      <RelationshipNeighborhood campaign={campaign} entities={entities} types={types} />
       {!showArchived && types.length > 0 && entities.length > 0 ? (
         <form
           className="mt-6 grid gap-4 rounded-2xl border border-stone-200 bg-white p-6 md:grid-cols-2"
@@ -228,10 +236,7 @@ export function RelationshipManager({
       <div className="mt-6 grid gap-4" data-testid="relationship-list">
         {relationships.map((item) => (
           <article className="rounded-2xl border border-stone-200 bg-white p-6" key={item.id}>
-            <h2 className="text-lg font-semibold">
-              {entityName(item.sourceEntityId)} — {typeName(item.relationshipTypeId)} →{' '}
-              {entityName(item.targetEntityId)}
-            </h2>
+            <h2 className="text-lg font-semibold">{relationshipLabel(item)}</h2>
             {item.description === null ? null : (
               <p className="mt-2 text-slate-600">{item.description}</p>
             )}

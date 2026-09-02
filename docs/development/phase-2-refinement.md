@@ -11,8 +11,8 @@ A Fase 2 termina quando uma campanha puder representar conexões e acontecimento
 sessão e capturar informações durante o jogo, integralmente sem IA.
 
 Estado atual: os incrementos 2.0 (refinamento), 2.1 (fundação narrativa persistente), 2.2 (tipos de
-relação) e 2.3 (relações e campos de referência) estão concluídos. Lista textual e navegação de
-vizinhança começam no incremento 2.4.
+relação), 2.3 (relações e campos de referência) e 2.4 (lista e vizinhança) estão concluídos.
+Afirmações e notas começam no incremento 2.5.
 
 ## Escopo
 
@@ -130,6 +130,8 @@ Critério de saída: o usuário relaciona entidades pelos dois fluxos e a mesma 
 ambos, sem duplicar a fonte de verdade.
 
 ### 2.4 — Lista e vizinhança
+
+Estado: concluída em 2026-09-02.
 
 - entregar lista textual acessível com direção correta;
 - implementar consulta de vizinhança com proteção contra ciclos;
