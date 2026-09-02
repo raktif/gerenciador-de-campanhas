@@ -3,6 +3,8 @@ import type { Campaign } from '../../../core/contracts/campaigns';
 import type { Entity } from '../../../core/contracts/entities';
 import type { RelationshipType } from '../../../core/contracts/relationship-types';
 import type { Relationship } from '../../../core/contracts/relationships';
+import type { PageResult } from '../../../core/contracts/pagination';
+import type { Result } from '../../../core/contracts/result';
 import { RelationshipNeighborhood } from './relationship-neighborhood';
 
 interface FormState {
@@ -38,27 +40,59 @@ export function RelationshipManager({
   const [announcement, setAnnouncement] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const [relations, typeResult, entityResult] = await Promise.all([
-      window.campaignManager.relationships.list({
-        campaignId: campaign.id,
-        limit: 100,
-        filters: { archived: showArchived },
-      }),
-      window.campaignManager.relationshipTypes.list({
-        campaignId: campaign.id,
-        limit: 100,
-        filters: { isArchived: false },
-      }),
-      window.campaignManager.entities.list({
-        campaignId: campaign.id,
-        limit: 100,
-        filters: { archived: false },
-      }),
-    ]);
-    if (!relations.ok) setError(relations.error.message);
-    else setRelationships(relations.data.items);
-    if (typeResult.ok) setTypes(typeResult.data.items);
-    if (entityResult.ok) setEntities(entityResult.data.items);
+    setError(null);
+    try {
+      const [relations, activeTypes, archivedTypes, activeEntities, archivedEntities] =
+        await Promise.all([
+          collectPages((cursor) =>
+            window.campaignManager.relationships.list({
+              campaignId: campaign.id,
+              cursor,
+              limit: 100,
+              filters: { archived: showArchived },
+            }),
+          ),
+          collectPages((cursor) =>
+            window.campaignManager.relationshipTypes.list({
+              campaignId: campaign.id,
+              cursor,
+              limit: 100,
+              filters: { isArchived: false },
+            }),
+          ),
+          collectPages((cursor) =>
+            window.campaignManager.relationshipTypes.list({
+              campaignId: campaign.id,
+              cursor,
+              limit: 100,
+              filters: { isArchived: true },
+            }),
+          ),
+          collectPages((cursor) =>
+            window.campaignManager.entities.list({
+              campaignId: campaign.id,
+              cursor,
+              limit: 100,
+              filters: { archived: false },
+            }),
+          ),
+          collectPages((cursor) =>
+            window.campaignManager.entities.list({
+              campaignId: campaign.id,
+              cursor,
+              limit: 100,
+              filters: { archived: true },
+            }),
+          ),
+        ]);
+      setRelationships(relations);
+      setTypes([...activeTypes, ...archivedTypes]);
+      setEntities([...activeEntities, ...archivedEntities]);
+    } catch (loadError) {
+      setError(
+        loadError instanceof Error ? loadError.message : 'Não foi possível carregar as relações.',
+      );
+    }
   }, [campaign.id, showArchived]);
   useEffect(() => {
     void load();
@@ -128,6 +162,8 @@ export function RelationshipManager({
       type?.isSymmetric === true ? `— ${type.name} —` : `— ${typeName(item.relationshipTypeId)} →`;
     return `${entityName(item.sourceEntityId)} ${connector} ${entityName(item.targetEntityId)}`;
   };
+  const activeTypes = types.filter((item) => !item.isArchived);
+  const activeEntities = entities.filter((item) => item.archivedAt === null);
   return (
     <section aria-labelledby="relationships-title">
       <button className={backClass} onClick={onBack} type="button">
@@ -145,7 +181,7 @@ export function RelationshipManager({
         </p>
       </header>
       <RelationshipNeighborhood campaign={campaign} entities={entities} types={types} />
-      {!showArchived && types.length > 0 && entities.length > 0 ? (
+      {!showArchived && activeTypes.length > 0 && activeEntities.length > 0 ? (
         <form
           className="mt-6 grid gap-4 rounded-2xl border border-stone-200 bg-white p-6 md:grid-cols-2"
           onSubmit={(event) => void save(event)}
@@ -156,20 +192,20 @@ export function RelationshipManager({
           <Select
             label="Tipo"
             value={form.relationshipTypeId}
-            options={types.map((item) => ({ id: item.id, label: item.name }))}
+            options={activeTypes.map((item) => ({ id: item.id, label: item.name }))}
             onChange={(value) => setForm({ ...form, relationshipTypeId: value })}
           />
           <span />
           <Select
             label="Origem"
             value={form.sourceEntityId}
-            options={entities.map((item) => ({ id: item.id, label: item.name }))}
+            options={activeEntities.map((item) => ({ id: item.id, label: item.name }))}
             onChange={(value) => setForm({ ...form, sourceEntityId: value })}
           />
           <Select
             label="Destino"
             value={form.targetEntityId}
-            options={entities.map((item) => ({ id: item.id, label: item.name }))}
+            options={activeEntities.map((item) => ({ id: item.id, label: item.name }))}
             onChange={(value) => setForm({ ...form, targetEntityId: value })}
           />
           <label className={labelClass}>
@@ -261,6 +297,21 @@ export function RelationshipManager({
     </section>
   );
 }
+
+export async function collectPages<T>(
+  fetchPage: (cursor: string | undefined) => Promise<Result<PageResult<T>>>,
+): Promise<T[]> {
+  const items: T[] = [];
+  let cursor: string | undefined;
+  do {
+    const result = await fetchPage(cursor);
+    if (!result.ok) throw new Error(result.error.message);
+    items.push(...result.data.items);
+    cursor = result.data.nextCursor ?? undefined;
+  } while (cursor !== undefined);
+  return items;
+}
+
 function Select({
   label,
   value,

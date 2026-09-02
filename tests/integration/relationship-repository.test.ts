@@ -15,6 +15,7 @@ import { TestLogger } from '../helpers/test-logger';
 const campaignId = '00000000-0000-4000-8000-000000000001';
 const otherCampaignId = '00000000-0000-4000-8000-000000000002';
 const typeId = '20000000-0000-4000-8000-000000000001';
+const secondTypeId = '20000000-0000-4000-8000-000000000002';
 const entityIds = [
   '30000000-0000-4000-8000-000000000001',
   '30000000-0000-4000-8000-000000000002',
@@ -37,7 +38,16 @@ describe('RelationshipRepository', () => {
     );
     repository.insert(
       createRelationship('40000000-0000-4000-8000-000000000002', entityIds[2], entityIds[0], {
+        canonState: 'draft',
         knowledgeState: 'rumor',
+        visibility: 'players',
+      }),
+    );
+    repository.insert(
+      createRelationship('40000000-0000-4000-8000-000000000003', entityIds[0], entityIds[2], {
+        relationshipTypeId: secondTypeId,
+        knowledgeState: 'secret',
+        visibility: 'public',
       }),
     );
     const all = repository.listActiveAdjacent({
@@ -51,17 +61,32 @@ describe('RelationshipRepository', () => {
     expect(all.map((item) => item.id)).toEqual([
       '40000000-0000-4000-8000-000000000001',
       '40000000-0000-4000-8000-000000000002',
+      '40000000-0000-4000-8000-000000000003',
     ]);
-    expect(
-      repository.listActiveAdjacent({
-        campaignId,
-        entityIds: [entityIds[0]],
-        relationshipTypeIds: [],
-        canonStates: [],
-        knowledgeStates: ['fact'],
-        visibilities: [],
-      }),
-    ).toHaveLength(1);
+    const filteredIds = (filters: Partial<Parameters<typeof repository.listActiveAdjacent>[0]>) =>
+      repository
+        .listActiveAdjacent({
+          campaignId,
+          entityIds: [entityIds[0]],
+          relationshipTypeIds: [],
+          canonStates: [],
+          knowledgeStates: [],
+          visibilities: [],
+          ...filters,
+        })
+        .map((item) => item.id);
+    expect(filteredIds({ relationshipTypeIds: [secondTypeId] })).toEqual([
+      '40000000-0000-4000-8000-000000000003',
+    ]);
+    expect(filteredIds({ canonStates: ['draft'] })).toEqual([
+      '40000000-0000-4000-8000-000000000002',
+    ]);
+    expect(filteredIds({ knowledgeStates: ['fact'] })).toEqual([
+      '40000000-0000-4000-8000-000000000001',
+    ]);
+    expect(filteredIds({ visibilities: ['public'] })).toEqual([
+      '40000000-0000-4000-8000-000000000003',
+    ]);
     context.close();
   });
 
@@ -120,6 +145,11 @@ async function setup(): Promise<{ context: DatabaseContext; repository: Relation
       "INSERT INTO relationship_types (id, campaign_id, name, slug, is_symmetric, sort_order, is_archived, created_at, updated_at, revision) VALUES (?, ?, 'Conhece', 'conhece', 0, 0, 0, ?, ?, 1)",
     )
     .run(typeId, campaignId, timestamp, timestamp);
+  context.native
+    .prepare(
+      "INSERT INTO relationship_types (id, campaign_id, name, slug, is_symmetric, sort_order, is_archived, created_at, updated_at, revision) VALUES (?, ?, 'Aliado de', 'aliado-de', 0, 1, 0, ?, ?, 1)",
+    )
+    .run(secondTypeId, campaignId, timestamp, timestamp);
   const insertEntity = context.native.prepare(
     "INSERT INTO entities (id, campaign_id, entity_type_id, name, canon_state, knowledge_state, visibility, origin_kind, created_at, updated_at, revision) VALUES (?, ?, ?, ?, 'accepted', 'fact', 'gm', 'manual', ?, ?, 1)",
   );

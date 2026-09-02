@@ -114,7 +114,7 @@ describe('RelationshipService', () => {
     const complete = service.neighborhood({
       campaignId,
       entityId: targetId,
-      depth: 3,
+      depth: 1,
       maxEntities: 100,
       maxRelationships: 200,
       filters: { relationshipTypeIds: [], canonStates: [], knowledgeStates: [], visibilities: [] },

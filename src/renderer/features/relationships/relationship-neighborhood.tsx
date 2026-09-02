@@ -81,10 +81,11 @@ export function RelationshipNeighborhood({
     [result],
   );
   const typeById = useMemo(() => new Map(types.map((type) => [type.id, type])), [types]);
-  const relationshipById = useMemo(
-    () => new Map((result?.relationships ?? []).map((item) => [item.id, item])),
+  const nodeDepthById = useMemo(
+    () => new Map((result?.nodes ?? []).map((node) => [node.entity.id, node.depth])),
     [result],
   );
+  const graphLayout = useMemo(() => createGraphLayout(result), [result]);
 
   return (
     <section
@@ -105,7 +106,10 @@ export function RelationshipNeighborhood({
           label="Entidade central"
           value={entityId}
           onChange={setEntityId}
-          options={entities.map((entity) => ({ value: entity.id, label: entity.name }))}
+          options={entities.map((entity) => ({
+            value: entity.id,
+            label: `${entity.name}${entity.archivedAt === null ? '' : ' (arquivada)'}`,
+          }))}
         />
         <label className={labelClass}>
           Profundidade
@@ -123,7 +127,10 @@ export function RelationshipNeighborhood({
           label="Tipo de relação"
           value={filters.relationshipTypeId}
           onChange={(value) => setFilters((current) => ({ ...current, relationshipTypeId: value }))}
-          options={types.map((type) => ({ value: type.id, label: type.name }))}
+          options={types.map((type) => ({
+            value: type.id,
+            label: `${type.name}${type.isArchived ? ' (arquivado)' : ''}`,
+          }))}
           allLabel="Todos os tipos"
         />
         <Select
@@ -188,80 +195,154 @@ export function RelationshipNeighborhood({
             className="mt-6 overflow-x-auto rounded-2xl border border-stone-200 bg-white p-5"
             aria-label="Mapa da vizinhança"
           >
-            <div className="flex min-w-max items-start gap-8">
-              {Array.from({ length: depth + 1 }, (_, layer) => {
-                const layerNodes = result.nodes.filter((node) => node.depth === layer);
-                if (layerNodes.length === 0) return null;
+            <svg
+              aria-hidden="true"
+              className="block"
+              role="img"
+              style={{ minWidth: graphLayout.width }}
+              viewBox={`0 0 ${String(graphLayout.width)} ${String(graphLayout.height)}`}
+            >
+              <defs>
+                <marker
+                  id="relationship-arrow"
+                  markerHeight="7"
+                  markerWidth="7"
+                  orient="auto-start-reverse"
+                  refX="6"
+                  refY="3.5"
+                >
+                  <path d="M 0 0 L 7 3.5 L 0 7 z" fill="#92400e" />
+                </marker>
+              </defs>
+              {result.relationships.map((relationship) => {
+                const source = graphLayout.positions.get(relationship.sourceEntityId);
+                const target = graphLayout.positions.get(relationship.targetEntityId);
+                if (source === undefined || target === undefined) return null;
+                const type = typeById.get(relationship.relationshipTypeId);
+                const markerEnd =
+                  type?.isSymmetric === true ? undefined : 'url(#relationship-arrow)';
+                const isLoop = relationship.sourceEntityId === relationship.targetEntityId;
+                const labelX = isLoop ? source.x : (source.x + target.x) / 2;
+                const labelY = isLoop ? source.y - 78 : (source.y + target.y) / 2 - 8;
                 return (
-                  <div className="w-52" key={layer}>
-                    <p className="mb-3 text-xs font-bold tracking-wider text-slate-500 uppercase">
-                      {layer === 0 ? 'Centro' : `Camada ${String(layer)}`}
-                    </p>
-                    <div className="grid gap-3">
-                      {layerNodes.map((node) => (
-                        <button
-                          className={`rounded-xl border p-3 text-left text-sm shadow-sm ${layer === 0 ? 'border-amber-400 bg-amber-50' : 'border-stone-200 bg-white'}`}
-                          key={node.entity.id}
-                          onClick={() => setEntityId(node.entity.id)}
-                          type="button"
-                        >
-                          <span className="font-semibold">{node.entity.name}</span>
-                          <span className="mt-1 block text-xs text-slate-500">
-                            {layer === 0 ? 'Entidade central' : 'Tornar central'}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+                  <g data-testid="neighborhood-graph-edge" key={relationship.id}>
+                    {isLoop ? (
+                      <path
+                        d={`M ${String(source.x - 30)} ${String(source.y - 25)} C ${String(source.x - 85)} ${String(source.y - 95)}, ${String(source.x + 85)} ${String(source.y - 95)}, ${String(source.x + 30)} ${String(source.y - 25)}`}
+                        fill="none"
+                        markerEnd={markerEnd}
+                        stroke="#92400e"
+                        strokeWidth="2"
+                      />
+                    ) : (
+                      <line
+                        markerEnd={markerEnd}
+                        stroke="#92400e"
+                        strokeWidth="2"
+                        x1={source.x}
+                        x2={target.x}
+                        y1={source.y}
+                        y2={target.y}
+                      />
+                    )}
+                    <text
+                      fill="#78350f"
+                      fontSize="12"
+                      fontWeight="600"
+                      paintOrder="stroke"
+                      stroke="white"
+                      strokeWidth="4"
+                      textAnchor="middle"
+                      x={labelX}
+                      y={labelY}
+                    >
+                      {type?.name ?? 'Relação'}
+                    </text>
+                  </g>
                 );
               })}
-            </div>
+              {result.nodes.map((node) => {
+                const point = graphLayout.positions.get(node.entity.id);
+                if (point === undefined) return null;
+                const central = node.depth === 0;
+                return (
+                  <g key={node.entity.id}>
+                    <rect
+                      fill={central ? '#fffbeb' : 'white'}
+                      height="56"
+                      rx="12"
+                      stroke={central ? '#f59e0b' : '#d6d3d1'}
+                      strokeWidth="2"
+                      width="160"
+                      x={point.x - 80}
+                      y={point.y - 28}
+                    />
+                    <text
+                      fill="#1e293b"
+                      fontSize="13"
+                      fontWeight="600"
+                      textAnchor="middle"
+                      x={point.x}
+                      y={point.y + 4}
+                    >
+                      {truncateLabel(node.entity.name)}
+                    </text>
+                  </g>
+                );
+              })}
+            </svg>
           </div>
           <div className="mt-6" data-testid="neighborhood-text-list">
             <h3 className="text-lg font-semibold">Lista textual acessível</h3>
-            {result.nodes.length === 1 ? (
+            {result.relationships.length === 0 ? (
               <p className="mt-3 text-sm text-slate-600">
                 Nenhuma conexão corresponde aos filtros.
               </p>
             ) : (
               <ul className="mt-3 grid gap-2">
-                {result.nodes
-                  .filter((node) => node.depth > 0)
-                  .map((node) => {
-                    const relationship =
-                      node.viaRelationshipId === null
-                        ? undefined
-                        : relationshipById.get(node.viaRelationshipId);
-                    const parentId = node.pathEntityIds.at(-2);
-                    if (relationship === undefined || parentId === undefined) return null;
-                    return (
-                      <li
-                        className="rounded-xl border border-stone-200 bg-white px-4 py-3 text-sm"
-                        key={node.entity.id}
+                {result.relationships.map((relationship) => {
+                  const fromId = displayFromEntityId(
+                    relationship,
+                    result.rootEntityId,
+                    nodeDepthById,
+                  );
+                  const toId =
+                    fromId === relationship.sourceEntityId
+                      ? relationship.targetEntityId
+                      : relationship.sourceEntityId;
+                  return (
+                    <li
+                      className="rounded-xl border border-stone-200 bg-white px-4 py-3 text-sm"
+                      key={relationship.id}
+                    >
+                      <button
+                        className="font-semibold text-amber-800 underline"
+                        onClick={() => setEntityId(fromId)}
+                        type="button"
                       >
-                        <span className="font-semibold">
-                          {entityNames.get(parentId) ?? 'Entidade'}
-                        </span>{' '}
-                        <span>
-                          {directionLabel(
-                            relationship,
-                            parentId,
-                            typeById.get(relationship.relationshipTypeId),
-                          )}
-                        </span>{' '}
-                        <button
-                          className="font-semibold text-amber-800 underline"
-                          onClick={() => setEntityId(node.entity.id)}
-                          type="button"
-                        >
-                          {node.entity.name}
-                        </button>
-                        <span className="ml-2 text-xs text-slate-500">
-                          profundidade {node.depth}
-                        </span>
-                      </li>
-                    );
-                  })}
+                        {entityNames.get(fromId) ?? 'Entidade'}
+                      </button>{' '}
+                      <span>
+                        {directionLabel(
+                          relationship,
+                          fromId,
+                          typeById.get(relationship.relationshipTypeId),
+                        )}
+                      </span>{' '}
+                      <button
+                        className="font-semibold text-amber-800 underline"
+                        onClick={() => setEntityId(toId)}
+                        type="button"
+                      >
+                        {entityNames.get(toId) ?? 'Entidade'}
+                      </button>
+                      <span className="ml-2 text-xs text-slate-500">
+                        {relationship.canonState} · {relationship.knowledgeState} ·{' '}
+                        {relationship.visibility}
+                      </span>
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </div>
@@ -269,6 +350,54 @@ export function RelationshipNeighborhood({
       )}
     </section>
   );
+}
+
+interface GraphPoint {
+  x: number;
+  y: number;
+}
+
+function createGraphLayout(result: RelationshipNeighborhoodResult | null): {
+  width: number;
+  height: number;
+  positions: Map<string, GraphPoint>;
+} {
+  if (result === null) return { width: 480, height: 240, positions: new Map() };
+  const layers = new Map<number, RelationshipNeighborhoodResult['nodes']>();
+  for (const node of result.nodes) {
+    const layer = layers.get(node.depth) ?? [];
+    layer.push(node);
+    layers.set(node.depth, layer);
+  }
+  const maximumDepth = Math.max(...result.nodes.map((node) => node.depth), 0);
+  const largestLayer = Math.max(...[...layers.values()].map((layer) => layer.length), 1);
+  const width = Math.max(480, (maximumDepth + 1) * 260);
+  const height = Math.max(240, largestLayer * 100 + 80);
+  const positions = new Map<string, GraphPoint>();
+  for (const [layerNumber, layerNodes] of layers) {
+    const x = 130 + layerNumber * 260;
+    const spacing = height / (layerNodes.length + 1);
+    layerNodes.forEach((node, index) => {
+      positions.set(node.entity.id, { x, y: spacing * (index + 1) });
+    });
+  }
+  return { width, height, positions };
+}
+
+function displayFromEntityId(
+  relationship: Relationship,
+  rootEntityId: string,
+  nodeDepthById: ReadonlyMap<string, number>,
+): string {
+  if (relationship.sourceEntityId === rootEntityId) return relationship.sourceEntityId;
+  if (relationship.targetEntityId === rootEntityId) return relationship.targetEntityId;
+  const sourceDepth = nodeDepthById.get(relationship.sourceEntityId) ?? Number.MAX_SAFE_INTEGER;
+  const targetDepth = nodeDepthById.get(relationship.targetEntityId) ?? Number.MAX_SAFE_INTEGER;
+  return targetDepth < sourceDepth ? relationship.targetEntityId : relationship.sourceEntityId;
+}
+
+function truncateLabel(label: string): string {
+  return label.length > 22 ? `${label.slice(0, 21)}…` : label;
 }
 
 function directionLabel(

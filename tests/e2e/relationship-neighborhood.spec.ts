@@ -51,10 +51,30 @@ test('navega pela vizinhança com profundidade, direção inversa e filtros', as
     await expect(list).not.toContainText('Cabos Antigos');
     await window.getByLabel('Profundidade').selectOption('2');
     await expect(list).toContainText('Kabotya — Conhece → Cabos Antigos');
+    await expect(window.getByTestId('neighborhood-graph-edge')).toHaveCount(2);
+    await window.getByLabel('Tipo de relação').selectOption({ label: 'Conhece' });
+    await expect(list).toContainText('Kabotya — Conhece → Cabos Antigos');
+    await window.getByLabel('Estado canônico').selectOption('rejected');
+    await expect(list).toContainText('Nenhuma conexão corresponde aos filtros.');
+    await window.getByLabel('Estado canônico').selectOption('');
+    await window.getByLabel('Visibilidade').selectOption('players');
+    await expect(list).toContainText('Nenhuma conexão corresponde aos filtros.');
+    await window.getByLabel('Visibilidade').selectOption('');
     await list.getByRole('button', { name: 'Cabos Antigos' }).click();
     await expect(list).toContainText('Cabos Antigos — É conhecido por → Kabotya');
     await window.getByLabel('Natureza').selectOption('rumor');
     await expect(list).toContainText('Nenhuma conexão corresponde aos filtros.');
+    await window.getByRole('button', { name: 'Voltar para detalhes da campanha' }).click();
+    await window.getByRole('button', { name: 'Tipos de relação' }).click();
+    await window.getByRole('button', { name: 'Arquivar' }).click();
+    await window.getByRole('button', { name: 'Confirmar' }).click();
+    await window.getByRole('button', { name: 'Voltar para detalhes da campanha' }).click();
+    await window.getByRole('button', { name: 'Relações', exact: true }).click();
+    await window.getByLabel('Entidade central').selectOption({ label: 'Cabos Antigos' });
+    await window.getByLabel('Profundidade').selectOption('2');
+    await expect(window.getByTestId('neighborhood-text-list')).toContainText(
+      'Cabos Antigos — É conhecido por → Kabotya',
+    );
   } finally {
     await application?.close();
     await rm(dataDirectory, { recursive: true, force: true });

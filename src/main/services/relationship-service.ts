@@ -134,6 +134,28 @@ export class RelationshipService {
       }
       frontier = nextFrontier;
     }
+
+    const neighborhoodEntityIds = [...nodes.keys()];
+    const neighborhoodEntityIdSet = new Set(neighborhoodEntityIds);
+    const closingRelationships = this.dependencies.repository.listActiveAdjacent({
+      campaignId: input.campaignId,
+      entityIds: neighborhoodEntityIds,
+      ...input.filters,
+    });
+    for (const relationship of closingRelationships) {
+      if (
+        !neighborhoodEntityIdSet.has(relationship.sourceEntityId) ||
+        !neighborhoodEntityIdSet.has(relationship.targetEntityId) ||
+        foundRelationships.has(relationship.id)
+      )
+        continue;
+      if (foundRelationships.size >= input.maxRelationships) {
+        truncated = true;
+        continue;
+      }
+      foundRelationships.set(relationship.id, relationship);
+    }
+
     return {
       rootEntityId: root.id,
       nodes: [...nodes.values()],
