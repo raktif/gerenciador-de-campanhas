@@ -27,7 +27,7 @@ describe('SQLite embutido', () => {
     await ensureDataDirectories(directories);
     const context = await openApplicationDatabase(directories, new TestLogger());
 
-    expect(context.schemaVersion).toBe(7);
+    expect(context.schemaVersion).toBe(8);
     expect(context.sqliteVersion).toMatch(/^3\./);
     expect(context.fts5Available).toBe(true);
     expect(context.native.pragma('foreign_keys', { simple: true })).toBe(1);
@@ -87,7 +87,7 @@ describe('SQLite embutido', () => {
     legacyDatabase.close();
 
     const context = await openApplicationDatabase(directories, new TestLogger());
-    expect(context.schemaVersion).toBe(7);
+    expect(context.schemaVersion).toBe(8);
     expect(
       context.native.prepare('SELECT name FROM campaigns WHERE id = ?').get(campaignId),
     ).toEqual({ name: 'Campanha preservada' });

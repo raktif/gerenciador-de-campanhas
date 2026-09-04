@@ -1,5 +1,14 @@
 import type { z } from 'zod';
 import {
+  assertionLifecycleInputSchema,
+  assertionPageRequestSchema,
+  createAssertionInputSchema,
+  getAssertionInputSchema,
+  updateAssertionInputSchema,
+  type Assertion,
+  type AssertionPageResult,
+} from '../../core/contracts/assertions';
+import {
   campaignLifecycleInputSchema,
   campaignPageRequestSchema,
   createCampaignInputSchema,
@@ -19,6 +28,36 @@ import {
 } from '../../core/contracts/entities';
 import type { CampaignManagerGateway } from '../../core/contracts/gateway';
 import {
+  createNoteInputSchema,
+  getNoteInputSchema,
+  noteLifecycleInputSchema,
+  notePageRequestSchema,
+  updateNoteInputSchema,
+  type NoteDetails,
+  type NotePageResult,
+} from '../../core/contracts/notes';
+import {
+  createRelationshipInputSchema,
+  getRelationshipInputSchema,
+  relationshipLifecycleInputSchema,
+  relationshipNeighborhoodInputSchema,
+  relationshipPageRequestSchema,
+  updateRelationshipInputSchema,
+  type Relationship,
+  type RelationshipMutationResult,
+  type RelationshipNeighborhoodResult,
+  type RelationshipPageResult,
+} from '../../core/contracts/relationships';
+import {
+  createRelationshipTypeInputSchema,
+  getRelationshipTypeInputSchema,
+  relationshipTypeLifecycleInputSchema,
+  relationshipTypePageRequestSchema,
+  updateRelationshipTypeInputSchema,
+  type RelationshipType,
+  type RelationshipTypePageResult,
+} from '../../core/contracts/relationship-types';
+import {
   createEntityTypeInputSchema,
   entityTypeLifecycleInputSchema,
   entityTypePageRequestSchema,
@@ -37,11 +76,15 @@ import {
   type FieldDefinitionPageResult,
 } from '../../core/contracts/field-definitions';
 import {
+  assertionChannels,
   campaignChannels,
   entityChannels,
   entityTypeChannels,
   fieldDefinitionChannels,
+  noteChannels,
   phaseZeroChannels,
+  relationshipTypeChannels,
+  relationshipChannels,
 } from '../../core/contracts/ipc-channels';
 import {
   emptyInputSchema,
@@ -106,6 +149,76 @@ export function createCampaignManagerGateway(invokeIpc: IpcInvoker): CampaignMan
       restore: (input) =>
         invoke<EntityType>(entityTypeChannels.restore, input, entityTypeLifecycleInputSchema),
     },
+    relationshipTypes: {
+      create: (input) =>
+        invoke<RelationshipType>(
+          relationshipTypeChannels.create,
+          input,
+          createRelationshipTypeInputSchema,
+        ),
+      get: (input) =>
+        invoke<RelationshipType>(
+          relationshipTypeChannels.get,
+          input,
+          getRelationshipTypeInputSchema,
+        ),
+      list: (input) =>
+        invoke<RelationshipTypePageResult>(
+          relationshipTypeChannels.list,
+          input,
+          relationshipTypePageRequestSchema,
+        ),
+      update: (input) =>
+        invoke<RelationshipType>(
+          relationshipTypeChannels.update,
+          input,
+          updateRelationshipTypeInputSchema,
+        ),
+      archive: (input) =>
+        invoke<RelationshipType>(
+          relationshipTypeChannels.archive,
+          input,
+          relationshipTypeLifecycleInputSchema,
+        ),
+      restore: (input) =>
+        invoke<RelationshipType>(
+          relationshipTypeChannels.restore,
+          input,
+          relationshipTypeLifecycleInputSchema,
+        ),
+    },
+    relationships: {
+      create: (input) =>
+        invoke<RelationshipMutationResult>(
+          relationshipChannels.create,
+          input,
+          createRelationshipInputSchema,
+        ),
+      get: (input) =>
+        invoke<Relationship>(relationshipChannels.get, input, getRelationshipInputSchema),
+      list: (input) =>
+        invoke<RelationshipPageResult>(
+          relationshipChannels.list,
+          input,
+          relationshipPageRequestSchema,
+        ),
+      update: (input) =>
+        invoke<RelationshipMutationResult>(
+          relationshipChannels.update,
+          input,
+          updateRelationshipInputSchema,
+        ),
+      archive: (input) =>
+        invoke<Relationship>(relationshipChannels.archive, input, relationshipLifecycleInputSchema),
+      restore: (input) =>
+        invoke<Relationship>(relationshipChannels.restore, input, relationshipLifecycleInputSchema),
+      neighborhood: (input) =>
+        invoke<RelationshipNeighborhoodResult>(
+          relationshipChannels.neighborhood,
+          input,
+          relationshipNeighborhoodInputSchema,
+        ),
+    },
     fieldDefinitions: {
       create: (input) =>
         invoke<FieldDefinition>(
@@ -152,6 +265,29 @@ export function createCampaignManagerGateway(invokeIpc: IpcInvoker): CampaignMan
         invoke<EntityDetails>(entityChannels.archive, input, entityLifecycleInputSchema),
       restore: (input) =>
         invoke<EntityDetails>(entityChannels.restore, input, entityLifecycleInputSchema),
+    },
+    assertions: {
+      create: (input) =>
+        invoke<Assertion>(assertionChannels.create, input, createAssertionInputSchema),
+      get: (input) => invoke<Assertion>(assertionChannels.get, input, getAssertionInputSchema),
+      list: (input) =>
+        invoke<AssertionPageResult>(assertionChannels.list, input, assertionPageRequestSchema),
+      update: (input) =>
+        invoke<Assertion>(assertionChannels.update, input, updateAssertionInputSchema),
+      archive: (input) =>
+        invoke<Assertion>(assertionChannels.archive, input, assertionLifecycleInputSchema),
+      restore: (input) =>
+        invoke<Assertion>(assertionChannels.restore, input, assertionLifecycleInputSchema),
+    },
+    notes: {
+      create: (input) => invoke<NoteDetails>(noteChannels.create, input, createNoteInputSchema),
+      get: (input) => invoke<NoteDetails>(noteChannels.get, input, getNoteInputSchema),
+      list: (input) => invoke<NotePageResult>(noteChannels.list, input, notePageRequestSchema),
+      update: (input) => invoke<NoteDetails>(noteChannels.update, input, updateNoteInputSchema),
+      archive: (input) =>
+        invoke<NoteDetails>(noteChannels.archive, input, noteLifecycleInputSchema),
+      restore: (input) =>
+        invoke<NoteDetails>(noteChannels.restore, input, noteLifecycleInputSchema),
     },
   };
 }

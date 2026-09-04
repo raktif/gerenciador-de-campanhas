@@ -1,26 +1,16 @@
 import { z } from 'zod';
+import {
+  canonStates,
+  knowledgeStates,
+  manualNarrativeDefaults,
+  nullableSourceIdSchema,
+  originKinds,
+  visibilityStates,
+} from './narrative';
 import { defaultPageLimit, maximumPageLimit, type PageResult } from './pagination';
 import type { Result } from './result';
 
-export const canonStates = ['draft', 'accepted', 'rejected', 'archived'] as const;
-export const knowledgeStates = [
-  'fact',
-  'rumor',
-  'suspicion',
-  'secret',
-  'possibility',
-  'disproved',
-] as const;
-export const visibilityStates = ['gm', 'players', 'public'] as const;
-export const originKinds = [
-  'manual',
-  'session',
-  'import',
-  'document',
-  'ruleset',
-  'ai',
-  'generator',
-] as const;
+export { canonStates, knowledgeStates, originKinds, visibilityStates } from './narrative';
 
 const nullableText = z.string().trim().min(1).max(10000).nullable();
 export const entitySchema = z
@@ -34,7 +24,7 @@ export const entitySchema = z
     knowledgeState: z.enum(knowledgeStates),
     visibility: z.enum(visibilityStates),
     originKind: z.enum(originKinds),
-    sourceId: z.string().min(1).max(200).nullable(),
+    sourceId: nullableSourceIdSchema,
     createdAt: z.iso.datetime(),
     updatedAt: z.iso.datetime(),
     archivedAt: z.iso.datetime().nullable(),
@@ -63,6 +53,10 @@ export const fieldValueInputSchema = z
   .object({ fieldDefinitionId: z.uuid(), value: z.json() })
   .strict();
 export type FieldValueInput = z.infer<typeof fieldValueInputSchema>;
+export const entityReferenceValueInputSchema = z
+  .object({ fieldDefinitionId: z.uuid(), entityIds: z.array(z.uuid()).max(100) })
+  .strict();
+export type EntityReferenceValueInput = z.infer<typeof entityReferenceValueInputSchema>;
 
 export const createEntityInputSchema = z
   .object({
@@ -70,12 +64,13 @@ export const createEntityInputSchema = z
     entityTypeId: z.uuid(),
     name: z.string().trim().min(1).max(200),
     summary: z.string().trim().min(1).max(10000).nullable().default(null),
-    canonState: z.enum(canonStates).default('accepted'),
-    knowledgeState: z.enum(knowledgeStates).default('fact'),
-    visibility: z.enum(visibilityStates).default('gm'),
-    originKind: z.enum(originKinds).default('manual'),
-    sourceId: z.string().trim().min(1).max(200).nullable().default(null),
+    canonState: z.enum(canonStates).default(manualNarrativeDefaults.canonState),
+    knowledgeState: z.enum(knowledgeStates).default(manualNarrativeDefaults.knowledgeState),
+    visibility: z.enum(visibilityStates).default(manualNarrativeDefaults.visibility),
+    originKind: z.enum(originKinds).default(manualNarrativeDefaults.originKind),
+    sourceId: nullableSourceIdSchema.default(null),
     fieldValues: z.array(fieldValueInputSchema).default([]),
+    referenceValues: z.array(entityReferenceValueInputSchema).default([]),
   })
   .strict();
 export type CreateEntityInput = z.output<typeof createEntityInputSchema>;
@@ -90,7 +85,7 @@ export const entityPatchSchema = z
     knowledgeState: z.enum(knowledgeStates).optional(),
     visibility: z.enum(visibilityStates).optional(),
     originKind: z.enum(originKinds).optional(),
-    sourceId: z.string().trim().min(1).max(200).nullable().optional(),
+    sourceId: nullableSourceIdSchema.optional(),
   })
   .strict()
   .refine((patch) => Object.keys(patch).length > 0, 'Informe ao menos uma alteração.');
@@ -102,10 +97,14 @@ export const updateEntityInputSchema = z
     revision: z.number().int().positive(),
     patch: entityPatchSchema.optional(),
     fieldValues: z.array(fieldValueInputSchema).optional(),
+    referenceValues: z.array(entityReferenceValueInputSchema).optional(),
   })
   .strict()
   .refine(
-    (input) => input.patch !== undefined || input.fieldValues !== undefined,
+    (input) =>
+      input.patch !== undefined ||
+      input.fieldValues !== undefined ||
+      input.referenceValues !== undefined,
     'Informe ao menos uma alteração.',
   );
 export type UpdateEntityInput = z.infer<typeof updateEntityInputSchema>;

@@ -12,3 +12,4 @@ tmp/
 
 # graphify-axet
 .graphify/
+.graphifyignore

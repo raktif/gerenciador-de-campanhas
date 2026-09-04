@@ -25,6 +25,10 @@ type CampaignFormProps = CommonCampaignFormProps &
         onLifecycle: (action: LifecycleAction) => Promise<void>;
         onManageEntityTypes: () => void;
         onManageEntities: () => void;
+        onManageRelationshipTypes: () => void;
+        onManageRelationships: () => void;
+        onManageAssertions: () => void;
+        onManageNotes: () => void;
         onSubmit: (patch: CampaignPatch) => Promise<void>;
       }
   );
@@ -123,6 +127,29 @@ export function CampaignForm(props: CampaignFormProps): React.JSX.Element {
               </div>
               <div className="mt-4 flex shrink-0 gap-3 sm:mt-0">
                 <button
+                  className="rounded-xl border border-stone-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700"
+                  disabled={busy}
+                  onClick={props.onManageAssertions}
+                  type="button"
+                >
+                  Afirmações
+                </button>
+                <button
+                  className="rounded-xl border border-stone-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700"
+                  disabled={busy}
+                  onClick={props.onManageNotes}
+                  type="button"
+                >
+                  Notas
+                </button>
+                <button
+                  className="rounded-xl border border-stone-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700"
+                  onClick={props.onManageRelationships}
+                  type="button"
+                >
+                  Relações
+                </button>
+                <button
                   className="rounded-xl border border-slate-900 px-5 py-3 font-semibold text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700"
                   disabled={busy}
                   onClick={props.onManageEntities}
@@ -137,6 +164,14 @@ export function CampaignForm(props: CampaignFormProps): React.JSX.Element {
                   type="button"
                 >
                   Gerenciar tipos de entidade
+                </button>
+                <button
+                  className="rounded-xl bg-amber-700 px-5 py-3 font-semibold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700"
+                  disabled={busy}
+                  onClick={props.onManageRelationshipTypes}
+                  type="button"
+                >
+                  Tipos de relação
                 </button>
               </div>
             </div>

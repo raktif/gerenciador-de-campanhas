@@ -10,9 +10,13 @@ type LifecycleAction = 'archive' | 'restore';
 export function EntityManager({
   campaign,
   onBack,
+  onOpenAssertions,
+  onOpenNotes,
 }: {
   campaign: Campaign;
   onBack: () => void;
+  onOpenAssertions: (entity: Entity) => void;
+  onOpenNotes: (entity: Entity) => void;
 }): React.JSX.Element {
   const [entityTypes, setEntityTypes] = useState<EntityType[]>([]);
   const [entities, setEntities] = useState<Entity[]>([]);
@@ -94,6 +98,7 @@ export function EntityManager({
       originKind: values.originKind,
       sourceId: values.sourceId,
       fieldValues: values.fieldValues,
+      referenceValues: values.referenceValues,
     });
     if (!result.ok) {
       setError(result.error.message);
@@ -126,6 +131,7 @@ export function EntityManager({
         sourceId: values.sourceId,
       },
       fieldValues: values.fieldValues,
+      referenceValues: values.referenceValues,
     });
     if (!result.ok) {
       setError(result.error.message);
@@ -346,6 +352,22 @@ export function EntityManager({
                 </div>
               </div>
               <div className="mt-5 flex justify-end gap-3 border-t border-stone-100 pt-4">
+                <button
+                  aria-label={`Ver afirmações de ${entity.name}`}
+                  className={secondaryClass}
+                  onClick={() => onOpenAssertions(entity)}
+                  type="button"
+                >
+                  Afirmações
+                </button>
+                <button
+                  aria-label={`Ver notas de ${entity.name}`}
+                  className={secondaryClass}
+                  onClick={() => onOpenNotes(entity)}
+                  type="button"
+                >
+                  Notas
+                </button>
                 <button
                   aria-label={`Editar ${entity.name}`}
                   className={secondaryClass}

@@ -24,6 +24,25 @@ export const entityTypeChannels = {
   restore: 'entity-types:restore',
 } as const;
 
+export const relationshipTypeChannels = {
+  create: 'relationship-types:create',
+  get: 'relationship-types:get',
+  list: 'relationship-types:list',
+  update: 'relationship-types:update',
+  archive: 'relationship-types:archive',
+  restore: 'relationship-types:restore',
+} as const;
+
+export const relationshipChannels = {
+  create: 'relationships:create',
+  get: 'relationships:get',
+  list: 'relationships:list',
+  update: 'relationships:update',
+  archive: 'relationships:archive',
+  restore: 'relationships:restore',
+  neighborhood: 'relationships:neighborhood',
+} as const;
+
 export const fieldDefinitionChannels = {
   create: 'field-definitions:create',
   get: 'field-definitions:get',
@@ -40,4 +59,22 @@ export const entityChannels = {
   update: 'entities:update',
   archive: 'entities:archive',
   restore: 'entities:restore',
+} as const;
+
+export const assertionChannels = {
+  create: 'assertions:create',
+  get: 'assertions:get',
+  list: 'assertions:list',
+  update: 'assertions:update',
+  archive: 'assertions:archive',
+  restore: 'assertions:restore',
+} as const;
+
+export const noteChannels = {
+  create: 'notes:create',
+  get: 'notes:get',
+  list: 'notes:list',
+  update: 'notes:update',
+  archive: 'notes:archive',
+  restore: 'notes:restore',
 } as const;
