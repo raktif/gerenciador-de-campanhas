@@ -1,8 +1,10 @@
+import type { AssertionGateway } from './assertions';
 import type { CampaignGateway } from './campaigns';
 import type { EntityGateway } from './entities';
 import type { EntityTypeGateway } from './entity-types';
 import type { FieldDefinitionGateway } from './field-definitions';
 import type { PhaseZeroGateway } from './phase-zero';
+import type { NoteGateway } from './notes';
 import type { RelationshipTypeGateway } from './relationship-types';
 import type { RelationshipGateway } from './relationships';
 
@@ -14,4 +16,6 @@ export interface CampaignManagerGateway {
   relationships: RelationshipGateway;
   fieldDefinitions: FieldDefinitionGateway;
   entities: EntityGateway;
+  assertions: AssertionGateway;
+  notes: NoteGateway;
 }

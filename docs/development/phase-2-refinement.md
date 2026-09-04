@@ -11,8 +11,8 @@ A Fase 2 termina quando uma campanha puder representar conexões e acontecimento
 sessão e capturar informações durante o jogo, integralmente sem IA.
 
 Estado atual: os incrementos 2.0 (refinamento), 2.1 (fundação narrativa persistente), 2.2 (tipos de
-relação), 2.3 (relações e campos de referência) e 2.4 (lista e vizinhança) estão concluídos.
-Afirmações e notas começam no incremento 2.5.
+relação), 2.3 (relações e campos de referência), 2.4 (lista e vizinhança) e 2.5 (afirmações e
+notas) estão concluídos. Sessões permanecem como o próximo incremento planejado.
 
 ## Escopo
 
@@ -141,6 +141,9 @@ Estado: concluída em 2026-09-02.
 Critério de saída: o exemplo de Ethéria pode ser navegado a partir de qualquer entidade conectada.
 
 ### 2.5 — Afirmações e notas
+
+Estado: concluída em 2026-09-04. Consulte a
+[rastreabilidade do incremento 2.5](phase-2-activity-2.5.md).
 
 - implementar CRUD, metadados narrativos e arquivamento;
 - vincular notas a entidades com papéis;

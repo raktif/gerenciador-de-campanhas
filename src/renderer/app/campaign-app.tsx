@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { Campaign, CampaignPatch, CreateCampaignInput } from '../../core/contracts/campaigns';
+import type { Entity } from '../../core/contracts/entities';
+import { AssertionManager, type NarrativeContext } from '../features/assertions/assertion-manager';
 import { CampaignForm } from '../features/campaigns/campaign-form';
 import { CampaignList } from '../features/campaigns/campaign-list';
 import { EntityManager } from '../features/entities/entity-manager';
 import { EntityTypeManager } from '../features/entity-types/entity-type-manager';
+import { NoteManager } from '../features/notes/note-manager';
 import { RelationshipTypeManager } from '../features/relationship-types/relationship-type-manager';
 import { RelationshipManager } from '../features/relationships/relationship-manager';
 
@@ -14,7 +17,9 @@ type Screen =
   | 'entityTypes'
   | 'entities'
   | 'relationshipTypes'
-  | 'relationships';
+  | 'relationships'
+  | 'assertions'
+  | 'notes';
 type CampaignStatus = Campaign['status'];
 type LifecycleAction = 'archive' | 'restore' | 'moveToTrash';
 
@@ -28,6 +33,22 @@ export function CampaignApp(): React.JSX.Element {
   const [creating, setCreating] = useState(false);
   const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
   const [announcement, setAnnouncement] = useState<string | null>(null);
+  const [narrativeContext, setNarrativeContext] = useState<NarrativeContext | undefined>();
+
+  function openContext(entity: Entity, target: 'assertions' | 'notes'): void {
+    setNarrativeContext({ entityId: entity.id, entityName: entity.name });
+    setScreen(target);
+  }
+
+  function openCampaignNarrative(target: 'assertions' | 'notes'): void {
+    setNarrativeContext(undefined);
+    setScreen(target);
+  }
+
+  function returnFromNarrative(): void {
+    setScreen(narrativeContext === undefined ? 'edit' : 'entities');
+    setNarrativeContext(undefined);
+  }
 
   const loadCampaigns = useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -182,11 +203,28 @@ export function CampaignApp(): React.JSX.Element {
           ) : screen === 'entityTypes' && selectedCampaign !== null ? (
             <EntityTypeManager campaign={selectedCampaign} onBack={() => setScreen('edit')} />
           ) : screen === 'entities' && selectedCampaign !== null ? (
-            <EntityManager campaign={selectedCampaign} onBack={() => setScreen('edit')} />
+            <EntityManager
+              campaign={selectedCampaign}
+              onBack={() => setScreen('edit')}
+              onOpenAssertions={(entity) => openContext(entity, 'assertions')}
+              onOpenNotes={(entity) => openContext(entity, 'notes')}
+            />
           ) : screen === 'relationshipTypes' && selectedCampaign !== null ? (
             <RelationshipTypeManager campaign={selectedCampaign} onBack={() => setScreen('edit')} />
           ) : screen === 'relationships' && selectedCampaign !== null ? (
             <RelationshipManager campaign={selectedCampaign} onBack={() => setScreen('edit')} />
+          ) : screen === 'assertions' && selectedCampaign !== null ? (
+            <AssertionManager
+              campaign={selectedCampaign}
+              {...(narrativeContext === undefined ? {} : { context: narrativeContext })}
+              onBack={returnFromNarrative}
+            />
+          ) : screen === 'notes' && selectedCampaign !== null ? (
+            <NoteManager
+              campaign={selectedCampaign}
+              {...(narrativeContext === undefined ? {} : { context: narrativeContext })}
+              onBack={returnFromNarrative}
+            />
           ) : screen === 'edit' && selectedCampaign !== null ? (
             <CampaignForm
               busy={creating}
@@ -197,6 +235,8 @@ export function CampaignApp(): React.JSX.Element {
               onCancel={returnToCampaigns}
               onLifecycle={changeLifecycle}
               onManageEntities={() => setScreen('entities')}
+              onManageAssertions={() => openCampaignNarrative('assertions')}
+              onManageNotes={() => openCampaignNarrative('notes')}
               onManageEntityTypes={() => setScreen('entityTypes')}
               onManageRelationshipTypes={() => setScreen('relationshipTypes')}
               onManageRelationships={() => setScreen('relationships')}

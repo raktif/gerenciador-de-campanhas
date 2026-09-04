@@ -17,10 +17,12 @@ describe('gateway do preload', () => {
     const gateway = createCampaignManagerGateway(createInvoker([]));
 
     expect(Object.keys(gateway).sort()).toEqual([
+      'assertions',
       'campaigns',
       'entities',
       'entityTypes',
       'fieldDefinitions',
+      'notes',
       'phaseZero',
       'relationshipTypes',
       'relationships',

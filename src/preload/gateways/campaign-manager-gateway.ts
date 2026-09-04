@@ -1,5 +1,14 @@
 import type { z } from 'zod';
 import {
+  assertionLifecycleInputSchema,
+  assertionPageRequestSchema,
+  createAssertionInputSchema,
+  getAssertionInputSchema,
+  updateAssertionInputSchema,
+  type Assertion,
+  type AssertionPageResult,
+} from '../../core/contracts/assertions';
+import {
   campaignLifecycleInputSchema,
   campaignPageRequestSchema,
   createCampaignInputSchema,
@@ -18,6 +27,15 @@ import {
   type EntityPageResult,
 } from '../../core/contracts/entities';
 import type { CampaignManagerGateway } from '../../core/contracts/gateway';
+import {
+  createNoteInputSchema,
+  getNoteInputSchema,
+  noteLifecycleInputSchema,
+  notePageRequestSchema,
+  updateNoteInputSchema,
+  type NoteDetails,
+  type NotePageResult,
+} from '../../core/contracts/notes';
 import {
   createRelationshipInputSchema,
   getRelationshipInputSchema,
@@ -58,10 +76,12 @@ import {
   type FieldDefinitionPageResult,
 } from '../../core/contracts/field-definitions';
 import {
+  assertionChannels,
   campaignChannels,
   entityChannels,
   entityTypeChannels,
   fieldDefinitionChannels,
+  noteChannels,
   phaseZeroChannels,
   relationshipTypeChannels,
   relationshipChannels,
@@ -245,6 +265,29 @@ export function createCampaignManagerGateway(invokeIpc: IpcInvoker): CampaignMan
         invoke<EntityDetails>(entityChannels.archive, input, entityLifecycleInputSchema),
       restore: (input) =>
         invoke<EntityDetails>(entityChannels.restore, input, entityLifecycleInputSchema),
+    },
+    assertions: {
+      create: (input) =>
+        invoke<Assertion>(assertionChannels.create, input, createAssertionInputSchema),
+      get: (input) => invoke<Assertion>(assertionChannels.get, input, getAssertionInputSchema),
+      list: (input) =>
+        invoke<AssertionPageResult>(assertionChannels.list, input, assertionPageRequestSchema),
+      update: (input) =>
+        invoke<Assertion>(assertionChannels.update, input, updateAssertionInputSchema),
+      archive: (input) =>
+        invoke<Assertion>(assertionChannels.archive, input, assertionLifecycleInputSchema),
+      restore: (input) =>
+        invoke<Assertion>(assertionChannels.restore, input, assertionLifecycleInputSchema),
+    },
+    notes: {
+      create: (input) => invoke<NoteDetails>(noteChannels.create, input, createNoteInputSchema),
+      get: (input) => invoke<NoteDetails>(noteChannels.get, input, getNoteInputSchema),
+      list: (input) => invoke<NotePageResult>(noteChannels.list, input, notePageRequestSchema),
+      update: (input) => invoke<NoteDetails>(noteChannels.update, input, updateNoteInputSchema),
+      archive: (input) =>
+        invoke<NoteDetails>(noteChannels.archive, input, noteLifecycleInputSchema),
+      restore: (input) =>
+        invoke<NoteDetails>(noteChannels.restore, input, noteLifecycleInputSchema),
     },
   };
 }

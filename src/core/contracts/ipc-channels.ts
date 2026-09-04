@@ -60,3 +60,21 @@ export const entityChannels = {
   archive: 'entities:archive',
   restore: 'entities:restore',
 } as const;
+
+export const assertionChannels = {
+  create: 'assertions:create',
+  get: 'assertions:get',
+  list: 'assertions:list',
+  update: 'assertions:update',
+  archive: 'assertions:archive',
+  restore: 'assertions:restore',
+} as const;
+
+export const noteChannels = {
+  create: 'notes:create',
+  get: 'notes:get',
+  list: 'notes:list',
+  update: 'notes:update',
+  archive: 'notes:archive',
+  restore: 'notes:restore',
+} as const;
