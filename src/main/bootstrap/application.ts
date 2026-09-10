@@ -6,6 +6,7 @@ import { openApplicationDatabase, type DatabaseContext } from '../../db/connecti
 import { AssertionRepository } from '../../db/repositories/assertion-repository';
 import { CampaignRepository } from '../../db/repositories/campaign-repository';
 import { EntityRepository } from '../../db/repositories/entity-repository';
+import { EventRepository } from '../../db/repositories/event-repository';
 import { EntityTypeRepository } from '../../db/repositories/entity-type-repository';
 import { FieldDefinitionRepository } from '../../db/repositories/field-definition-repository';
 import { PhaseZeroRepository } from '../../db/repositories/phase-zero-repository';
@@ -67,6 +68,7 @@ export async function bootstrapApplication(): Promise<RunningApplication> {
   const entityRepository = new EntityRepository(database.orm);
   const relationshipTypeRepository = new RelationshipTypeRepository(database.orm);
   const relationshipRepository = new RelationshipRepository(database.orm);
+  const eventRepository = new EventRepository(database.orm);
   const assertionRepository = new AssertionRepository(database.orm);
   const noteRepository = new NoteRepository(database.orm);
   const sessionRepository = new SessionRepository(database.orm);
@@ -137,6 +139,7 @@ export async function bootstrapApplication(): Promise<RunningApplication> {
     repository: relationshipRepository,
     relationshipTypes: relationshipTypeRepository,
     entities: entityRepository,
+    events: eventRepository,
   });
   const unregisterRelationshipIpc = registerRelationshipIpcHandlers(ipcMain, {
     service: relationshipService,

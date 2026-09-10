@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { Entity } from '../../core/contracts/entities';
+import type { EventDetails } from '../../core/contracts/events';
 import type { RelationshipType } from '../../core/contracts/relationship-types';
 import type {
   CreateRelationshipInput,
@@ -37,6 +38,9 @@ export interface RelationshipTypeLookupPort {
 export interface RelationshipEntityLookupPort {
   findById(campaignId: string, id: string): Entity | null;
 }
+export interface RelationshipEventLookupPort {
+  findById(campaignId: string, id: string): EventDetails | null;
+}
 
 export class RelationshipService {
   private readonly createId: () => string;
@@ -46,6 +50,7 @@ export class RelationshipService {
       repository: RelationshipRepositoryPort;
       relationshipTypes: RelationshipTypeLookupPort;
       entities: RelationshipEntityLookupPort;
+      events: RelationshipEventLookupPort;
       createId?: () => string;
       now?: () => string;
     },
@@ -252,7 +257,23 @@ export class RelationshipService {
       [source, target] = [target, source];
     this.requireAllowed(type.allowedSourceTypeIds, source, 'origem');
     this.requireAllowed(type.allowedTargetTypeIds, target, 'destino');
+    this.validateEventReferences(campaignId, value.validFromEventId, value.validToEventId);
     return { ...value, sourceEntityId: source.id, targetEntityId: target.id };
+  }
+  private validateEventReferences(
+    campaignId: string,
+    validFromEventId: string | null,
+    validToEventId: string | null,
+  ): void {
+    for (const eventId of [validFromEventId, validToEventId]) {
+      if (eventId === null) continue;
+      if (this.dependencies.events.findById(campaignId, eventId) === null)
+        throw new AppError(
+          'EVENT_NOT_FOUND',
+          'O evento de vig\u00eancia n\u00e3o foi encontrado nesta campanha.',
+          { campaignId, eventId },
+        );
+    }
   }
   private requireAllowed(allowedIds: string[] | null, entity: Entity, role: string): void {
     if (allowedIds !== null && !allowedIds.includes(entity.entityTypeId))

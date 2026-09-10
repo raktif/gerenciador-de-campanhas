@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Entity } from '../../src/core/contracts/entities';
+import type { EventDetails } from '../../src/core/contracts/events';
 import type { RelationshipType } from '../../src/core/contracts/relationship-types';
 import {
   createRelationshipInputSchema,
@@ -81,6 +82,28 @@ describe('RelationshipService', () => {
     ).toBe('RELATIONSHIP_ENTITY_TYPE_NOT_ALLOWED');
   });
 
+  it('exige que eventos de vig\u00eancia perten\u00e7am \u00e0 campanha da rela\u00e7\u00e3o', () => {
+    const validFromEventId = '60000000-0000-4000-8000-000000000001';
+    const validToEventId = '60000000-0000-4000-8000-000000000002';
+    const input = createRelationshipInputSchema.parse({
+      campaignId,
+      relationshipTypeId: typeId,
+      sourceEntityId: sourceId,
+      targetEntityId: targetId,
+      validFromEventId,
+      validToEventId,
+    });
+    expect(capture(() => createService(new MemoryRepository(), false).create(input)).code).toBe(
+      'EVENT_NOT_FOUND',
+    );
+    expect(
+      createService(new MemoryRepository(), false, false, null, [
+        validFromEventId,
+        validToEventId,
+      ]).create(input).relationship,
+    ).toMatchObject({ validFromEventId, validToEventId });
+  });
+
   it('percorre ciclos pelo menor caminho, preserva arestas e respeita filtros e limites', () => {
     const thirdId = '30000000-0000-4000-8000-000000000003';
     const records = [
@@ -109,6 +132,7 @@ describe('RelationshipService', () => {
           id === typeId ? ({ id, campaignId } as RelationshipType) : null,
       },
       entities: { findById: (_campaign, id) => entities.get(id) ?? null },
+      events: { findById: () => null },
     });
 
     const complete = service.neighborhood({
@@ -241,6 +265,7 @@ function createService(
   symmetric: boolean,
   archiveTarget = false,
   allowedSourceTypeIds: string[] | null = null,
+  eventIds: string[] = [],
 ): RelationshipService {
   const relationshipType = {
     id: typeId,
@@ -279,6 +304,12 @@ function createService(
     },
     entities: {
       findById: (campaign, id) => (campaign === campaignId ? (entities.get(id) ?? null) : null),
+    },
+    events: {
+      findById: (campaign, id) =>
+        campaign === campaignId && eventIds.includes(id)
+          ? ({ event: { id } } as EventDetails)
+          : null,
     },
     createId: () => `40000000-0000-4000-8000-${String(++sequence).padStart(12, '0')}`,
     now: () => timestamp,
