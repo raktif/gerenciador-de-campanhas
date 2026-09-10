@@ -7,6 +7,11 @@ import type { PhaseZeroGateway } from './phase-zero';
 import type { NoteGateway } from './notes';
 import type { RelationshipTypeGateway } from './relationship-types';
 import type { RelationshipGateway } from './relationships';
+import type {
+  SessionGateway,
+  SessionIntentionsGateway,
+  SessionParticipantsGateway,
+} from './sessions';
 
 export interface CampaignManagerGateway {
   phaseZero: PhaseZeroGateway;
@@ -18,4 +23,7 @@ export interface CampaignManagerGateway {
   entities: EntityGateway;
   assertions: AssertionGateway;
   notes: NoteGateway;
+  sessions: SessionGateway;
+  sessionParticipants: SessionParticipantsGateway;
+  sessionIntentions: SessionIntentionsGateway;
 }

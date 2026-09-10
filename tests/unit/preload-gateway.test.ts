@@ -26,6 +26,9 @@ describe('gateway do preload', () => {
       'phaseZero',
       'relationshipTypes',
       'relationships',
+      'sessionIntentions',
+      'sessionParticipants',
+      'sessions',
     ]);
     expect(Object.keys(gateway.campaigns).sort()).toEqual([
       'archive',

@@ -87,12 +87,34 @@ import {
   relationshipChannels,
 } from '../../core/contracts/ipc-channels';
 import {
+  sessionChannels,
+  sessionIntentionChannels,
+  sessionParticipantChannels,
+} from '../../core/contracts/ipc-channels';
+import {
   emptyInputSchema,
   type ApplicationStatus,
   type OpenDataDirectoryResult,
   type PhaseZeroTestRecord,
 } from '../../core/contracts/phase-zero';
 import type { Result } from '../../core/contracts/result';
+import {
+  createSessionInputSchema,
+  createSessionIntentionInputSchema,
+  getSessionInputSchema,
+  getSessionIntentionInputSchema,
+  listSessionParticipantsInputSchema,
+  replaceSessionParticipantsInputSchema,
+  sessionIntentionPageRequestSchema,
+  updateSessionInputSchema,
+  updateSessionIntentionInputSchema,
+  sessionPageRequestSchema,
+  type Session,
+  type SessionIntention,
+  type SessionIntentionPageResult,
+  type SessionPageResult,
+  type SessionParticipant,
+} from '../../core/contracts/sessions';
 
 export type IpcInvoker = (channel: string, input: unknown) => Promise<unknown>;
 
@@ -288,6 +310,53 @@ export function createCampaignManagerGateway(invokeIpc: IpcInvoker): CampaignMan
         invoke<NoteDetails>(noteChannels.archive, input, noteLifecycleInputSchema),
       restore: (input) =>
         invoke<NoteDetails>(noteChannels.restore, input, noteLifecycleInputSchema),
+    },
+    sessions: {
+      create: (input) => invoke<Session>(sessionChannels.create, input, createSessionInputSchema),
+      get: (input) => invoke<Session>(sessionChannels.get, input, getSessionInputSchema),
+      list: (input) =>
+        invoke<SessionPageResult>(sessionChannels.list, input, sessionPageRequestSchema),
+      update: (input) => invoke<Session>(sessionChannels.update, input, updateSessionInputSchema),
+    },
+    sessionParticipants: {
+      list: (input) =>
+        invoke<SessionParticipant[]>(
+          sessionParticipantChannels.list,
+          input,
+          listSessionParticipantsInputSchema,
+        ),
+      replace: (input) =>
+        invoke<SessionParticipant[]>(
+          sessionParticipantChannels.replace,
+          input,
+          replaceSessionParticipantsInputSchema,
+        ),
+    },
+    sessionIntentions: {
+      create: (input) =>
+        invoke<SessionIntention>(
+          sessionIntentionChannels.create,
+          input,
+          createSessionIntentionInputSchema,
+        ),
+      get: (input) =>
+        invoke<SessionIntention>(
+          sessionIntentionChannels.get,
+          input,
+          getSessionIntentionInputSchema,
+        ),
+      list: (input) =>
+        invoke<SessionIntentionPageResult>(
+          sessionIntentionChannels.list,
+          input,
+          sessionIntentionPageRequestSchema,
+        ),
+      update: (input) =>
+        invoke<SessionIntention>(
+          sessionIntentionChannels.update,
+          input,
+          updateSessionIntentionInputSchema,
+        ),
     },
   };
 }

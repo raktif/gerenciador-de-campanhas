@@ -9,6 +9,7 @@ import { EntityTypeManager } from '../features/entity-types/entity-type-manager'
 import { NoteManager } from '../features/notes/note-manager';
 import { RelationshipTypeManager } from '../features/relationship-types/relationship-type-manager';
 import { RelationshipManager } from '../features/relationships/relationship-manager';
+import { SessionManager } from '../features/sessions/session-manager';
 
 type Screen =
   | 'campaigns'
@@ -19,7 +20,8 @@ type Screen =
   | 'relationshipTypes'
   | 'relationships'
   | 'assertions'
-  | 'notes';
+  | 'notes'
+  | 'sessions';
 type CampaignStatus = Campaign['status'];
 type LifecycleAction = 'archive' | 'restore' | 'moveToTrash';
 
@@ -225,6 +227,8 @@ export function CampaignApp(): React.JSX.Element {
               {...(narrativeContext === undefined ? {} : { context: narrativeContext })}
               onBack={returnFromNarrative}
             />
+          ) : screen === 'sessions' && selectedCampaign !== null ? (
+            <SessionManager campaign={selectedCampaign} onBack={() => setScreen('edit')} />
           ) : screen === 'edit' && selectedCampaign !== null ? (
             <CampaignForm
               busy={creating}
@@ -237,6 +241,7 @@ export function CampaignApp(): React.JSX.Element {
               onManageEntities={() => setScreen('entities')}
               onManageAssertions={() => openCampaignNarrative('assertions')}
               onManageNotes={() => openCampaignNarrative('notes')}
+              onManageSessions={() => setScreen('sessions')}
               onManageEntityTypes={() => setScreen('entityTypes')}
               onManageRelationshipTypes={() => setScreen('relationshipTypes')}
               onManageRelationships={() => setScreen('relationships')}

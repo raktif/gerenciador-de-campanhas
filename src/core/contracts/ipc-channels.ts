@@ -78,3 +78,22 @@ export const noteChannels = {
   archive: 'notes:archive',
   restore: 'notes:restore',
 } as const;
+
+export const sessionChannels = {
+  create: 'sessions:create',
+  get: 'sessions:get',
+  list: 'sessions:list',
+  update: 'sessions:update',
+} as const;
+
+export const sessionParticipantChannels = {
+  list: 'session-participants:list',
+  replace: 'session-participants:replace',
+} as const;
+
+export const sessionIntentionChannels = {
+  create: 'session-intentions:create',
+  get: 'session-intentions:get',
+  list: 'session-intentions:list',
+  update: 'session-intentions:update',
+} as const;

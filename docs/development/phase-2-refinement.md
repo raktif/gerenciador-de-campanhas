@@ -11,8 +11,9 @@ A Fase 2 termina quando uma campanha puder representar conexões e acontecimento
 sessão e capturar informações durante o jogo, integralmente sem IA.
 
 Estado atual: os incrementos 2.0 (refinamento), 2.1 (fundação narrativa persistente), 2.2 (tipos de
-relação), 2.3 (relações e campos de referência), 2.4 (lista e vizinhança) e 2.5 (afirmações e
-notas) estão concluídos. Sessões permanecem como o próximo incremento planejado.
+relação), 2.3 (relações e campos de referência), 2.4 (lista e vizinhança), 2.5 (afirmações e
+notas) e 2.6 (sessões) estão concluídos. A validação final 2.6F foi aprovada; Eventos e linha do
+tempo (2.7) permanecem como o próximo incremento planejado.
 
 ## Escopo
 
@@ -154,12 +155,37 @@ ser encontrada a partir de cada entidade vinculada.
 
 ### 2.6 — Sessões
 
-- implementar sessões, participantes e intenções;
-- validar sequência e transições de status;
-- oferecer planejamento, início, conclusão e cancelamento;
-- manter resumo manual; qualquer geração por IA permanece fora do escopo.
+Estado: concluída; 2.6F aprovada.
+
+- contratos Zod estritos, repositórios e serviços para sessões, participantes e intenções;
+- sequência positiva e única por campanha, proveniência de sessão transacional, revisão otimista e
+  isolamento entre campanhas;
+- planejamento, edição, início, conclusão e cancelamento sob a máquina de estados permitida;
+- substituição transacional de participantes, com papel, presença, ordem, validação de entidade ativa
+  e leitura segura da lista persistida por `sessionParticipants.list`;
+- CRUD e transições de intenções, com entidade relacionada opcional da mesma campanha;
+- gateways tipados, handlers IPC com validação de remetente, entrada e saída, e preload sem Node ou
+  `ipcRenderer` expostos;
+- seção acessível de Sessões com paginação, estados de carregamento, vazio, erro recuperável e
+  operação ocupada; resumo e notas do mestre permanecem exclusivamente manuais.
 
 Critério de saída: uma sessão pode ser planejada, receber participantes e intenções e ser concluída.
+
+#### Rastreabilidade de aceite de Sessões
+
+| Requisito | Domínio e persistência                                                                                                                                    | IPC                                                                                       | Interface e E2E                                                                                            |
+| --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| SES-01    | Contratos, serviço e repositório validam sequência, campanha, revisão e proveniência; testes unitários e de integração cobrem duplicidade e isolamento.   | `sessions.create/get/list/update` valida entrada, remetente e saída.                      | Planejamento, edição, paginação e persistência após reinício são cobertos pelo E2E de sessões.             |
+| SES-02    | A máquina permite somente `planned → in_progress/cancelled` e `in_progress → completed/cancelled`; finais são irreversíveis.                              | A transição passa pelo mesmo update validado.                                             | A interface pede confirmação e oculta ações de retorno em estado final; E2E inicia e conclui.              |
+| SES-03    | Substituição de participantes é transacional, revisada e rejeita duplicata, entidade arquivada ou de outra campanha; testes cobrem rollback e isolamento. | `sessionParticipants.list/replace` valida contratos e saídas antes de chegar ao renderer. | Participantes podem ser editados e recarregados após reinício; E2E valida presença persistida.             |
+| SES-04    | Intenções validam texto, campanha, sessão, entidade, estados terminais, cursor e revisão; testes cobrem filtros e conflito.                               | `sessionIntentions.create/get/list/update` usa gateway tipado e IPC validado.             | Criação, edição, transição e paginação por cursor são acessíveis; E2E cobre segunda página e persistência. |
+
+Fora deste incremento: eventos e cronologia (2.7), captura rápida (2.8), Caixa de Entrada (2.9),
+integração final (2.10) e qualquer IA. Nenhuma tela, canal ou automação desses incrementos foi
+antecipada por Sessões.
+
+Fechamento 2.6F: a execução final única foi aprovada para lint, Prettier, typecheck, testes
+unitários e IPC, integração e E2E.
 
 ### 2.7 — Eventos e linha do tempo
 
@@ -213,8 +239,8 @@ cada módulo.
 | `assertions`          | `create`, `get`, `list`, `update`, `archive`, `restore`                             |
 | `notes`               | `create`, `get`, `list`, `update`, `archive`, `restore`                             |
 | `sessions`            | `create`, `get`, `list`, `update`                                                   |
-| `sessionParticipants` | `replace`                                                                           |
-| `sessionIntentions`   | `create`, `list`, `update`                                                          |
+| `sessionParticipants` | `list`, `replace`                                                                   |
+| `sessionIntentions`   | `create`, `get`, `list`, `update`                                                   |
 | `events`              | `create`, `get`, `list`, `update`, `archive`, `restore`                             |
 | `timeline`            | `listCampaign`, `listEntity`                                                        |
 | `inbox`               | `capture`, `get`, `list`, `beginReview`, `convert`, `dismiss`, `archive`, `restore` |
@@ -255,8 +281,11 @@ para simular atomicidade.
 ### E2E progressivos
 
 1. Criar tipos e relações, conferir forma inversa e vizinhança.
-2. Planejar sessão, adicionar participantes, registrar eventos e consultar linhas do tempo.
-3. Capturar uma anotação, reiniciar o aplicativo, triá-la e conferir o objeto e sua proveniência.
+2. Planejar sessão, adicionar participantes e intenções, iniciar e concluir; reiniciar o aplicativo
+   e conferir dados manuais, participantes, intenções, estado e data em UTC. A paginação de
+   intenções é verificada com uma segunda página.
+3. A partir de 2.7, registrar eventos e consultar linhas do tempo; a partir de 2.8, capturar uma
+   anotação, reiniciar o aplicativo, triá-la e conferir o objeto e sua proveniência.
 
 ## Dependências e riscos
 

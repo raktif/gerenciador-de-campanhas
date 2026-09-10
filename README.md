@@ -1,6 +1,6 @@
 # Gerenciador de Campanhas de RPG
 
-Aplicativo desktop local-first para organizar campanhas de RPG. A Fase 0 entrega a fundação técnica: Electron seguro, React, persistência SQLite, migrações, busca FTS5, backup anterior a migrações, observabilidade local, IPC tipado e empacotamento. Conforme a ordem revisada pelo adendo 01, a Fase 1 entrega campanhas, tipos de entidade, definições de campo, entidades e arquivamento. A Fase 2 está em andamento e, até o incremento 2.5, acrescenta tipos de relação, relações, campos de referência, vizinhança, afirmações e notas vinculadas a entidades.
+Aplicativo desktop local-first para organizar campanhas de RPG. A Fase 0 entrega a fundação técnica: Electron seguro, React, persistência SQLite, migrações, busca FTS5, backup anterior a migrações, observabilidade local, IPC tipado e empacotamento. Conforme a ordem revisada pelo adendo 01, a Fase 1 entrega campanhas, tipos de entidade, definições de campo, entidades e arquivamento. A Fase 2 está em andamento e, até o incremento 2.6, acrescenta tipos de relação, relações, campos de referência, vizinhança, afirmações, notas e sessões com participantes e intenções.
 
 O aplicativo não abre servidor HTTP e não exige Node.js na máquina do usuário final.
 
@@ -28,14 +28,16 @@ Consulte [configuração de desenvolvimento](docs/development/setup.md), [arquit
 O refinamento técnico e a divisão incremental da próxima etapa estão em
 [Fase 2 — Refinamento técnico](docs/development/phase-2-refinement.md).
 
-Os incrementos 2.1 a 2.5 estão concluídos. O estado e as evidências de Afirmações e Notas estão na
-[rastreabilidade do incremento 2.5](docs/development/phase-2-activity-2.5.md). Sessões, eventos,
-linha do tempo e Caixa de Entrada permanecem nos incrementos seguintes da Fase 2.
+Os incrementos 2.1 a 2.6 estão concluídos. A validação final 2.6F aprovou lint, Prettier, typecheck,
+testes unitários e IPC, integração e E2E. O estado e as evidências de Afirmações e Notas estão na
+[rastreabilidade do incremento 2.5](docs/development/phase-2-activity-2.5.md), enquanto a
+rastreabilidade de Sessões está no refinamento da Fase 2. Eventos, linha do tempo, captura rápida e
+Caixa de Entrada permanecem nos incrementos 2.7 em diante.
 
 ## Estado e limites
 
-O produto entregue até o incremento 2.5 ainda não inclui etiquetas, busca textual de conteúdo,
-inserção rápida em massa, sessões, eventos, linha do tempo, Caixa de Entrada, relógios, demandas,
+O produto disponível até o incremento 2.6 ainda não inclui etiquetas, busca textual de conteúdo,
+inserção rápida em massa, eventos, linha do tempo, captura rápida, Caixa de Entrada, relógios, demandas,
 consequências, biblioteca de PDFs ou IA. A infraestrutura FTS5 criada na Fase 0 permanece reservada
 para a futura busca. Assinatura de código, notarização e publicação automática dependem de
 certificados e credenciais de release. Os makers para Windows, macOS e Linux estão configurados,

@@ -12,6 +12,8 @@ import { PhaseZeroRepository } from '../../db/repositories/phase-zero-repository
 import { NoteRepository } from '../../db/repositories/note-repository';
 import { RelationshipTypeRepository } from '../../db/repositories/relationship-type-repository';
 import { RelationshipRepository } from '../../db/repositories/relationship-repository';
+import { SessionIntentionRepository } from '../../db/repositories/session-intention-repository';
+import { SessionRepository } from '../../db/repositories/session-repository';
 import { registerCampaignIpcHandlers } from '../ipc/campaign-handlers';
 import { registerAssertionIpcHandlers } from '../ipc/assertion-handlers';
 import { registerEntityIpcHandlers } from '../ipc/entity-handlers';
@@ -21,6 +23,7 @@ import { registerPhaseZeroIpcHandlers } from '../ipc/phase-zero-handlers';
 import { registerNoteIpcHandlers } from '../ipc/note-handlers';
 import { registerRelationshipTypeIpcHandlers } from '../ipc/relationship-type-handlers';
 import { registerRelationshipIpcHandlers } from '../ipc/relationship-handlers';
+import { registerSessionIpcHandlers } from '../ipc/session-handlers';
 import { CampaignService } from '../services/campaign-service';
 import { AssertionService } from '../services/assertion-service';
 import { EntityService } from '../services/entity-service';
@@ -30,6 +33,9 @@ import { PhaseZeroService } from '../services/phase-zero-service';
 import { NoteService } from '../services/note-service';
 import { RelationshipTypeService } from '../services/relationship-type-service';
 import { RelationshipService } from '../services/relationship-service';
+import { SessionIntentionService } from '../services/session-intention-service';
+import { SessionParticipantService } from '../services/session-participant-service';
+import { SessionService } from '../services/session-service';
 import { createMainWindow } from '../windows/main-window';
 
 export interface RunningApplication {
@@ -63,6 +69,8 @@ export async function bootstrapApplication(): Promise<RunningApplication> {
   const relationshipRepository = new RelationshipRepository(database.orm);
   const assertionRepository = new AssertionRepository(database.orm);
   const noteRepository = new NoteRepository(database.orm);
+  const sessionRepository = new SessionRepository(database.orm);
+  const sessionIntentionRepository = new SessionIntentionRepository(database.orm);
   const window = createMainWindow();
   const service = new PhaseZeroService({
     applicationVersion: app.getVersion(),
@@ -155,6 +163,28 @@ export async function bootstrapApplication(): Promise<RunningApplication> {
     logger,
     authorizedWebContentsId: window.webContents.id,
   });
+  const sessionService = new SessionService({
+    repository: sessionRepository,
+    campaigns: campaignRepository,
+  });
+  const sessionParticipantService = new SessionParticipantService({
+    repository: sessionRepository,
+    campaigns: campaignRepository,
+    entities: entityRepository,
+  });
+  const sessionIntentionService = new SessionIntentionService({
+    repository: sessionIntentionRepository,
+    campaigns: campaignRepository,
+    sessions: sessionRepository,
+    entities: entityRepository,
+  });
+  const unregisterSessionIpc = registerSessionIpcHandlers(ipcMain, {
+    sessions: sessionService,
+    participants: sessionParticipantService,
+    intentions: sessionIntentionService,
+    logger,
+    authorizedWebContentsId: window.webContents.id,
+  });
   await logger.info('Aplicação inicializada.', { applicationVersion: app.getVersion() });
   let disposed = false;
 
@@ -173,6 +203,7 @@ export async function bootstrapApplication(): Promise<RunningApplication> {
       unregisterRelationshipIpc();
       unregisterAssertionIpc();
       unregisterNoteIpc();
+      unregisterSessionIpc();
       database.close();
     },
   };

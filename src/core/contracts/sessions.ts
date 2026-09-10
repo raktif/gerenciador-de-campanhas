@@ -34,6 +34,11 @@ export const sessionParticipantSchema = z
   .strict();
 export type SessionParticipant = z.infer<typeof sessionParticipantSchema>;
 
+export const listSessionParticipantsInputSchema = z
+  .object({ campaignId: z.uuid(), sessionId: z.uuid() })
+  .strict();
+export type ListSessionParticipantsInput = z.infer<typeof listSessionParticipantsInputSchema>;
+
 const sessionIntentionTextSchema = z.string().trim().min(1).max(10000);
 
 export const sessionIntentionSchema = z
@@ -127,23 +132,43 @@ export const sessionParticipantInputSchema = z
 export type SessionParticipantInput = z.output<typeof sessionParticipantInputSchema>;
 export type SessionParticipantInputRequest = z.input<typeof sessionParticipantInputSchema>;
 
-export const sessionParticipantsInputSchema = z
-  .array(sessionParticipantInputSchema)
+export const sessionParticipantsSchema = z
+  .array(sessionParticipantSchema)
   .max(100)
   .superRefine((participants, context) => {
-    const seen = new Set<string>();
-    participants.forEach((participant, index) => {
-      if (!seen.has(participant.entityId)) {
-        seen.add(participant.entityId);
-        return;
-      }
+    for (const index of duplicateParticipantEntityIndexes(participants)) {
       context.addIssue({
         code: 'custom',
         message: 'A mesma entidade não pode participar mais de uma vez da sessão.',
         path: [index, 'entityId'],
       });
-    });
+    }
   });
+
+export const sessionParticipantsInputSchema = z
+  .array(sessionParticipantInputSchema)
+  .max(100)
+  .superRefine((participants, context) => {
+    for (const index of duplicateParticipantEntityIndexes(participants)) {
+      context.addIssue({
+        code: 'custom',
+        message: 'A mesma entidade não pode participar mais de uma vez da sessão.',
+        path: [index, 'entityId'],
+      });
+    }
+  });
+
+function duplicateParticipantEntityIndexes(
+  participants: readonly { entityId: string }[],
+): number[] {
+  const seen = new Set<string>();
+  const duplicates: number[] = [];
+  participants.forEach((participant, index) => {
+    if (seen.has(participant.entityId)) duplicates.push(index);
+    else seen.add(participant.entityId);
+  });
+  return duplicates;
+}
 
 export const replaceSessionParticipantsInputSchema = z
   .object({
@@ -231,6 +256,7 @@ export interface SessionGateway {
 }
 
 export interface SessionParticipantsGateway {
+  list(input: ListSessionParticipantsInput): Promise<Result<SessionParticipant[]>>;
   replace(input: ReplaceSessionParticipantsInputRequest): Promise<Result<SessionParticipant[]>>;
 }
 

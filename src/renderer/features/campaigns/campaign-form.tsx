@@ -29,6 +29,7 @@ type CampaignFormProps = CommonCampaignFormProps &
         onManageRelationships: () => void;
         onManageAssertions: () => void;
         onManageNotes: () => void;
+        onManageSessions: () => void;
         onSubmit: (patch: CampaignPatch) => Promise<void>;
       }
   );
@@ -141,6 +142,14 @@ export function CampaignForm(props: CampaignFormProps): React.JSX.Element {
                   type="button"
                 >
                   Notas
+                </button>
+                <button
+                  className="rounded-xl border border-stone-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700"
+                  disabled={busy}
+                  onClick={props.onManageSessions}
+                  type="button"
+                >
+                  Sessões
                 </button>
                 <button
                   className="rounded-xl border border-stone-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700"
