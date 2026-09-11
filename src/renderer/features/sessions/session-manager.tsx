@@ -8,6 +8,7 @@ import type {
   SessionParticipantInput,
 } from '../../../core/contracts/sessions';
 import { inputClass, primaryClass, secondaryClass } from '../narrative/narrative-metadata-fields';
+import { EventManager } from './event-manager';
 
 type View = 'list' | 'create' | 'edit';
 type SessionStatus = Session['status'];
@@ -46,6 +47,7 @@ export function SessionManager({
   const [error, setError] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState<string | null>(null);
   const [pending, setPending] = useState<PendingTransition | null>(null);
+  const [section, setSection] = useState<'sessions' | 'events'>('sessions');
 
   const load = useCallback(
     async (append = false): Promise<void> => {
@@ -150,6 +152,8 @@ export function SessionManager({
       setBusy(false);
     }
   }
+  if (section === 'events')
+    return <EventManager campaign={campaign} onBack={() => setSection('sessions')} />;
   if (view !== 'list')
     return (
       <SessionEditor
@@ -197,6 +201,14 @@ export function SessionManager({
           type="button"
         >
           Planejar sessão
+        </button>
+        <button
+          className={secondaryClass}
+          disabled={busy}
+          onClick={() => setSection('events')}
+          type="button"
+        >
+          Gerenciar eventos
         </button>
       </header>
       <div
