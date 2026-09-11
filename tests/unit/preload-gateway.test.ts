@@ -21,6 +21,7 @@ describe('gateway do preload', () => {
       'campaigns',
       'entities',
       'entityTypes',
+      'events',
       'fieldDefinitions',
       'notes',
       'phaseZero',

@@ -79,6 +79,15 @@ export const noteChannels = {
   restore: 'notes:restore',
 } as const;
 
+export const eventChannels = {
+  create: 'events:create',
+  get: 'events:get',
+  list: 'events:list',
+  update: 'events:update',
+  archive: 'events:archive',
+  restore: 'events:restore',
+} as const;
+
 export const sessionChannels = {
   create: 'sessions:create',
   get: 'sessions:get',

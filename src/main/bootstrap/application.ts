@@ -19,6 +19,7 @@ import { registerCampaignIpcHandlers } from '../ipc/campaign-handlers';
 import { registerAssertionIpcHandlers } from '../ipc/assertion-handlers';
 import { registerEntityIpcHandlers } from '../ipc/entity-handlers';
 import { registerEntityTypeIpcHandlers } from '../ipc/entity-type-handlers';
+import { registerEventIpcHandlers } from '../ipc/event-handlers';
 import { registerFieldDefinitionIpcHandlers } from '../ipc/field-definition-handlers';
 import { registerPhaseZeroIpcHandlers } from '../ipc/phase-zero-handlers';
 import { registerNoteIpcHandlers } from '../ipc/note-handlers';
@@ -29,6 +30,7 @@ import { CampaignService } from '../services/campaign-service';
 import { AssertionService } from '../services/assertion-service';
 import { EntityService } from '../services/entity-service';
 import { EntityTypeService } from '../services/entity-type-service';
+import { EventService } from '../services/event-service';
 import { FieldDefinitionService } from '../services/field-definition-service';
 import { PhaseZeroService } from '../services/phase-zero-service';
 import { NoteService } from '../services/note-service';
@@ -166,6 +168,17 @@ export async function bootstrapApplication(): Promise<RunningApplication> {
     logger,
     authorizedWebContentsId: window.webContents.id,
   });
+  const eventService = new EventService({
+    repository: eventRepository,
+    campaigns: campaignRepository,
+    sessions: sessionRepository,
+    entities: entityRepository,
+  });
+  const unregisterEventIpc = registerEventIpcHandlers(ipcMain, {
+    service: eventService,
+    logger,
+    authorizedWebContentsId: window.webContents.id,
+  });
   const sessionService = new SessionService({
     repository: sessionRepository,
     campaigns: campaignRepository,
@@ -206,6 +219,7 @@ export async function bootstrapApplication(): Promise<RunningApplication> {
       unregisterRelationshipIpc();
       unregisterAssertionIpc();
       unregisterNoteIpc();
+      unregisterEventIpc();
       unregisterSessionIpc();
       database.close();
     },

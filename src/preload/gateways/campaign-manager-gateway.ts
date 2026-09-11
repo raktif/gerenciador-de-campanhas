@@ -26,6 +26,15 @@ import {
   type EntityDetails,
   type EntityPageResult,
 } from '../../core/contracts/entities';
+import {
+  createEventInputSchema,
+  eventLifecycleInputSchema,
+  eventPageRequestSchema,
+  getEventInputSchema,
+  updateEventInputSchema,
+  type EventDetails,
+  type EventPageResult,
+} from '../../core/contracts/events';
 import type { CampaignManagerGateway } from '../../core/contracts/gateway';
 import {
   createNoteInputSchema,
@@ -80,6 +89,7 @@ import {
   campaignChannels,
   entityChannels,
   entityTypeChannels,
+  eventChannels,
   fieldDefinitionChannels,
   noteChannels,
   phaseZeroChannels,
@@ -310,6 +320,16 @@ export function createCampaignManagerGateway(invokeIpc: IpcInvoker): CampaignMan
         invoke<NoteDetails>(noteChannels.archive, input, noteLifecycleInputSchema),
       restore: (input) =>
         invoke<NoteDetails>(noteChannels.restore, input, noteLifecycleInputSchema),
+    },
+    events: {
+      create: (input) => invoke<EventDetails>(eventChannels.create, input, createEventInputSchema),
+      get: (input) => invoke<EventDetails>(eventChannels.get, input, getEventInputSchema),
+      list: (input) => invoke<EventPageResult>(eventChannels.list, input, eventPageRequestSchema),
+      update: (input) => invoke<EventDetails>(eventChannels.update, input, updateEventInputSchema),
+      archive: (input) =>
+        invoke<EventDetails>(eventChannels.archive, input, eventLifecycleInputSchema),
+      restore: (input) =>
+        invoke<EventDetails>(eventChannels.restore, input, eventLifecycleInputSchema),
     },
     sessions: {
       create: (input) => invoke<Session>(sessionChannels.create, input, createSessionInputSchema),
