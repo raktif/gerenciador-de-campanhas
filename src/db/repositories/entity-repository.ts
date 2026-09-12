@@ -27,7 +27,7 @@ import {
   type FieldValue,
 } from '../../core/contracts/entities';
 import { AppError } from '../../core/errors/app-error';
-import { entities, fieldValues } from '../schema';
+import { entities, fieldValues, relationships } from '../schema';
 import type * as schema from '../schema';
 
 const cursorSchema = z
@@ -69,11 +69,21 @@ export interface FieldValuePersistence {
   valueDate: string | null;
   valueJson: FieldValue['value'];
 }
+export interface ReferenceRelationshipSync {
+  relationshipTypeId: string;
+  direction: 'outgoing' | 'incoming';
+  symmetric: boolean;
+  relationships: (typeof relationships.$inferInsert)[];
+}
 
 export class EntityRepository {
   public constructor(private readonly database: BetterSQLite3Database<typeof schema>) {}
 
-  public insert(entity: Entity, values: FieldValuePersistence[]): EntityDetails {
+  public insert(
+    entity: Entity,
+    values: FieldValuePersistence[],
+    references: ReferenceRelationshipSync[] = [],
+  ): EntityDetails {
     this.database.transaction((transaction) => {
       transaction.insert(entities).values(entity).run();
       if (values.length > 0)
@@ -89,6 +99,9 @@ export class EntityRepository {
             })),
           )
           .run();
+      for (const reference of references)
+        if (reference.relationships.length > 0)
+          transaction.insert(relationships).values(reference.relationships).run();
     });
     return this.requireDetails(entity.campaignId, entity.id);
   }
@@ -170,6 +183,7 @@ export class EntityRepository {
     input: EntityRepositoryUpdate,
     updatedAt: string,
     values?: FieldValuePersistence[],
+    references?: ReferenceRelationshipSync[],
   ): EntityDetails {
     if (this.findById(input.campaignId, input.id) === null) throw notFound(input);
     this.database.transaction((transaction) => {
@@ -218,6 +232,51 @@ export class EntityRepository {
             })
             .run();
       }
+      if (references !== undefined) {
+        for (const reference of references) {
+          const endpoint = reference.symmetric
+            ? or(
+                eq(relationships.sourceEntityId, input.id),
+                eq(relationships.targetEntityId, input.id),
+              )
+            : eq(
+                reference.direction === 'outgoing'
+                  ? relationships.sourceEntityId
+                  : relationships.targetEntityId,
+                input.id,
+              );
+          const active = transaction
+            .select()
+            .from(relationships)
+            .where(
+              and(
+                eq(relationships.campaignId, input.campaignId),
+                eq(relationships.relationshipTypeId, reference.relationshipTypeId),
+                endpoint,
+                isNull(relationships.archivedAt),
+              ),
+            )
+            .all();
+          const desiredKeys = new Set(reference.relationships.map(relationshipKey));
+          const activeKeys = new Set(active.map(relationshipKey));
+          for (const existing of active) {
+            if (desiredKeys.has(relationshipKey(existing))) continue;
+            transaction
+              .update(relationships)
+              .set({
+                archivedAt: updatedAt,
+                updatedAt,
+                revision: sql`${relationships.revision} + 1`,
+              })
+              .where(eq(relationships.id, existing.id))
+              .run();
+          }
+          const additions = reference.relationships.filter(
+            (item) => !activeKeys.has(relationshipKey(item)),
+          );
+          if (additions.length > 0) transaction.insert(relationships).values(additions).run();
+        }
+      }
     });
     return this.requireDetails(input.campaignId, input.id);
   }
@@ -227,6 +286,10 @@ export class EntityRepository {
     if (details === null) throw notFound({ campaignId, id });
     return details;
   }
+}
+
+function relationshipKey(value: { sourceEntityId: string; targetEntityId: string }): string {
+  return `${value.sourceEntityId}:${value.targetEntityId}`;
 }
 
 function toFieldValue(row: typeof fieldValues.$inferSelect): FieldValue {

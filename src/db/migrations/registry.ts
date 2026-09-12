@@ -6,6 +6,7 @@ import fieldDefinitionsMigration from './0004_field_definitions.sql?raw';
 import entitiesMigration from './0005_entities.sql?raw';
 import legacyTagsAndSearchMigration from './0006_tags_and_search_legacy.sql?raw';
 import removeDeferredPhaseFeaturesMigration from './0007_remove_deferred_phase_features.sql?raw';
+import phaseTwoFoundationMigration from './0008_phase_two_foundation.sql?raw';
 
 export interface MigrationDefinition {
   version: number;
@@ -62,5 +63,11 @@ export const migrations: readonly MigrationDefinition[] = [
     name: 'phase-one-remove-deferred-features',
     checksum: checksum(removeDeferredPhaseFeaturesMigration),
     sql: removeDeferredPhaseFeaturesMigration,
+  },
+  {
+    version: 8,
+    name: 'phase-two-foundation',
+    checksum: checksum(phaseTwoFoundationMigration),
+    sql: phaseTwoFoundationMigration,
   },
 ];

@@ -67,13 +67,13 @@ try {
   const sqlite = database.prepare('SELECT sqlite_version() AS version').get();
   database.close();
 
-  if (schema.version !== 7) throw new Error(`Schema inesperado: ${schema.version}`);
+  if (schema.version !== 8) throw new Error(`Schema inesperado: ${schema.version}`);
   process.stdout.write(
     `Pacote validado (startup=ok, schema=${schema.version}, sqlite=${sqlite.version}, FTS5=ok).\n`,
   );
 } finally {
   child?.kill();
-  await rm(dataDirectory, { recursive: true, force: true });
+  await rm(dataDirectory, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
 }
 
 async function waitForFile(filePath, timeoutMs, exitPromise, getStderr) {

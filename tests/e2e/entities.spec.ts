@@ -41,7 +41,6 @@ test('cadastra entidade com metadados, edita, arquiva e persiste após reiniciar
     await window.getByLabel('Natureza do conhecimento').selectOption('rumor');
     await window.getByLabel('Visibilidade').selectOption('players');
     await window.getByLabel('Origem').selectOption('document');
-    await window.getByLabel('Identificador da fonte').fill('caderno-01');
     await window.getByRole('button', { name: 'Criar entidade' }).click();
 
     await expect(window.getByRole('status')).toContainText('Entidade “Gorel” criada.');
@@ -59,7 +58,6 @@ test('cadastra entidade com metadados, edita, arquiva e persiste após reiniciar
     await expect(window.getByLabel('Natureza do conhecimento')).toHaveValue('rumor');
     await expect(window.getByLabel('Visibilidade')).toHaveValue('players');
     await expect(window.getByLabel('Origem')).toHaveValue('document');
-    await expect(window.getByLabel('Identificador da fonte')).toHaveValue('caderno-01');
     await window.getByLabel('Resumo').fill('Chefe respeitado dos mineradores');
     await window.getByRole('button', { name: 'Salvar entidade' }).click();
     await expect(window.getByRole('status')).toContainText('Entidade “Gorel” atualizada.');

@@ -3,22 +3,46 @@ import { readEnvironment, resolveDataRoot } from '../../core/config/environment'
 import { FileLogger } from '../../core/logging/logger';
 import { ensureDataDirectories, getDataDirectories } from '../../core/storage/data-directories';
 import { openApplicationDatabase, type DatabaseContext } from '../../db/connection';
+import { AssertionRepository } from '../../db/repositories/assertion-repository';
 import { CampaignRepository } from '../../db/repositories/campaign-repository';
 import { EntityRepository } from '../../db/repositories/entity-repository';
+import { EventRepository } from '../../db/repositories/event-repository';
 import { EntityTypeRepository } from '../../db/repositories/entity-type-repository';
 import { FieldDefinitionRepository } from '../../db/repositories/field-definition-repository';
 import { PhaseZeroRepository } from '../../db/repositories/phase-zero-repository';
+import { NoteRepository } from '../../db/repositories/note-repository';
+import { RelationshipTypeRepository } from '../../db/repositories/relationship-type-repository';
+import { RelationshipRepository } from '../../db/repositories/relationship-repository';
+import { TimelineRepository } from '../../db/repositories/timeline-repository';
+import { SessionIntentionRepository } from '../../db/repositories/session-intention-repository';
+import { SessionRepository } from '../../db/repositories/session-repository';
 import { registerCampaignIpcHandlers } from '../ipc/campaign-handlers';
+import { registerAssertionIpcHandlers } from '../ipc/assertion-handlers';
 import { registerEntityIpcHandlers } from '../ipc/entity-handlers';
 import { registerEntityTypeIpcHandlers } from '../ipc/entity-type-handlers';
+import { registerEventIpcHandlers } from '../ipc/event-handlers';
 import { registerFieldDefinitionIpcHandlers } from '../ipc/field-definition-handlers';
 import { registerPhaseZeroIpcHandlers } from '../ipc/phase-zero-handlers';
+import { registerNoteIpcHandlers } from '../ipc/note-handlers';
+import { registerRelationshipTypeIpcHandlers } from '../ipc/relationship-type-handlers';
+import { registerRelationshipIpcHandlers } from '../ipc/relationship-handlers';
+import { registerSessionIpcHandlers } from '../ipc/session-handlers';
+import { registerTimelineIpcHandlers } from '../ipc/timeline-handlers';
 import { CampaignService } from '../services/campaign-service';
+import { AssertionService } from '../services/assertion-service';
 import { EntityService } from '../services/entity-service';
 import { EntityTypeService } from '../services/entity-type-service';
+import { EventService } from '../services/event-service';
 import { FieldDefinitionService } from '../services/field-definition-service';
 import { PhaseZeroService } from '../services/phase-zero-service';
-import { createMainWindow } from '../windows/main-window';
+import { NoteService } from '../services/note-service';
+import { RelationshipTypeService } from '../services/relationship-type-service';
+import { RelationshipService } from '../services/relationship-service';
+import { SessionIntentionService } from '../services/session-intention-service';
+import { SessionParticipantService } from '../services/session-participant-service';
+import { SessionService } from '../services/session-service';
+import { TimelineService } from '../services/timeline-service';
+import { createMainWindow, loadMainWindow } from '../windows/main-window';
 
 export interface RunningApplication {
   window: BrowserWindow;
@@ -47,6 +71,14 @@ export async function bootstrapApplication(): Promise<RunningApplication> {
   const entityTypeRepository = new EntityTypeRepository(database.orm);
   const fieldDefinitionRepository = new FieldDefinitionRepository(database.orm);
   const entityRepository = new EntityRepository(database.orm);
+  const relationshipTypeRepository = new RelationshipTypeRepository(database.orm);
+  const relationshipRepository = new RelationshipRepository(database.orm);
+  const eventRepository = new EventRepository(database.orm);
+  const timelineRepository = new TimelineRepository(database.orm);
+  const assertionRepository = new AssertionRepository(database.orm);
+  const noteRepository = new NoteRepository(database.orm);
+  const sessionRepository = new SessionRepository(database.orm);
+  const sessionIntentionRepository = new SessionIntentionRepository(database.orm);
   const window = createMainWindow();
   const service = new PhaseZeroService({
     applicationVersion: app.getVersion(),
@@ -81,6 +113,7 @@ export async function bootstrapApplication(): Promise<RunningApplication> {
   const fieldDefinitionService = new FieldDefinitionService({
     repository: fieldDefinitionRepository,
     entityTypes: entityTypeRepository,
+    relationshipTypes: relationshipTypeRepository,
   });
   const unregisterFieldDefinitionIpc = registerFieldDefinitionIpcHandlers(ipcMain, {
     service: fieldDefinitionService,
@@ -91,13 +124,99 @@ export async function bootstrapApplication(): Promise<RunningApplication> {
     repository: entityRepository,
     entityTypes: entityTypeRepository,
     fieldDefinitions: fieldDefinitionRepository,
+    relationshipTypes: relationshipTypeRepository,
   });
   const unregisterEntityIpc = registerEntityIpcHandlers(ipcMain, {
     service: entityService,
     logger,
     authorizedWebContentsId: window.webContents.id,
   });
+  const relationshipTypeService = new RelationshipTypeService({
+    repository: relationshipTypeRepository,
+    campaigns: campaignRepository,
+    entityTypes: entityTypeRepository,
+  });
+  const unregisterRelationshipTypeIpc = registerRelationshipTypeIpcHandlers(ipcMain, {
+    service: relationshipTypeService,
+    logger,
+    authorizedWebContentsId: window.webContents.id,
+  });
+  const relationshipService = new RelationshipService({
+    repository: relationshipRepository,
+    relationshipTypes: relationshipTypeRepository,
+    entities: entityRepository,
+    events: eventRepository,
+  });
+  const unregisterRelationshipIpc = registerRelationshipIpcHandlers(ipcMain, {
+    service: relationshipService,
+    logger,
+    authorizedWebContentsId: window.webContents.id,
+  });
+  const assertionService = new AssertionService({
+    repository: assertionRepository,
+    campaigns: campaignRepository,
+    entities: entityRepository,
+  });
+  const unregisterAssertionIpc = registerAssertionIpcHandlers(ipcMain, {
+    service: assertionService,
+    logger,
+    authorizedWebContentsId: window.webContents.id,
+  });
+  const noteService = new NoteService({
+    repository: noteRepository,
+    campaigns: campaignRepository,
+    entities: entityRepository,
+  });
+  const unregisterNoteIpc = registerNoteIpcHandlers(ipcMain, {
+    service: noteService,
+    logger,
+    authorizedWebContentsId: window.webContents.id,
+  });
+  const eventService = new EventService({
+    repository: eventRepository,
+    campaigns: campaignRepository,
+    sessions: sessionRepository,
+    entities: entityRepository,
+  });
+  const unregisterEventIpc = registerEventIpcHandlers(ipcMain, {
+    service: eventService,
+    logger,
+    authorizedWebContentsId: window.webContents.id,
+  });
+  const timelineService = new TimelineService({
+    repository: timelineRepository,
+    campaigns: campaignRepository,
+    entities: entityRepository,
+  });
+  const unregisterTimelineIpc = registerTimelineIpcHandlers(ipcMain, {
+    service: timelineService,
+    logger,
+    authorizedWebContentsId: window.webContents.id,
+  });
+  const sessionService = new SessionService({
+    repository: sessionRepository,
+    campaigns: campaignRepository,
+  });
+  const sessionParticipantService = new SessionParticipantService({
+    repository: sessionRepository,
+    campaigns: campaignRepository,
+    entities: entityRepository,
+  });
+  const sessionIntentionService = new SessionIntentionService({
+    repository: sessionIntentionRepository,
+    campaigns: campaignRepository,
+    sessions: sessionRepository,
+    entities: entityRepository,
+  });
+  const unregisterSessionIpc = registerSessionIpcHandlers(ipcMain, {
+    sessions: sessionService,
+    participants: sessionParticipantService,
+    intentions: sessionIntentionService,
+    logger,
+    authorizedWebContentsId: window.webContents.id,
+  });
   await logger.info('Aplicação inicializada.', { applicationVersion: app.getVersion() });
+  await loadMainWindow(window);
   let disposed = false;
 
   return {
@@ -111,6 +230,13 @@ export async function bootstrapApplication(): Promise<RunningApplication> {
       unregisterEntityTypeIpc();
       unregisterFieldDefinitionIpc();
       unregisterEntityIpc();
+      unregisterRelationshipTypeIpc();
+      unregisterRelationshipIpc();
+      unregisterAssertionIpc();
+      unregisterNoteIpc();
+      unregisterEventIpc();
+      unregisterTimelineIpc();
+      unregisterSessionIpc();
       database.close();
     },
   };

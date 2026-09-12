@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { EntityType } from '../../core/contracts/entity-types';
+import type { RelationshipType } from '../../core/contracts/relationship-types';
 import type {
   CreateFieldDefinitionInput,
   FieldDefinition,
@@ -26,6 +27,7 @@ export interface EntityTypeLookupPort {
 export interface FieldDefinitionServiceDependencies {
   repository: FieldDefinitionRepositoryPort;
   entityTypes: EntityTypeLookupPort;
+  relationshipTypes?: { findById(campaignId: string, id: string): RelationshipType | null };
   createId?: () => string;
   now?: () => string;
 }
@@ -41,7 +43,7 @@ export class FieldDefinitionService {
 
   public create(input: CreateFieldDefinitionInput): FieldDefinition {
     this.requireEntityType(input.campaignId, input.entityTypeId);
-    this.validateReferenceConfiguration(input.campaignId, input);
+    this.validateReferenceConfiguration(input.campaignId, input.entityTypeId, input);
     const timestamp = this.now();
     return this.dependencies.repository.insert({
       id: this.createId(),
@@ -80,7 +82,7 @@ export class FieldDefinitionService {
 
   public update(input: UpdateFieldDefinitionInput): FieldDefinition {
     const current = this.requireFieldDefinition(input);
-    this.validateReferenceConfiguration(input.campaignId, {
+    this.validateReferenceConfiguration(input.campaignId, input.entityTypeId, {
       dataType: input.patch.dataType ?? current.dataType,
       referenceRelationshipTypeId:
         input.patch.referenceRelationshipTypeId === undefined
@@ -181,6 +183,7 @@ export class FieldDefinitionService {
 
   private validateReferenceConfiguration(
     campaignId: string,
+    entityTypeId: string,
     field: Pick<
       FieldDefinition,
       | 'dataType'
@@ -213,6 +216,28 @@ export class FieldDefinitionService {
         'INVALID_FIELD_REFERENCE_CONFIG',
         'Uma relação de referência exige direção e comportamento de exclusão.',
       );
+    }
+    if (field.referenceRelationshipTypeId !== null) {
+      const lookup = this.dependencies.relationshipTypes;
+      if (lookup !== undefined) {
+        const relationshipType = lookup.findById(campaignId, field.referenceRelationshipTypeId);
+        if (relationshipType === null || relationshipType.isArchived)
+          throw new AppError(
+            'INVALID_FIELD_REFERENCE_CONFIG',
+            'O tipo de relação da referência não está disponível nesta campanha.',
+            { relationshipTypeId: field.referenceRelationshipTypeId },
+          );
+        const allowedOwnerTypes =
+          field.referenceDirection === 'incoming'
+            ? relationshipType.allowedTargetTypeIds
+            : relationshipType.allowedSourceTypeIds;
+        if (allowedOwnerTypes !== null && !allowedOwnerTypes.includes(entityTypeId))
+          throw new AppError(
+            'INVALID_FIELD_REFERENCE_CONFIG',
+            'O tipo desta entidade não é permitido na direção escolhida.',
+            { entityTypeId, relationshipTypeId: relationshipType.id },
+          );
+      }
     }
 
     for (const targetTypeId of field.allowedTargetTypeIds ?? []) {
