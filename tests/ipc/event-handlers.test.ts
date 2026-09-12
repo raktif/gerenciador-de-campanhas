@@ -10,6 +10,7 @@ type CapturedHandler = (event: IpcMainInvokeEvent, input: unknown) => Promise<un
 const campaignId = '00000000-0000-4000-8000-000000000001';
 const eventId = '60000000-0000-4000-8000-000000000001';
 const entityId = '30000000-0000-4000-8000-000000000001';
+const sessionId = '70000000-0000-4000-8000-000000000001';
 const timestamp = '2026-09-11T12:00:00.000Z';
 
 describe('handlers IPC de eventos', () => {
@@ -24,6 +25,8 @@ describe('handlers IPC de eventos', () => {
     await handler(handlers, eventChannels.create)(event(42), {
       campaignId,
       title: '  A ponte desaba  ',
+      originKind: 'session',
+      sourceSessionId: sessionId,
       links: [{ entityId, role: 'location' }],
     });
     await handler(handlers, eventChannels.get)(event(42), identity);
@@ -38,6 +41,7 @@ describe('handlers IPC de eventos', () => {
     expect(service.createInput).toMatchObject({
       title: 'A ponte desaba',
       eventOrder: 0,
+      sourceSessionId: sessionId,
       links: [{ entityId, role: 'location', sortOrder: 0 }],
     });
     expect(service.listInput).toEqual({

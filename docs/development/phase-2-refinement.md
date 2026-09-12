@@ -12,8 +12,8 @@ sessão e capturar informações durante o jogo, integralmente sem IA.
 
 Estado atual: os incrementos 2.0 (refinamento), 2.1 (fundação narrativa persistente), 2.2 (tipos de
 relação), 2.3 (relações e campos de referência), 2.4 (lista e vizinhança), 2.5 (afirmações e
-notas) e 2.6 (sessões) estão concluídos. A validação final 2.6F foi aprovada; Eventos e linha do
-tempo (2.7) permanecem como o próximo incremento planejado.
+notas), 2.6 (sessões) e 2.7 (eventos e cronologia) estão concluídos. A rastreabilidade da 2.7 está
+em [Fase 2 — Atividade 2.7](phase-2-activity-2.7.md); 2.8 é o próximo incremento planejado.
 
 ## Escopo
 
@@ -189,13 +189,20 @@ unitários e IPC, integração e E2E.
 
 ### 2.7 — Eventos e linha do tempo
 
-- implementar eventos e seus vínculos com entidades;
-- ordenar eventos dentro da sessão e entre sessões;
-- exibir linha do tempo da campanha e da entidade;
-- concluir a validação de vigência das relações.
+Estado: concluída em 2026-09-11. Consulte a
+[rastreabilidade do incremento 2.7](phase-2-activity-2.7.md).
 
-Critério de saída: o evento “Descoberta nos túneis” aparece na sessão, na campanha e nas entidades
-vinculadas, sempre na ordem esperada.
+- Eventos, seus vínculos com entidades, revisão otimista, arquivamento/restauração e metadados
+  narrativos foram entregues com validação de campanha, sessão e entidades ativas.
+- A ordem narrativa não interpreta `occurredAtLabel`: ordena sessões por sequência e eventos por
+  ordem, criação e ID; eventos sem sessão formam o grupo determinístico seguinte.
+- As cronologias de campanha e entidade usam cursor preso aos filtros, preservam papéis/ordem e
+  permitem consulta histórica de entidade arquivada.
+- A validação de vigência de relações exige que os eventos inicial e final pertençam à campanha da
+  relação.
+
+Critério de saída atendido: eventos aparecem na sessão, na campanha e nas entidades vinculadas, na
+ordem narrativa esperada; o E2E cobre duas sessões, vínculos e persistência após reinício.
 
 ### 2.8 — Captura rápida
 

@@ -30,6 +30,10 @@ interface PendingLifecycle {
   event: Event;
   restore: boolean;
 }
+interface UserFacingError {
+  message: string;
+  field?: 'sourceSession';
+}
 
 const gatewayError =
   'N\u00e3o foi poss\u00edvel concluir a opera\u00e7\u00e3o. Revise os dados e tente novamente.';
@@ -43,6 +47,35 @@ const eventRoleLabels: Record<EventEntityLinkInput['role'], string> = {
   victim: 'V\u00edtima',
   related: 'Relacionado',
 };
+
+function eventFailure(code: string, message: string): UserFacingError {
+  if (code === 'EVENT_SESSION_SOURCE_REQUIRED')
+    return { message: 'Selecione a sessão que originou este evento.', field: 'sourceSession' };
+  if (code === 'EVENT_SESSION_SOURCE_AMBIGUOUS')
+    return {
+      message: 'Escolha novamente a sessão desta campanha que originou o evento.',
+      field: 'sourceSession',
+    };
+  if (code === 'SESSION_NOT_FOUND')
+    return {
+      message: 'A sessão selecionada não está disponível nesta campanha. Escolha outra.',
+      field: 'sourceSession',
+    };
+  if (code === 'VALIDATION_ERROR')
+    return {
+      message: 'Revise os campos destacados e tente novamente.',
+    };
+  return { message };
+}
+
+function sourceSessionError(
+  error: UserFacingError | null,
+  validation: string | null,
+): {} | { error: string } {
+  if (error?.field === 'sourceSession') return { error: error.message };
+  if (validation === 'Selecione a sessão que originou este evento.') return { error: validation };
+  return {};
+}
 
 export function EventManager({
   campaign,
@@ -59,8 +92,9 @@ export function EventManager({
   const [editing, setEditing] = useState<EventDetails | null>(null);
   const [archived, setArchived] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [referencesLoading, setReferencesLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<UserFacingError | null>(null);
   const [announcement, setAnnouncement] = useState<string | null>(null);
   const [pending, setPending] = useState<PendingLifecycle | null>(null);
 
@@ -78,9 +112,9 @@ export function EventManager({
         if (result.ok) {
           setItems((current) => (append ? [...current, ...result.data.items] : result.data.items));
           setCursor(result.data.nextCursor);
-        } else setError(result.error.message);
+        } else setError({ message: result.error.message });
       } catch {
-        setError(gatewayError);
+        setError({ message: gatewayError });
       } finally {
         setLoading(false);
       }
@@ -89,6 +123,7 @@ export function EventManager({
   );
 
   const loadReferences = useCallback(async (): Promise<void> => {
+    setReferencesLoading(true);
     try {
       const [loadedSessions, loadedEntities] = await Promise.all([
         loadAllSessions(campaign.id),
@@ -97,7 +132,9 @@ export function EventManager({
       setSessions(loadedSessions);
       setEntities(loadedEntities);
     } catch {
-      setError(gatewayError);
+      setError({ message: gatewayError });
+    } finally {
+      setReferencesLoading(false);
     }
   }, [campaign.id]);
 
@@ -122,9 +159,9 @@ export function EventManager({
       if (result.ok) {
         setEditing(result.data);
         setView('edit');
-      } else setError(result.error.message);
+      } else setError({ message: result.error.message });
     } catch {
-      setError(gatewayError);
+      setError({ message: gatewayError });
     } finally {
       setBusy(false);
     }
@@ -144,9 +181,9 @@ export function EventManager({
         setEditing(null);
         setView('list');
         await load(false);
-      } else setError(result.error.message);
+      } else setError(eventFailure(result.error.code, result.error.message));
     } catch (exception) {
-      setError(exception instanceof Error ? exception.message : gatewayError);
+      setError({ message: gatewayError });
     } finally {
       setBusy(false);
     }
@@ -162,6 +199,7 @@ export function EventManager({
       id: current.event.id,
       revision: current.event.revision,
       ...(Object.keys(patch).length === 0 ? {} : { patch }),
+      ...(input.sourceSessionId === undefined ? {} : { sourceSessionId: input.sourceSessionId }),
       ...(replaceLinks ? { links: input.links } : {}),
     });
   }
@@ -183,9 +221,9 @@ export function EventManager({
         setAnnouncement(pending.restore ? 'Evento restaurado.' : 'Evento arquivado.');
         setPending(null);
         await load(false);
-      } else setError(result.error.message);
+      } else setError({ message: result.error.message });
     } catch {
-      setError(gatewayError);
+      setError({ message: gatewayError });
     } finally {
       setBusy(false);
     }
@@ -211,8 +249,14 @@ export function EventManager({
 
   return (
     <section aria-labelledby="events-title">
-      <button className={secondaryClass} disabled={busy} onClick={onBack} type="button">
-        â† Voltar para sessÃµes
+      <button
+        aria-label={'Voltar para sess\u00f5es'}
+        className={secondaryClass}
+        disabled={busy}
+        onClick={onBack}
+        type="button"
+      >
+        ← Voltar para sessões
       </button>
       <header className="mt-6 flex flex-wrap items-end justify-between gap-5 border-b border-stone-200 pb-6">
         <div>
@@ -223,12 +267,12 @@ export function EventManager({
             Eventos
           </h1>
           <p className="mt-2 text-slate-600">
-            Registre acontecimentos, a sessÃ£o associada e as entidades envolvidas.
+            Registre acontecimentos, a sessão associada e as entidades envolvidas.
           </p>
         </div>
         <button
           className={primaryClass}
-          disabled={busy}
+          disabled={busy || referencesLoading}
           onClick={() => {
             setEditing(null);
             setView('create');
@@ -238,6 +282,11 @@ export function EventManager({
           Registrar evento
         </button>
       </header>
+      {referencesLoading ? (
+        <p aria-live="polite" className="mt-4 text-sm text-slate-600" role="status">
+          Carregando sessões e entidades para o evento…
+        </p>
+      ) : null}
       <div className="mt-5 flex gap-2" role="group" aria-label="Filtrar eventos por estado">
         <button
           aria-pressed={!archived}
@@ -269,7 +318,7 @@ export function EventManager({
       )}
       {error === null ? null : (
         <div className="mt-5 rounded-xl bg-red-50 p-4 text-red-800" role="alert">
-          <p>{error}</p>
+          <p>{error.message}</p>
           <button
             className={`${secondaryClass} mt-3`}
             disabled={busy || loading}
@@ -286,12 +335,12 @@ export function EventManager({
       {pending === null ? null : (
         <div className="mt-5 rounded-xl border border-amber-300 bg-amber-50 p-5" role="alert">
           <p className="font-semibold">
-            {pending.restore ? 'Restaurar' : 'Arquivar'} â€œ{pending.event.title}â€?
+            {pending.restore ? 'Restaurar' : 'Arquivar'} “{pending.event.title}”?
           </p>
           <p className="mt-1 text-sm">
             {pending.restore
-              ? 'Os vÃ­nculos serÃ£o validados novamente antes da restauraÃ§Ã£o.'
-              : 'O evento e seus vÃ­nculos permanecerÃ£o preservados.'}
+              ? 'Os vínculos serão validados novamente antes da restauração.'
+              : 'O evento e seus vínculos permanecerão preservados.'}
           </p>
           <div className="mt-3 flex gap-3">
             <button
@@ -300,7 +349,7 @@ export function EventManager({
               onClick={() => setPending(null)}
               type="button"
             >
-              Cancelar aÃ§Ã£o
+              Cancelar ação
             </button>
             <button
               className={primaryClass}
@@ -308,20 +357,20 @@ export function EventManager({
               onClick={() => void lifecycle()}
               type="button"
             >
-              Confirmar {pending.restore ? 'restauraÃ§Ã£o' : 'arquivamento'}
+              Confirmar {pending.restore ? 'restauração' : 'arquivamento'}
             </button>
           </div>
         </div>
       )}
       {loading && items.length === 0 ? (
         <p aria-busy="true" aria-live="polite" className="mt-8">
-          Carregando eventosâ€¦
+          Carregando eventos…
         </p>
       ) : items.length === 0 ? (
         <div className="mt-8 rounded-2xl border border-dashed border-stone-300 bg-white p-12 text-center">
           <h2 className="text-xl font-semibold">Nenhum evento encontrado</h2>
           <p className="mt-2 text-slate-600">
-            Registre um acontecimento para comeÃ§ar a cronologia.
+            Registre um acontecimento para começar a cronologia.
           </p>
         </div>
       ) : (
@@ -331,7 +380,7 @@ export function EventManager({
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <p className="text-sm font-semibold text-amber-800">
-                    {sessionLabel(item.sessionId, sessions)} Â· Ordem {item.eventOrder}
+                    {sessionLabel(item.sessionId, sessions)} · Ordem {item.eventOrder}
                   </p>
                   <h2 className="mt-1 text-xl font-semibold">{item.title}</h2>
                   {item.occurredAtLabel === null ? null : (
@@ -374,7 +423,7 @@ export function EventManager({
           onClick={() => void load(true)}
           type="button"
         >
-          {loading ? 'Carregandoâ€¦' : 'Carregar mais eventos'}
+          {loading ? 'Carregando…' : 'Carregar mais eventos'}
         </button>
       )}
     </section>
@@ -396,7 +445,7 @@ function EventEditor({
   sessions: Session[];
   entities: Entity[];
   busy: boolean;
-  error: string | null;
+  error: UserFacingError | null;
   onCancel: () => void;
   onSubmit: (input: CreateEventInput) => Promise<void>;
 }): React.JSX.Element {
@@ -417,6 +466,9 @@ function EventEditor({
     originKind: details?.event.originKind ?? 'manual',
     sourceId: details?.event.sourceId ?? null,
   });
+  const [sourceSessionId, setSourceSessionId] = useState(
+    details?.event.originKind === 'session' ? (details.event.sourceId ?? '') : '',
+  );
   const [validation, setValidation] = useState<string | null>(null);
   const availableEntities = useMemo(() => activeEntities(entities), [entities]);
   const availableEntityIds = useMemo(
@@ -435,6 +487,7 @@ function EventEditor({
       occurredAtLabel: occurredAtLabel.trim() === '' ? null : occurredAtLabel.trim(),
       links,
       ...metadata,
+      ...(metadata.originKind === 'session' && sourceSessionId !== '' ? { sourceSessionId } : {}),
     };
     const message = validateEventInput(input, availableEntityIds);
     if (message !== null) {
@@ -454,7 +507,7 @@ function EventEditor({
   return (
     <section className="mx-auto max-w-5xl" aria-labelledby="event-form-title">
       <button className={secondaryClass} disabled={busy} onClick={onCancel} type="button">
-        â† Voltar para eventos
+        ← Voltar para eventos
       </button>
       <div className="mt-6 rounded-3xl border border-stone-200 bg-white p-8">
         <p className="text-xs font-bold tracking-[0.18em] text-amber-800 uppercase">
@@ -465,39 +518,45 @@ function EventEditor({
         </h1>
         <form className="mt-7 space-y-6" noValidate onSubmit={submit}>
           <div className="grid gap-5 md:grid-cols-[1fr_14rem_10rem]">
-            <label className="block font-semibold">
-              TÃ­tulo *
+            <label className="block font-semibold" htmlFor="event-title">
+              Título *
               <input
                 autoFocus
+                aria-label="Título do evento"
                 className={inputClass}
                 disabled={busy}
+                id="event-title"
                 maxLength={200}
                 required
                 value={title}
                 onChange={(event) => setTitle(event.target.value)}
               />
             </label>
-            <label className="block font-semibold">
-              SessÃ£o associada
+            <label className="block font-semibold" htmlFor="event-session">
+              Sessão associada
               <select
                 className={inputClass}
                 disabled={busy}
+                id="event-session"
+                aria-label="Sessão associada ao evento"
                 value={sessionId}
                 onChange={(event) => setSessionId(event.target.value)}
               >
                 <option value="">Nenhuma</option>
                 {sessions.map((session) => (
                   <option key={session.id} value={session.id}>
-                    SessÃ£o {session.sequenceNumber}: {session.title}
+                    Sessão {session.sequenceNumber}: {session.title}
                   </option>
                 ))}
               </select>
             </label>
-            <label className="block font-semibold">
+            <label className="block font-semibold" htmlFor="event-order">
               Ordem *
               <input
                 className={inputClass}
                 disabled={busy}
+                id="event-order"
+                aria-label="Ordem do evento"
                 min="0"
                 required
                 type="number"
@@ -506,51 +565,88 @@ function EventEditor({
               />
             </label>
           </div>
-          <label className="block font-semibold">
-            ReferÃªncia temporal
+          <label className="block font-semibold" htmlFor="event-occurred-at-label">
+            Referência temporal
             <input
+              aria-label="Referência temporal do evento"
               className={inputClass}
               disabled={busy}
+              id="event-occurred-at-label"
               maxLength={200}
               value={occurredAtLabel}
               onChange={(event) => setOccurredAtLabel(event.target.value)}
             />
           </label>
-          <label className="block font-semibold">
-            DescriÃ§Ã£o em Markdown
+          <label className="block font-semibold" htmlFor="event-description">
+            Descrição em Markdown
             <textarea
+              aria-label="Descrição do evento em Markdown"
               className={`${inputClass} min-h-40 resize-y whitespace-pre-wrap`}
               disabled={busy}
+              id="event-description"
               maxLength={100000}
               value={description}
               onChange={(event) => setDescription(event.target.value)}
             />
           </label>
-          <NarrativeMetadataFields disabled={busy} values={metadata} onChange={setMetadata} />
-          <fieldset className="rounded-2xl border border-stone-200 p-5">
-            <legend className="px-2 font-semibold">VÃ­nculos com entidades</legend>
+          <NarrativeMetadataFields
+            disabled={busy}
+            hideSourceIdentifier
+            sessionSource={{
+              options: sessions.map((session) => ({
+                id: session.id,
+                label: `Sessão ${String(session.sequenceNumber)}: ${session.title}`,
+              })),
+              value: sourceSessionId,
+              onChange: (nextSessionId) => {
+                setSourceSessionId(nextSessionId);
+                setMetadata((current) => ({ ...current, sourceId: null }));
+              },
+              ...sourceSessionError(error, validation),
+            }}
+            values={metadata}
+            onChange={(nextMetadata) => {
+              setMetadata((current) => ({
+                ...nextMetadata,
+                sourceId:
+                  nextMetadata.originKind === current.originKind ? nextMetadata.sourceId : null,
+              }));
+              if (nextMetadata.originKind !== 'session') setSourceSessionId('');
+            }}
+          />
+          <fieldset
+            aria-label="Vínculos com entidades"
+            className="rounded-2xl border border-stone-200 p-5"
+          >
+            <legend className="px-2 font-semibold">Vínculos com entidades</legend>
             <p className="mt-1 text-sm text-slate-600">
               Somente entidades ativas desta campanha podem ser vinculadas.
             </p>
             <div className="mt-4 grid gap-4">
               {links.map((link, index) => {
-                const isActiveEntity = availableEntityIds.has(link.entityId);
+                const isActiveEntity =
+                  link.entityId === '' || availableEntityIds.has(link.entityId);
                 return (
                   <div
                     className="grid gap-3 rounded-xl bg-stone-50 p-4 md:grid-cols-[1fr_12rem_7rem_auto]"
                     key={`${String(index)}:${link.entityId}:${link.role}`}
                   >
                     {isActiveEntity ? (
-                      <label className="text-sm font-semibold">
+                      <label
+                        className="text-sm font-semibold"
+                        htmlFor={`event-link-${String(index)}-entity`}
+                      >
                         Entidade
                         <select
                           className={inputClass}
                           disabled={busy}
+                          id={`event-link-${String(index)}-entity`}
+                          aria-label="Entidade vinculada"
                           required
                           value={link.entityId}
                           onChange={(event) => updateLink(index, { entityId: event.target.value })}
                         >
-                          <option value="">Selecioneâ€¦</option>
+                          <option value="">Selecione…</option>
                           {availableEntities.map((entity) => (
                             <option key={entity.id} value={entity.id}>
                               {entity.name}
@@ -560,17 +656,22 @@ function EventEditor({
                       </label>
                     ) : (
                       <div className="text-sm font-semibold text-red-800">
-                        Entidade indisponÃ­vel
+                        Entidade indisponível
                         <p className="mt-2 font-normal">
-                          Esta entidade foi arquivada; remova o vÃ­nculo antes de salvar.
+                          Esta entidade foi arquivada; remova o vínculo antes de salvar.
                         </p>
                       </div>
                     )}
-                    <label className="text-sm font-semibold">
+                    <label
+                      className="text-sm font-semibold"
+                      htmlFor={`event-link-${String(index)}-role`}
+                    >
                       Papel
                       <select
                         className={inputClass}
                         disabled={busy}
+                        id={`event-link-${String(index)}-role`}
+                        aria-label="Papel da entidade vinculada"
                         value={link.role}
                         onChange={(event) =>
                           updateLink(index, {
@@ -585,11 +686,16 @@ function EventEditor({
                         ))}
                       </select>
                     </label>
-                    <label className="text-sm font-semibold">
+                    <label
+                      className="text-sm font-semibold"
+                      htmlFor={`event-link-${String(index)}-order`}
+                    >
                       Ordem
                       <input
                         className={inputClass}
                         disabled={busy}
+                        id={`event-link-${String(index)}-order`}
+                        aria-label="Ordem do vínculo da entidade"
                         min="0"
                         type="number"
                         value={link.sortOrder}
@@ -616,6 +722,7 @@ function EventEditor({
               <p className="mt-4 text-sm text-slate-600">Nenhuma entidade vinculada.</p>
             ) : null}
             <button
+              aria-label="Adicionar vínculo"
               className={`${secondaryClass} mt-4`}
               disabled={busy || availableEntities.length === 0}
               onClick={() =>
@@ -626,12 +733,12 @@ function EventEditor({
               }
               type="button"
             >
-              Adicionar vÃ­nculo
+              Adicionar vínculo
             </button>
           </fieldset>
           {error === null && validation === null ? null : (
             <p className="rounded-xl bg-red-50 p-4 text-red-800" role="alert">
-              {error ?? validation}
+              {error?.message ?? validation}
             </p>
           )}
           <div className="flex justify-end gap-3">
@@ -639,7 +746,7 @@ function EventEditor({
               Cancelar
             </button>
             <button className={primaryClass} disabled={busy} type="submit">
-              {busy ? 'Salvandoâ€¦' : details === null ? 'Registrar evento' : 'Salvar evento'}
+              {busy ? 'Salvando…' : details === null ? 'Registrar evento' : 'Salvar evento'}
             </button>
           </div>
         </form>
@@ -683,9 +790,9 @@ async function loadAllActiveEntities(campaignId: string): Promise<Entity[]> {
 }
 
 function sessionLabel(sessionId: string | null, sessions: Session[]): string {
-  if (sessionId === null) return 'Sem sessÃ£o associada';
+  if (sessionId === null) return 'Sem sessão associada';
   const session = sessions.find((item) => item.id === sessionId);
-  return session === undefined ? 'SessÃ£o indisponÃ­vel' : `SessÃ£o ${session.sequenceNumber}`;
+  return session === undefined ? 'Sessão indisponível' : `Sessão ${String(session.sequenceNumber)}`;
 }
 
 function Badge({ children }: { children: React.ReactNode }): React.JSX.Element {

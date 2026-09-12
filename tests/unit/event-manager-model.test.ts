@@ -68,6 +68,17 @@ describe('fluxo de edi\u00e7\u00e3o de eventos', () => {
         new Set([entityId]),
       ),
     ).toBe('Remova v\u00ednculos com a mesma entidade e papel.');
+    expect(
+      validateEventInput(
+        {
+          ...details().event,
+          originKind: 'session',
+          sourceSessionId: undefined,
+          links: [],
+        },
+        new Set([entityId]),
+      ),
+    ).toBe('Selecione a sess\u00e3o que originou este evento.');
   });
 });
 

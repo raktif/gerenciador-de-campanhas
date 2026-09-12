@@ -59,6 +59,21 @@ describe('contratos de eventos', () => {
     expect(() =>
       updateEventInputSchema.parse({ campaignId, id: eventId, revision: 1, patch: {} }),
     ).toThrow();
+    expect(
+      createEventInputSchema.parse({
+        campaignId,
+        title: 'Ocorr\u00eancia de sess\u00e3o',
+        originKind: 'session',
+        sourceSessionId: sessionId,
+      }),
+    ).toMatchObject({ sourceSessionId: sessionId });
+    expect(() =>
+      createEventInputSchema.parse({
+        campaignId,
+        title: 'Sess\u00e3o inv\u00e1lida',
+        sourceSessionId: 'not-a-uuid',
+      }),
+    ).toThrow();
   });
 
   it('valida a forma persistida e filtros de sess\u00e3o, entidade e narrativa', () => {

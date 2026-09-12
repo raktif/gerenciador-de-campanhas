@@ -12,11 +12,13 @@ export function EntityManager({
   onBack,
   onOpenAssertions,
   onOpenNotes,
+  onOpenTimeline,
 }: {
   campaign: Campaign;
   onBack: () => void;
   onOpenAssertions: (entity: Entity) => void;
   onOpenNotes: (entity: Entity) => void;
+  onOpenTimeline: (entity: Entity) => void;
 }): React.JSX.Element {
   const [entityTypes, setEntityTypes] = useState<EntityType[]>([]);
   const [entities, setEntities] = useState<Entity[]>([]);
@@ -367,6 +369,14 @@ export function EntityManager({
                   type="button"
                 >
                   Notas
+                </button>
+                <button
+                  aria-label={`Ver cronologia de ${entity.name}`}
+                  className={secondaryClass}
+                  onClick={() => onOpenTimeline(entity)}
+                  type="button"
+                >
+                  Cronologia
                 </button>
                 <button
                   aria-label={`Editar ${entity.name}`}

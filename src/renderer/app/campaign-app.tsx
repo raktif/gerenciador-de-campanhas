@@ -10,6 +10,7 @@ import { NoteManager } from '../features/notes/note-manager';
 import { RelationshipTypeManager } from '../features/relationship-types/relationship-type-manager';
 import { RelationshipManager } from '../features/relationships/relationship-manager';
 import { SessionManager } from '../features/sessions/session-manager';
+import { TimelineManager } from '../features/timeline/timeline-manager';
 
 type Screen =
   | 'campaigns'
@@ -21,7 +22,8 @@ type Screen =
   | 'relationships'
   | 'assertions'
   | 'notes'
-  | 'sessions';
+  | 'sessions'
+  | 'timeline';
 type CampaignStatus = Campaign['status'];
 type LifecycleAction = 'archive' | 'restore' | 'moveToTrash';
 
@@ -36,6 +38,7 @@ export function CampaignApp(): React.JSX.Element {
   const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
   const [announcement, setAnnouncement] = useState<string | null>(null);
   const [narrativeContext, setNarrativeContext] = useState<NarrativeContext | undefined>();
+  const [timelineEntity, setTimelineEntity] = useState<Entity | undefined>();
 
   function openContext(entity: Entity, target: 'assertions' | 'notes'): void {
     setNarrativeContext({ entityId: entity.id, entityName: entity.name });
@@ -50,6 +53,21 @@ export function CampaignApp(): React.JSX.Element {
   function returnFromNarrative(): void {
     setScreen(narrativeContext === undefined ? 'edit' : 'entities');
     setNarrativeContext(undefined);
+  }
+
+  function openCampaignTimeline(): void {
+    setTimelineEntity(undefined);
+    setScreen('timeline');
+  }
+
+  function openEntityTimeline(entity: Entity): void {
+    setTimelineEntity(entity);
+    setScreen('timeline');
+  }
+
+  function returnFromTimeline(): void {
+    setScreen(timelineEntity === undefined ? 'edit' : 'entities');
+    setTimelineEntity(undefined);
   }
 
   const loadCampaigns = useCallback(async (): Promise<void> => {
@@ -210,6 +228,7 @@ export function CampaignApp(): React.JSX.Element {
               onBack={() => setScreen('edit')}
               onOpenAssertions={(entity) => openContext(entity, 'assertions')}
               onOpenNotes={(entity) => openContext(entity, 'notes')}
+              onOpenTimeline={openEntityTimeline}
             />
           ) : screen === 'relationshipTypes' && selectedCampaign !== null ? (
             <RelationshipTypeManager campaign={selectedCampaign} onBack={() => setScreen('edit')} />
@@ -229,6 +248,12 @@ export function CampaignApp(): React.JSX.Element {
             />
           ) : screen === 'sessions' && selectedCampaign !== null ? (
             <SessionManager campaign={selectedCampaign} onBack={() => setScreen('edit')} />
+          ) : screen === 'timeline' && selectedCampaign !== null ? (
+            <TimelineManager
+              campaign={selectedCampaign}
+              {...(timelineEntity === undefined ? {} : { entity: timelineEntity })}
+              onBack={returnFromTimeline}
+            />
           ) : screen === 'edit' && selectedCampaign !== null ? (
             <CampaignForm
               busy={creating}
@@ -242,6 +267,7 @@ export function CampaignApp(): React.JSX.Element {
               onManageAssertions={() => openCampaignNarrative('assertions')}
               onManageNotes={() => openCampaignNarrative('notes')}
               onManageSessions={() => setScreen('sessions')}
+              onManageTimeline={openCampaignTimeline}
               onManageEntityTypes={() => setScreen('entityTypes')}
               onManageRelationshipTypes={() => setScreen('relationshipTypes')}
               onManageRelationships={() => setScreen('relationships')}

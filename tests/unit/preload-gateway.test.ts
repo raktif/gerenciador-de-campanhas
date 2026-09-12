@@ -30,6 +30,7 @@ describe('gateway do preload', () => {
       'sessionIntentions',
       'sessionParticipants',
       'sessions',
+      'timeline',
     ]);
     expect(Object.keys(gateway.campaigns).sort()).toEqual([
       'archive',

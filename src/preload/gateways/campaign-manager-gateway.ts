@@ -95,6 +95,7 @@ import {
   phaseZeroChannels,
   relationshipTypeChannels,
   relationshipChannels,
+  timelineChannels,
 } from '../../core/contracts/ipc-channels';
 import {
   sessionChannels,
@@ -125,6 +126,11 @@ import {
   type SessionPageResult,
   type SessionParticipant,
 } from '../../core/contracts/sessions';
+import {
+  timelineCampaignRequestSchema,
+  timelineEntityRequestSchema,
+  type TimelinePageResult,
+} from '../../core/contracts/timeline';
 
 export type IpcInvoker = (channel: string, input: unknown) => Promise<unknown>;
 
@@ -330,6 +336,16 @@ export function createCampaignManagerGateway(invokeIpc: IpcInvoker): CampaignMan
         invoke<EventDetails>(eventChannels.archive, input, eventLifecycleInputSchema),
       restore: (input) =>
         invoke<EventDetails>(eventChannels.restore, input, eventLifecycleInputSchema),
+    },
+    timeline: {
+      listCampaign: (input) =>
+        invoke<TimelinePageResult>(
+          timelineChannels.listCampaign,
+          input,
+          timelineCampaignRequestSchema,
+        ),
+      listEntity: (input) =>
+        invoke<TimelinePageResult>(timelineChannels.listEntity, input, timelineEntityRequestSchema),
     },
     sessions: {
       create: (input) => invoke<Session>(sessionChannels.create, input, createSessionInputSchema),

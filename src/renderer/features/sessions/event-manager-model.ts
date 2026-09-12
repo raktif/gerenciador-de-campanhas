@@ -47,7 +47,13 @@ export function linksChanged(
 export function validateEventInput(
   input: Pick<
     CreateEventInput,
-    'title' | 'descriptionMarkdown' | 'eventOrder' | 'occurredAtLabel' | 'links'
+    | 'title'
+    | 'descriptionMarkdown'
+    | 'eventOrder'
+    | 'occurredAtLabel'
+    | 'links'
+    | 'originKind'
+    | 'sourceSessionId'
   >,
   activeEntityIds: ReadonlySet<string>,
 ): string | null {
@@ -59,6 +65,8 @@ export function validateEventInput(
     return 'A refer\u00eancia temporal deve ter no m\u00e1ximo 200 caracteres.';
   if (!Number.isInteger(input.eventOrder) || input.eventOrder < 0)
     return 'A ordem do evento deve ser um n\u00famero inteiro n\u00e3o negativo.';
+  if (input.originKind === 'session' && input.sourceSessionId === undefined)
+    return 'Selecione a sess\u00e3o que originou este evento.';
   if (input.links.length > 100) return 'Um evento pode ter no m\u00e1ximo 100 v\u00ednculos.';
   const seen = new Set<string>();
   for (const link of input.links) {

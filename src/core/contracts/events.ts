@@ -114,6 +114,7 @@ export const createEventInputSchema = editableEventSchema
     visibility: z.enum(visibilityStates).default(manualNarrativeDefaults.visibility),
     originKind: z.enum(originKinds).default(manualNarrativeDefaults.originKind),
     sourceId: nullableSourceIdSchema.default(null),
+    sourceSessionId: z.uuid().optional(),
     links: eventEntityLinksInputSchema.default([]),
   })
   .strict();
@@ -132,6 +133,7 @@ export const updateEventInputSchema = z
     id: z.uuid(),
     revision: z.number().int().positive(),
     patch: eventPatchSchema.optional(),
+    sourceSessionId: z.uuid().optional(),
     links: eventEntityLinksInputSchema.optional(),
   })
   .strict()

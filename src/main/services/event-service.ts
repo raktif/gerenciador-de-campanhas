@@ -61,13 +61,20 @@ export class EventService {
     this.requireCampaign(input.campaignId);
     this.validateSession(input.campaignId, input.sessionId);
     this.validateLinks(input.campaignId, input.links, true);
-    this.validateSource(input.campaignId, input.originKind, input.sourceId);
-    const { links, ...eventInput } = input;
+    const sourceId = this.resolveSourceId(
+      input.campaignId,
+      input.originKind,
+      input.sourceId,
+      input.sourceSessionId,
+    );
+    const { links, sourceSessionId, ...eventInput } = input;
+    void sourceSessionId;
     const timestamp = this.now();
     return this.dependencies.repository.insert(
       {
         id: this.createId(),
         ...eventInput,
+        sourceId,
         createdAt: timestamp,
         updatedAt: timestamp,
         archivedAt: null,
@@ -100,14 +107,22 @@ export class EventService {
       sourceId: patch.sourceId === undefined ? current.event.sourceId : patch.sourceId,
     };
     this.validateSession(input.campaignId, merged.sessionId);
-    this.validateSource(input.campaignId, merged.originKind, merged.sourceId);
+    const sourceId = this.resolveSourceId(
+      input.campaignId,
+      merged.originKind,
+      merged.sourceId,
+      input.sourceSessionId,
+      patch.originKind === undefined && current.event.originKind === 'session'
+        ? current.event.sourceId
+        : undefined,
+    );
     if (input.links !== undefined) this.validateLinks(input.campaignId, input.links, true);
     return this.dependencies.repository.update(
       {
         campaignId: input.campaignId,
         id: input.id,
         revision: input.revision,
-        patch,
+        patch: { ...patch, sourceId },
         ...(input.links === undefined ? {} : { links: input.links }),
       },
       this.now(),
@@ -203,6 +218,39 @@ export class EventService {
         'A fonte de sess\u00e3o n\u00e3o pertence \u00e0 campanha do evento.',
         { campaignId, sourceId },
       );
+  }
+
+  private resolveSourceId(
+    campaignId: string,
+    originKind: Event['originKind'],
+    sourceId: string | null,
+    sourceSessionId: string | undefined,
+    existingSessionSourceId?: string | null,
+  ): string | null {
+    if (originKind !== 'session') {
+      if (sourceSessionId !== undefined)
+        throw new AppError(
+          'EVENT_SESSION_SOURCE_NOT_APPLICABLE',
+          'Selecione uma sessão de origem somente quando a origem for Sessão.',
+        );
+      if (sourceId === null) return null;
+      this.validateSource(campaignId, originKind, sourceId);
+      return sourceId;
+    }
+    const resolvedSessionId = sourceSessionId ?? existingSessionSourceId;
+    if (resolvedSessionId === undefined || resolvedSessionId === null)
+      throw new AppError(
+        'EVENT_SESSION_SOURCE_REQUIRED',
+        'Selecione a sessão que originou este evento.',
+      );
+    if (sourceId !== null && sourceId !== resolvedSessionId)
+      throw new AppError(
+        'EVENT_SESSION_SOURCE_AMBIGUOUS',
+        'A sessão de origem não corresponde à fonte informada.',
+      );
+    this.requireSession(campaignId, resolvedSessionId);
+    this.validateSource(campaignId, 'session', resolvedSessionId);
+    return resolvedSessionId;
   }
 
   private requireEvent(campaignId: string, id: string): EventDetails {

@@ -88,6 +88,11 @@ export const eventChannels = {
   restore: 'events:restore',
 } as const;
 
+export const timelineChannels = {
+  listCampaign: 'timeline:list-campaign',
+  listEntity: 'timeline:list-entity',
+} as const;
+
 export const sessionChannels = {
   create: 'sessions:create',
   get: 'sessions:get',

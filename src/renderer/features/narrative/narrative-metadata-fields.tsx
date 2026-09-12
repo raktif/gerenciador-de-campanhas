@@ -4,14 +4,28 @@ export interface NarrativeMetadataValues extends Omit<NarrativeMetadata, 'source
   sourceId: string | null;
 }
 
+export interface SessionSourceOption {
+  id: string;
+  label: string;
+}
+
 export function NarrativeMetadataFields({
   values,
   disabled,
   onChange,
+  sessionSource,
+  hideSourceIdentifier = false,
 }: {
   values: NarrativeMetadataValues;
   disabled: boolean;
   onChange: (values: NarrativeMetadataValues) => void;
+  sessionSource?: {
+    options: readonly SessionSourceOption[];
+    value: string;
+    onChange: (sessionId: string) => void;
+    error?: string;
+  };
+  hideSourceIdentifier?: boolean;
 }): React.JSX.Element {
   return (
     <fieldset className="grid gap-4 rounded-2xl border border-stone-200 p-5 md:grid-cols-2">
@@ -56,7 +70,46 @@ export function NarrativeMetadataFields({
         }
         options={originOptions}
       />
-      {values.originKind === 'manual' ? null : (
+      {values.originKind === 'session' && sessionSource !== undefined ? (
+        <label className={labelClass} htmlFor="narrative-source-session">
+          Sessão de origem *
+          <select
+            aria-describedby={
+              sessionSource.error === undefined
+                ? 'narrative-source-session-help'
+                : 'narrative-source-session-help narrative-source-session-error'
+            }
+            aria-invalid={sessionSource.error === undefined ? undefined : true}
+            className={inputClass}
+            disabled={disabled}
+            id="narrative-source-session"
+            required
+            value={sessionSource.value}
+            onChange={(event) => sessionSource.onChange(event.target.value)}
+          >
+            <option value="">Selecione uma sessão…</option>
+            {sessionSource.options.map((session) => (
+              <option key={session.id} value={session.id}>
+                {session.label}
+              </option>
+            ))}
+          </select>
+          <span
+            className="mt-1 block text-xs font-normal text-slate-600"
+            id="narrative-source-session-help"
+          >
+            Escolha a sessão desta campanha que deu origem ao evento.
+          </span>
+          {sessionSource.error === undefined ? null : (
+            <span
+              className="mt-1 block text-sm font-normal text-red-800"
+              id="narrative-source-session-error"
+            >
+              {sessionSource.error}
+            </span>
+          )}
+        </label>
+      ) : values.originKind === 'manual' || hideSourceIdentifier ? null : (
         <label className={labelClass}>
           Identificador da fonte *
           <input

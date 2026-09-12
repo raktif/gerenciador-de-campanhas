@@ -13,6 +13,7 @@ import { PhaseZeroRepository } from '../../db/repositories/phase-zero-repository
 import { NoteRepository } from '../../db/repositories/note-repository';
 import { RelationshipTypeRepository } from '../../db/repositories/relationship-type-repository';
 import { RelationshipRepository } from '../../db/repositories/relationship-repository';
+import { TimelineRepository } from '../../db/repositories/timeline-repository';
 import { SessionIntentionRepository } from '../../db/repositories/session-intention-repository';
 import { SessionRepository } from '../../db/repositories/session-repository';
 import { registerCampaignIpcHandlers } from '../ipc/campaign-handlers';
@@ -26,6 +27,7 @@ import { registerNoteIpcHandlers } from '../ipc/note-handlers';
 import { registerRelationshipTypeIpcHandlers } from '../ipc/relationship-type-handlers';
 import { registerRelationshipIpcHandlers } from '../ipc/relationship-handlers';
 import { registerSessionIpcHandlers } from '../ipc/session-handlers';
+import { registerTimelineIpcHandlers } from '../ipc/timeline-handlers';
 import { CampaignService } from '../services/campaign-service';
 import { AssertionService } from '../services/assertion-service';
 import { EntityService } from '../services/entity-service';
@@ -39,7 +41,8 @@ import { RelationshipService } from '../services/relationship-service';
 import { SessionIntentionService } from '../services/session-intention-service';
 import { SessionParticipantService } from '../services/session-participant-service';
 import { SessionService } from '../services/session-service';
-import { createMainWindow } from '../windows/main-window';
+import { TimelineService } from '../services/timeline-service';
+import { createMainWindow, loadMainWindow } from '../windows/main-window';
 
 export interface RunningApplication {
   window: BrowserWindow;
@@ -71,6 +74,7 @@ export async function bootstrapApplication(): Promise<RunningApplication> {
   const relationshipTypeRepository = new RelationshipTypeRepository(database.orm);
   const relationshipRepository = new RelationshipRepository(database.orm);
   const eventRepository = new EventRepository(database.orm);
+  const timelineRepository = new TimelineRepository(database.orm);
   const assertionRepository = new AssertionRepository(database.orm);
   const noteRepository = new NoteRepository(database.orm);
   const sessionRepository = new SessionRepository(database.orm);
@@ -179,6 +183,16 @@ export async function bootstrapApplication(): Promise<RunningApplication> {
     logger,
     authorizedWebContentsId: window.webContents.id,
   });
+  const timelineService = new TimelineService({
+    repository: timelineRepository,
+    campaigns: campaignRepository,
+    entities: entityRepository,
+  });
+  const unregisterTimelineIpc = registerTimelineIpcHandlers(ipcMain, {
+    service: timelineService,
+    logger,
+    authorizedWebContentsId: window.webContents.id,
+  });
   const sessionService = new SessionService({
     repository: sessionRepository,
     campaigns: campaignRepository,
@@ -202,6 +216,7 @@ export async function bootstrapApplication(): Promise<RunningApplication> {
     authorizedWebContentsId: window.webContents.id,
   });
   await logger.info('Aplicação inicializada.', { applicationVersion: app.getVersion() });
+  await loadMainWindow(window);
   let disposed = false;
 
   return {
@@ -220,6 +235,7 @@ export async function bootstrapApplication(): Promise<RunningApplication> {
       unregisterAssertionIpc();
       unregisterNoteIpc();
       unregisterEventIpc();
+      unregisterTimelineIpc();
       unregisterSessionIpc();
       database.close();
     },

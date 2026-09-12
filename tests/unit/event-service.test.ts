@@ -9,7 +9,6 @@ import {
   type Event,
   type EventDetails,
   type EventEntityLinkInput,
-  type EventPageRequest,
   type EventPageResult,
 } from '../../src/core/contracts/events';
 import type { Session } from '../../src/core/contracts/sessions';
@@ -119,7 +118,7 @@ describe('EventService', () => {
     ).toBe('REVISION_CONFLICT');
   });
 
-  it('valida origem, arquivamento e restaura\u00e7\u00e3o com regras atuais', () => {
+  it('resolve a origem de sess\u00e3o sem expor identificador de fonte e preserva o isolamento', () => {
     const repository = new MemoryRepository();
     const service = createService(repository);
     expect(
@@ -128,7 +127,39 @@ describe('EventService', () => {
           createEventInputSchema.parse({ campaignId, title: 'Falha', originKind: 'session' }),
         ),
       ).code,
-    ).toBe('EVENT_SOURCE_REQUIRED');
+    ).toBe('EVENT_SESSION_SOURCE_REQUIRED');
+    expect(
+      capture(() =>
+        service.create(
+          createEventInputSchema.parse({
+            campaignId,
+            title: 'Falha',
+            originKind: 'session',
+            sourceSessionId: foreignSessionId,
+          }),
+        ),
+      ).code,
+    ).toBe('SESSION_NOT_FOUND');
+    expect(
+      service.create(
+        createEventInputSchema.parse({
+          campaignId,
+          title: 'Ocorr\u00eancia da sess\u00e3o',
+          originKind: 'session',
+          sourceSessionId: sessionId,
+        }),
+      ).event,
+    ).toMatchObject({ originKind: 'session', sourceId: sessionId });
+  });
+
+  it('aceita origens sem fonte dispon\u00edvel e valida arquivamento e restaura\u00e7\u00e3o', () => {
+    const repository = new MemoryRepository();
+    const service = createService(repository);
+    expect(
+      service.create(
+        createEventInputSchema.parse({ campaignId, title: 'Importado', originKind: 'import' }),
+      ).event,
+    ).toMatchObject({ originKind: 'import', sourceId: null });
     const created = service.create(
       createEventInputSchema.parse({ campaignId, title: 'Encerramento' }),
     );
@@ -163,11 +194,13 @@ class MemoryRepository implements EventRepositoryPort {
     );
   }
 
-  public findSourceContext(): EventSourceContext | null {
+  public findSourceContext(id: string): EventSourceContext | null {
+    if (id === sessionId) return { kind: 'session', sessionCampaignId: campaignId };
+    if (id === foreignSessionId) return { kind: 'session', sessionCampaignId: otherCampaignId };
     return null;
   }
 
-  public list(_input: EventPageRequest): EventPageResult {
+  public list(): EventPageResult {
     return {
       items: this.records.map(({ event }) => event),
       nextCursor: null,
