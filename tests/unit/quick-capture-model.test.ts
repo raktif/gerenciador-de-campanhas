@@ -42,9 +42,9 @@ describe('modelo de captura rápida', () => {
   it('captura com sessão opcional e preserva texto em falha para o componente recuperar', async () => {
     const calls: unknown[] = [];
     const success = await submitQuickCapture(
-      async (input) => {
+      (input) => {
         calls.push(input);
-        return { ok: true, data: inboxItem(), requestId: 'request' };
+        return Promise.resolve({ ok: true, data: inboxItem(), requestId: 'request' });
       },
       campaignId,
       '  O sino tocou.  ',
@@ -54,7 +54,7 @@ describe('modelo de captura rápida', () => {
     expect(calls).toEqual([{ campaignId, sessionId: null, rawText: '  O sino tocou.  ' }]);
 
     const failure = await submitQuickCapture(
-      async () => failureResult('SESSION_NOT_FOUND', 'Sessão indisponível.'),
+      () => Promise.resolve(failureResult('SESSION_NOT_FOUND', 'Sessão indisponível.')),
       campaignId,
       'Texto preservado.',
       sessionId,

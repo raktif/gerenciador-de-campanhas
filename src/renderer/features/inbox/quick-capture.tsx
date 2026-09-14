@@ -102,13 +102,13 @@ export function QuickCapture({ campaign }: { campaign: Campaign }): React.JSX.El
     setSessionError(null);
   }, [campaign.id]);
 
-  async function submit(event: React.FormEvent<HTMLFormElement>): Promise<void> {
+  async function submit(event: React.SyntheticEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     if (busy) return;
     setBusy(true);
     setCaptureError(null);
     const result = await submitQuickCapture(
-      window.campaignManager.inbox.capture,
+      (input) => window.campaignManager.inbox.capture(input),
       campaign.id,
       rawText,
       sessionId === '' ? null : sessionId,
@@ -156,6 +156,8 @@ export function QuickCapture({ campaign }: { campaign: Campaign }): React.JSX.El
         <button
           aria-haspopup="dialog"
           aria-keyshortcuts={ariaShortcut}
+          aria-controls="quick-capture-dialog"
+          aria-expanded={open}
           className="rounded-xl bg-amber-700 px-5 py-3 font-semibold text-white shadow-lg shadow-amber-900/20 hover:bg-amber-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700"
           onClick={openCapture}
           ref={triggerRef}
@@ -177,6 +179,7 @@ export function QuickCapture({ campaign }: { campaign: Campaign }): React.JSX.El
             aria-labelledby="quick-capture-title"
             aria-modal="true"
             className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl"
+            id="quick-capture-dialog"
             onKeyDown={trapDialogFocus}
             ref={dialogRef}
             role="dialog"

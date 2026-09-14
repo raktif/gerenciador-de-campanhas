@@ -71,7 +71,7 @@ function eventFailure(code: string, message: string): UserFacingError {
 function sourceSessionError(
   error: UserFacingError | null,
   validation: string | null,
-): {} | { error: string } {
+): Record<string, never> | { error: string } {
   if (error?.field === 'sourceSession') return { error: error.message };
   if (validation === 'Selecione a sessão que originou este evento.') return { error: validation };
   return {};
@@ -182,7 +182,7 @@ export function EventManager({
         setView('list');
         await load(false);
       } else setError(eventFailure(result.error.code, result.error.message));
-    } catch (exception) {
+    } catch {
       setError({ message: gatewayError });
     } finally {
       setBusy(false);

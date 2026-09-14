@@ -12,8 +12,8 @@ sessão e capturar informações durante o jogo, integralmente sem IA.
 
 Estado atual: os incrementos 2.0 (refinamento), 2.1 (fundação narrativa persistente), 2.2 (tipos de
 relação), 2.3 (relações e campos de referência), 2.4 (lista e vizinhança), 2.5 (afirmações e
-notas), 2.6 (sessões) e 2.7 (eventos e cronologia) estão concluídos. A rastreabilidade da 2.7 está
-em [Fase 2 — Atividade 2.7](phase-2-activity-2.7.md); 2.8 é o próximo incremento planejado.
+notas), 2.6 (sessões), 2.7 (eventos e cronologia) e 2.8 (captura rápida) estão concluídos; consulte
+[Fase 2 — Atividade 2.8](phase-2-activity-2.8.md). A 2.9 é o próximo incremento planejado.
 
 ## Escopo
 
@@ -206,6 +206,9 @@ ordem narrativa esperada; o E2E cobre duas sessões, vínculos e persistência a
 
 ### 2.8 — Captura rápida
 
+Estado: concluída. O fechamento executou lint, formatação, typecheck, 182 testes unitários, 61 testes
+de integração e 9 E2E aprovados; consulte [Fase 2 — Atividade 2.8](phase-2-activity-2.8.md).
+
 - disponibilizar captura em todas as telas da campanha;
 - usar `Ctrl+K` no Windows/Linux e `Cmd+K` no macOS, sem bloquear uso por botão;
 - permitir associação opcional à sessão em andamento;
@@ -292,7 +295,8 @@ para simular atomicidade.
    e conferir dados manuais, participantes, intenções, estado e data em UTC. A paginação de
    intenções é verificada com uma segunda página.
 3. A partir de 2.7, registrar eventos e consultar linhas do tempo; a partir de 2.8, capturar uma
-   anotação, reiniciar o aplicativo, triá-la e conferir o objeto e sua proveniência.
+   anotação e confirmar sua persistência após reiniciar o aplicativo. A triagem, o objeto convertido e
+   sua proveniência são verificados a partir da 2.9.
 
 ## Dependências e riscos
 
