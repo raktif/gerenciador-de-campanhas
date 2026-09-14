@@ -7,6 +7,7 @@ import entitiesMigration from './0005_entities.sql?raw';
 import legacyTagsAndSearchMigration from './0006_tags_and_search_legacy.sql?raw';
 import removeDeferredPhaseFeaturesMigration from './0007_remove_deferred_phase_features.sql?raw';
 import phaseTwoFoundationMigration from './0008_phase_two_foundation.sql?raw';
+import inboxCaptureIntegrityMigration from './0009_inbox_capture_integrity.sql?raw';
 
 export interface MigrationDefinition {
   version: number;
@@ -69,5 +70,11 @@ export const migrations: readonly MigrationDefinition[] = [
     name: 'phase-two-foundation',
     checksum: checksum(phaseTwoFoundationMigration),
     sql: phaseTwoFoundationMigration,
+  },
+  {
+    version: 9,
+    name: 'phase-two-inbox-capture-integrity',
+    checksum: checksum(inboxCaptureIntegrityMigration),
+    sql: inboxCaptureIntegrityMigration,
   },
 ];

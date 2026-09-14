@@ -26,7 +26,7 @@ describe('fundação narrativa da Fase 2', () => {
     await ensureDataDirectories(directories);
     const context = await openApplicationDatabase(directories, new TestLogger());
 
-    expect(context.schemaVersion).toBe(8);
+    expect(context.schemaVersion).toBe(9);
     const rows = context.native
       .prepare(
         `SELECT name FROM sqlite_master
@@ -63,7 +63,7 @@ describe('fundação narrativa da Fase 2', () => {
     const databasePath = path.join(directories.database, 'app.db');
     const legacyDatabase = new Database(databasePath);
     legacyDatabase.pragma('foreign_keys = ON');
-    applyThroughVersionSeven(legacyDatabase);
+    applyThroughVersion(legacyDatabase, 7);
     const campaignId = randomUUID();
     const entityTypeId = randomUUID();
     const entityId = randomUUID();
@@ -95,7 +95,7 @@ describe('fundação narrativa da Fase 2', () => {
       .prepare('SELECT kind, description FROM sources WHERE id = ?')
       .get(entity.source_id);
 
-    expect(context.schemaVersion).toBe(8);
+    expect(context.schemaVersion).toBe(9);
     expect(entity.name).toBe('Kabotya');
     expect(entity.source_id).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
@@ -192,9 +192,80 @@ describe('fundação narrativa da Fase 2', () => {
     ).toThrow();
     context.close();
   });
+
+  it('migra a versão 8 para 9, preserva a captura e impede vínculos de sessão entre campanhas', async () => {
+    const root = await createTemporaryRoot();
+    const directories = getDataDirectories(root);
+    await ensureDataDirectories(directories);
+    const databasePath = path.join(directories.database, 'app.db');
+    const legacyDatabase = new Database(databasePath);
+    legacyDatabase.pragma('foreign_keys = ON');
+    applyThroughVersion(legacyDatabase, 8);
+    const now = timestamp();
+    const firstCampaignId = randomUUID();
+    const secondCampaignId = randomUUID();
+    const localSessionId = randomUUID();
+    const foreignSessionId = randomUUID();
+    const inboxItemId = randomUUID();
+    const insertCampaign = legacyDatabase.prepare(
+      'INSERT INTO campaigns (id, name, created_at, updated_at) VALUES (?, ?, ?, ?)',
+    );
+    insertCampaign.run(firstCampaignId, 'Primeira', now, now);
+    insertCampaign.run(secondCampaignId, 'Segunda', now, now);
+    const insertSession = legacyDatabase.prepare(
+      `INSERT INTO sessions
+        (id, campaign_id, sequence_number, title, created_at, updated_at)
+       VALUES (?, ?, 1, ?, ?, ?)`,
+    );
+    insertSession.run(localSessionId, firstCampaignId, 'Sessão local', now, now);
+    insertSession.run(foreignSessionId, secondCampaignId, 'Sessão externa', now, now);
+    legacyDatabase
+      .prepare(
+        `INSERT INTO inbox_items
+          (id, campaign_id, session_id, raw_text, status, origin_kind, captured_at, created_at, updated_at)
+         VALUES (?, ?, ?, ?, 'new', 'session', ?, ?, ?)`,
+      )
+      .run(inboxItemId, firstCampaignId, localSessionId, 'Captura preservada', now, now, now);
+    legacyDatabase.close();
+
+    const context = await openApplicationDatabase(directories, new TestLogger());
+    expect(context.schemaVersion).toBe(9);
+    expect(
+      context.native
+        .prepare('SELECT campaign_id, session_id, raw_text, status FROM inbox_items WHERE id = ?')
+        .get(inboxItemId),
+    ).toEqual({
+      campaign_id: firstCampaignId,
+      session_id: localSessionId,
+      raw_text: 'Captura preservada',
+      status: 'new',
+    });
+    expect(() =>
+      context.native
+        .prepare('UPDATE inbox_items SET session_id = ? WHERE id = ?')
+        .run(foreignSessionId, inboxItemId),
+    ).toThrow(/INBOX_SESSION_CAMPAIGN_MISMATCH/);
+    expect(() =>
+      context.native
+        .prepare('UPDATE inbox_items SET campaign_id = ? WHERE id = ?')
+        .run(secondCampaignId, inboxItemId),
+    ).toThrow(/INBOX_SESSION_CAMPAIGN_MISMATCH/);
+    expect(
+      context.native
+        .prepare('SELECT campaign_id, session_id, raw_text, status FROM inbox_items WHERE id = ?')
+        .get(inboxItemId),
+    ).toEqual({
+      campaign_id: firstCampaignId,
+      session_id: localSessionId,
+      raw_text: 'Captura preservada',
+      status: 'new',
+    });
+    expect(context.native.pragma('foreign_key_check')).toEqual([]);
+    context.close();
+  });
 });
 
-function applyThroughVersionSeven(database: Database.Database): void {
+function applyThroughVersion(database: Database.Database, maximumVersion: number): void {
   database.exec(`
     CREATE TABLE schema_migrations (
       version INTEGER PRIMARY KEY NOT NULL,
@@ -206,7 +277,7 @@ function applyThroughVersionSeven(database: Database.Database): void {
   const insertMigration = database.prepare(
     'INSERT INTO schema_migrations (version, name, checksum, applied_at) VALUES (?, ?, ?, ?)',
   );
-  for (const migration of migrations.filter(({ version }) => version <= 7)) {
+  for (const migration of migrations.filter(({ version }) => version <= maximumVersion)) {
     database.exec(migration.sql);
     insertMigration.run(migration.version, migration.name, migration.checksum, timestamp());
   }
