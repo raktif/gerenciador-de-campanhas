@@ -11,6 +11,7 @@ import { EntityTypeRepository } from '../../db/repositories/entity-type-reposito
 import { FieldDefinitionRepository } from '../../db/repositories/field-definition-repository';
 import { PhaseZeroRepository } from '../../db/repositories/phase-zero-repository';
 import { NoteRepository } from '../../db/repositories/note-repository';
+import { InboxRepository } from '../../db/repositories/inbox-repository';
 import { RelationshipTypeRepository } from '../../db/repositories/relationship-type-repository';
 import { RelationshipRepository } from '../../db/repositories/relationship-repository';
 import { TimelineRepository } from '../../db/repositories/timeline-repository';
@@ -24,6 +25,7 @@ import { registerEventIpcHandlers } from '../ipc/event-handlers';
 import { registerFieldDefinitionIpcHandlers } from '../ipc/field-definition-handlers';
 import { registerPhaseZeroIpcHandlers } from '../ipc/phase-zero-handlers';
 import { registerNoteIpcHandlers } from '../ipc/note-handlers';
+import { registerInboxIpcHandlers } from '../ipc/inbox-handlers';
 import { registerRelationshipTypeIpcHandlers } from '../ipc/relationship-type-handlers';
 import { registerRelationshipIpcHandlers } from '../ipc/relationship-handlers';
 import { registerSessionIpcHandlers } from '../ipc/session-handlers';
@@ -36,6 +38,7 @@ import { EventService } from '../services/event-service';
 import { FieldDefinitionService } from '../services/field-definition-service';
 import { PhaseZeroService } from '../services/phase-zero-service';
 import { NoteService } from '../services/note-service';
+import { InboxService } from '../services/inbox-service';
 import { RelationshipTypeService } from '../services/relationship-type-service';
 import { RelationshipService } from '../services/relationship-service';
 import { SessionIntentionService } from '../services/session-intention-service';
@@ -77,6 +80,7 @@ export async function bootstrapApplication(): Promise<RunningApplication> {
   const timelineRepository = new TimelineRepository(database.orm);
   const assertionRepository = new AssertionRepository(database.orm);
   const noteRepository = new NoteRepository(database.orm);
+  const inboxRepository = new InboxRepository(database.orm);
   const sessionRepository = new SessionRepository(database.orm);
   const sessionIntentionRepository = new SessionIntentionRepository(database.orm);
   const window = createMainWindow();
@@ -172,6 +176,16 @@ export async function bootstrapApplication(): Promise<RunningApplication> {
     logger,
     authorizedWebContentsId: window.webContents.id,
   });
+  const inboxService = new InboxService({
+    repository: inboxRepository,
+    campaigns: campaignRepository,
+    sessions: sessionRepository,
+  });
+  const unregisterInboxIpc = registerInboxIpcHandlers(ipcMain, {
+    service: inboxService,
+    logger,
+    authorizedWebContentsId: window.webContents.id,
+  });
   const eventService = new EventService({
     repository: eventRepository,
     campaigns: campaignRepository,
@@ -234,6 +248,7 @@ export async function bootstrapApplication(): Promise<RunningApplication> {
       unregisterRelationshipIpc();
       unregisterAssertionIpc();
       unregisterNoteIpc();
+      unregisterInboxIpc();
       unregisterEventIpc();
       unregisterTimelineIpc();
       unregisterSessionIpc();

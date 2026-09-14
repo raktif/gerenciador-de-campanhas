@@ -35,6 +35,7 @@ import {
   type EventDetails,
   type EventPageResult,
 } from '../../core/contracts/events';
+import { captureInboxItemInputSchema, type InboxItem } from '../../core/contracts/inbox';
 import type { CampaignManagerGateway } from '../../core/contracts/gateway';
 import {
   createNoteInputSchema,
@@ -91,6 +92,7 @@ import {
   entityTypeChannels,
   eventChannels,
   fieldDefinitionChannels,
+  inboxChannels,
   noteChannels,
   phaseZeroChannels,
   relationshipTypeChannels,
@@ -326,6 +328,10 @@ export function createCampaignManagerGateway(invokeIpc: IpcInvoker): CampaignMan
         invoke<NoteDetails>(noteChannels.archive, input, noteLifecycleInputSchema),
       restore: (input) =>
         invoke<NoteDetails>(noteChannels.restore, input, noteLifecycleInputSchema),
+    },
+    inbox: {
+      capture: (input) =>
+        invoke<InboxItem>(inboxChannels.capture, input, captureInboxItemInputSchema),
     },
     events: {
       create: (input) => invoke<EventDetails>(eventChannels.create, input, createEventInputSchema),

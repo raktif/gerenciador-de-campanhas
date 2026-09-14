@@ -4,6 +4,7 @@ import type { EntityGateway } from './entities';
 import type { EntityTypeGateway } from './entity-types';
 import type { EventGateway } from './events';
 import type { FieldDefinitionGateway } from './field-definitions';
+import type { InboxGateway } from './inbox';
 import type { PhaseZeroGateway } from './phase-zero';
 import type { NoteGateway } from './notes';
 import type { RelationshipTypeGateway } from './relationship-types';
@@ -25,6 +26,7 @@ export interface CampaignManagerGateway {
   entities: EntityGateway;
   assertions: AssertionGateway;
   notes: NoteGateway;
+  inbox: InboxGateway;
   events: EventGateway;
   timeline: TimelineGateway;
   sessions: SessionGateway;

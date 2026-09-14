@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { inboxStatuses, originKinds } from './narrative';
+import type { Result } from './result';
 
 const rawTextSchema = z
   .string()
@@ -49,3 +50,7 @@ export const captureInboxItemInputSchema = z
   .strict();
 export type CaptureInboxItemInput = z.output<typeof captureInboxItemInputSchema>;
 export type CaptureInboxItemInputRequest = z.input<typeof captureInboxItemInputSchema>;
+
+export interface InboxGateway {
+  capture(input: CaptureInboxItemInputRequest): Promise<Result<InboxItem>>;
+}
