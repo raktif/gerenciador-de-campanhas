@@ -6,6 +6,7 @@ import { CampaignForm } from '../features/campaigns/campaign-form';
 import { CampaignList } from '../features/campaigns/campaign-list';
 import { EntityManager } from '../features/entities/entity-manager';
 import { EntityTypeManager } from '../features/entity-types/entity-type-manager';
+import { QuickCapture } from '../features/inbox/quick-capture';
 import { NoteManager } from '../features/notes/note-manager';
 import { RelationshipTypeManager } from '../features/relationship-types/relationship-type-manager';
 import { RelationshipManager } from '../features/relationships/relationship-manager';
@@ -287,6 +288,7 @@ export function CampaignApp(): React.JSX.Element {
             />
           )}
         </main>
+        {selectedCampaign === null ? null : <QuickCapture campaign={selectedCampaign} />}
       </div>
     </div>
   );
