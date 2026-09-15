@@ -1,5 +1,12 @@
 import type { IpcMain, IpcMainInvokeEvent } from 'electron';
-import { captureInboxItemInputSchema, inboxItemSchema } from '../../core/contracts/inbox';
+import {
+  captureInboxItemInputSchema,
+  getInboxItemInputSchema,
+  inboxItemSchema,
+  inboxLifecycleInputSchema,
+  inboxPageRequestSchema,
+  inboxPageResultSchema,
+} from '../../core/contracts/inbox';
 import { inboxChannels } from '../../core/contracts/ipc-channels';
 import type { Result } from '../../core/contracts/result';
 import type { Logger } from '../../core/logging/logger';
@@ -30,6 +37,78 @@ export function registerInboxIpcHandlers(
           inboxItemSchema,
           dependencies,
           (value) => dependencies.service.capture(value),
+        ),
+    },
+    {
+      channel: inboxChannels.get,
+      handler: (event, input) =>
+        executeIpcHandler(
+          event,
+          input,
+          getInboxItemInputSchema,
+          inboxItemSchema,
+          dependencies,
+          (value) => dependencies.service.get(value),
+        ),
+    },
+    {
+      channel: inboxChannels.list,
+      handler: (event, input) =>
+        executeIpcHandler(
+          event,
+          input,
+          inboxPageRequestSchema,
+          inboxPageResultSchema,
+          dependencies,
+          (value) => dependencies.service.list(value),
+        ),
+    },
+    {
+      channel: inboxChannels.beginReview,
+      handler: (event, input) =>
+        executeIpcHandler(
+          event,
+          input,
+          inboxLifecycleInputSchema,
+          inboxItemSchema,
+          dependencies,
+          (value) => dependencies.service.beginReview(value),
+        ),
+    },
+    {
+      channel: inboxChannels.dismiss,
+      handler: (event, input) =>
+        executeIpcHandler(
+          event,
+          input,
+          inboxLifecycleInputSchema,
+          inboxItemSchema,
+          dependencies,
+          (value) => dependencies.service.dismiss(value),
+        ),
+    },
+    {
+      channel: inboxChannels.archive,
+      handler: (event, input) =>
+        executeIpcHandler(
+          event,
+          input,
+          inboxLifecycleInputSchema,
+          inboxItemSchema,
+          dependencies,
+          (value) => dependencies.service.archive(value),
+        ),
+    },
+    {
+      channel: inboxChannels.restore,
+      handler: (event, input) =>
+        executeIpcHandler(
+          event,
+          input,
+          inboxLifecycleInputSchema,
+          inboxItemSchema,
+          dependencies,
+          (value) => dependencies.service.restore(value),
         ),
     },
   ];

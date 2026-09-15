@@ -31,6 +31,7 @@ type CampaignFormProps = CommonCampaignFormProps &
         onManageNotes: () => void;
         onManageSessions: () => void;
         onManageTimeline: () => void;
+        onManageInbox: () => void;
         onSubmit: (patch: CampaignPatch) => Promise<void>;
       }
   );
@@ -121,7 +122,7 @@ export function CampaignForm(props: CampaignFormProps): React.JSX.Element {
         <form className="space-y-8 px-8 py-8 sm:px-10" onSubmit={submit}>
           {props.mode === 'edit' && props.campaign.status === 'active' ? (
             <fieldset className="min-w-0 rounded-2xl border border-amber-200 bg-amber-50 p-5">
-              <legend className="font-semibold text-slate-950">Estrutura da campanha</legend>
+              <legend className="font-semibold text-slate-950">Organização da campanha</legend>
               <p className="mt-1 text-sm leading-6 text-slate-600" id="campaign-structure-help">
                 Configure as categorias usadas para pessoas, locais, facções e outros elementos.
               </p>
@@ -161,6 +162,15 @@ export function CampaignForm(props: CampaignFormProps): React.JSX.Element {
                   type="button"
                 >
                   Cronologia
+                </button>
+                <button
+                  aria-describedby="campaign-structure-help"
+                  className="min-w-0 rounded-xl border border-stone-300 bg-white px-4 py-3 text-left text-sm font-semibold text-slate-700 hover:bg-stone-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700"
+                  disabled={busy}
+                  onClick={props.onManageInbox}
+                  type="button"
+                >
+                  Caixa de Entrada
                 </button>
                 <button
                   aria-describedby="campaign-structure-help"

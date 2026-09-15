@@ -11,7 +11,13 @@ import {
 
 const genericLoadError = 'Não foi possível carregar as sessões em andamento.';
 
-export function QuickCapture({ campaign }: { campaign: Campaign }): React.JSX.Element {
+export function QuickCapture({
+  campaign,
+  onOpenInbox,
+}: {
+  campaign: Campaign;
+  onOpenInbox: () => void;
+}): React.JSX.Element {
   const [open, setOpen] = useState(false);
   const [rawText, setRawText] = useState('');
   const [sessionId, setSessionId] = useState('');
@@ -145,13 +151,15 @@ export function QuickCapture({ campaign }: { campaign: Campaign }): React.JSX.El
     <>
       <div className="fixed right-6 bottom-6 z-20 flex flex-col items-end gap-3">
         {announcement === null ? null : (
-          <p
-            aria-live="polite"
+          <div
             className="max-w-sm rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 shadow-lg"
             role="status"
           >
-            {announcement}
-          </p>
+            <p aria-live="polite">{announcement}</p>
+            <button className="mt-2 font-semibold underline" onClick={onOpenInbox} type="button">
+              Abrir Caixa de Entrada
+            </button>
+          </div>
         )}
         <button
           aria-haspopup="dialog"

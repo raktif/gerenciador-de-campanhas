@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { inboxStatuses, originKinds } from './narrative';
+import { defaultPageLimit, maximumPageLimit, type PageResult } from './pagination';
 import type { Result } from './result';
 
 const rawTextSchema = z
@@ -51,6 +52,53 @@ export const captureInboxItemInputSchema = z
 export type CaptureInboxItemInput = z.output<typeof captureInboxItemInputSchema>;
 export type CaptureInboxItemInputRequest = z.input<typeof captureInboxItemInputSchema>;
 
+export const getInboxItemInputSchema = z.object({ campaignId: z.uuid(), id: z.uuid() }).strict();
+export type GetInboxItemInput = z.infer<typeof getInboxItemInputSchema>;
+
+const inboxMutableStatuses = ['new', 'reviewing', 'dismissed', 'archived'] as const;
+
+export const inboxLifecycleInputSchema = z
+  .object({ campaignId: z.uuid(), id: z.uuid(), revision: z.number().int().positive() })
+  .strict();
+export type InboxLifecycleInput = z.infer<typeof inboxLifecycleInputSchema>;
+
+export const inboxPageRequestSchema = z
+  .object({
+    campaignId: z.uuid(),
+    cursor: z.string().min(1).max(2048).optional(),
+    limit: z.number().int().positive().max(maximumPageLimit).default(defaultPageLimit),
+    filters: z
+      .object({
+        statuses: z.array(z.enum(inboxStatuses)).min(1).max(inboxStatuses.length).optional(),
+        sessionId: z.uuid().optional(),
+        originKind: z.enum(originKinds).optional(),
+      })
+      .strict()
+      .default({}),
+    sort: z.enum(['capturedAt', 'updatedAt']).default('capturedAt'),
+    order: z.enum(['asc', 'desc']).default('desc'),
+  })
+  .strict();
+export type InboxPageRequest = z.infer<typeof inboxPageRequestSchema>;
+export type InboxPageRequestInput = z.input<typeof inboxPageRequestSchema>;
+export type InboxPageResult = PageResult<InboxItem>;
+
+export const inboxPageResultSchema = z
+  .object({
+    items: z.array(inboxItemSchema),
+    nextCursor: z.string().nullable(),
+    total: z.number().int().nonnegative().optional(),
+  })
+  .strict();
+
+export const inboxReviewableStatusSchema = z.enum(inboxMutableStatuses);
+
 export interface InboxGateway {
   capture(input: CaptureInboxItemInputRequest): Promise<Result<InboxItem>>;
+  get(input: GetInboxItemInput): Promise<Result<InboxItem>>;
+  list(input: InboxPageRequestInput): Promise<Result<InboxPageResult>>;
+  beginReview(input: InboxLifecycleInput): Promise<Result<InboxItem>>;
+  dismiss(input: InboxLifecycleInput): Promise<Result<InboxItem>>;
+  archive(input: InboxLifecycleInput): Promise<Result<InboxItem>>;
+  restore(input: InboxLifecycleInput): Promise<Result<InboxItem>>;
 }

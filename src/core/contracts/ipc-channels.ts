@@ -81,6 +81,12 @@ export const noteChannels = {
 
 export const inboxChannels = {
   capture: 'inbox:capture',
+  get: 'inbox:get',
+  list: 'inbox:list',
+  beginReview: 'inbox:begin-review',
+  dismiss: 'inbox:dismiss',
+  archive: 'inbox:archive',
+  restore: 'inbox:restore',
 } as const;
 
 export const eventChannels = {

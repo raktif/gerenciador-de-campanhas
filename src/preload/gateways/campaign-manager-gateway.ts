@@ -35,7 +35,14 @@ import {
   type EventDetails,
   type EventPageResult,
 } from '../../core/contracts/events';
-import { captureInboxItemInputSchema, type InboxItem } from '../../core/contracts/inbox';
+import {
+  captureInboxItemInputSchema,
+  getInboxItemInputSchema,
+  inboxLifecycleInputSchema,
+  inboxPageRequestSchema,
+  type InboxItem,
+  type InboxPageResult,
+} from '../../core/contracts/inbox';
 import type { CampaignManagerGateway } from '../../core/contracts/gateway';
 import {
   createNoteInputSchema,
@@ -332,6 +339,16 @@ export function createCampaignManagerGateway(invokeIpc: IpcInvoker): CampaignMan
     inbox: {
       capture: (input) =>
         invoke<InboxItem>(inboxChannels.capture, input, captureInboxItemInputSchema),
+      get: (input) => invoke<InboxItem>(inboxChannels.get, input, getInboxItemInputSchema),
+      list: (input) => invoke<InboxPageResult>(inboxChannels.list, input, inboxPageRequestSchema),
+      beginReview: (input) =>
+        invoke<InboxItem>(inboxChannels.beginReview, input, inboxLifecycleInputSchema),
+      dismiss: (input) =>
+        invoke<InboxItem>(inboxChannels.dismiss, input, inboxLifecycleInputSchema),
+      archive: (input) =>
+        invoke<InboxItem>(inboxChannels.archive, input, inboxLifecycleInputSchema),
+      restore: (input) =>
+        invoke<InboxItem>(inboxChannels.restore, input, inboxLifecycleInputSchema),
     },
     events: {
       create: (input) => invoke<EventDetails>(eventChannels.create, input, createEventInputSchema),

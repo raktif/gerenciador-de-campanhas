@@ -3,7 +3,10 @@ import type { Campaign } from '../../src/core/contracts/campaigns';
 import {
   captureInboxItemInputSchema,
   inboxItemSchema,
+  type InboxLifecycleInput,
   type InboxItem,
+  type InboxPageRequest,
+  type InboxPageResult,
 } from '../../src/core/contracts/inbox';
 import type { Session } from '../../src/core/contracts/sessions';
 import { AppError } from '../../src/core/errors/app-error';
@@ -69,6 +72,68 @@ describe('InboxService', () => {
     ).toBe('SESSION_NOT_FOUND');
     expect(repository.count()).toBe(0);
   });
+
+  it('aplica maquina de estados e revisao otimista', () => {
+    const service = createService(new MemoryRepository());
+    const captured = service.capture(
+      captureInboxItemInputSchema.parse({ campaignId, rawText: 'X' }),
+    );
+    const reviewing = service.beginReview({ campaignId, id: captured.id, revision: 1 });
+    const dismissed = service.dismiss({ campaignId, id: captured.id, revision: 2 });
+    const archived = service.archive({ campaignId, id: captured.id, revision: 3 });
+    expect(service.restore({ campaignId, id: captured.id, revision: 4 })).toMatchObject({
+      status: 'new',
+      revision: 5,
+    });
+    expect([reviewing.status, dismissed.status, archived.status]).toEqual([
+      'reviewing',
+      'dismissed',
+      'archived',
+    ]);
+    expect(capture(() => service.dismiss({ campaignId, id: captured.id, revision: 1 })).code).toBe(
+      'REVISION_CONFLICT',
+    );
+  });
+
+  it('rejeita todas as transições proibidas e respeita get/list com filtros', () => {
+    const repository = new MemoryRepository();
+    const service = createService(repository);
+    const captured = service.capture(
+      captureInboxItemInputSchema.parse({ campaignId, sessionId, rawText: 'X' }),
+    );
+    expect(capture(() => service.restore({ campaignId, id: captured.id, revision: 1 })).code).toBe(
+      'INVALID_INBOX_RESTORE_STATE',
+    );
+    expect(capture(() => service.archive({ campaignId, id: captured.id, revision: 2 })).code).toBe(
+      'REVISION_CONFLICT',
+    );
+    const reviewing = service.beginReview({ campaignId, id: captured.id, revision: 1 });
+    expect(
+      capture(() => service.beginReview({ campaignId, id: captured.id, revision: 2 })).code,
+    ).toBe('INVALID_INBOX_REVIEW_STATE');
+    const dismissed = service.dismiss({
+      campaignId,
+      id: captured.id,
+      revision: reviewing.revision,
+    });
+    expect(
+      capture(() => service.dismiss({ campaignId, id: captured.id, revision: dismissed.revision }))
+        .code,
+    ).toBe('INVALID_INBOX_DISMISS_STATE');
+    expect(service.get({ campaignId, id: captured.id })).toEqual(dismissed);
+    expect(
+      service.list({
+        campaignId,
+        filters: { statuses: ['dismissed'], sessionId },
+        limit: 50,
+        sort: 'capturedAt',
+        order: 'desc',
+      }).items,
+    ).toEqual([dismissed]);
+    expect(capture(() => service.get({ campaignId: otherCampaignId, id: captured.id })).code).toBe(
+      'INBOX_ITEM_NOT_FOUND',
+    );
+  });
 });
 
 class MemoryRepository implements InboxRepositoryPort {
@@ -78,6 +143,45 @@ class MemoryRepository implements InboxRepositoryPort {
     const persisted = inboxItemSchema.parse(item);
     this.records.push(persisted);
     return persisted;
+  }
+
+  public findById(owner: string, id: string): InboxItem | null {
+    return this.records.find((item) => item.campaignId === owner && item.id === id) ?? null;
+  }
+
+  public list(request: InboxPageRequest): InboxPageResult {
+    const items = this.records.filter(
+      (item) =>
+        item.campaignId === request.campaignId &&
+        (request.filters.statuses === undefined ||
+          request.filters.statuses.includes(item.status)) &&
+        (request.filters.sessionId === undefined || request.filters.sessionId === item.sessionId) &&
+        (request.filters.originKind === undefined ||
+          request.filters.originKind === item.originKind),
+    );
+    return { items, nextCursor: null, total: items.length };
+  }
+
+  public updateStatus(
+    input: InboxLifecycleInput,
+    status: InboxItem['status'],
+    updatedAt: string,
+  ): InboxItem {
+    const index = this.records.findIndex(
+      (item) =>
+        item.campaignId === input.campaignId &&
+        item.id === input.id &&
+        item.revision === input.revision,
+    );
+    if (index === -1) throw new Error('Conflito inesperado no teste.');
+    const updated = inboxItemSchema.parse({
+      ...this.records[index],
+      status,
+      updatedAt,
+      revision: input.revision + 1,
+    });
+    this.records[index] = updated;
+    return updated;
   }
 
   public count(): number {

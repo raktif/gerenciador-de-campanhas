@@ -12,6 +12,7 @@ import { RelationshipTypeManager } from '../features/relationship-types/relation
 import { RelationshipManager } from '../features/relationships/relationship-manager';
 import { SessionManager } from '../features/sessions/session-manager';
 import { TimelineManager } from '../features/timeline/timeline-manager';
+import { InboxManager } from '../features/inbox/inbox-manager';
 
 type Screen =
   | 'campaigns'
@@ -24,7 +25,8 @@ type Screen =
   | 'assertions'
   | 'notes'
   | 'sessions'
-  | 'timeline';
+  | 'timeline'
+  | 'inbox';
 type CampaignStatus = Campaign['status'];
 type LifecycleAction = 'archive' | 'restore' | 'moveToTrash';
 
@@ -255,6 +257,8 @@ export function CampaignApp(): React.JSX.Element {
               {...(timelineEntity === undefined ? {} : { entity: timelineEntity })}
               onBack={returnFromTimeline}
             />
+          ) : screen === 'inbox' && selectedCampaign !== null ? (
+            <InboxManager campaign={selectedCampaign} onBack={() => setScreen('edit')} />
           ) : screen === 'edit' && selectedCampaign !== null ? (
             <CampaignForm
               busy={creating}
@@ -269,6 +273,7 @@ export function CampaignApp(): React.JSX.Element {
               onManageNotes={() => openCampaignNarrative('notes')}
               onManageSessions={() => setScreen('sessions')}
               onManageTimeline={openCampaignTimeline}
+              onManageInbox={() => setScreen('inbox')}
               onManageEntityTypes={() => setScreen('entityTypes')}
               onManageRelationshipTypes={() => setScreen('relationshipTypes')}
               onManageRelationships={() => setScreen('relationships')}
@@ -288,7 +293,9 @@ export function CampaignApp(): React.JSX.Element {
             />
           )}
         </main>
-        {selectedCampaign === null ? null : <QuickCapture campaign={selectedCampaign} />}
+        {selectedCampaign === null ? null : (
+          <QuickCapture campaign={selectedCampaign} onOpenInbox={() => setScreen('inbox')} />
+        )}
       </div>
     </div>
   );

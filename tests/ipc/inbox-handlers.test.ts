@@ -1,6 +1,11 @@
 import type { IpcMain, IpcMainInvokeEvent } from 'electron';
 import { describe, expect, it } from 'vitest';
-import type { CaptureInboxItemInput, InboxItem } from '../../src/core/contracts/inbox';
+import type {
+  CaptureInboxItemInput,
+  InboxItem,
+  InboxLifecycleInput,
+  InboxPageRequest,
+} from '../../src/core/contracts/inbox';
 import { inboxChannels } from '../../src/core/contracts/ipc-channels';
 import { AppError } from '../../src/core/errors/app-error';
 import { registerInboxIpcHandlers } from '../../src/main/ipc/inbox-handlers';
@@ -17,7 +22,15 @@ describe('handler IPC da captura rápida', () => {
     const handlers = new Map<string, CapturedHandler>();
     const service = new FakeInboxService();
     const unregister = registerInboxIpcHandlers(ipc(handlers), dependencies(service));
-    expect([...handlers.keys()]).toEqual([inboxChannels.capture]);
+    expect([...handlers.keys()]).toEqual([
+      inboxChannels.capture,
+      inboxChannels.get,
+      inboxChannels.list,
+      inboxChannels.beginReview,
+      inboxChannels.dismiss,
+      inboxChannels.archive,
+      inboxChannels.restore,
+    ]);
 
     const result = await handler(handlers)(event(42), {
       campaignId,
@@ -60,6 +73,43 @@ describe('handler IPC da captura rápida', () => {
   });
 });
 
+describe('canais de triagem da Caixa de Entrada', () => {
+  it('valida remetente, entrada strict e saída em todos os seis canais novos', async () => {
+    const handlers = new Map<string, CapturedHandler>();
+    const service = new FakeInboxService();
+    registerInboxIpcHandlers(ipc(handlers), dependencies(service));
+    const lifecycle = { campaignId, id: inboxItemId, revision: 1 };
+    const cases: [string, unknown][] = [
+      [inboxChannels.get, { campaignId, id: inboxItemId }],
+      [inboxChannels.list, { campaignId, filters: {} }],
+      [inboxChannels.beginReview, lifecycle],
+      [inboxChannels.dismiss, lifecycle],
+      [inboxChannels.archive, lifecycle],
+      [inboxChannels.restore, lifecycle],
+    ];
+    for (const [channel, input] of cases) {
+      const registered = handlers.get(channel);
+      if (registered === undefined) throw new Error('Canal não registrado.');
+      expect(await registered(event(99), input)).toMatchObject({
+        ok: false,
+        error: { code: 'IPC_SENDER_NOT_ALLOWED' },
+      });
+      expect(await registered(event(42), { ...(input as object), extra: true })).toMatchObject({
+        ok: false,
+        error: { code: 'VALIDATION_ERROR' },
+      });
+      expect(await registered(event(42), input)).toMatchObject({ ok: true });
+    }
+    service.invalidOutput = true;
+    const archive = handlers.get(inboxChannels.archive);
+    if (archive === undefined) throw new Error('Canal não registrado.');
+    expect(await archive(event(42), lifecycle)).toMatchObject({
+      ok: false,
+      error: { code: 'INTERNAL_ERROR' },
+    });
+  });
+});
+
 class FakeInboxService {
   public captureInput: CaptureInboxItemInput | null = null;
   public calls = 0;
@@ -69,6 +119,30 @@ class FakeInboxService {
   public capture(input: CaptureInboxItemInput): InboxItem {
     this.calls += 1;
     this.captureInput = input;
+    if (this.failure !== null) throw this.failure;
+    return (this.invalidOutput ? { invalid: true } : inboxItem()) as InboxItem;
+  }
+
+  public get(_input: { campaignId: string; id: string }): InboxItem {
+    return this.output();
+  }
+  public list(_input: InboxPageRequest): { items: InboxItem[]; nextCursor: null; total: number } {
+    return { items: [this.output()], nextCursor: null, total: 1 };
+  }
+  public beginReview(_input: InboxLifecycleInput): InboxItem {
+    return this.output();
+  }
+  public dismiss(_input: InboxLifecycleInput): InboxItem {
+    return this.output();
+  }
+  public archive(_input: InboxLifecycleInput): InboxItem {
+    return this.output();
+  }
+  public restore(_input: InboxLifecycleInput): InboxItem {
+    return this.output();
+  }
+
+  private output(): InboxItem {
     if (this.failure !== null) throw this.failure;
     return (this.invalidOutput ? { invalid: true } : inboxItem()) as InboxItem;
   }
