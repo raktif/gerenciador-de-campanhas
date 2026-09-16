@@ -21,6 +21,7 @@ describe('gateway do preload da captura rápida', () => {
       'dismiss',
       'archive',
       'restore',
+      'convertToEntity',
     ]);
     expect('ipcRenderer' in gateway).toBe(false);
     expect('invoke' in gateway).toBe(false);
@@ -67,6 +68,14 @@ describe('operações de triagem no preload', () => {
     ]);
     expect(() => gateway.inbox.archive({ campaignId, id: inboxItemId, revision: 0 })).toThrow();
     expect(() => gateway.inbox.list({ campaignId, filters: {}, extra: true } as never)).toThrow();
+    expect(() =>
+      gateway.inbox.convertToEntity({
+        campaignId,
+        id: inboxItemId,
+        revision: 1,
+        destination: { entityTypeId: 'invalid', name: 'X', summary: null },
+      }),
+    ).toThrow();
   });
 });
 

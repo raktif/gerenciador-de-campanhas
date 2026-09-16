@@ -2,6 +2,7 @@ import type { IpcMain, IpcMainInvokeEvent } from 'electron';
 import { describe, expect, it } from 'vitest';
 import type {
   CaptureInboxItemInput,
+  ConvertInboxItemToEntityInput,
   InboxItem,
   InboxLifecycleInput,
   InboxPageRequest,
@@ -24,6 +25,7 @@ describe('handler IPC da captura rápida', () => {
     const unregister = registerInboxIpcHandlers(ipc(handlers), dependencies(service));
     expect([...handlers.keys()]).toEqual([
       inboxChannels.capture,
+      inboxChannels.convertToEntity,
       inboxChannels.get,
       inboxChannels.list,
       inboxChannels.beginReview,
@@ -108,6 +110,36 @@ describe('canais de triagem da Caixa de Entrada', () => {
       error: { code: 'INTERNAL_ERROR' },
     });
   });
+
+  it('protege a conversão em entidade e encaminha somente sua entrada validada', async () => {
+    const handlers = new Map<string, CapturedHandler>();
+    const service = new FakeInboxService();
+    registerInboxIpcHandlers(ipc(handlers), dependencies(service));
+    const convert = handlers.get(inboxChannels.convertToEntity);
+    if (convert === undefined) throw new Error('Canal de conversão não registrado.');
+    const input = conversionInput();
+    expect(await convert(event(99), input)).toMatchObject({
+      ok: false,
+      error: { code: 'IPC_SENDER_NOT_ALLOWED' },
+    });
+    expect(await convert(event(42), { ...input, extra: true })).toMatchObject({
+      ok: false,
+      error: { code: 'VALIDATION_ERROR' },
+    });
+    expect(await convert(event(42), input)).toMatchObject({ ok: true, data: conversionResult() });
+    expect(service.convertInput).toEqual(input);
+    service.failure = new AppError('INVALID_INBOX_CONVERSION_STATE', 'Estado inválido.');
+    expect(await convert(event(42), input)).toMatchObject({
+      ok: false,
+      error: { code: 'INVALID_INBOX_CONVERSION_STATE' },
+    });
+    service.failure = null;
+    service.invalidOutput = true;
+    expect(await convert(event(42), input)).toMatchObject({
+      ok: false,
+      error: { code: 'INTERNAL_ERROR' },
+    });
+  });
 });
 
 class FakeInboxService {
@@ -115,6 +147,7 @@ class FakeInboxService {
   public calls = 0;
   public failure: AppError | null = null;
   public invalidOutput = false;
+  public convertInput: ConvertInboxItemToEntityInput | null = null;
 
   public capture(input: CaptureInboxItemInput): InboxItem {
     this.calls += 1;
@@ -141,6 +174,11 @@ class FakeInboxService {
   public restore(_input: InboxLifecycleInput): InboxItem {
     return this.output();
   }
+  public convertToEntity(input: ConvertInboxItemToEntityInput): unknown {
+    this.convertInput = input;
+    if (this.failure !== null) throw this.failure;
+    return this.invalidOutput ? { invalid: true } : conversionResult();
+  }
 
   private output(): InboxItem {
     if (this.failure !== null) throw this.failure;
@@ -162,6 +200,50 @@ function inboxItem(): InboxItem {
     createdAt: timestamp,
     updatedAt: timestamp,
     revision: 1,
+  };
+}
+
+function conversionInput(): ConvertInboxItemToEntityInput {
+  return {
+    campaignId,
+    id: inboxItemId,
+    revision: 1,
+    destination: {
+      entityTypeId: '60000000-0000-4000-8000-000000000001',
+      name: 'Iara',
+      summary: null,
+      canonState: 'accepted',
+      knowledgeState: 'fact',
+      visibility: 'gm',
+    },
+  };
+}
+
+function conversionResult() {
+  return {
+    inboxItem: {
+      ...inboxItem(),
+      status: 'converted' as const,
+      convertedObjectType: 'entity',
+      convertedObjectId: '90000000-0000-4000-8000-000000000001',
+      revision: 2,
+    },
+    entity: {
+      id: '90000000-0000-4000-8000-000000000001',
+      campaignId,
+      entityTypeId: '60000000-0000-4000-8000-000000000001',
+      name: 'Iara',
+      summary: null,
+      canonState: 'accepted' as const,
+      knowledgeState: 'fact' as const,
+      visibility: 'gm' as const,
+      originKind: 'manual' as const,
+      sourceId: '90000000-0000-4000-8000-000000000002',
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      archivedAt: null,
+      revision: 1,
+    },
   };
 }
 

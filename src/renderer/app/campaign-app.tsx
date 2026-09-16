@@ -258,7 +258,11 @@ export function CampaignApp(): React.JSX.Element {
               onBack={returnFromTimeline}
             />
           ) : screen === 'inbox' && selectedCampaign !== null ? (
-            <InboxManager campaign={selectedCampaign} onBack={() => setScreen('edit')} />
+            <InboxManager
+              campaign={selectedCampaign}
+              onBack={() => setScreen('edit')}
+              onManageEntityTypes={() => setScreen('entityTypes')}
+            />
           ) : screen === 'edit' && selectedCampaign !== null ? (
             <CampaignForm
               busy={creating}

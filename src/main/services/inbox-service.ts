@@ -7,7 +7,11 @@ import type {
   InboxLifecycleInput,
   InboxPageRequest,
   InboxPageResult,
+  ConvertInboxItemToEntityInput,
+  InboxEntityConversionResult,
 } from '../../core/contracts/inbox';
+import type { Entity } from '../../core/contracts/entities';
+import type { EntityType } from '../../core/contracts/entity-types';
 import type { Session } from '../../core/contracts/sessions';
 import { AppError } from '../../core/errors/app-error';
 
@@ -20,6 +24,12 @@ export interface InboxRepositoryPort {
     status: InboxItem['status'],
     updatedAt: string,
   ): InboxItem;
+  convertToEntity?(
+    input: { campaignId: string; id: string; revision: number },
+    entity: Entity,
+    sourceId: string,
+    timestamp: string,
+  ): InboxEntityConversionResult;
 }
 
 export interface InboxCampaignLookupPort {
@@ -28,6 +38,10 @@ export interface InboxCampaignLookupPort {
 
 export interface InboxSessionLookupPort {
   findById(campaignId: string, id: string): Session | null;
+}
+
+export interface InboxEntityTypeLookupPort {
+  findById(campaignId: string, id: string): EntityType | null;
 }
 
 export class InboxService {
@@ -39,6 +53,7 @@ export class InboxService {
       repository: InboxRepositoryPort;
       campaigns: InboxCampaignLookupPort;
       sessions: InboxSessionLookupPort;
+      entityTypes?: InboxEntityTypeLookupPort;
       createId?: () => string;
       now?: () => string;
     },
@@ -95,6 +110,55 @@ export class InboxService {
 
   public restore(input: InboxLifecycleInput): InboxItem {
     return this.transition(input, ['archived'], 'new', 'INVALID_INBOX_RESTORE_STATE');
+  }
+
+  public convertToEntity(input: ConvertInboxItemToEntityInput): InboxEntityConversionResult {
+    const current = this.requireItem(input.campaignId, input.id);
+    if (current.revision !== input.revision)
+      throw new AppError('REVISION_CONFLICT', 'A captura foi alterada em outra operação.', {
+        expectedRevision: input.revision,
+        currentRevision: current.revision,
+        current,
+      });
+    if (current.status !== 'reviewing')
+      throw new AppError('INVALID_INBOX_CONVERSION_STATE', 'A captura precisa estar em revisão.');
+    if (
+      this.dependencies.entityTypes === undefined ||
+      this.dependencies.repository.convertToEntity === undefined
+    )
+      throw new AppError('INBOX_CONVERSION_UNAVAILABLE', 'A conversão não está disponível.');
+    const entityType = this.dependencies.entityTypes.findById(
+      input.campaignId,
+      input.destination.entityTypeId,
+    );
+    if (entityType === null)
+      throw new AppError('ENTITY_TYPE_NOT_FOUND', 'O tipo de entidade não foi encontrado.');
+    if (entityType.isArchived)
+      throw new AppError('INVALID_ENTITY_TYPE_STATE', 'O tipo de entidade está arquivado.');
+    if (current.originKind === 'session' && current.sessionId === null)
+      throw new AppError(
+        'INVALID_INBOX_ORIGIN',
+        'A captura de sessão não possui sessão de origem.',
+      );
+    const timestamp = this.now();
+    const sourceId = this.createId();
+    const entity: Entity = {
+      id: this.createId(),
+      campaignId: input.campaignId,
+      entityTypeId: input.destination.entityTypeId,
+      name: input.destination.name,
+      summary: input.destination.summary,
+      canonState: input.destination.canonState,
+      knowledgeState: input.destination.knowledgeState,
+      visibility: input.destination.visibility,
+      originKind: current.originKind,
+      sourceId,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      archivedAt: null,
+      revision: 1,
+    };
+    return this.dependencies.repository.convertToEntity(input, entity, sourceId, timestamp);
   }
 
   private transition(

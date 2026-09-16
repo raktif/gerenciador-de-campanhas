@@ -10,6 +10,7 @@ import {
 import { ensureDataDirectories, getDataDirectories } from '../../src/core/storage/data-directories';
 import { openApplicationDatabase, type DatabaseContext } from '../../src/db/connection';
 import { CampaignRepository } from '../../src/db/repositories/campaign-repository';
+import { EntityTypeRepository } from '../../src/db/repositories/entity-type-repository';
 import { InboxRepository } from '../../src/db/repositories/inbox-repository';
 import { SessionRepository } from '../../src/db/repositories/session-repository';
 import { InboxService } from '../../src/main/services/inbox-service';
@@ -79,6 +80,138 @@ describe('InboxRepository', () => {
       total: 1,
     });
     expect(context.native.pragma('foreign_key_check')).toEqual([]);
+    context.close();
+  });
+
+  it('converte em entidade com fonte rastreável e faz rollback quando a entidade não pode ser inserida', async () => {
+    const { context, repository, service } = await setup();
+    const entityTypeId = '60000000-0000-4000-8000-000000000001';
+    context.native
+      .prepare(
+        `INSERT INTO entity_types (id, campaign_id, name, singular_name, slug, sort_order, is_system, is_archived, created_at, updated_at, revision) VALUES (?, ?, 'Pessoa', 'Pessoa', 'pessoa', 0, 0, 0, ?, ?, 1)`,
+      )
+      .run(entityTypeId, campaignId, timestamp, timestamp);
+    const captured = service.capture(
+      captureInboxItemInputSchema.parse({ campaignId, rawText: 'A sentinela se chama Iara.' }),
+    );
+    const reviewing = service.beginReview({ campaignId, id: captured.id, revision: 1 });
+    const converted = service.convertToEntity({
+      campaignId,
+      id: captured.id,
+      revision: reviewing.revision,
+      destination: {
+        entityTypeId,
+        name: 'Iara',
+        summary: null,
+        canonState: 'accepted',
+        knowledgeState: 'fact',
+        visibility: 'gm',
+      },
+    });
+    expect(converted).toMatchObject({
+      inboxItem: {
+        status: 'converted',
+        convertedObjectType: 'entity',
+        convertedObjectId: converted.entity.id,
+      },
+      entity: { name: 'Iara', originKind: 'manual' },
+    });
+    expect(
+      context.native
+        .prepare('SELECT inbox_item_id, entity_id, source_id FROM inbox_entity_conversions')
+        .get(),
+    ).toEqual({
+      inbox_item_id: captured.id,
+      entity_id: converted.entity.id,
+      source_id: converted.entity.sourceId,
+    });
+    expect(
+      context.native
+        .prepare('SELECT description, inbox_item_id FROM sources WHERE id = ?')
+        .get(converted.entity.sourceId),
+    ).toEqual({ description: 'A sentinela se chama Iara.', inbox_item_id: captured.id });
+    const foreignEntityTypeId = '60000000-0000-4000-8000-000000000002';
+    context.native
+      .prepare(
+        `INSERT INTO entity_types (id, campaign_id, name, singular_name, slug, sort_order, is_system, is_archived, created_at, updated_at, revision) VALUES (?, ?, 'Pessoa', 'Pessoa', 'pessoa', 0, 0, 0, ?, ?, 1)`,
+      )
+      .run(foreignEntityTypeId, otherCampaignId, timestamp, timestamp);
+    const foreignEntitiesBefore = context.native
+      .prepare('SELECT COUNT(*) AS total FROM entities WHERE campaign_id = ?')
+      .get(otherCampaignId);
+    expect(() =>
+      context.native
+        .prepare(
+          `INSERT INTO entities (id, campaign_id, entity_type_id, name, summary, canon_state, knowledge_state, visibility, origin_kind, source_id, created_at, updated_at, revision)
+           VALUES (?, ?, ?, 'InvasÃ£o', NULL, 'accepted', 'fact', 'gm', 'manual', ?, ?, ?, 1)`,
+        )
+        .run(
+          '90000000-0000-4000-8000-000000000099',
+          otherCampaignId,
+          foreignEntityTypeId,
+          converted.entity.sourceId,
+          timestamp,
+          timestamp,
+        ),
+    ).toThrow(/ENTITY_SOURCE_INVALID/);
+    expect(
+      context.native
+        .prepare('SELECT COUNT(*) AS total FROM entities WHERE campaign_id = ?')
+        .get(otherCampaignId),
+    ).toEqual(foreignEntitiesBefore);
+    expect(() =>
+      service.convertToEntity({
+        campaignId,
+        id: captured.id,
+        revision: reviewing.revision,
+        destination: {
+          entityTypeId,
+          name: 'Outra',
+          summary: null,
+          canonState: 'accepted',
+          knowledgeState: 'fact',
+          visibility: 'gm',
+        },
+      }),
+    ).toThrow();
+    expect(context.native.prepare('SELECT COUNT(*) AS total FROM entities').get()).toEqual({
+      total: 1,
+    });
+    const failed = createInboxItem(
+      '80000000-0000-4000-8000-000000000099',
+      campaignId,
+      '2026-09-14T13:00:00.000Z',
+    );
+    repository.insert(failed);
+    const failedReview = repository.updateStatus(
+      { campaignId, id: failed.id, revision: 1 },
+      'reviewing',
+      timestamp,
+    );
+    const sourcesBefore = context.native.prepare('SELECT COUNT(*) AS total FROM sources').get();
+    const conversionsBefore = context.native
+      .prepare('SELECT COUNT(*) AS total FROM inbox_entity_conversions')
+      .get();
+    expect(() =>
+      repository.convertToEntity(
+        { campaignId, id: failed.id, revision: failedReview.revision },
+        { ...converted.entity, sourceId: '90000000-0000-4000-8000-000000000098' },
+        '90000000-0000-4000-8000-000000000098',
+        timestamp,
+      ),
+    ).toThrow();
+    expect(repository.findById(campaignId, failed.id)).toMatchObject({
+      status: 'reviewing',
+      revision: 2,
+      convertedObjectType: null,
+      convertedObjectId: null,
+    });
+    expect(context.native.prepare('SELECT COUNT(*) AS total FROM sources').get()).toEqual(
+      sourcesBefore,
+    );
+    expect(
+      context.native.prepare('SELECT COUNT(*) AS total FROM inbox_entity_conversions').get(),
+    ).toEqual(conversionsBefore);
     context.close();
   });
 
@@ -201,6 +334,7 @@ async function setup(): Promise<{
       repository,
       campaigns: new CampaignRepository(context.orm),
       sessions: new SessionRepository(context.orm),
+      entityTypes: new EntityTypeRepository(context.orm),
       createId: () => '80000000-0000-4000-8000-000000000001',
       now: () => timestamp,
     }),

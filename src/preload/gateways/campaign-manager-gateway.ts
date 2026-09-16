@@ -37,11 +37,13 @@ import {
 } from '../../core/contracts/events';
 import {
   captureInboxItemInputSchema,
+  convertInboxItemToEntityInputSchema,
   getInboxItemInputSchema,
   inboxLifecycleInputSchema,
   inboxPageRequestSchema,
   type InboxItem,
   type InboxPageResult,
+  type InboxEntityConversionResult,
 } from '../../core/contracts/inbox';
 import type { CampaignManagerGateway } from '../../core/contracts/gateway';
 import {
@@ -349,6 +351,12 @@ export function createCampaignManagerGateway(invokeIpc: IpcInvoker): CampaignMan
         invoke<InboxItem>(inboxChannels.archive, input, inboxLifecycleInputSchema),
       restore: (input) =>
         invoke<InboxItem>(inboxChannels.restore, input, inboxLifecycleInputSchema),
+      convertToEntity: (input) =>
+        invoke<InboxEntityConversionResult>(
+          inboxChannels.convertToEntity,
+          input,
+          convertInboxItemToEntityInputSchema,
+        ),
     },
     events: {
       create: (input) => invoke<EventDetails>(eventChannels.create, input, createEventInputSchema),

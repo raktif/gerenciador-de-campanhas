@@ -8,6 +8,8 @@ import legacyTagsAndSearchMigration from './0006_tags_and_search_legacy.sql?raw'
 import removeDeferredPhaseFeaturesMigration from './0007_remove_deferred_phase_features.sql?raw';
 import phaseTwoFoundationMigration from './0008_phase_two_foundation.sql?raw';
 import inboxCaptureIntegrityMigration from './0009_inbox_capture_integrity.sql?raw';
+import inboxEntityProvenanceMigration from './0010_inbox_entity_provenance.sql?raw';
+import inboxEntityProvenanceIntegrityMigration from './0011_inbox_entity_provenance_integrity.sql?raw';
 
 export interface MigrationDefinition {
   version: number;
@@ -76,5 +78,17 @@ export const migrations: readonly MigrationDefinition[] = [
     name: 'phase-two-inbox-capture-integrity',
     checksum: checksum(inboxCaptureIntegrityMigration),
     sql: inboxCaptureIntegrityMigration,
+  },
+  {
+    version: 10,
+    name: 'phase-two-inbox-entity-provenance',
+    checksum: checksum(inboxEntityProvenanceMigration),
+    sql: inboxEntityProvenanceMigration,
+  },
+  {
+    version: 11,
+    name: 'phase-two-inbox-entity-provenance-integrity',
+    checksum: checksum(inboxEntityProvenanceIntegrityMigration),
+    sql: inboxEntityProvenanceIntegrityMigration,
   },
 ];

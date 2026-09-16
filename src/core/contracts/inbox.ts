@@ -1,5 +1,12 @@
 import { z } from 'zod';
 import { inboxStatuses, originKinds } from './narrative';
+import {
+  canonStates,
+  knowledgeStates,
+  manualNarrativeDefaults,
+  visibilityStates,
+} from './narrative';
+import { entitySchema } from './entities';
 import { defaultPageLimit, maximumPageLimit, type PageResult } from './pagination';
 import type { Result } from './result';
 
@@ -93,6 +100,35 @@ export const inboxPageResultSchema = z
 
 export const inboxReviewableStatusSchema = z.enum(inboxMutableStatuses);
 
+const conversionEntityInputSchema = z
+  .object({
+    entityTypeId: z.uuid(),
+    name: z.string().trim().min(1).max(200),
+    summary: z.string().trim().min(1).max(10000).nullable().default(null),
+    canonState: z.enum(canonStates).default(manualNarrativeDefaults.canonState),
+    knowledgeState: z.enum(knowledgeStates).default(manualNarrativeDefaults.knowledgeState),
+    visibility: z.enum(visibilityStates).default(manualNarrativeDefaults.visibility),
+  })
+  .strict();
+
+export const convertInboxItemToEntityInputSchema = z
+  .object({
+    campaignId: z.uuid(),
+    id: z.uuid(),
+    revision: z.number().int().positive(),
+    destination: conversionEntityInputSchema,
+  })
+  .strict();
+export type ConvertInboxItemToEntityInput = z.output<typeof convertInboxItemToEntityInputSchema>;
+export type ConvertInboxItemToEntityInputRequest = z.input<
+  typeof convertInboxItemToEntityInputSchema
+>;
+
+export const inboxEntityConversionResultSchema = z
+  .object({ inboxItem: inboxItemSchema, entity: entitySchema })
+  .strict();
+export type InboxEntityConversionResult = z.infer<typeof inboxEntityConversionResultSchema>;
+
 export interface InboxGateway {
   capture(input: CaptureInboxItemInputRequest): Promise<Result<InboxItem>>;
   get(input: GetInboxItemInput): Promise<Result<InboxItem>>;
@@ -101,4 +137,7 @@ export interface InboxGateway {
   dismiss(input: InboxLifecycleInput): Promise<Result<InboxItem>>;
   archive(input: InboxLifecycleInput): Promise<Result<InboxItem>>;
   restore(input: InboxLifecycleInput): Promise<Result<InboxItem>>;
+  convertToEntity(
+    input: ConvertInboxItemToEntityInputRequest,
+  ): Promise<Result<InboxEntityConversionResult>>;
 }

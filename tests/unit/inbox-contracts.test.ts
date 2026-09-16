@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { captureInboxItemInputSchema, inboxItemSchema } from '../../src/core/contracts/inbox';
+import {
+  captureInboxItemInputSchema,
+  convertInboxItemToEntityInputSchema,
+  inboxItemSchema,
+} from '../../src/core/contracts/inbox';
 
 const campaignId = '00000000-0000-4000-8000-000000000001';
 const sessionId = '70000000-0000-4000-8000-000000000001';
@@ -18,6 +22,41 @@ describe('contratos de captura rápida', () => {
     expect(
       captureInboxItemInputSchema.parse({ campaignId, sessionId, rawText: 'Registrar o nome.' }),
     ).toMatchObject({ campaignId, sessionId, rawText: 'Registrar o nome.' });
+  });
+
+  it('aceita somente a conversão strict para entidade com revisão e metadados', () => {
+    expect(
+      convertInboxItemToEntityInputSchema.parse({
+        campaignId,
+        id: inboxItemId,
+        revision: 1,
+        destination: {
+          entityTypeId: '60000000-0000-4000-8000-000000000001',
+          name: 'Iara',
+          summary: null,
+        },
+      }),
+    ).toMatchObject({
+      destination: {
+        name: 'Iara',
+        canonState: 'accepted',
+        knowledgeState: 'fact',
+        visibility: 'gm',
+      },
+    });
+    expect(() =>
+      convertInboxItemToEntityInputSchema.parse({
+        campaignId,
+        id: inboxItemId,
+        revision: 1,
+        destination: {
+          entityTypeId: '60000000-0000-4000-8000-000000000001',
+          name: 'Iara',
+          summary: null,
+          target: 'note',
+        },
+      }),
+    ).toThrow();
   });
 
   it('rejeita texto vazio, IDs inválidos e propriedades fora do contrato', () => {

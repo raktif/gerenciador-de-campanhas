@@ -368,6 +368,7 @@ export const sources = sqliteTable(
     aiRunId: text('ai_run_id'),
     importBatchId: text('import_batch_id'),
     rulesetPackId: text('ruleset_pack_id'),
+    inboxItemId: text('inbox_item_id'),
     description: text('description'),
     createdAt: text('created_at').notNull(),
   },
@@ -379,7 +380,8 @@ export const sources = sqliteTable(
     ),
     uniqueIndex('sources_session_unique')
       .on(table.sessionId)
-      .where(sql`${table.kind} = 'session'`),
+      .where(sql`${table.kind} = 'session' AND ${table.inboxItemId} IS NULL`),
+    uniqueIndex('sources_inbox_item_unique').on(table.inboxItemId),
   ],
 );
 
@@ -717,4 +719,15 @@ export const inboxItems = sqliteTable(
       sql`${table.id} DESC`,
     ),
   ],
+);
+
+export const inboxEntityConversions = sqliteTable(
+  'inbox_entity_conversions',
+  {
+    inboxItemId: text('inbox_item_id').primaryKey(),
+    entityId: text('entity_id').notNull(),
+    sourceId: text('source_id').notNull(),
+    createdAt: text('created_at').notNull(),
+  },
+  (table) => [uniqueIndex('inbox_entity_conversions_entity_unique').on(table.entityId)],
 );

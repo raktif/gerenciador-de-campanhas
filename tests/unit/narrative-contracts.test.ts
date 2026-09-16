@@ -54,6 +54,7 @@ describe('contratos narrativos compartilhados', () => {
       aiRunId: null,
       importBatchId: null,
       rulesetPackId: null,
+      inboxItemId: null,
       description: null,
       createdAt: '2026-08-31T12:00:00.000Z',
     };
@@ -66,5 +67,53 @@ describe('contratos narrativos compartilhados', () => {
     ).toMatchObject({ kind: 'session' });
     expect(() => sourceSchema.parse({ ...base, kind: 'session' })).toThrow();
     expect(() => sourceSchema.parse({ ...base, kind: 'generator' })).toThrow();
+  });
+
+  it('valida fontes rastreÃ¡veis da Caixa de Entrada', () => {
+    const inboxItemId = '20000000-0000-4000-8000-000000000001';
+    const base = {
+      id: '00000000-0000-4000-8000-000000000001',
+      documentChunkId: null,
+      aiRunId: null,
+      importBatchId: null,
+      rulesetPackId: null,
+      createdAt: '2026-08-31T12:00:00.000Z',
+    };
+    expect(
+      sourceSchema.parse({
+        ...base,
+        kind: 'manual',
+        sessionId: null,
+        inboxItemId,
+        description: 'Captura manual.',
+      }),
+    ).toMatchObject({ kind: 'manual', inboxItemId });
+    expect(
+      sourceSchema.parse({
+        ...base,
+        kind: 'session',
+        sessionId: '10000000-0000-4000-8000-000000000001',
+        inboxItemId,
+        description: 'Captura de sessÃ£o.',
+      }),
+    ).toMatchObject({ kind: 'session', inboxItemId });
+    expect(() =>
+      sourceSchema.parse({
+        ...base,
+        kind: 'manual',
+        sessionId: null,
+        inboxItemId,
+        description: null,
+      }),
+    ).toThrow();
+    expect(() =>
+      sourceSchema.parse({
+        ...base,
+        kind: 'generator',
+        sessionId: null,
+        inboxItemId,
+        description: 'Captura invÃ¡lida.',
+      }),
+    ).toThrow();
   });
 });

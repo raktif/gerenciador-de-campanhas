@@ -22,7 +22,9 @@ import {
   type InboxPageResult,
 } from '../../core/contracts/inbox';
 import { AppError } from '../../core/errors/app-error';
-import { inboxItems } from '../schema';
+import { entities, inboxEntityConversions, inboxItems, sources } from '../schema';
+import { entitySchema, type Entity } from '../../core/contracts/entities';
+import type { InboxEntityConversionResult } from '../../core/contracts/inbox';
 import type * as schema from '../schema';
 
 const cursorBaseSchema = z
@@ -133,6 +135,79 @@ export class InboxRepository {
     const updated = this.findById(input.campaignId, input.id);
     if (updated === null) throw new Error('A captura atualizada não foi encontrada.');
     return updated;
+  }
+
+  public convertToEntity(
+    input: { campaignId: string; id: string; revision: number },
+    entity: Entity,
+    sourceId: string,
+    timestamp: string,
+  ): InboxEntityConversionResult {
+    return this.database.transaction((transaction) => {
+      const item = transaction
+        .select()
+        .from(inboxItems)
+        .where(and(eq(inboxItems.campaignId, input.campaignId), eq(inboxItems.id, input.id)))
+        .get();
+      if (item === undefined)
+        throw new AppError('INBOX_ITEM_NOT_FOUND', 'A captura não foi encontrada.', input);
+      const current = inboxItemSchema.parse(item);
+      if (current.revision !== input.revision)
+        throw new AppError('REVISION_CONFLICT', 'A captura foi alterada em outra operação.', {
+          expectedRevision: input.revision,
+          currentRevision: current.revision,
+          current,
+        });
+      if (current.status !== 'reviewing')
+        throw new AppError(
+          'INVALID_INBOX_CONVERSION_STATE',
+          'A captura precisa estar em revisão.',
+          {
+            status: current.status,
+          },
+        );
+      transaction
+        .insert(sources)
+        .values({
+          id: sourceId,
+          kind: current.originKind,
+          sessionId: current.sessionId,
+          description: current.rawText,
+          inboxItemId: current.id,
+          createdAt: timestamp,
+        })
+        .run();
+      transaction.insert(entities).values(entity).run();
+      const updated = transaction
+        .update(inboxItems)
+        .set({
+          status: 'converted',
+          convertedObjectType: 'entity',
+          convertedObjectId: entity.id,
+          updatedAt: timestamp,
+          revision: sql`${inboxItems.revision} + 1`,
+        })
+        .where(
+          and(
+            eq(inboxItems.campaignId, input.campaignId),
+            eq(inboxItems.id, input.id),
+            eq(inboxItems.revision, input.revision),
+          ),
+        )
+        .run();
+      if (updated.changes !== 1) throw new Error('Conflito de conversão inesperado.');
+      transaction
+        .insert(inboxEntityConversions)
+        .values({ inboxItemId: current.id, entityId: entity.id, sourceId, createdAt: timestamp })
+        .run();
+      const converted = transaction
+        .select()
+        .from(inboxItems)
+        .where(eq(inboxItems.id, current.id))
+        .get();
+      if (converted === undefined) throw new Error('A captura convertida não foi encontrada.');
+      return { inboxItem: inboxItemSchema.parse(converted), entity: entitySchema.parse(entity) };
+    });
   }
 }
 

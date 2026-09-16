@@ -87,6 +87,7 @@ export const inboxChannels = {
   dismiss: 'inbox:dismiss',
   archive: 'inbox:archive',
   restore: 'inbox:restore',
+  convertToEntity: 'inbox:convert-to-entity',
 } as const;
 
 export const eventChannels = {
