@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   captureInboxItemInputSchema,
   convertInboxItemToEntityInputSchema,
+  convertInboxItemToRelationshipInputSchema,
   inboxItemSchema,
 } from '../../src/core/contracts/inbox';
 
@@ -103,6 +104,38 @@ describe('contratos de captura rápida', () => {
         createdAt: timestamp,
         updatedAt: timestamp,
         revision: 1,
+      }),
+    ).toThrow();
+  });
+
+  it('valida conversao strict para relacionamento', () => {
+    const parsed = convertInboxItemToRelationshipInputSchema.parse({
+      campaignId,
+      id: inboxItemId,
+      revision: 1,
+      destination: {
+        relationshipTypeId: '50000000-0000-4000-8000-000000000001',
+        source: { mode: 'existing', entityId: '30000000-0000-4000-8000-000000000001' },
+        target: {
+          mode: 'new',
+          entityTypeId: '60000000-0000-4000-8000-000000000001',
+          name: 'Iara',
+          summary: null,
+        },
+      },
+    });
+    expect(parsed.destination).toMatchObject({
+      canonState: 'accepted',
+      knowledgeState: 'fact',
+      visibility: 'gm',
+    });
+    expect(() =>
+      convertInboxItemToRelationshipInputSchema.parse({
+        ...parsed,
+        destination: {
+          ...parsed.destination,
+          source: { mode: 'existing', entityId: inboxItemId, extra: true },
+        },
       }),
     ).toThrow();
   });

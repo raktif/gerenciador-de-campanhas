@@ -8,12 +8,16 @@ import type {
   InboxPageRequest,
   InboxPageResult,
   ConvertInboxItemToEntityInput,
+  ConvertInboxItemToRelationshipInput,
   InboxEntityConversionResult,
+  InboxRelationshipConversionResult,
 } from '../../core/contracts/inbox';
 import type { Entity } from '../../core/contracts/entities';
+import type { Relationship } from '../../core/contracts/relationships';
 import type { EntityType } from '../../core/contracts/entity-types';
 import type { Session } from '../../core/contracts/sessions';
 import { AppError } from '../../core/errors/app-error';
+import type { RelationshipService } from './relationship-service';
 
 export interface InboxRepositoryPort {
   insert(item: InboxItem): InboxItem;
@@ -30,6 +34,13 @@ export interface InboxRepositoryPort {
     sourceId: string,
     timestamp: string,
   ): InboxEntityConversionResult;
+  convertToRelationship?(
+    input: { campaignId: string; id: string; revision: number },
+    relationship: Relationship,
+    createdEntities: Entity[],
+    sourceId: string,
+    timestamp: string,
+  ): Omit<InboxRelationshipConversionResult, 'warnings'>;
 }
 
 export interface InboxCampaignLookupPort {
@@ -44,6 +55,10 @@ export interface InboxEntityTypeLookupPort {
   findById(campaignId: string, id: string): EntityType | null;
 }
 
+export interface InboxEntityLookupPort {
+  findById(campaignId: string, id: string): Entity | null;
+}
+
 export class InboxService {
   private readonly createId: () => string;
   private readonly now: () => string;
@@ -54,6 +69,8 @@ export class InboxService {
       campaigns: InboxCampaignLookupPort;
       sessions: InboxSessionLookupPort;
       entityTypes?: InboxEntityTypeLookupPort;
+      entities?: InboxEntityLookupPort;
+      relationships?: Pick<RelationshipService, 'validateAndNormalize' | 'duplicateWarnings'>;
       createId?: () => string;
       now?: () => string;
     },
@@ -159,6 +176,138 @@ export class InboxService {
       revision: 1,
     };
     return this.dependencies.repository.convertToEntity(input, entity, sourceId, timestamp);
+  }
+
+  public convertToRelationship(
+    input: ConvertInboxItemToRelationshipInput,
+  ): InboxRelationshipConversionResult {
+    const current = this.requireConvertibleItem(input);
+    if (
+      this.dependencies.entities === undefined ||
+      this.dependencies.relationships === undefined ||
+      this.dependencies.repository.convertToRelationship === undefined
+    )
+      throw new AppError('INBOX_CONVERSION_UNAVAILABLE', 'A conversÃ£o nÃ£o estÃ¡ disponÃ­vel.');
+    if (current.originKind === 'session' && current.sessionId === null)
+      throw new AppError(
+        'INVALID_INBOX_ORIGIN',
+        'A captura de sessÃ£o nÃ£o possui sessÃ£o de origem.',
+      );
+    const timestamp = this.now();
+    const sourceId = this.createId();
+    const createdEntities: Entity[] = [];
+    const source = this.resolveRelationshipEndpoint(
+      input.campaignId,
+      input.destination.source,
+      current,
+      sourceId,
+      timestamp,
+      createdEntities,
+    );
+    const target = this.resolveRelationshipEndpoint(
+      input.campaignId,
+      input.destination.target,
+      current,
+      sourceId,
+      timestamp,
+      createdEntities,
+    );
+    const relationshipId = this.createId();
+    const normalized = this.dependencies.relationships.validateAndNormalize(
+      input.campaignId,
+      {
+        relationshipTypeId: input.destination.relationshipTypeId,
+        sourceEntityId: source.id,
+        targetEntityId: target.id,
+        description: input.destination.description,
+        strength: input.destination.strength,
+        canonState: input.destination.canonState,
+        knowledgeState: input.destination.knowledgeState,
+        visibility: input.destination.visibility,
+        originKind: current.originKind,
+        sourceId,
+        validFromEventId: input.destination.validFromEventId,
+        validToEventId: input.destination.validToEventId,
+      },
+      source,
+      target,
+    );
+    const relationship: Relationship = {
+      id: relationshipId,
+      campaignId: input.campaignId,
+      ...normalized,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      archivedAt: null,
+      revision: 1,
+    };
+    const warnings = this.dependencies.relationships.duplicateWarnings(relationship);
+    const result = this.dependencies.repository.convertToRelationship(
+      input,
+      relationship,
+      createdEntities,
+      sourceId,
+      timestamp,
+    );
+    return { ...result, warnings };
+  }
+
+  private resolveRelationshipEndpoint(
+    campaignId: string,
+    endpoint: ConvertInboxItemToRelationshipInput['destination']['source'],
+    item: InboxItem,
+    sourceId: string,
+    timestamp: string,
+    createdEntities: Entity[],
+  ): Entity {
+    if (endpoint.mode === 'existing') {
+      const entity = this.dependencies.entities?.findById(campaignId, endpoint.entityId) ?? null;
+      if (entity === null)
+        throw new AppError('ENTITY_NOT_FOUND', 'A entidade nÃ£o foi encontrada nesta campanha.', {
+          campaignId,
+          id: endpoint.entityId,
+        });
+      return entity;
+    }
+    const entityType =
+      this.dependencies.entityTypes?.findById(campaignId, endpoint.entityTypeId) ?? null;
+    if (entityType === null)
+      throw new AppError('ENTITY_TYPE_NOT_FOUND', 'O tipo de entidade nÃ£o foi encontrado.');
+    if (entityType.isArchived)
+      throw new AppError('INVALID_ENTITY_TYPE_STATE', 'O tipo de entidade estÃ¡ arquivado.');
+    const entity: Entity = {
+      id: this.createId(),
+      campaignId,
+      entityTypeId: endpoint.entityTypeId,
+      name: endpoint.name,
+      summary: endpoint.summary,
+      canonState: 'accepted',
+      knowledgeState: 'fact',
+      visibility: 'gm',
+      originKind: item.originKind,
+      sourceId,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      archivedAt: null,
+      revision: 1,
+    };
+    createdEntities.push(entity);
+    return entity;
+  }
+
+  private requireConvertibleItem(
+    input: ConvertInboxItemToEntityInput | ConvertInboxItemToRelationshipInput,
+  ): InboxItem {
+    const current = this.requireItem(input.campaignId, input.id);
+    if (current.revision !== input.revision)
+      throw new AppError('REVISION_CONFLICT', 'A captura foi alterada em outra operaÃ§Ã£o.', {
+        expectedRevision: input.revision,
+        currentRevision: current.revision,
+        current,
+      });
+    if (current.status !== 'reviewing')
+      throw new AppError('INVALID_INBOX_CONVERSION_STATE', 'A captura precisa estar em revisÃ£o.');
+    return current;
   }
 
   private transition(

@@ -88,6 +88,7 @@ export const inboxChannels = {
   archive: 'inbox:archive',
   restore: 'inbox:restore',
   convertToEntity: 'inbox:convert-to-entity',
+  convertToRelationship: 'inbox:convert-to-relationship',
 } as const;
 
 export const eventChannels = {

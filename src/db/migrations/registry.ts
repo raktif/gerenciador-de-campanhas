@@ -10,6 +10,7 @@ import phaseTwoFoundationMigration from './0008_phase_two_foundation.sql?raw';
 import inboxCaptureIntegrityMigration from './0009_inbox_capture_integrity.sql?raw';
 import inboxEntityProvenanceMigration from './0010_inbox_entity_provenance.sql?raw';
 import inboxEntityProvenanceIntegrityMigration from './0011_inbox_entity_provenance_integrity.sql?raw';
+import inboxRelationshipProvenanceMigration from './0012_inbox_relationship_provenance.sql?raw';
 
 export interface MigrationDefinition {
   version: number;
@@ -90,5 +91,11 @@ export const migrations: readonly MigrationDefinition[] = [
     name: 'phase-two-inbox-entity-provenance-integrity',
     checksum: checksum(inboxEntityProvenanceIntegrityMigration),
     sql: inboxEntityProvenanceIntegrityMigration,
+  },
+  {
+    version: 12,
+    name: 'phase-two-inbox-relationship-provenance',
+    checksum: checksum(inboxRelationshipProvenanceMigration),
+    sql: inboxRelationshipProvenanceMigration,
   },
 ];

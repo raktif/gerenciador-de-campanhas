@@ -7,6 +7,7 @@ import {
   visibilityStates,
 } from './narrative';
 import { entitySchema } from './entities';
+import { relationshipSchema, relationshipWarningSchema } from './relationships';
 import { defaultPageLimit, maximumPageLimit, type PageResult } from './pagination';
 import type { Result } from './result';
 
@@ -129,6 +130,60 @@ export const inboxEntityConversionResultSchema = z
   .strict();
 export type InboxEntityConversionResult = z.infer<typeof inboxEntityConversionResultSchema>;
 
+const relationshipConversionEndpointSchema = z.discriminatedUnion('mode', [
+  z.object({ mode: z.literal('existing'), entityId: z.uuid() }).strict(),
+  z
+    .object({
+      mode: z.literal('new'),
+      entityTypeId: z.uuid(),
+      name: z.string().trim().min(1).max(200),
+      summary: z.string().trim().min(1).max(10000).nullable().default(null),
+    })
+    .strict(),
+]);
+
+const conversionRelationshipInputSchema = z
+  .object({
+    relationshipTypeId: z.uuid(),
+    source: relationshipConversionEndpointSchema,
+    target: relationshipConversionEndpointSchema,
+    description: z.string().trim().min(1).max(10000).nullable().default(null),
+    strength: z.number().nullable().default(null),
+    canonState: z.enum(canonStates).default(manualNarrativeDefaults.canonState),
+    knowledgeState: z.enum(knowledgeStates).default(manualNarrativeDefaults.knowledgeState),
+    visibility: z.enum(visibilityStates).default(manualNarrativeDefaults.visibility),
+    validFromEventId: z.uuid().nullable().default(null),
+    validToEventId: z.uuid().nullable().default(null),
+  })
+  .strict();
+
+export const convertInboxItemToRelationshipInputSchema = z
+  .object({
+    campaignId: z.uuid(),
+    id: z.uuid(),
+    revision: z.number().int().positive(),
+    destination: conversionRelationshipInputSchema,
+  })
+  .strict();
+export type ConvertInboxItemToRelationshipInput = z.output<
+  typeof convertInboxItemToRelationshipInputSchema
+>;
+export type ConvertInboxItemToRelationshipInputRequest = z.input<
+  typeof convertInboxItemToRelationshipInputSchema
+>;
+
+export const inboxRelationshipConversionResultSchema = z
+  .object({
+    inboxItem: inboxItemSchema,
+    relationship: relationshipSchema,
+    createdEntities: z.array(entitySchema).max(2),
+    warnings: z.array(relationshipWarningSchema),
+  })
+  .strict();
+export type InboxRelationshipConversionResult = z.infer<
+  typeof inboxRelationshipConversionResultSchema
+>;
+
 export interface InboxGateway {
   capture(input: CaptureInboxItemInputRequest): Promise<Result<InboxItem>>;
   get(input: GetInboxItemInput): Promise<Result<InboxItem>>;
@@ -140,4 +195,7 @@ export interface InboxGateway {
   convertToEntity(
     input: ConvertInboxItemToEntityInputRequest,
   ): Promise<Result<InboxEntityConversionResult>>;
+  convertToRelationship(
+    input: ConvertInboxItemToRelationshipInputRequest,
+  ): Promise<Result<InboxRelationshipConversionResult>>;
 }

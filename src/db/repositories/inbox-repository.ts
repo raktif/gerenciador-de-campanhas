@@ -22,9 +22,20 @@ import {
   type InboxPageResult,
 } from '../../core/contracts/inbox';
 import { AppError } from '../../core/errors/app-error';
-import { entities, inboxEntityConversions, inboxItems, sources } from '../schema';
+import {
+  entities,
+  inboxEntityConversions,
+  inboxItems,
+  inboxRelationshipConversions,
+  relationships,
+  sources,
+} from '../schema';
 import { entitySchema, type Entity } from '../../core/contracts/entities';
-import type { InboxEntityConversionResult } from '../../core/contracts/inbox';
+import { relationshipSchema, type Relationship } from '../../core/contracts/relationships';
+import type {
+  InboxEntityConversionResult,
+  InboxRelationshipConversionResult,
+} from '../../core/contracts/inbox';
 import type * as schema from '../schema';
 
 const cursorBaseSchema = z
@@ -208,6 +219,94 @@ export class InboxRepository {
       if (converted === undefined) throw new Error('A captura convertida não foi encontrada.');
       return { inboxItem: inboxItemSchema.parse(converted), entity: entitySchema.parse(entity) };
     });
+  }
+
+  public convertToRelationship(
+    input: { campaignId: string; id: string; revision: number },
+    relationship: Relationship,
+    createdEntities: Entity[],
+    sourceId: string,
+    timestamp: string,
+  ): Omit<InboxRelationshipConversionResult, 'warnings'> {
+    return this.database.transaction((transaction) => {
+      const current = this.requireReviewingItem(transaction, input);
+      transaction
+        .insert(sources)
+        .values({
+          id: sourceId,
+          kind: current.originKind,
+          sessionId: current.sessionId,
+          description: current.rawText,
+          inboxItemId: current.id,
+          createdAt: timestamp,
+        })
+        .run();
+      if (createdEntities.length > 0) transaction.insert(entities).values(createdEntities).run();
+      transaction.insert(relationships).values(relationship).run();
+      const updated = transaction
+        .update(inboxItems)
+        .set({
+          status: 'converted',
+          convertedObjectType: 'relationship',
+          convertedObjectId: relationship.id,
+          updatedAt: timestamp,
+          revision: sql`${inboxItems.revision} + 1`,
+        })
+        .where(
+          and(
+            eq(inboxItems.campaignId, input.campaignId),
+            eq(inboxItems.id, input.id),
+            eq(inboxItems.revision, input.revision),
+          ),
+        )
+        .run();
+      if (updated.changes !== 1) throw new Error('Conflito de conversÃ£o inesperado.');
+      transaction
+        .insert(inboxRelationshipConversions)
+        .values({
+          inboxItemId: current.id,
+          relationshipId: relationship.id,
+          sourceId,
+          createdAt: timestamp,
+        })
+        .run();
+      const converted = transaction
+        .select()
+        .from(inboxItems)
+        .where(eq(inboxItems.id, current.id))
+        .get();
+      if (converted === undefined) throw new Error('A captura convertida nÃ£o foi encontrada.');
+      return {
+        inboxItem: inboxItemSchema.parse(converted),
+        relationship: relationshipSchema.parse(relationship),
+        createdEntities: createdEntities.map((entity) => entitySchema.parse(entity)),
+      };
+    });
+  }
+
+  private requireReviewingItem(
+    transaction: Parameters<Parameters<typeof this.database.transaction>[0]>[0],
+    input: { campaignId: string; id: string; revision: number },
+  ): InboxItem {
+    const item = transaction
+      .select()
+      .from(inboxItems)
+      .where(and(eq(inboxItems.campaignId, input.campaignId), eq(inboxItems.id, input.id)))
+      .get();
+    if (item === undefined)
+      throw new AppError('INBOX_ITEM_NOT_FOUND', 'A captura nÃ£o foi encontrada.', input);
+    const current = inboxItemSchema.parse(item);
+    if (current.revision !== input.revision)
+      throw new AppError('REVISION_CONFLICT', 'A captura foi alterada em outra operaÃ§Ã£o.', {
+        expectedRevision: input.revision,
+        currentRevision: current.revision,
+        current,
+      });
+    if (current.status !== 'reviewing')
+      throw new AppError('INVALID_INBOX_CONVERSION_STATE', 'A captura precisa estar em revisÃ£o.', {
+        status: current.status,
+      });
+    return current;
   }
 }
 

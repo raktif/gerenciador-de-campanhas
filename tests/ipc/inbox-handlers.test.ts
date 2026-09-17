@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type {
   CaptureInboxItemInput,
   ConvertInboxItemToEntityInput,
+  ConvertInboxItemToRelationshipInput,
   InboxItem,
   InboxLifecycleInput,
   InboxPageRequest,
@@ -26,6 +27,7 @@ describe('handler IPC da captura rápida', () => {
     expect([...handlers.keys()]).toEqual([
       inboxChannels.capture,
       inboxChannels.convertToEntity,
+      inboxChannels.convertToRelationship,
       inboxChannels.get,
       inboxChannels.list,
       inboxChannels.beginReview,
@@ -140,6 +142,36 @@ describe('canais de triagem da Caixa de Entrada', () => {
       error: { code: 'INTERNAL_ERROR' },
     });
   });
+
+  it('protege a conversao em relacionamento', async () => {
+    const handlers = new Map<string, CapturedHandler>();
+    const service = new FakeInboxService();
+    registerInboxIpcHandlers(ipc(handlers), dependencies(service));
+    const convert = handlers.get(inboxChannels.convertToRelationship);
+    if (convert === undefined) throw new Error('Canal de conversao nao registrado.');
+    const input = relationshipConversionInput();
+    expect(await convert(event(99), input)).toMatchObject({
+      ok: false,
+      error: { code: 'IPC_SENDER_NOT_ALLOWED' },
+    });
+    expect(await convert(event(42), { ...input, extra: true })).toMatchObject({
+      ok: false,
+      error: { code: 'VALIDATION_ERROR' },
+    });
+    expect(await convert(event(42), input)).toMatchObject({ ok: true });
+    expect(service.relationshipConvertInput).toEqual(input);
+    service.failure = new AppError('REVISION_CONFLICT', 'Conflito.');
+    expect(await convert(event(42), input)).toMatchObject({
+      ok: false,
+      error: { code: 'REVISION_CONFLICT' },
+    });
+    service.failure = null;
+    service.invalidOutput = true;
+    expect(await convert(event(42), input)).toMatchObject({
+      ok: false,
+      error: { code: 'INTERNAL_ERROR' },
+    });
+  });
 });
 
 class FakeInboxService {
@@ -148,6 +180,7 @@ class FakeInboxService {
   public failure: AppError | null = null;
   public invalidOutput = false;
   public convertInput: ConvertInboxItemToEntityInput | null = null;
+  public relationshipConvertInput: ConvertInboxItemToRelationshipInput | null = null;
 
   public capture(input: CaptureInboxItemInput): InboxItem {
     this.calls += 1;
@@ -178,6 +211,11 @@ class FakeInboxService {
     this.convertInput = input;
     if (this.failure !== null) throw this.failure;
     return this.invalidOutput ? { invalid: true } : conversionResult();
+  }
+  public convertToRelationship(input: ConvertInboxItemToRelationshipInput): unknown {
+    this.relationshipConvertInput = input;
+    if (this.failure !== null) throw this.failure;
+    return this.invalidOutput ? { invalid: true } : relationshipConversionResult();
   }
 
   private output(): InboxItem {
@@ -244,6 +282,60 @@ function conversionResult() {
       archivedAt: null,
       revision: 1,
     },
+  };
+}
+
+function relationshipConversionInput(): ConvertInboxItemToRelationshipInput {
+  return {
+    campaignId,
+    id: inboxItemId,
+    revision: 1,
+    destination: {
+      relationshipTypeId: '50000000-0000-4000-8000-000000000001',
+      source: { mode: 'existing', entityId: '30000000-0000-4000-8000-000000000001' },
+      target: { mode: 'existing', entityId: '30000000-0000-4000-8000-000000000002' },
+      description: null,
+      strength: null,
+      canonState: 'accepted',
+      knowledgeState: 'fact',
+      visibility: 'gm',
+      validFromEventId: null,
+      validToEventId: null,
+    },
+  };
+}
+
+function relationshipConversionResult() {
+  return {
+    inboxItem: {
+      ...inboxItem(),
+      status: 'converted' as const,
+      convertedObjectType: 'relationship',
+      convertedObjectId: '40000000-0000-4000-8000-000000000001',
+      revision: 2,
+    },
+    relationship: {
+      id: '40000000-0000-4000-8000-000000000001',
+      campaignId,
+      relationshipTypeId: '50000000-0000-4000-8000-000000000001',
+      sourceEntityId: '30000000-0000-4000-8000-000000000001',
+      targetEntityId: '30000000-0000-4000-8000-000000000002',
+      description: null,
+      strength: null,
+      canonState: 'accepted',
+      knowledgeState: 'fact',
+      visibility: 'gm',
+      originKind: 'manual',
+      sourceId: '90000000-0000-4000-8000-000000000002',
+      validFromEventId: null,
+      validToEventId: null,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      archivedAt: null,
+      revision: 1,
+    },
+    createdEntities: [],
+    warnings: [],
   };
 }
 

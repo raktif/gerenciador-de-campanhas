@@ -181,6 +181,8 @@ export async function bootstrapApplication(): Promise<RunningApplication> {
     campaigns: campaignRepository,
     sessions: sessionRepository,
     entityTypes: entityTypeRepository,
+    entities: entityRepository,
+    relationships: relationshipService,
   });
   const unregisterInboxIpc = registerInboxIpcHandlers(ipcMain, {
     service: inboxService,

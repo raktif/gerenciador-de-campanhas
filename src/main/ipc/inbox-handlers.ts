@@ -2,7 +2,9 @@ import type { IpcMain, IpcMainInvokeEvent } from 'electron';
 import {
   captureInboxItemInputSchema,
   convertInboxItemToEntityInputSchema,
+  convertInboxItemToRelationshipInputSchema,
   inboxEntityConversionResultSchema,
+  inboxRelationshipConversionResultSchema,
   getInboxItemInputSchema,
   inboxItemSchema,
   inboxLifecycleInputSchema,
@@ -51,6 +53,18 @@ export function registerInboxIpcHandlers(
           inboxEntityConversionResultSchema,
           dependencies,
           (value) => dependencies.service.convertToEntity(value),
+        ),
+    },
+    {
+      channel: inboxChannels.convertToRelationship,
+      handler: (event, input) =>
+        executeIpcHandler(
+          event,
+          input,
+          convertInboxItemToRelationshipInputSchema,
+          inboxRelationshipConversionResultSchema,
+          dependencies,
+          (value) => dependencies.service.convertToRelationship(value),
         ),
     },
     {

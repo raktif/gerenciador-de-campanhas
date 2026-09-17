@@ -107,6 +107,66 @@ test('captura, abre a Caixa de Entrada, filtra, move descartada e pagina com con
   }
 });
 
+test('converte captura em relacao com endpoint existente e endpoint criado', async () => {
+  const dataDirectory = await mkdtemp(path.join(os.tmpdir(), 'rpg-inbox-relationship-e2e-'));
+  let application: ElectronApplication | null = null;
+  try {
+    application = await launch(dataDirectory);
+    let window = await application.firstWindow();
+    await window.getByRole('button', { name: 'Criar primeira campanha' }).click();
+    await window.getByLabel('Nome da campanha').fill('Relação E2E');
+    await window.getByRole('button', { name: 'Criar campanha', exact: true }).click();
+    await application.close();
+    application = null;
+    seedRelationshipFixture(dataDirectory, 'Relação E2E');
+    application = await launch(dataDirectory);
+    window = await application.firstWindow();
+    await window.getByRole('button', { name: 'Abrir campanha Relação E2E' }).click();
+    await window.getByRole('button', { name: 'Caixa de Entrada' }).click();
+    const relationshipCapture = window
+      .getByText('Captura de relação', { exact: true })
+      .locator('xpath=ancestor::article');
+    await relationshipCapture.getByRole('button', { name: 'Marcar como em revisão' }).click();
+    await relationshipCapture.getByRole('button', { name: 'Converter em relação' }).click();
+    const dialog = window.getByRole('dialog', { name: 'Converter em relação' });
+    await dialog.getByLabel('Tipo de relação').selectOption({ label: 'Restrita' });
+    await expect(
+      dialog.getByText(
+        'O tipo selecionado não possui entidades ou tipos de entidade compatíveis para todos os extremos.',
+      ),
+    ).toBeVisible();
+    await expect(dialog.getByRole('button', { name: 'Confirmar conversão' })).toBeDisabled();
+    await expect(dialog.getByRole('button', { name: 'Gerenciar tipos de entidade' })).toBeVisible();
+    await dialog.getByLabel('Tipo de relação').selectOption({ label: 'Conhece' });
+    await dialog.getByLabel('Usar entidade existente ou criar agora').nth(1).selectOption('new');
+    await dialog.getByLabel('Tipo da nova entidade').selectOption({ label: 'Pessoa' });
+    await dialog.getByLabel('Nome da nova entidade').fill('Iara');
+    await dialog.getByRole('button', { name: 'Confirmar conversão' }).click();
+    await expect(window.getByText('Relação criada a partir da captura.')).toBeVisible();
+    const duplicateCapture = window
+      .getByText('Captura duplicada', { exact: true })
+      .locator('xpath=ancestor::article');
+    await duplicateCapture.getByRole('button', { name: 'Marcar como em revisão' }).click();
+    await duplicateCapture.getByRole('button', { name: 'Converter em relação' }).click();
+    const duplicateDialog = window.getByRole('dialog', { name: 'Converter em relação' });
+    await duplicateDialog.getByLabel('Entidade').nth(1).selectOption({ label: 'Nara' });
+    await duplicateDialog.getByRole('button', { name: 'Confirmar conversão' }).click();
+    await expect(window.getByRole('status')).toContainText('possível duplicidade');
+    await application.close();
+    application = null;
+    expect(readConvertedRelationship(dataDirectory)).toEqual({
+      sourceName: 'Mara',
+      targetName: 'Iara',
+      status: 'converted',
+      conversionType: 'relationship',
+      sourceText: 'Captura de relação',
+    });
+  } finally {
+    await application?.close();
+    await rm(dataDirectory, { recursive: true, force: true });
+  }
+});
+
 function seedCaptures(dataDirectory: string): void {
   const database = new Database(path.join(dataDirectory, 'database', 'app.db'));
   try {
@@ -131,6 +191,71 @@ function seedCaptures(dataDirectory: string): void {
         );
     });
     transaction();
+  } finally {
+    database.close();
+  }
+}
+
+function seedRelationshipFixture(dataDirectory: string, name: string): void {
+  const database = new Database(path.join(dataDirectory, 'database', 'app.db'));
+  try {
+    const campaign = database.prepare('SELECT id FROM campaigns WHERE name = ?').get(name) as {
+      id: string;
+    };
+    const now = new Date().toISOString();
+    database
+      .prepare(
+        `INSERT INTO entity_types (id, campaign_id, name, singular_name, slug, sort_order, is_system, is_archived, created_at, updated_at, revision) VALUES ('60000000-0000-4000-8000-000000000020', ?, 'Pessoas', 'Pessoa', 'pessoa', 0, 0, 0, ?, ?, 1)`,
+      )
+      .run(campaign.id, now, now);
+    database
+      .prepare(
+        `INSERT INTO relationship_types (id, campaign_id, name, slug, is_symmetric, is_archived, sort_order, created_at, updated_at, revision) VALUES ('50000000-0000-4000-8000-000000000020', ?, 'Conhece', 'conhece', 0, 0, 0, ?, ?, 1)`,
+      )
+      .run(campaign.id, now, now);
+    database
+      .prepare(
+        `INSERT INTO relationship_types (id, campaign_id, name, slug, is_symmetric, allowed_source_types_json, allowed_target_types_json, is_archived, sort_order, created_at, updated_at, revision) VALUES ('50000000-0000-4000-8000-000000000021', ?, 'Restrita', 'restrita', 0, '["60000000-0000-4000-8000-000000000021"]', '["60000000-0000-4000-8000-000000000021"]', 0, 1, ?, ?, 1)`,
+      )
+      .run(campaign.id, now, now);
+    database
+      .prepare(
+        `INSERT INTO entities (id, campaign_id, entity_type_id, name, canon_state, knowledge_state, visibility, origin_kind, created_at, updated_at, revision) VALUES ('30000000-0000-4000-8000-000000000020', ?, '60000000-0000-4000-8000-000000000020', 'Mara', 'accepted', 'fact', 'gm', 'manual', ?, ?, 1)`,
+      )
+      .run(campaign.id, now, now);
+    database
+      .prepare(
+        `INSERT INTO entities (id, campaign_id, entity_type_id, name, canon_state, knowledge_state, visibility, origin_kind, created_at, updated_at, revision) VALUES ('30000000-0000-4000-8000-000000000021', ?, '60000000-0000-4000-8000-000000000020', 'Nara', 'accepted', 'fact', 'gm', 'manual', ?, ?, 1)`,
+      )
+      .run(campaign.id, now, now);
+    database
+      .prepare(
+        `INSERT INTO relationships (id, campaign_id, relationship_type_id, source_entity_id, target_entity_id, canon_state, knowledge_state, visibility, origin_kind, created_at, updated_at, revision) VALUES ('40000000-0000-4000-8000-000000000020', ?, '50000000-0000-4000-8000-000000000020', '30000000-0000-4000-8000-000000000020', '30000000-0000-4000-8000-000000000021', 'accepted', 'fact', 'gm', 'manual', ?, ?, 1)`,
+      )
+      .run(campaign.id, now, now);
+    database
+      .prepare(
+        `INSERT INTO inbox_items (id, campaign_id, raw_text, status, origin_kind, captured_at, created_at, updated_at, revision) VALUES ('80000000-0000-4000-8000-000000000020', ?, 'Captura de relação', 'new', 'manual', ?, ?, ?, 1)`,
+      )
+      .run(campaign.id, now, now, now);
+    database
+      .prepare(
+        `INSERT INTO inbox_items (id, campaign_id, raw_text, status, origin_kind, captured_at, created_at, updated_at, revision) VALUES ('80000000-0000-4000-8000-000000000021', ?, 'Captura duplicada', 'new', 'manual', ?, ?, ?, 1)`,
+      )
+      .run(campaign.id, now, now, now);
+  } finally {
+    database.close();
+  }
+}
+
+function readConvertedRelationship(dataDirectory: string) {
+  const database = new Database(path.join(dataDirectory, 'database', 'app.db'), { readonly: true });
+  try {
+    return database
+      .prepare(
+        `SELECT source_entity.name AS sourceName, target_entity.name AS targetName, inbox_items.status AS status, inbox_items.converted_object_type AS conversionType, sources.description AS sourceText FROM relationships JOIN entities AS source_entity ON source_entity.id = relationships.source_entity_id JOIN entities AS target_entity ON target_entity.id = relationships.target_entity_id JOIN inbox_items ON inbox_items.converted_object_id = relationships.id JOIN sources ON sources.id = relationships.source_id WHERE target_entity.name = 'Iara'`,
+      )
+      .get();
   } finally {
     database.close();
   }

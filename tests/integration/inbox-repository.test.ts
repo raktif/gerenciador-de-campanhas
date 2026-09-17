@@ -284,6 +284,227 @@ describe('InboxRepository', () => {
       'archived',
     ]);
   });
+  it('converte relacionamento e preserva fonte, ponteiros e endpoint criado', async () => {
+    const { context, repository } = await setup();
+    const entityTypeId = '60000000-0000-4000-8000-000000000010';
+    const relationshipTypeId = '50000000-0000-4000-8000-000000000010';
+    const existingId = '30000000-0000-4000-8000-000000000010';
+    context.native
+      .prepare(
+        `INSERT INTO entity_types (id, campaign_id, name, singular_name, slug, sort_order, is_system, is_archived, created_at, updated_at, revision) VALUES (?, ?, 'Pessoa', 'Pessoa', 'pessoa-rel', 0, 0, 0, ?, ?, 1)`,
+      )
+      .run(entityTypeId, campaignId, timestamp, timestamp);
+    context.native
+      .prepare(
+        `INSERT INTO relationship_types (id, campaign_id, name, slug, is_symmetric, is_archived, sort_order, created_at, updated_at, revision) VALUES (?, ?, 'Conhece', 'conhece', 0, 0, 0, ?, ?, 1)`,
+      )
+      .run(relationshipTypeId, campaignId, timestamp, timestamp);
+    context.native
+      .prepare(
+        `INSERT INTO entities (id, campaign_id, entity_type_id, name, canon_state, knowledge_state, visibility, origin_kind, created_at, updated_at, revision) VALUES (?, ?, ?, 'Mara', 'accepted', 'fact', 'gm', 'manual', ?, ?, 1)`,
+      )
+      .run(existingId, campaignId, entityTypeId, timestamp, timestamp);
+    const item = createInboxItem('80000000-0000-4000-8000-000000000080', campaignId, timestamp);
+    repository.insert(item);
+    const reviewing = repository.updateStatus(
+      { campaignId, id: item.id, revision: 1 },
+      'reviewing',
+      timestamp,
+    );
+    const sourceId = '90000000-0000-4000-8000-000000000080';
+    const created = {
+      id: '30000000-0000-4000-8000-000000000080',
+      campaignId,
+      entityTypeId,
+      name: 'Iara',
+      summary: null,
+      canonState: 'accepted' as const,
+      knowledgeState: 'fact' as const,
+      visibility: 'gm' as const,
+      originKind: 'manual' as const,
+      sourceId,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      archivedAt: null,
+      revision: 1,
+    };
+    const relationship = {
+      id: '40000000-0000-4000-8000-000000000080',
+      campaignId,
+      relationshipTypeId,
+      sourceEntityId: existingId,
+      targetEntityId: created.id,
+      description: null,
+      strength: null,
+      canonState: 'accepted' as const,
+      knowledgeState: 'fact' as const,
+      visibility: 'gm' as const,
+      originKind: 'manual' as const,
+      sourceId,
+      validFromEventId: null,
+      validToEventId: null,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      archivedAt: null,
+      revision: 1,
+    };
+    const result = repository.convertToRelationship(
+      { campaignId, id: item.id, revision: reviewing.revision },
+      relationship,
+      [created],
+      sourceId,
+      timestamp,
+    );
+    expect(result).toMatchObject({
+      inboxItem: {
+        status: 'converted',
+        convertedObjectType: 'relationship',
+        convertedObjectId: relationship.id,
+      },
+      relationship: { id: relationship.id },
+      createdEntities: [{ id: created.id }],
+    });
+    expect(
+      context.native
+        .prepare(
+          'SELECT inbox_item_id, relationship_id, source_id FROM inbox_relationship_conversions',
+        )
+        .get(),
+    ).toEqual({ inbox_item_id: item.id, relationship_id: relationship.id, source_id: sourceId });
+    expect(
+      context.native.prepare('SELECT inbox_item_id FROM sources WHERE id = ?').get(sourceId),
+    ).toEqual({ inbox_item_id: item.id });
+    const failed = createInboxItem(
+      '80000000-0000-4000-8000-000000000081',
+      campaignId,
+      '2026-09-14T13:00:00.000Z',
+    );
+    repository.insert(failed);
+    const failedReview = repository.updateStatus(
+      { campaignId, id: failed.id, revision: 1 },
+      'reviewing',
+      timestamp,
+    );
+    const countsBefore = context.native
+      .prepare(
+        'SELECT (SELECT COUNT(*) FROM sources) AS sources, (SELECT COUNT(*) FROM entities) AS entities, (SELECT COUNT(*) FROM relationships) AS relationships, (SELECT COUNT(*) FROM inbox_relationship_conversions) AS conversions',
+      )
+      .get();
+    expect(() =>
+      repository.convertToRelationship(
+        { campaignId, id: failed.id, revision: failedReview.revision },
+        { ...relationship, sourceId: '90000000-0000-4000-8000-000000000081' },
+        [
+          {
+            ...created,
+            id: '30000000-0000-4000-8000-000000000081',
+            sourceId: '90000000-0000-4000-8000-000000000081',
+          },
+        ],
+        '90000000-0000-4000-8000-000000000081',
+        timestamp,
+      ),
+    ).toThrow();
+    expect(repository.findById(campaignId, failed.id)).toMatchObject({
+      status: 'reviewing',
+      revision: 2,
+      convertedObjectId: null,
+    });
+    expect(
+      context.native
+        .prepare(
+          'SELECT (SELECT COUNT(*) FROM sources) AS sources, (SELECT COUNT(*) FROM entities) AS entities, (SELECT COUNT(*) FROM relationships) AS relationships, (SELECT COUNT(*) FROM inbox_relationship_conversions) AS conversions',
+        )
+        .get(),
+    ).toEqual(countsBefore);
+
+    const foreignEntityTypeId = '60000000-0000-4000-8000-000000000011';
+    const foreignRelationshipTypeId = '50000000-0000-4000-8000-000000000011';
+    const foreignEntityId = '30000000-0000-4000-8000-000000000011';
+    context.native
+      .prepare(
+        `INSERT INTO entity_types (id, campaign_id, name, singular_name, slug, sort_order, is_system, is_archived, created_at, updated_at, revision) VALUES (?, ?, 'Pessoa', 'Pessoa', 'pessoa-fora', 0, 0, 0, ?, ?, 1)`,
+      )
+      .run(foreignEntityTypeId, otherCampaignId, timestamp, timestamp);
+    context.native
+      .prepare(
+        `INSERT INTO relationship_types (id, campaign_id, name, slug, is_symmetric, is_archived, sort_order, created_at, updated_at, revision) VALUES (?, ?, 'Conhece', 'conhece-fora', 0, 0, 0, ?, ?, 1)`,
+      )
+      .run(foreignRelationshipTypeId, otherCampaignId, timestamp, timestamp);
+    context.native
+      .prepare(
+        `INSERT INTO entities (id, campaign_id, entity_type_id, name, canon_state, knowledge_state, visibility, origin_kind, created_at, updated_at, revision) VALUES (?, ?, ?, 'Outra', 'accepted', 'fact', 'gm', 'manual', ?, ?, 1)`,
+      )
+      .run(foreignEntityId, otherCampaignId, foreignEntityTypeId, timestamp, timestamp);
+    expect(() =>
+      context.native
+        .prepare(
+          `INSERT INTO relationships (id, campaign_id, relationship_type_id, source_entity_id, target_entity_id, canon_state, knowledge_state, visibility, origin_kind, source_id, created_at, updated_at, revision) VALUES (?, ?, ?, ?, ?, 'accepted', 'fact', 'gm', 'manual', ?, ?, ?, 1)`,
+        )
+        .run(
+          '40000000-0000-4000-8000-000000000011',
+          otherCampaignId,
+          foreignRelationshipTypeId,
+          foreignEntityId,
+          foreignEntityId,
+          sourceId,
+          timestamp,
+          timestamp,
+        ),
+    ).toThrow(/RELATIONSHIP_SOURCE_INVALID/);
+    expect(() =>
+      context.native
+        .prepare(
+          `INSERT INTO relationships (id, campaign_id, relationship_type_id, source_entity_id, target_entity_id, canon_state, knowledge_state, visibility, origin_kind, created_at, updated_at, revision) VALUES (?, ?, ?, ?, ?, 'accepted', 'fact', 'gm', 'manual', ?, ?, 1)`,
+        )
+        .run(
+          '40000000-0000-4000-8000-000000000012',
+          campaignId,
+          relationshipTypeId,
+          existingId,
+          foreignEntityId,
+          timestamp,
+          timestamp,
+        ),
+    ).toThrow(/RELATIONSHIP_CAMPAIGN_INVALID/);
+    const foreignInbox = createInboxItem(
+      '80000000-0000-4000-8000-000000000082',
+      otherCampaignId,
+      timestamp,
+    );
+    repository.insert(foreignInbox);
+    const foreignSourceId = '90000000-0000-4000-8000-000000000082';
+    context.native
+      .prepare(
+        `INSERT INTO sources (id, kind, session_id, inbox_item_id, description, created_at) VALUES (?, 'manual', NULL, ?, 'Fonte de outra campanha', ?)`,
+      )
+      .run(foreignSourceId, foreignInbox.id, timestamp);
+    expect(() =>
+      context.native
+        .prepare('UPDATE relationships SET source_id = ? WHERE id = ?')
+        .run(foreignSourceId, relationship.id),
+    ).toThrow(/RELATIONSHIP_SOURCE_INVALID/);
+    expect(
+      context.native
+        .prepare('SELECT source_id FROM relationships WHERE id = ?')
+        .get(relationship.id),
+    ).toEqual({ source_id: sourceId });
+    for (const update of [
+      "UPDATE relationships SET source_id = '90000000-0000-4000-8000-000000000099' WHERE id = ?",
+      'UPDATE relationships SET source_id = NULL WHERE id = ?',
+      "UPDATE relationships SET origin_kind = 'session' WHERE id = ?",
+    ]) {
+      expect(() => context.native.prepare(update).run(relationship.id)).toThrow(
+        /RELATIONSHIP_SOURCE_INVALID/,
+      );
+      expect(
+        context.native
+          .prepare('SELECT source_id, origin_kind FROM relationships WHERE id = ?')
+          .get(relationship.id),
+      ).toEqual({ source_id: sourceId, origin_kind: 'manual' });
+    }
+    context.close();
+  });
 });
 
 function createInboxItem(id: string, owner: string, capturedAt: string) {

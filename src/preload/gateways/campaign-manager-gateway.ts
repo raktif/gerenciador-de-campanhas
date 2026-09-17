@@ -38,12 +38,14 @@ import {
 import {
   captureInboxItemInputSchema,
   convertInboxItemToEntityInputSchema,
+  convertInboxItemToRelationshipInputSchema,
   getInboxItemInputSchema,
   inboxLifecycleInputSchema,
   inboxPageRequestSchema,
   type InboxItem,
   type InboxPageResult,
   type InboxEntityConversionResult,
+  type InboxRelationshipConversionResult,
 } from '../../core/contracts/inbox';
 import type { CampaignManagerGateway } from '../../core/contracts/gateway';
 import {
@@ -356,6 +358,12 @@ export function createCampaignManagerGateway(invokeIpc: IpcInvoker): CampaignMan
           inboxChannels.convertToEntity,
           input,
           convertInboxItemToEntityInputSchema,
+        ),
+      convertToRelationship: (input) =>
+        invoke<InboxRelationshipConversionResult>(
+          inboxChannels.convertToRelationship,
+          input,
+          convertInboxItemToRelationshipInputSchema,
         ),
     },
     events: {

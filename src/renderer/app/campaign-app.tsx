@@ -262,6 +262,7 @@ export function CampaignApp(): React.JSX.Element {
               campaign={selectedCampaign}
               onBack={() => setScreen('edit')}
               onManageEntityTypes={() => setScreen('entityTypes')}
+              onManageRelationshipTypes={() => setScreen('relationshipTypes')}
             />
           ) : screen === 'edit' && selectedCampaign !== null ? (
             <CampaignForm

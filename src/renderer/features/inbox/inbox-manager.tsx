@@ -4,6 +4,8 @@ import type { Campaign } from '../../../core/contracts/campaigns';
 import type { InboxItem } from '../../../core/contracts/inbox';
 import type { Session } from '../../../core/contracts/sessions';
 import type { EntityType } from '../../../core/contracts/entity-types';
+import type { Entity } from '../../../core/contracts/entities';
+import type { RelationshipType } from '../../../core/contracts/relationship-types';
 import { primaryClass, secondaryClass } from '../narrative/narrative-metadata-fields';
 
 type Filter = 'pending' | 'dismissed' | 'archived';
@@ -19,10 +21,12 @@ export function InboxManager({
   campaign,
   onBack,
   onManageEntityTypes,
+  onManageRelationshipTypes,
 }: {
   campaign: Campaign;
   onBack: () => void;
   onManageEntityTypes: () => void;
+  onManageRelationshipTypes: () => void;
 }): React.JSX.Element {
   const [items, setItems] = useState<InboxItem[]>([]);
   const [filter, setFilter] = useState<Filter>('pending');
@@ -42,6 +46,8 @@ export function InboxManager({
   const requestRef = useRef(0);
   const [sessions, setSessions] = useState<Map<string, Session>>(new Map());
   const [entityTypes, setEntityTypes] = useState<EntityType[]>([]);
+  const [entities, setEntities] = useState<Entity[]>([]);
+  const [relationshipTypes, setRelationshipTypes] = useState<RelationshipType[]>([]);
   const [conversion, setConversion] = useState<InboxItem | null>(null);
   const [conversionTypeId, setConversionTypeId] = useState('');
   const [conversionName, setConversionName] = useState('');
@@ -59,6 +65,54 @@ export function InboxManager({
   const conversionDialogRef = useRef<HTMLFormElement>(null);
   const conversionNameRef = useRef<HTMLInputElement>(null);
   const announcementRef = useRef<HTMLParagraphElement>(null);
+  const [relationshipConversion, setRelationshipConversion] = useState<InboxItem | null>(null);
+  const [relationshipTypeId, setRelationshipTypeId] = useState('');
+  const [relationshipSourceMode, setRelationshipSourceMode] = useState<'existing' | 'new'>(
+    'existing',
+  );
+  const [relationshipTargetMode, setRelationshipTargetMode] = useState<'existing' | 'new'>(
+    'existing',
+  );
+  const [relationshipSourceEntityId, setRelationshipSourceEntityId] = useState('');
+  const [relationshipTargetEntityId, setRelationshipTargetEntityId] = useState('');
+  const [relationshipSourceTypeId, setRelationshipSourceTypeId] = useState('');
+  const [relationshipTargetTypeId, setRelationshipTargetTypeId] = useState('');
+  const [relationshipSourceName, setRelationshipSourceName] = useState('');
+  const [relationshipTargetName, setRelationshipTargetName] = useState('');
+  const [relationshipDescription, setRelationshipDescription] = useState('');
+  const [relationshipCanonState, setRelationshipCanonState] = useState<
+    'draft' | 'accepted' | 'rejected' | 'archived'
+  >('accepted');
+  const [relationshipKnowledgeState, setRelationshipKnowledgeState] = useState<
+    'fact' | 'rumor' | 'suspicion' | 'secret' | 'possibility' | 'disproved'
+  >('fact');
+  const [relationshipVisibility, setRelationshipVisibility] = useState<'gm' | 'players' | 'public'>(
+    'gm',
+  );
+  const [relationshipError, setRelationshipError] = useState<string | null>(null);
+  const relationshipDialogRef = useRef<HTMLFormElement>(null);
+  const relationshipTypeRef = useRef<HTMLSelectElement>(null);
+  const selectedRelationshipType = relationshipTypes.find((type) => type.id === relationshipTypeId);
+  const compatibleSourceTypes = filterAllowedEntityTypes(
+    entityTypes,
+    selectedRelationshipType?.allowedSourceTypeIds,
+  );
+  const compatibleTargetTypes = filterAllowedEntityTypes(
+    entityTypes,
+    selectedRelationshipType?.allowedTargetTypeIds,
+  );
+  const compatibleSourceEntities = filterAllowedEntities(
+    entities,
+    selectedRelationshipType?.allowedSourceTypeIds,
+  );
+  const compatibleTargetEntities = filterAllowedEntities(
+    entities,
+    selectedRelationshipType?.allowedTargetTypeIds,
+  );
+  const canChooseRelationshipSource =
+    compatibleSourceEntities.length > 0 || compatibleSourceTypes.length > 0;
+  const canChooseRelationshipTarget =
+    compatibleTargetEntities.length > 0 || compatibleTargetTypes.length > 0;
 
   const load = useCallback(
     async (append = false): Promise<void> => {
@@ -117,6 +171,18 @@ export function InboxManager({
       });
   }, [campaign.id]);
   useEffect(() => {
+    void window.campaignManager.entities
+      .list({ campaignId: campaign.id, limit: 100, filters: { archived: false } })
+      .then((result) => {
+        if (result.ok) setEntities(result.data.items);
+      });
+    void window.campaignManager.relationshipTypes
+      .list({ campaignId: campaign.id, limit: 100, filters: { isArchived: false } })
+      .then((result) => {
+        if (result.ok) setRelationshipTypes(result.data.items);
+      });
+  }, [campaign.id]);
+  useEffect(() => {
     void window.campaignManager.entityTypes
       .list({ campaignId: campaign.id, limit: 100, filters: { isArchived: false } })
       .then((result) => {
@@ -125,10 +191,38 @@ export function InboxManager({
   }, [campaign.id]);
   useEffect(() => {
     const root = document.querySelector('#root');
-    if ((confirming === null && conversion === null) || root === null) return;
+    if (
+      (confirming === null && conversion === null && relationshipConversion === null) ||
+      root === null
+    )
+      return;
     root.setAttribute('inert', '');
     return () => root.removeAttribute('inert');
-  }, [confirming, conversion]);
+  }, [confirming, conversion, relationshipConversion]);
+  useEffect(() => {
+    if (relationshipConversion !== null) relationshipTypeRef.current?.focus();
+  }, [relationshipConversion]);
+  useEffect(() => {
+    if (relationshipConversion === null) return;
+    if (!compatibleSourceEntities.some((entity) => entity.id === relationshipSourceEntityId))
+      setRelationshipSourceEntityId(compatibleSourceEntities[0]?.id ?? '');
+    if (!compatibleTargetEntities.some((entity) => entity.id === relationshipTargetEntityId))
+      setRelationshipTargetEntityId(compatibleTargetEntities[0]?.id ?? '');
+    if (!compatibleSourceTypes.some((type) => type.id === relationshipSourceTypeId))
+      setRelationshipSourceTypeId(compatibleSourceTypes[0]?.id ?? '');
+    if (!compatibleTargetTypes.some((type) => type.id === relationshipTargetTypeId))
+      setRelationshipTargetTypeId(compatibleTargetTypes[0]?.id ?? '');
+  }, [
+    compatibleSourceEntities,
+    compatibleSourceTypes,
+    compatibleTargetEntities,
+    compatibleTargetTypes,
+    relationshipConversion,
+    relationshipSourceEntityId,
+    relationshipSourceTypeId,
+    relationshipTargetEntityId,
+    relationshipTargetTypeId,
+  ]);
 
   async function execute(item: InboxItem, action: Action): Promise<void> {
     if (busy !== null) return;
@@ -193,6 +287,61 @@ export function InboxManager({
       } else setConversionError(result.error.message);
     } catch {
       setConversionError('Não foi possível converter a captura. Tente novamente.');
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function convertRelationship(): Promise<void> {
+    if (relationshipConversion === null || busy !== null) return;
+    setBusy(relationshipConversion.id);
+    setRelationshipError(null);
+    const endpoint = (
+      mode: 'existing' | 'new',
+      entityId: string,
+      entityTypeId: string,
+      name: string,
+    ) => (mode === 'existing' ? { mode, entityId } : { mode, entityTypeId, name, summary: null });
+    try {
+      const result = await window.campaignManager.inbox.convertToRelationship({
+        campaignId: campaign.id,
+        id: relationshipConversion.id,
+        revision: relationshipConversion.revision,
+        destination: {
+          relationshipTypeId,
+          source: endpoint(
+            relationshipSourceMode,
+            relationshipSourceEntityId,
+            relationshipSourceTypeId,
+            relationshipSourceName,
+          ),
+          target: endpoint(
+            relationshipTargetMode,
+            relationshipTargetEntityId,
+            relationshipTargetTypeId,
+            relationshipTargetName,
+          ),
+          description: relationshipDescription.trim() === '' ? null : relationshipDescription,
+          strength: null,
+          canonState: relationshipCanonState,
+          knowledgeState: relationshipKnowledgeState,
+          visibility: relationshipVisibility,
+          validFromEventId: null,
+          validToEventId: null,
+        },
+      });
+      if (result.ok) {
+        setRelationshipConversion(null);
+        setAnnouncement(
+          result.data.warnings.length === 0
+            ? 'Relação criada a partir da captura.'
+            : `Relação criada a partir da captura. Atenção: ${result.data.warnings[0]?.message ?? 'há uma possível duplicidade.'}`,
+        );
+        await load(false);
+        requestAnimationFrame(() => announcementRef.current?.focus());
+      } else setRelationshipError(result.error.message);
+    } catch {
+      setRelationshipError('Não foi possível converter a captura em relação. Tente novamente.');
     } finally {
       setBusy(null);
     }
@@ -356,6 +505,68 @@ export function InboxManager({
                             type="button"
                           >
                             Gerenciar tipos de entidade
+                          </button>
+                        </span>
+                      ) : null}
+                    </>
+                  ) : null}
+                  {item.status === 'reviewing' ? (
+                    <>
+                      <button
+                        className={secondaryClass}
+                        disabled={busy !== null || relationshipTypes.length === 0}
+                        aria-describedby={
+                          relationshipTypes.length === 0
+                            ? `inbox-relationship-reason-${item.id}`
+                            : undefined
+                        }
+                        onClick={(event) => {
+                          triggerRef.current = event.currentTarget;
+                          setRelationshipConversion(item);
+                          setRelationshipTypeId(relationshipTypes[0]?.id ?? '');
+                          setRelationshipSourceMode(
+                            compatibleSourceEntities.length > 0 ? 'existing' : 'new',
+                          );
+                          setRelationshipTargetMode(
+                            compatibleTargetEntities.length > 0 ? 'existing' : 'new',
+                          );
+                          setRelationshipSourceEntityId(compatibleSourceEntities[0]?.id ?? '');
+                          setRelationshipTargetEntityId(compatibleTargetEntities[0]?.id ?? '');
+                          setRelationshipSourceTypeId(compatibleSourceTypes[0]?.id ?? '');
+                          setRelationshipTargetTypeId(compatibleTargetTypes[0]?.id ?? '');
+                          setRelationshipSourceName('');
+                          setRelationshipTargetName('');
+                          setRelationshipDescription('');
+                          setRelationshipCanonState('accepted');
+                          setRelationshipKnowledgeState('fact');
+                          setRelationshipVisibility('gm');
+                          setRelationshipError(null);
+                        }}
+                        type="button"
+                      >
+                        Converter em relação
+                      </button>
+                      {relationshipTypes.length === 0 ? (
+                        <span
+                          className="text-sm text-amber-900"
+                          id={`inbox-relationship-reason-${item.id}`}
+                        >
+                          {relationshipTypes.length === 0
+                            ? 'Crie um tipo de relação ativo para converter esta captura.'
+                            : 'Não há entidades ou tipos de entidade ativos compatíveis para os dois extremos.'}
+                          <button
+                            className="ml-2 font-semibold underline"
+                            disabled={busy !== null}
+                            onClick={
+                              relationshipTypes.length === 0
+                                ? onManageRelationshipTypes
+                                : onManageEntityTypes
+                            }
+                            type="button"
+                          >
+                            {relationshipTypes.length === 0
+                              ? 'Gerenciar tipos de relação'
+                              : 'Gerenciar tipos de entidade'}
                           </button>
                         </span>
                       ) : null}
@@ -652,6 +863,217 @@ export function InboxManager({
             </div>,
             document.body,
           )}
+      {relationshipConversion === null
+        ? null
+        : createPortal(
+            <div
+              aria-labelledby="inbox-relationship-conversion-title"
+              aria-modal="true"
+              className="fixed inset-0 z-40 grid place-items-center overflow-y-auto bg-slate-950/40 p-4"
+              onKeyDown={(event) => {
+                if (event.key === 'Escape' && busy === null) {
+                  setRelationshipConversion(null);
+                  requestAnimationFrame(() => triggerRef.current?.focus());
+                }
+                if (event.key === 'Tab') trapFocus(event, relationshipDialogRef.current);
+              }}
+              role="dialog"
+            >
+              <form
+                aria-busy={busy === relationshipConversion.id}
+                className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-xl"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void convertRelationship();
+                }}
+                ref={relationshipDialogRef}
+              >
+                <h2 className="text-xl font-semibold" id="inbox-relationship-conversion-title">
+                  Converter em relação
+                </h2>
+                <p className="mt-2 text-sm text-slate-600">
+                  A captura original será preservada como fonte rastreável da relação.
+                </p>
+                <div
+                  aria-labelledby="inbox-relationship-source-text"
+                  className="mt-4 max-h-28 overflow-y-auto rounded-xl bg-stone-100 p-3"
+                >
+                  <p className="text-xs font-semibold" id="inbox-relationship-source-text">
+                    Texto original da captura
+                  </p>
+                  <p className="mt-1 break-words whitespace-pre-wrap text-sm">
+                    {relationshipConversion.rawText}
+                  </p>
+                </div>
+                {relationshipError === null ? null : (
+                  <p className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-800" role="alert">
+                    {relationshipError}
+                  </p>
+                )}
+                {!canChooseRelationshipSource || !canChooseRelationshipTarget ? (
+                  <div className="mt-4 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">
+                    <p>
+                      O tipo selecionado não possui entidades ou tipos de entidade compatíveis para
+                      todos os extremos.
+                    </p>
+                    <button
+                      className="mt-2 font-semibold underline"
+                      disabled={busy !== null}
+                      onClick={onManageEntityTypes}
+                      type="button"
+                    >
+                      Gerenciar tipos de entidade
+                    </button>
+                  </div>
+                ) : null}
+                <label
+                  className="mt-5 block text-sm font-semibold"
+                  htmlFor="inbox-relationship-type"
+                >
+                  Tipo de relação
+                </label>
+                <select
+                  className="mt-1 w-full rounded-xl border border-stone-300 px-3 py-2"
+                  disabled={busy !== null || relationshipTypes.length === 0}
+                  id="inbox-relationship-type"
+                  onChange={(event) => {
+                    setRelationshipTypeId(event.target.value);
+                    setRelationshipError(null);
+                  }}
+                  ref={relationshipTypeRef}
+                  required
+                  value={relationshipTypeId}
+                >
+                  {relationshipTypes.map((type) => (
+                    <option key={type.id} value={type.id}>
+                      {type.name}
+                    </option>
+                  ))}
+                </select>
+                <RelationshipEndpointFields
+                  entities={compatibleSourceEntities}
+                  entityTypes={compatibleSourceTypes}
+                  idPrefix="inbox-relationship-source"
+                  label="Entidade de origem"
+                  mode={relationshipSourceMode}
+                  entityId={relationshipSourceEntityId}
+                  entityTypeId={relationshipSourceTypeId}
+                  name={relationshipSourceName}
+                  disabled={busy !== null}
+                  onModeChange={setRelationshipSourceMode}
+                  onEntityChange={setRelationshipSourceEntityId}
+                  onEntityTypeChange={setRelationshipSourceTypeId}
+                  onNameChange={setRelationshipSourceName}
+                />
+                <RelationshipEndpointFields
+                  entities={compatibleTargetEntities}
+                  entityTypes={compatibleTargetTypes}
+                  idPrefix="inbox-relationship-target"
+                  label="Entidade de destino"
+                  mode={relationshipTargetMode}
+                  entityId={relationshipTargetEntityId}
+                  entityTypeId={relationshipTargetTypeId}
+                  name={relationshipTargetName}
+                  disabled={busy !== null}
+                  onModeChange={setRelationshipTargetMode}
+                  onEntityChange={setRelationshipTargetEntityId}
+                  onEntityTypeChange={setRelationshipTargetTypeId}
+                  onNameChange={setRelationshipTargetName}
+                />
+                <label
+                  className="mt-5 block text-sm font-semibold"
+                  htmlFor="inbox-relationship-description"
+                >
+                  Descrição da relação
+                </label>
+                <textarea
+                  className="mt-1 min-h-20 w-full rounded-xl border border-stone-300 px-3 py-2"
+                  disabled={busy !== null}
+                  id="inbox-relationship-description"
+                  maxLength={10000}
+                  onChange={(event) => setRelationshipDescription(event.target.value)}
+                  value={relationshipDescription}
+                />
+                <fieldset
+                  className="mt-5 grid gap-4 rounded-xl border border-stone-200 p-4"
+                  disabled={busy !== null}
+                >
+                  <legend className="px-1 text-sm font-semibold">Metadados narrativos</legend>
+                  <MetadataSelect
+                    id="inbox-relationship-canon"
+                    label="Estado canônico"
+                    onChange={(value) =>
+                      setRelationshipCanonState(value as typeof relationshipCanonState)
+                    }
+                    value={relationshipCanonState}
+                    options={[
+                      ['accepted', 'Aceito'],
+                      ['draft', 'Rascunho'],
+                      ['rejected', 'Rejeitado'],
+                      ['archived', 'Arquivado'],
+                    ]}
+                  />
+                  <MetadataSelect
+                    id="inbox-relationship-knowledge"
+                    label="Natureza do conhecimento"
+                    onChange={(value) =>
+                      setRelationshipKnowledgeState(value as typeof relationshipKnowledgeState)
+                    }
+                    value={relationshipKnowledgeState}
+                    options={[
+                      ['fact', 'Fato'],
+                      ['rumor', 'Rumor'],
+                      ['suspicion', 'Suspeita'],
+                      ['secret', 'Segredo'],
+                      ['possibility', 'Possibilidade'],
+                      ['disproved', 'Refutado'],
+                    ]}
+                  />
+                  <MetadataSelect
+                    id="inbox-relationship-visibility"
+                    label="Visibilidade"
+                    onChange={(value) =>
+                      setRelationshipVisibility(value as typeof relationshipVisibility)
+                    }
+                    value={relationshipVisibility}
+                    options={[
+                      ['gm', 'Somente mestre'],
+                      ['players', 'Jogadores'],
+                      ['public', 'Pública'],
+                    ]}
+                  />
+                </fieldset>
+                <div className="mt-6 flex justify-end gap-3">
+                  <button
+                    className={secondaryClass}
+                    disabled={busy !== null}
+                    onClick={() => {
+                      setRelationshipConversion(null);
+                      requestAnimationFrame(() => triggerRef.current?.focus());
+                    }}
+                    type="button"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    className={primaryClass}
+                    disabled={
+                      busy !== null ||
+                      relationshipTypes.length === 0 ||
+                      !canChooseRelationshipSource ||
+                      !canChooseRelationshipTarget ||
+                      (relationshipSourceMode === 'new' && compatibleSourceTypes.length === 0) ||
+                      (relationshipTargetMode === 'new' && compatibleTargetTypes.length === 0)
+                    }
+                    type="submit"
+                  >
+                    {busy === relationshipConversion.id ? 'Convertendo…' : 'Confirmar conversão'}
+                  </button>
+                </div>
+              </form>
+            </div>,
+            document.body,
+          )}
     </section>
   );
 }
@@ -732,5 +1154,128 @@ function MetadataSelect({
         ))}
       </select>
     </div>
+  );
+}
+
+function filterAllowedEntityTypes(
+  entityTypes: EntityType[],
+  allowedTypeIds: string[] | null | undefined,
+): EntityType[] {
+  return allowedTypeIds === null || allowedTypeIds === undefined
+    ? entityTypes
+    : entityTypes.filter((type) => allowedTypeIds.includes(type.id));
+}
+
+function filterAllowedEntities(
+  entities: Entity[],
+  allowedTypeIds: string[] | null | undefined,
+): Entity[] {
+  return allowedTypeIds === null || allowedTypeIds === undefined
+    ? entities
+    : entities.filter((entity) => allowedTypeIds.includes(entity.entityTypeId));
+}
+
+function RelationshipEndpointFields({
+  entities,
+  entityTypes,
+  idPrefix,
+  label,
+  mode,
+  entityId,
+  entityTypeId,
+  name,
+  disabled,
+  onModeChange,
+  onEntityChange,
+  onEntityTypeChange,
+  onNameChange,
+}: {
+  entities: Entity[];
+  entityTypes: EntityType[];
+  idPrefix: string;
+  label: string;
+  mode: 'existing' | 'new';
+  entityId: string;
+  entityTypeId: string;
+  name: string;
+  disabled: boolean;
+  onModeChange: (value: 'existing' | 'new') => void;
+  onEntityChange: (value: string) => void;
+  onEntityTypeChange: (value: string) => void;
+  onNameChange: (value: string) => void;
+}): React.JSX.Element {
+  const modeId = `${idPrefix}-mode`;
+  return (
+    <fieldset className="mt-5 rounded-xl border border-stone-200 p-4" disabled={disabled}>
+      <legend className="px-1 text-sm font-semibold">{label}</legend>
+      <label className="block text-sm" htmlFor={modeId}>
+        Usar entidade existente ou criar agora
+      </label>
+      <select
+        className="mt-1 w-full rounded-xl border border-stone-300 px-3 py-2"
+        id={modeId}
+        onChange={(event) => onModeChange(event.target.value as 'existing' | 'new')}
+        value={mode}
+      >
+        <option disabled={entities.length === 0} value="existing">
+          Entidade existente
+        </option>
+        <option disabled={entityTypes.length === 0} value="new">
+          Criar entidade
+        </option>
+      </select>
+      {mode === 'existing' ? (
+        <>
+          <label className="mt-3 block text-sm" htmlFor={`${idPrefix}-entity`}>
+            Entidade
+          </label>
+          <select
+            className="mt-1 w-full rounded-xl border border-stone-300 px-3 py-2"
+            disabled={entities.length === 0}
+            id={`${idPrefix}-entity`}
+            onChange={(event) => onEntityChange(event.target.value)}
+            required
+            value={entityId}
+          >
+            {entities.map((entity) => (
+              <option key={entity.id} value={entity.id}>
+                {entity.name}
+              </option>
+            ))}
+          </select>
+        </>
+      ) : (
+        <>
+          <label className="mt-3 block text-sm" htmlFor={`${idPrefix}-type`}>
+            Tipo da nova entidade
+          </label>
+          <select
+            className="mt-1 w-full rounded-xl border border-stone-300 px-3 py-2"
+            disabled={entityTypes.length === 0}
+            id={`${idPrefix}-type`}
+            onChange={(event) => onEntityTypeChange(event.target.value)}
+            required
+            value={entityTypeId}
+          >
+            {entityTypes.map((type) => (
+              <option key={type.id} value={type.id}>
+                {type.singularName}
+              </option>
+            ))}
+          </select>
+          <label className="mt-3 block text-sm" htmlFor={`${idPrefix}-name`}>
+            Nome da nova entidade
+          </label>
+          <input
+            className="mt-1 w-full rounded-xl border border-stone-300 px-3 py-2"
+            id={`${idPrefix}-name`}
+            maxLength={200}
+            onChange={(event) => onNameChange(event.target.value)}
+            required
+            value={name}
+          />
+        </>
+      )}
+    </fieldset>
   );
 }

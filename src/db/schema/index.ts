@@ -731,3 +731,16 @@ export const inboxEntityConversions = sqliteTable(
   },
   (table) => [uniqueIndex('inbox_entity_conversions_entity_unique').on(table.entityId)],
 );
+
+export const inboxRelationshipConversions = sqliteTable(
+  'inbox_relationship_conversions',
+  {
+    inboxItemId: text('inbox_item_id').primaryKey(),
+    relationshipId: text('relationship_id').notNull().unique(),
+    sourceId: text('source_id').notNull().unique(),
+    createdAt: text('created_at').notNull(),
+  },
+  (table) => [
+    uniqueIndex('inbox_relationship_conversions_relationship_unique').on(table.relationshipId),
+  ],
+);
