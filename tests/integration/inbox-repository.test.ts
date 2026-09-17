@@ -11,6 +11,7 @@ import { ensureDataDirectories, getDataDirectories } from '../../src/core/storag
 import { openApplicationDatabase, type DatabaseContext } from '../../src/db/connection';
 import { CampaignRepository } from '../../src/db/repositories/campaign-repository';
 import { EntityTypeRepository } from '../../src/db/repositories/entity-type-repository';
+import { EntityRepository } from '../../src/db/repositories/entity-repository';
 import { InboxRepository } from '../../src/db/repositories/inbox-repository';
 import { SessionRepository } from '../../src/db/repositories/session-repository';
 import { InboxService } from '../../src/main/services/inbox-service';
@@ -284,6 +285,380 @@ describe('InboxRepository', () => {
       'archived',
     ]);
   });
+  it('converte em afirmação com fonte rastreável, rollback real e isolamento de campanha', async () => {
+    const { context, repository, service } = await setup();
+    const entityTypeId = '60000000-0000-4000-8000-000000000020';
+    const subjectId = '30000000-0000-4000-8000-000000000020';
+    const foreignTypeId = '60000000-0000-4000-8000-000000000021';
+    const foreignSubjectId = '30000000-0000-4000-8000-000000000021';
+    context.native
+      .prepare(
+        `INSERT INTO entity_types (id, campaign_id, name, singular_name, slug, sort_order, is_system, is_archived, created_at, updated_at, revision) VALUES (?, ?, 'Pessoa', 'Pessoa', 'pessoa-assertion', 0, 0, 0, ?, ?, 1)`,
+      )
+      .run(entityTypeId, campaignId, timestamp, timestamp);
+    context.native
+      .prepare(
+        `INSERT INTO entities (id, campaign_id, entity_type_id, name, canon_state, knowledge_state, visibility, origin_kind, created_at, updated_at, revision) VALUES (?, ?, ?, 'Iara', 'accepted', 'fact', 'gm', 'manual', ?, ?, 1)`,
+      )
+      .run(subjectId, campaignId, entityTypeId, timestamp, timestamp);
+    context.native
+      .prepare(
+        `INSERT INTO entity_types (id, campaign_id, name, singular_name, slug, sort_order, is_system, is_archived, created_at, updated_at, revision) VALUES (?, ?, 'Pessoa', 'Pessoa', 'pessoa-assertion-externa', 0, 0, 0, ?, ?, 1)`,
+      )
+      .run(foreignTypeId, otherCampaignId, timestamp, timestamp);
+    context.native
+      .prepare(
+        `INSERT INTO entities (id, campaign_id, entity_type_id, name, canon_state, knowledge_state, visibility, origin_kind, created_at, updated_at, revision) VALUES (?, ?, ?, 'Externa', 'accepted', 'fact', 'gm', 'manual', ?, ?, 1)`,
+      )
+      .run(foreignSubjectId, otherCampaignId, foreignTypeId, timestamp, timestamp);
+
+    const captured = service.capture(
+      captureInboxItemInputSchema.parse({ campaignId, rawText: 'Iara viu o sino tocar.' }),
+    );
+    const reviewing = service.beginReview({
+      campaignId,
+      id: captured.id,
+      revision: captured.revision,
+    });
+    const converted = service.convertToAssertion({
+      campaignId,
+      id: captured.id,
+      revision: reviewing.revision,
+      destination: {
+        subjectEntityId: subjectId,
+        objectEntityId: null,
+        predicate: null,
+        statement: 'Iara viu o sino tocar.',
+        value: null,
+        canonState: 'accepted',
+        knowledgeState: 'fact',
+        visibility: 'gm',
+      },
+    });
+    expect(converted.inboxItem).toMatchObject({
+      status: 'converted',
+      convertedObjectType: 'assertion',
+      convertedObjectId: converted.assertion.id,
+    });
+    expect(
+      context.native
+        .prepare('SELECT inbox_item_id, assertion_id, source_id FROM inbox_assertion_conversions')
+        .get(),
+    ).toEqual({
+      inbox_item_id: captured.id,
+      assertion_id: converted.assertion.id,
+      source_id: converted.assertion.sourceId,
+    });
+    expect(
+      context.native
+        .prepare('SELECT description, inbox_item_id FROM sources WHERE id = ?')
+        .get(converted.assertion.sourceId),
+    ).toEqual({ description: captured.rawText, inbox_item_id: captured.id });
+
+    const assertionSourceId = converted.assertion.sourceId;
+    if (assertionSourceId === null) throw new Error('A fonte Inbox deveria existir.');
+    const foreignInbox = createInboxItem(
+      '80000000-0000-4000-8000-000000000121',
+      otherCampaignId,
+      '2026-09-14T13:00:00.000Z',
+    );
+    repository.insert(foreignInbox);
+    const foreignSourceId = '90000000-0000-4000-8000-000000000121';
+    context.native
+      .prepare(
+        `INSERT INTO sources (id, kind, session_id, inbox_item_id, description, created_at)
+         VALUES (?, 'manual', NULL, ?, 'Fonte externa', ?)`,
+      )
+      .run(foreignSourceId, foreignInbox.id, timestamp);
+    const assertionId = converted.assertion.id;
+    const updates = [
+      ['UPDATE assertions SET source_id = NULL WHERE id = ?', []],
+      ["UPDATE assertions SET source_id = '90000000-0000-4000-8000-000000000199' WHERE id = ?", []],
+      ['UPDATE assertions SET source_id = ? WHERE id = ?', [foreignSourceId]],
+      ["UPDATE assertions SET origin_kind = 'session' WHERE id = ?", []],
+    ] as const;
+    for (const [statement, parameters] of updates) {
+      expect(() => context.native.prepare(statement).run(...parameters, assertionId)).toThrow(
+        /ASSERTION_SOURCE_INVALID/,
+      );
+      expect(
+        context.native
+          .prepare('SELECT source_id, origin_kind FROM assertions WHERE id = ?')
+          .get(assertionId),
+      ).toEqual({ source_id: assertionSourceId, origin_kind: 'manual' });
+    }
+
+    const failed = createInboxItem(
+      '80000000-0000-4000-8000-000000000120',
+      campaignId,
+      '2026-09-14T13:00:00.000Z',
+    );
+    repository.insert(failed);
+    const failedReview = repository.updateStatus(
+      { campaignId, id: failed.id, revision: 1 },
+      'reviewing',
+      timestamp,
+    );
+    const countsBefore = context.native
+      .prepare(
+        'SELECT (SELECT COUNT(*) FROM sources) AS sources, (SELECT COUNT(*) FROM assertions) AS assertions, (SELECT COUNT(*) FROM inbox_assertion_conversions) AS conversions',
+      )
+      .get();
+    expect(() =>
+      repository.convertToAssertion(
+        { campaignId, id: failed.id, revision: failedReview.revision },
+        { ...converted.assertion, sourceId: '90000000-0000-4000-8000-000000000120' },
+        '90000000-0000-4000-8000-000000000120',
+        timestamp,
+      ),
+    ).toThrow();
+    expect(repository.findById(campaignId, failed.id)).toMatchObject({
+      status: 'reviewing',
+      revision: failedReview.revision,
+      convertedObjectId: null,
+    });
+    expect(
+      context.native
+        .prepare(
+          'SELECT (SELECT COUNT(*) FROM sources) AS sources, (SELECT COUNT(*) FROM assertions) AS assertions, (SELECT COUNT(*) FROM inbox_assertion_conversions) AS conversions',
+        )
+        .get(),
+    ).toEqual(countsBefore);
+
+    expect(() =>
+      service.convertToAssertion({
+        campaignId,
+        id: failed.id,
+        revision: failedReview.revision,
+        destination: {
+          subjectEntityId: foreignSubjectId,
+          objectEntityId: null,
+          predicate: null,
+          statement: 'Tentativa externa.',
+          value: null,
+          canonState: 'accepted',
+          knowledgeState: 'fact',
+          visibility: 'gm',
+        },
+      }),
+    ).toThrow(/entidade da afirmação não foi encontrada/i);
+    context.close();
+  });
+
+  it('converte nota e evento com pontes, vínculos e guards de proveniência', async () => {
+    const { context, repository } = await setup();
+    const typeId = '60000000-0000-4000-8000-000000000130';
+    const entityId = '30000000-0000-4000-8000-000000000130';
+    context.native
+      .prepare(
+        `INSERT INTO entity_types (id,campaign_id,name,singular_name,slug,sort_order,is_system,is_archived,created_at,updated_at,revision) VALUES (?,?,'Pessoa','Pessoa','pessoa-d2',0,0,0,?,?,1)`,
+      )
+      .run(typeId, campaignId, timestamp, timestamp);
+    context.native
+      .prepare(
+        `INSERT INTO entities (id,campaign_id,entity_type_id,name,canon_state,knowledge_state,visibility,origin_kind,created_at,updated_at,revision) VALUES (?, ?, ?, 'Iara','accepted','fact','gm','manual',?,?,1)`,
+      )
+      .run(entityId, campaignId, typeId, timestamp, timestamp);
+    const noteItem = createInboxItem('80000000-0000-4000-8000-000000000130', campaignId, timestamp);
+    repository.insert(noteItem);
+    const noteReview = repository.updateStatus(
+      { campaignId, id: noteItem.id, revision: 1 },
+      'reviewing',
+      timestamp,
+    );
+    const note = {
+      id: '91000000-0000-4000-8000-000000000130',
+      campaignId,
+      title: 'Nota',
+      bodyMarkdown: 'Corpo',
+      noteType: 'clue',
+      canonState: 'accepted',
+      knowledgeState: 'fact',
+      visibility: 'gm',
+      originKind: 'manual',
+      sourceId: '92000000-0000-4000-8000-000000000130',
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      archivedAt: null,
+      revision: 1,
+    } as const;
+    const noteResult = repository.convertToNote(
+      { campaignId, id: noteItem.id, revision: noteReview.revision },
+      note,
+      [{ entityId, role: 'related' }],
+      note.sourceId,
+      timestamp,
+    );
+    expect(noteResult).toMatchObject({
+      inboxItem: { status: 'converted', convertedObjectType: 'note' },
+      note: { links: [{ entityId, role: 'related' }] },
+    });
+    expect(
+      context.native
+        .prepare('SELECT inbox_item_id, note_id, source_id FROM inbox_note_conversions')
+        .get(),
+    ).toEqual({ inbox_item_id: noteItem.id, note_id: note.id, source_id: note.sourceId });
+    const eventItem = createInboxItem(
+      '80000000-0000-4000-8000-000000000131',
+      campaignId,
+      timestamp,
+    );
+    repository.insert(eventItem);
+    const eventReview = repository.updateStatus(
+      { campaignId, id: eventItem.id, revision: 1 },
+      'reviewing',
+      timestamp,
+    );
+    const event = {
+      id: '91000000-0000-4000-8000-000000000131',
+      campaignId,
+      sessionId,
+      title: 'Evento',
+      descriptionMarkdown: 'Descrição',
+      eventOrder: 2,
+      occurredAtLabel: 'Noite',
+      canonState: 'accepted',
+      knowledgeState: 'fact',
+      visibility: 'gm',
+      originKind: 'manual',
+      sourceId: '92000000-0000-4000-8000-000000000131',
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      archivedAt: null,
+      revision: 1,
+    } as const;
+    const eventResult = repository.convertToEvent(
+      { campaignId, id: eventItem.id, revision: eventReview.revision },
+      event,
+      [{ entityId, role: 'witness', sortOrder: 1 }],
+      event.sourceId,
+      timestamp,
+    );
+    expect(eventResult).toMatchObject({
+      inboxItem: { status: 'converted', convertedObjectType: 'event' },
+      event: { links: [{ entityId, role: 'witness', sortOrder: 1 }] },
+    });
+    expect(
+      context.native
+        .prepare('SELECT inbox_item_id, event_id, source_id FROM inbox_event_conversions')
+        .get(),
+    ).toEqual({ inbox_item_id: eventItem.id, event_id: event.id, source_id: event.sourceId });
+    const foreignInbox = createInboxItem(
+      '80000000-0000-4000-8000-000000000132',
+      otherCampaignId,
+      timestamp,
+    );
+    repository.insert(foreignInbox);
+    const foreignSourceId = '92000000-0000-4000-8000-000000000132';
+    context.native
+      .prepare(
+        `INSERT INTO sources (id,kind,inbox_item_id,description,created_at) VALUES (?,'manual',?,'Externa',?)`,
+      )
+      .run(foreignSourceId, foreignInbox.id, timestamp);
+    for (const [table, id, sourceId, code] of [
+      ['notes', note.id, note.sourceId, 'NOTE_SOURCE_INVALID'],
+      ['events', event.id, event.sourceId, 'EVENT_SOURCE_INVALID'],
+    ] as const) {
+      expect(() =>
+        context.native
+          .prepare(`UPDATE ${table} SET source_id = ? WHERE id = ?`)
+          .run(foreignSourceId, id),
+      ).toThrow(code);
+      expect(
+        context.native.prepare(`SELECT source_id, origin_kind FROM ${table} WHERE id = ?`).get(id),
+      ).toEqual({ source_id: sourceId, origin_kind: 'manual' });
+    }
+    const failedNote = createInboxItem(
+      '80000000-0000-4000-8000-000000000133',
+      campaignId,
+      timestamp,
+    );
+    repository.insert(failedNote);
+    const failedNoteReview = repository.updateStatus(
+      { campaignId, id: failedNote.id, revision: 1 },
+      'reviewing',
+      timestamp,
+    );
+    const noteCounts = context.native
+      .prepare(
+        `SELECT (SELECT COUNT(*) FROM sources) AS sources,(SELECT COUNT(*) FROM notes) AS destinations`,
+      )
+      .get();
+    expect(() =>
+      repository.convertToNote(
+        { campaignId, id: failedNote.id, revision: failedNoteReview.revision },
+        { ...note, sourceId: '92000000-0000-4000-8000-000000000133' },
+        [],
+        '92000000-0000-4000-8000-000000000133',
+        timestamp,
+      ),
+    ).toThrow();
+    expect(repository.findById(campaignId, failedNote.id)).toMatchObject({
+      status: 'reviewing',
+      convertedObjectId: null,
+    });
+    expect(
+      context.native
+        .prepare(
+          `SELECT (SELECT COUNT(*) FROM sources) AS sources,(SELECT COUNT(*) FROM notes) AS destinations`,
+        )
+        .get(),
+    ).toEqual(noteCounts);
+    const failedEvent = createInboxItem(
+      '80000000-0000-4000-8000-000000000134',
+      campaignId,
+      timestamp,
+    );
+    repository.insert(failedEvent);
+    const failedEventReview = repository.updateStatus(
+      { campaignId, id: failedEvent.id, revision: 1 },
+      'reviewing',
+      timestamp,
+    );
+    const eventCounts = context.native
+      .prepare(
+        `SELECT (SELECT COUNT(*) FROM sources) AS sources,(SELECT COUNT(*) FROM events) AS destinations`,
+      )
+      .get();
+    expect(() =>
+      repository.convertToEvent(
+        { campaignId, id: failedEvent.id, revision: failedEventReview.revision },
+        { ...event, sourceId: '92000000-0000-4000-8000-000000000134' },
+        [],
+        '92000000-0000-4000-8000-000000000134',
+        timestamp,
+      ),
+    ).toThrow();
+    expect(repository.findById(campaignId, failedEvent.id)).toMatchObject({
+      status: 'reviewing',
+      convertedObjectId: null,
+    });
+    expect(
+      context.native
+        .prepare(
+          `SELECT (SELECT COUNT(*) FROM sources) AS sources,(SELECT COUNT(*) FROM events) AS destinations`,
+        )
+        .get(),
+    ).toEqual(eventCounts);
+    for (const [table, id, sourceId, code] of [
+      ['notes', note.id, note.sourceId, 'NOTE_SOURCE_INVALID'],
+      ['events', event.id, event.sourceId, 'EVENT_SOURCE_INVALID'],
+    ] as const)
+      for (const query of [
+        `UPDATE ${table} SET source_id = NULL WHERE id = ?`,
+        `UPDATE ${table} SET source_id = '92000000-0000-4000-8000-000000000199' WHERE id = ?`,
+        `UPDATE ${table} SET origin_kind = 'session' WHERE id = ?`,
+      ]) {
+        expect(() => context.native.prepare(query).run(id)).toThrow(code);
+        expect(
+          context.native
+            .prepare(`SELECT source_id, origin_kind FROM ${table} WHERE id = ?`)
+            .get(id),
+        ).toEqual({ source_id: sourceId, origin_kind: 'manual' });
+      }
+    context.close();
+  });
+
   it('converte relacionamento e preserva fonte, ponteiros e endpoint criado', async () => {
     const { context, repository } = await setup();
     const entityTypeId = '60000000-0000-4000-8000-000000000010';
@@ -556,6 +931,7 @@ async function setup(): Promise<{
       campaigns: new CampaignRepository(context.orm),
       sessions: new SessionRepository(context.orm),
       entityTypes: new EntityTypeRepository(context.orm),
+      entities: new EntityRepository(context.orm),
       createId: () => '80000000-0000-4000-8000-000000000001',
       now: () => timestamp,
     }),

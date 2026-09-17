@@ -8,6 +8,9 @@ import {
 } from './narrative';
 import { entitySchema } from './entities';
 import { relationshipSchema, relationshipWarningSchema } from './relationships';
+import { assertionSchema } from './assertions';
+import { noteDetailsSchema, noteEntityLinksInputSchema } from './notes';
+import { eventDetailsSchema, eventEntityLinksInputSchema } from './events';
 import { defaultPageLimit, maximumPageLimit, type PageResult } from './pagination';
 import type { Result } from './result';
 
@@ -184,6 +187,82 @@ export type InboxRelationshipConversionResult = z.infer<
   typeof inboxRelationshipConversionResultSchema
 >;
 
+const conversionMetadataSchema = z
+  .object({
+    canonState: z.enum(canonStates).default(manualNarrativeDefaults.canonState),
+    knowledgeState: z.enum(knowledgeStates).default(manualNarrativeDefaults.knowledgeState),
+    visibility: z.enum(visibilityStates).default(manualNarrativeDefaults.visibility),
+  })
+  .strict();
+
+export const convertInboxItemToAssertionInputSchema = z
+  .object({
+    campaignId: z.uuid(),
+    id: z.uuid(),
+    revision: z.number().int().positive(),
+    destination: conversionMetadataSchema
+      .extend({
+        subjectEntityId: z.uuid(),
+        objectEntityId: z.uuid().nullable().default(null),
+        predicate: z.string().trim().min(1).max(200).nullable().default(null),
+        statement: z.string().trim().min(1).max(10000).nullable().default(null),
+        value: z.json().nullable().default(null),
+      })
+      .strict(),
+  })
+  .strict();
+export type ConvertInboxItemToAssertionInput = z.output<
+  typeof convertInboxItemToAssertionInputSchema
+>;
+export const convertInboxItemToNoteInputSchema = z
+  .object({
+    campaignId: z.uuid(),
+    id: z.uuid(),
+    revision: z.number().int().positive(),
+    destination: conversionMetadataSchema
+      .extend({
+        title: z.string().trim().min(1).max(200),
+        bodyMarkdown: z.string().trim().min(1).max(100000),
+        noteType: z
+          .enum(['general', 'idea', 'scene', 'clue', 'secret', 'preparation', 'reference'])
+          .default('general'),
+        links: noteEntityLinksInputSchema.default([]),
+      })
+      .strict(),
+  })
+  .strict();
+export type ConvertInboxItemToNoteInput = z.output<typeof convertInboxItemToNoteInputSchema>;
+export const convertInboxItemToEventInputSchema = z
+  .object({
+    campaignId: z.uuid(),
+    id: z.uuid(),
+    revision: z.number().int().positive(),
+    destination: conversionMetadataSchema
+      .extend({
+        title: z.string().trim().min(1).max(200),
+        descriptionMarkdown: z.string().max(100000).nullable().default(null),
+        sessionId: z.uuid().nullable().default(null),
+        eventOrder: z.number().int().nonnegative().default(0),
+        occurredAtLabel: z.string().trim().min(1).max(200).nullable().default(null),
+        links: eventEntityLinksInputSchema.default([]),
+      })
+      .strict(),
+  })
+  .strict();
+export type ConvertInboxItemToEventInput = z.output<typeof convertInboxItemToEventInputSchema>;
+export const inboxAssertionConversionResultSchema = z
+  .object({ inboxItem: inboxItemSchema, assertion: assertionSchema })
+  .strict();
+export const inboxNoteConversionResultSchema = z
+  .object({ inboxItem: inboxItemSchema, note: noteDetailsSchema })
+  .strict();
+export const inboxEventConversionResultSchema = z
+  .object({ inboxItem: inboxItemSchema, event: eventDetailsSchema })
+  .strict();
+export type InboxAssertionConversionResult = z.infer<typeof inboxAssertionConversionResultSchema>;
+export type InboxNoteConversionResult = z.infer<typeof inboxNoteConversionResultSchema>;
+export type InboxEventConversionResult = z.infer<typeof inboxEventConversionResultSchema>;
+
 export interface InboxGateway {
   capture(input: CaptureInboxItemInputRequest): Promise<Result<InboxItem>>;
   get(input: GetInboxItemInput): Promise<Result<InboxItem>>;
@@ -198,4 +277,9 @@ export interface InboxGateway {
   convertToRelationship(
     input: ConvertInboxItemToRelationshipInputRequest,
   ): Promise<Result<InboxRelationshipConversionResult>>;
+  convertToAssertion(
+    input: ConvertInboxItemToAssertionInput,
+  ): Promise<Result<InboxAssertionConversionResult>>;
+  convertToNote(input: ConvertInboxItemToNoteInput): Promise<Result<InboxNoteConversionResult>>;
+  convertToEvent(input: ConvertInboxItemToEventInput): Promise<Result<InboxEventConversionResult>>;
 }

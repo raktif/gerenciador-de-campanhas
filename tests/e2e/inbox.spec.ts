@@ -152,6 +152,67 @@ test('converte captura em relacao com endpoint existente e endpoint criado', asy
     await duplicateDialog.getByLabel('Entidade').nth(1).selectOption({ label: 'Nara' });
     await duplicateDialog.getByRole('button', { name: 'Confirmar conversão' }).click();
     await expect(window.getByRole('status')).toContainText('possível duplicidade');
+    const assertionCapture = window
+      .getByText('Captura de afirmação', { exact: true })
+      .locator('xpath=ancestor::article');
+    await assertionCapture.getByRole('button', { name: 'Marcar como em revisão' }).click();
+    await assertionCapture.getByRole('button', { name: 'Converter em afirmação' }).click();
+    const assertionDialog = window.getByRole('dialog', { name: 'Converter em afirmação' });
+    await expect(assertionDialog.getByLabel('Sujeito')).toBeFocused();
+    await expect(assertionDialog.getByLabel('Sujeito')).toHaveValue('');
+    await expect(
+      assertionDialog.getByRole('button', { name: 'Confirmar conversão' }),
+    ).toBeDisabled();
+    await expect(assertionDialog.getByText('Captura de afirmação', { exact: true })).toBeVisible();
+    await expect
+      .poll(() => window.locator('#root').evaluate((node) => node.hasAttribute('inert')))
+      .toBe(true);
+    await window.keyboard.press('Escape');
+    await expect(assertionDialog).toHaveCount(0);
+    await expect(
+      assertionCapture.getByRole('button', { name: 'Converter em afirmação' }),
+    ).toBeFocused();
+    await expect
+      .poll(() => window.locator('#root').evaluate((node) => node.hasAttribute('inert')))
+      .toBe(false);
+    await assertionCapture.getByRole('button', { name: 'Converter em afirmação' }).click();
+    await assertionDialog.getByLabel('Sujeito').selectOption({ label: 'Mara' });
+    await assertionDialog.getByLabel('Declaração').fill('Mara conhece o sino.');
+    await assertionDialog.getByLabel('Estado canônico').selectOption('draft');
+    await assertionDialog.getByLabel('Natureza do conhecimento').selectOption('rumor');
+    await assertionDialog.getByLabel('Visibilidade').selectOption('players');
+    await assertionDialog.getByRole('button', { name: 'Confirmar conversão' }).click();
+    await expect(window.getByRole('status')).toContainText('Afirmação criada a partir da captura');
+    await expect(window.getByText('Captura de afirmação', { exact: true })).toHaveCount(0);
+    const noteCapture = window
+      .getByText('Captura de nota', { exact: true })
+      .locator('xpath=ancestor::article');
+    await noteCapture.getByRole('button', { name: 'Marcar como em revisão' }).click();
+    await noteCapture.getByRole('button', { name: 'Converter em nota' }).click();
+    const noteDialog = window.getByRole('dialog', { name: 'Converter em nota' });
+    await expect(noteDialog.getByLabel('Título')).toBeFocused();
+    await noteDialog.getByLabel('Título').fill('Pista da ponte');
+    await noteDialog.getByLabel('Corpo da nota').fill('O sino tocou à meia-noite.');
+    await noteDialog.getByRole('button', { name: 'Confirmar conversão' }).click();
+    await expect(window.getByRole('status')).toContainText('Nota criada a partir da captura');
+    const eventCapture = window
+      .getByText('Captura de evento', { exact: true })
+      .locator('xpath=ancestor::article');
+    await eventCapture.getByRole('button', { name: 'Marcar como em revisão' }).click();
+    await eventCapture.getByRole('button', { name: 'Converter em evento' }).click();
+    const eventDialog = window.getByRole('dialog', { name: 'Converter em evento' });
+    await expect(eventDialog.getByLabel('Título')).toBeFocused();
+    await eventDialog.getByLabel('Título').fill('O sino toca');
+    await eventDialog.getByLabel('Ordem narrativa').fill('3');
+    await eventDialog.getByRole('button', { name: 'Confirmar conversão' }).click();
+    await expect(window.getByRole('status')).toContainText('Evento criado a partir da captura');
+    await application.close();
+    application = null;
+    application = await launch(dataDirectory);
+    window = await application.firstWindow();
+    await window.getByRole('button', { name: 'Abrir campanha Relação E2E' }).click();
+    await window.getByRole('button', { name: 'Caixa de Entrada' }).click();
+    await expect(window.getByText('Captura de afirmação', { exact: true })).toHaveCount(0);
     await application.close();
     application = null;
     expect(readConvertedRelationship(dataDirectory)).toEqual({
@@ -160,6 +221,16 @@ test('converte captura em relacao com endpoint existente e endpoint criado', asy
       status: 'converted',
       conversionType: 'relationship',
       sourceText: 'Captura de relação',
+    });
+    expect(readConvertedAssertion(dataDirectory)).toEqual({
+      subjectName: 'Mara',
+      statement: 'Mara conhece o sino.',
+      canonState: 'draft',
+      knowledgeState: 'rumor',
+      visibility: 'players',
+      status: 'converted',
+      conversionType: 'assertion',
+      sourceText: 'Captura de afirmação',
     });
   } finally {
     await application?.close();
@@ -243,6 +314,21 @@ function seedRelationshipFixture(dataDirectory: string, name: string): void {
         `INSERT INTO inbox_items (id, campaign_id, raw_text, status, origin_kind, captured_at, created_at, updated_at, revision) VALUES ('80000000-0000-4000-8000-000000000021', ?, 'Captura duplicada', 'new', 'manual', ?, ?, ?, 1)`,
       )
       .run(campaign.id, now, now, now);
+    database
+      .prepare(
+        `INSERT INTO inbox_items (id, campaign_id, raw_text, status, origin_kind, captured_at, created_at, updated_at, revision) VALUES ('80000000-0000-4000-8000-000000000022', ?, 'Captura de afirmação', 'new', 'manual', ?, ?, ?, 1)`,
+      )
+      .run(campaign.id, now, now, now);
+    database
+      .prepare(
+        `INSERT INTO inbox_items (id,campaign_id,raw_text,status,origin_kind,captured_at,created_at,updated_at,revision) VALUES ('80000000-0000-4000-8000-000000000023',?,'Captura de nota','new','manual',?,?,?,1)`,
+      )
+      .run(campaign.id, now, now, now);
+    database
+      .prepare(
+        `INSERT INTO inbox_items (id,campaign_id,raw_text,status,origin_kind,captured_at,created_at,updated_at,revision) VALUES ('80000000-0000-4000-8000-000000000024',?,'Captura de evento','new','manual',?,?,?,1)`,
+      )
+      .run(campaign.id, now, now, now);
   } finally {
     database.close();
   }
@@ -254,6 +340,19 @@ function readConvertedRelationship(dataDirectory: string) {
     return database
       .prepare(
         `SELECT source_entity.name AS sourceName, target_entity.name AS targetName, inbox_items.status AS status, inbox_items.converted_object_type AS conversionType, sources.description AS sourceText FROM relationships JOIN entities AS source_entity ON source_entity.id = relationships.source_entity_id JOIN entities AS target_entity ON target_entity.id = relationships.target_entity_id JOIN inbox_items ON inbox_items.converted_object_id = relationships.id JOIN sources ON sources.id = relationships.source_id WHERE target_entity.name = 'Iara'`,
+      )
+      .get();
+  } finally {
+    database.close();
+  }
+}
+
+function readConvertedAssertion(dataDirectory: string) {
+  const database = new Database(path.join(dataDirectory, 'database', 'app.db'), { readonly: true });
+  try {
+    return database
+      .prepare(
+        `SELECT subject.name AS subjectName, assertions.statement AS statement, assertions.canon_state AS canonState, assertions.knowledge_state AS knowledgeState, assertions.visibility AS visibility, inbox_items.status AS status, inbox_items.converted_object_type AS conversionType, sources.description AS sourceText FROM assertions JOIN entities AS subject ON subject.id = assertions.subject_entity_id JOIN inbox_items ON inbox_items.converted_object_id = assertions.id JOIN sources ON sources.id = assertions.source_id WHERE inbox_items.raw_text = 'Captura de afirmação'`,
       )
       .get();
   } finally {

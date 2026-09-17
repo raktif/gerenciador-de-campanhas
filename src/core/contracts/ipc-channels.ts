@@ -89,6 +89,9 @@ export const inboxChannels = {
   restore: 'inbox:restore',
   convertToEntity: 'inbox:convert-to-entity',
   convertToRelationship: 'inbox:convert-to-relationship',
+  convertToAssertion: 'inbox:convert-to-assertion',
+  convertToNote: 'inbox:convert-to-note',
+  convertToEvent: 'inbox:convert-to-event',
 } as const;
 
 export const eventChannels = {

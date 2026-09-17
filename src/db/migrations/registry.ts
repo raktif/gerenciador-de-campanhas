@@ -11,6 +11,9 @@ import inboxCaptureIntegrityMigration from './0009_inbox_capture_integrity.sql?r
 import inboxEntityProvenanceMigration from './0010_inbox_entity_provenance.sql?raw';
 import inboxEntityProvenanceIntegrityMigration from './0011_inbox_entity_provenance_integrity.sql?raw';
 import inboxRelationshipProvenanceMigration from './0012_inbox_relationship_provenance.sql?raw';
+import inboxNarrativeProvenanceMigration from './0013_inbox_narrative_provenance.sql?raw';
+import assertionInboxSourceUpdateGuardMigration from './0014_assertion_inbox_source_update_guard.sql?raw';
+import noteEventInboxSourceUpdateGuardsMigration from './0015_note_event_inbox_source_update_guards.sql?raw';
 
 export interface MigrationDefinition {
   version: number;
@@ -97,5 +100,23 @@ export const migrations: readonly MigrationDefinition[] = [
     name: 'phase-two-inbox-relationship-provenance',
     checksum: checksum(inboxRelationshipProvenanceMigration),
     sql: inboxRelationshipProvenanceMigration,
+  },
+  {
+    version: 13,
+    name: 'phase-two-inbox-narrative-provenance',
+    checksum: checksum(inboxNarrativeProvenanceMigration),
+    sql: inboxNarrativeProvenanceMigration,
+  },
+  {
+    version: 14,
+    name: 'phase-two-assertion-inbox-source-update-guard',
+    checksum: checksum(assertionInboxSourceUpdateGuardMigration),
+    sql: assertionInboxSourceUpdateGuardMigration,
+  },
+  {
+    version: 15,
+    name: 'phase-two-note-event-inbox-source-update-guards',
+    checksum: checksum(noteEventInboxSourceUpdateGuardsMigration),
+    sql: noteEventInboxSourceUpdateGuardsMigration,
   },
 ];

@@ -744,3 +744,13 @@ export const inboxRelationshipConversions = sqliteTable(
     uniqueIndex('inbox_relationship_conversions_relationship_unique').on(table.relationshipId),
   ],
 );
+
+export const inboxAssertionConversions = sqliteTable('inbox_assertion_conversions', {
+  inboxItemId: text('inbox_item_id').primaryKey(), assertionId: text('assertion_id').notNull().unique(), sourceId: text('source_id').notNull().unique(), createdAt: text('created_at').notNull(),
+});
+export const inboxNoteConversions = sqliteTable('inbox_note_conversions', {
+  inboxItemId: text('inbox_item_id').primaryKey(), noteId: text('note_id').notNull().unique(), sourceId: text('source_id').notNull().unique(), createdAt: text('created_at').notNull(),
+});
+export const inboxEventConversions = sqliteTable('inbox_event_conversions', {
+  inboxItemId: text('inbox_item_id').primaryKey(), eventId: text('event_id').notNull().unique(), sourceId: text('source_id').notNull().unique(), createdAt: text('created_at').notNull(),
+});

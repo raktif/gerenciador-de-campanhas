@@ -261,6 +261,7 @@ export function CampaignApp(): React.JSX.Element {
             <InboxManager
               campaign={selectedCampaign}
               onBack={() => setScreen('edit')}
+              onManageEntities={() => setScreen('entities')}
               onManageEntityTypes={() => setScreen('entityTypes')}
               onManageRelationshipTypes={() => setScreen('relationshipTypes')}
             />

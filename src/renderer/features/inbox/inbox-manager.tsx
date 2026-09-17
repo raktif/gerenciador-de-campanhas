@@ -20,11 +20,13 @@ const statuses: Record<Filter, InboxItem['status'][]> = {
 export function InboxManager({
   campaign,
   onBack,
+  onManageEntities,
   onManageEntityTypes,
   onManageRelationshipTypes,
 }: {
   campaign: Campaign;
   onBack: () => void;
+  onManageEntities: () => void;
   onManageEntityTypes: () => void;
   onManageRelationshipTypes: () => void;
 }): React.JSX.Element {
@@ -64,6 +66,60 @@ export function InboxManager({
   const [conversionError, setConversionError] = useState<string | null>(null);
   const conversionDialogRef = useRef<HTMLFormElement>(null);
   const conversionNameRef = useRef<HTMLInputElement>(null);
+  const [assertionConversion, setAssertionConversion] = useState<InboxItem | null>(null);
+  const [assertionSubjectEntityId, setAssertionSubjectEntityId] = useState('');
+  const [assertionObjectEntityId, setAssertionObjectEntityId] = useState('');
+  const [assertionStatement, setAssertionStatement] = useState('');
+  const [assertionPredicate, setAssertionPredicate] = useState('');
+  const [assertionValue, setAssertionValue] = useState('');
+  const [assertionCanonState, setAssertionCanonState] = useState<
+    'draft' | 'accepted' | 'rejected' | 'archived'
+  >('accepted');
+  const [assertionKnowledgeState, setAssertionKnowledgeState] = useState<
+    'fact' | 'rumor' | 'suspicion' | 'secret' | 'possibility' | 'disproved'
+  >('fact');
+  const [assertionVisibility, setAssertionVisibility] = useState<'gm' | 'players' | 'public'>('gm');
+  const [assertionError, setAssertionError] = useState<string | null>(null);
+  const assertionDialogRef = useRef<HTMLFormElement>(null);
+  const assertionSubjectRef = useRef<HTMLSelectElement>(null);
+  const [noteConversion, setNoteConversion] = useState<InboxItem | null>(null);
+  const [noteTitle, setNoteTitle] = useState('');
+  const [noteBody, setNoteBody] = useState('');
+  const [noteType, setNoteType] = useState<
+    'general' | 'idea' | 'scene' | 'clue' | 'secret' | 'preparation' | 'reference'
+  >('general');
+  const [noteLinkEntityId, setNoteLinkEntityId] = useState('');
+  const [noteLinkRole, setNoteLinkRole] = useState('related');
+  const [noteVisibility, setNoteVisibility] = useState<'gm' | 'players' | 'public'>('gm');
+  const [noteCanonState, setNoteCanonState] = useState<'draft' | 'accepted' | 'rejected' | 'archived'>('accepted');
+  const [noteKnowledgeState, setNoteKnowledgeState] = useState<'fact' | 'rumor' | 'suspicion' | 'secret' | 'possibility' | 'disproved'>('fact');
+  const [noteError, setNoteError] = useState<string | null>(null);
+  const noteDialogRef = useRef<HTMLFormElement>(null);
+  const noteTitleRef = useRef<HTMLInputElement>(null);
+  const [eventConversion, setEventConversion] = useState<InboxItem | null>(null);
+  const [eventTitle, setEventTitle] = useState('');
+  const [eventDescription, setEventDescription] = useState('');
+  const [eventSessionId, setEventSessionId] = useState('');
+  const [eventOrder, setEventOrder] = useState(0);
+  const [eventOccurredAtLabel, setEventOccurredAtLabel] = useState('');
+  const [eventLinkEntityId, setEventLinkEntityId] = useState('');
+  const [eventLinkRole, setEventLinkRole] = useState<
+    | 'participant'
+    | 'location'
+    | 'cause'
+    | 'target'
+    | 'witness'
+    | 'beneficiary'
+    | 'victim'
+    | 'related'
+  >('related');
+  const [eventLinkSortOrder, setEventLinkSortOrder] = useState(0);
+  const [eventVisibility, setEventVisibility] = useState<'gm' | 'players' | 'public'>('gm');
+  const [eventCanonState, setEventCanonState] = useState<'draft' | 'accepted' | 'rejected' | 'archived'>('accepted');
+  const [eventKnowledgeState, setEventKnowledgeState] = useState<'fact' | 'rumor' | 'suspicion' | 'secret' | 'possibility' | 'disproved'>('fact');
+  const [eventError, setEventError] = useState<string | null>(null);
+  const eventDialogRef = useRef<HTMLFormElement>(null);
+  const eventTitleRef = useRef<HTMLInputElement>(null);
   const announcementRef = useRef<HTMLParagraphElement>(null);
   const [relationshipConversion, setRelationshipConversion] = useState<InboxItem | null>(null);
   const [relationshipTypeId, setRelationshipTypeId] = useState('');
@@ -157,6 +213,15 @@ export function InboxManager({
     if (conversion !== null) conversionNameRef.current?.focus();
   }, [conversion]);
   useEffect(() => {
+    if (assertionConversion !== null) assertionSubjectRef.current?.focus();
+  }, [assertionConversion]);
+  useEffect(() => {
+    if (noteConversion !== null) noteTitleRef.current?.focus();
+  }, [noteConversion]);
+  useEffect(() => {
+    if (eventConversion !== null) eventTitleRef.current?.focus();
+  }, [eventConversion]);
+  useEffect(() => {
     void window.campaignManager.sessions
       .list({
         campaignId: campaign.id,
@@ -192,13 +257,25 @@ export function InboxManager({
   useEffect(() => {
     const root = document.querySelector('#root');
     if (
-      (confirming === null && conversion === null && relationshipConversion === null) ||
+      (confirming === null &&
+        conversion === null &&
+        assertionConversion === null &&
+        noteConversion === null &&
+        eventConversion === null &&
+        relationshipConversion === null) ||
       root === null
     )
       return;
     root.setAttribute('inert', '');
     return () => root.removeAttribute('inert');
-  }, [confirming, conversion, relationshipConversion]);
+  }, [
+    assertionConversion,
+    confirming,
+    conversion,
+    eventConversion,
+    noteConversion,
+    relationshipConversion,
+  ]);
   useEffect(() => {
     if (relationshipConversion !== null) relationshipTypeRef.current?.focus();
   }, [relationshipConversion]);
@@ -342,6 +419,141 @@ export function InboxManager({
       } else setRelationshipError(result.error.message);
     } catch {
       setRelationshipError('Não foi possível converter a captura em relação. Tente novamente.');
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function convertAssertion(): Promise<void> {
+    if (assertionConversion === null || busy !== null) return;
+    const statement = assertionStatement.trim();
+    const predicate = assertionPredicate.trim();
+    let value: NonNullable<
+      Parameters<typeof window.campaignManager.inbox.convertToAssertion>[0]['destination']['value']
+    > | null = null;
+    if (assertionValue.trim() !== '') {
+      try {
+        value = JSON.parse(assertionValue) as typeof value;
+      } catch {
+        setAssertionError('O valor deve ser um JSON válido.');
+        return;
+      }
+    }
+    if (
+      statement === '' &&
+      (predicate === '' || (assertionObjectEntityId === '' && value === null))
+    ) {
+      setAssertionError('Informe uma declaração ou um predicado acompanhado de objeto ou valor.');
+      return;
+    }
+    setBusy(assertionConversion.id);
+    setAssertionError(null);
+    try {
+      const result = await window.campaignManager.inbox.convertToAssertion({
+        campaignId: campaign.id,
+        id: assertionConversion.id,
+        revision: assertionConversion.revision,
+        destination: {
+          subjectEntityId: assertionSubjectEntityId,
+          objectEntityId: assertionObjectEntityId === '' ? null : assertionObjectEntityId,
+          statement: statement === '' ? null : statement,
+          predicate: predicate === '' ? null : predicate,
+          value,
+          canonState: assertionCanonState,
+          knowledgeState: assertionKnowledgeState,
+          visibility: assertionVisibility,
+        },
+      });
+      if (result.ok) {
+        setAssertionConversion(null);
+        setAnnouncement(
+          'Afirmação criada a partir da captura; o texto original foi preservado como fonte.',
+        );
+        await load(false);
+        requestAnimationFrame(() => announcementRef.current?.focus());
+      } else setAssertionError(result.error.message);
+    } catch {
+      setAssertionError('Não foi possível converter a captura em afirmação. Tente novamente.');
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function convertNote(): Promise<void> {
+    if (noteConversion === null || busy !== null) return;
+    setBusy(noteConversion.id);
+    setNoteError(null);
+    try {
+      const result = await window.campaignManager.inbox.convertToNote({
+        campaignId: campaign.id,
+        id: noteConversion.id,
+        revision: noteConversion.revision,
+        destination: {
+          title: noteTitle,
+          bodyMarkdown: noteBody,
+          noteType,
+          links:
+            noteLinkEntityId === '' ? [] : [{ entityId: noteLinkEntityId, role: noteLinkRole }],
+          canonState: noteCanonState,
+          knowledgeState: noteKnowledgeState,
+          visibility: noteVisibility,
+        },
+      });
+      if (result.ok) {
+        setNoteConversion(null);
+        setAnnouncement(
+          'Nota criada a partir da captura; o texto original foi preservado como fonte.',
+        );
+        await load(false);
+        requestAnimationFrame(() => announcementRef.current?.focus());
+      } else setNoteError(result.error.message);
+    } catch {
+      setNoteError('Não foi possível converter a captura em nota. Tente novamente.');
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function convertEvent(): Promise<void> {
+    if (eventConversion === null || busy !== null) return;
+    setBusy(eventConversion.id);
+    setEventError(null);
+    try {
+      const result = await window.campaignManager.inbox.convertToEvent({
+        campaignId: campaign.id,
+        id: eventConversion.id,
+        revision: eventConversion.revision,
+        destination: {
+          title: eventTitle,
+          descriptionMarkdown: eventDescription.trim() === '' ? null : eventDescription,
+          sessionId: eventSessionId === '' ? null : eventSessionId,
+          eventOrder,
+          occurredAtLabel: eventOccurredAtLabel.trim() === '' ? null : eventOccurredAtLabel,
+          links:
+            eventLinkEntityId === ''
+              ? []
+              : [
+                  {
+                    entityId: eventLinkEntityId,
+                    role: eventLinkRole,
+                    sortOrder: eventLinkSortOrder,
+                  },
+                ],
+          canonState: eventCanonState,
+          knowledgeState: eventKnowledgeState,
+          visibility: eventVisibility,
+        },
+      });
+      if (result.ok) {
+        setEventConversion(null);
+        setAnnouncement(
+          'Evento criado a partir da captura; o texto original foi preservado como fonte.',
+        );
+        await load(false);
+        requestAnimationFrame(() => announcementRef.current?.focus());
+      } else setEventError(result.error.message);
+    } catch {
+      setEventError('Não foi possível converter a captura em evento. Tente novamente.');
     } finally {
       setBusy(null);
     }
@@ -514,6 +726,96 @@ export function InboxManager({
                     <>
                       <button
                         className={secondaryClass}
+                        disabled={busy !== null}
+                        onClick={(event) => {
+                          triggerRef.current = event.currentTarget;
+                          setNoteConversion(item);
+                          setNoteTitle(item.rawText.slice(0, 200));
+                          setNoteBody(item.rawText);
+                          setNoteType('general');
+                          setNoteLinkEntityId('');
+                          setNoteLinkRole('related');
+                          setNoteCanonState('accepted');
+                          setNoteKnowledgeState('fact');
+                          setNoteVisibility('gm');
+                          setNoteError(null);
+                        }}
+                        type="button"
+                      >
+                        Converter em nota
+                      </button>
+                      <button
+                        className={secondaryClass}
+                        disabled={busy !== null}
+                        onClick={(event) => {
+                          triggerRef.current = event.currentTarget;
+                          setEventConversion(item);
+                          setEventTitle(item.rawText.slice(0, 200));
+                          setEventDescription('');
+                          setEventSessionId(item.sessionId ?? '');
+                          setEventOrder(0);
+                          setEventOccurredAtLabel('');
+                          setEventLinkEntityId('');
+                          setEventLinkRole('related');
+                          setEventLinkSortOrder(0);
+                          setEventCanonState('accepted');
+                          setEventKnowledgeState('fact');
+                          setEventVisibility('gm');
+                          setEventError(null);
+                        }}
+                        type="button"
+                      >
+                        Converter em evento
+                      </button>
+                    </>
+                  ) : null}
+                  {item.status === 'reviewing' ? (
+                    <>
+                      <button
+                        aria-describedby={
+                          entities.length === 0 ? `inbox-assertion-reason-${item.id}` : undefined
+                        }
+                        className={secondaryClass}
+                        disabled={busy !== null || entities.length === 0}
+                        onClick={(event) => {
+                          triggerRef.current = event.currentTarget;
+                          setAssertionConversion(item);
+                          setAssertionSubjectEntityId('');
+                          setAssertionObjectEntityId('');
+                          setAssertionStatement(item.rawText);
+                          setAssertionPredicate('');
+                          setAssertionValue('');
+                          setAssertionCanonState('accepted');
+                          setAssertionKnowledgeState('fact');
+                          setAssertionVisibility('gm');
+                          setAssertionError(null);
+                        }}
+                        type="button"
+                      >
+                        Converter em afirmação
+                      </button>
+                      {entities.length === 0 ? (
+                        <span
+                          className="text-sm text-amber-900"
+                          id={`inbox-assertion-reason-${item.id}`}
+                        >
+                          Crie uma entidade ativa na campanha para definir o sujeito da afirmação.
+                          <button
+                            className="ml-2 font-semibold underline"
+                            disabled={busy !== null}
+                            onClick={onManageEntities}
+                            type="button"
+                          >
+                            Gerenciar entidades
+                          </button>
+                        </span>
+                      ) : null}
+                    </>
+                  ) : null}
+                  {item.status === 'reviewing' ? (
+                    <>
+                      <button
+                        className={secondaryClass}
                         disabled={busy !== null || relationshipTypes.length === 0}
                         aria-describedby={
                           relationshipTypes.length === 0
@@ -521,19 +823,36 @@ export function InboxManager({
                             : undefined
                         }
                         onClick={(event) => {
+                          const initialType = relationshipTypes[0];
+                          const initialSourceEntities = filterAllowedEntities(
+                            entities,
+                            initialType?.allowedSourceTypeIds,
+                          );
+                          const initialTargetEntities = filterAllowedEntities(
+                            entities,
+                            initialType?.allowedTargetTypeIds,
+                          );
+                          const initialSourceTypes = filterAllowedEntityTypes(
+                            entityTypes,
+                            initialType?.allowedSourceTypeIds,
+                          );
+                          const initialTargetTypes = filterAllowedEntityTypes(
+                            entityTypes,
+                            initialType?.allowedTargetTypeIds,
+                          );
                           triggerRef.current = event.currentTarget;
                           setRelationshipConversion(item);
-                          setRelationshipTypeId(relationshipTypes[0]?.id ?? '');
+                          setRelationshipTypeId(initialType?.id ?? '');
                           setRelationshipSourceMode(
-                            compatibleSourceEntities.length > 0 ? 'existing' : 'new',
+                            initialSourceEntities.length > 0 ? 'existing' : 'new',
                           );
                           setRelationshipTargetMode(
-                            compatibleTargetEntities.length > 0 ? 'existing' : 'new',
+                            initialTargetEntities.length > 0 ? 'existing' : 'new',
                           );
-                          setRelationshipSourceEntityId(compatibleSourceEntities[0]?.id ?? '');
-                          setRelationshipTargetEntityId(compatibleTargetEntities[0]?.id ?? '');
-                          setRelationshipSourceTypeId(compatibleSourceTypes[0]?.id ?? '');
-                          setRelationshipTargetTypeId(compatibleTargetTypes[0]?.id ?? '');
+                          setRelationshipSourceEntityId(initialSourceEntities[0]?.id ?? '');
+                          setRelationshipTargetEntityId(initialTargetEntities[0]?.id ?? '');
+                          setRelationshipSourceTypeId(initialSourceTypes[0]?.id ?? '');
+                          setRelationshipTargetTypeId(initialTargetTypes[0]?.id ?? '');
                           setRelationshipSourceName('');
                           setRelationshipTargetName('');
                           setRelationshipDescription('');
@@ -693,7 +1012,7 @@ export function InboxManager({
             <div
               aria-labelledby="inbox-conversion-title"
               aria-modal="true"
-              className="fixed inset-0 z-40 grid place-items-center bg-slate-950/40 p-4"
+              className="fixed inset-0 z-40 grid place-items-center overflow-y-auto bg-slate-950/40 p-4"
               onKeyDown={(event) => {
                 if (event.key === 'Escape' && busy === null) {
                   setConversion(null);
@@ -705,7 +1024,7 @@ export function InboxManager({
             >
               <form
                 aria-busy={busy === conversion.id}
-                className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-xl"
+                className="max-h-[calc(100vh-2rem)] w-full max-w-xl overflow-y-auto rounded-2xl bg-white p-6 shadow-xl"
                 onSubmit={(event) => {
                   event.preventDefault();
                   void convert();
@@ -857,6 +1176,540 @@ export function InboxManager({
                     type="submit"
                   >
                     {busy === conversion.id ? 'Convertendo…' : 'Confirmar conversão'}
+                  </button>
+                </div>
+              </form>
+            </div>,
+            document.body,
+          )}
+      {assertionConversion === null
+        ? null
+        : createPortal(
+            <div
+              aria-describedby="inbox-assertion-source-text inbox-assertion-help"
+              aria-labelledby="inbox-assertion-conversion-title"
+              aria-modal="true"
+              className="fixed inset-0 z-40 grid place-items-center overflow-y-auto bg-slate-950/40 p-4"
+              onKeyDown={(event) => {
+                if (event.key === 'Escape' && busy === null) {
+                  setAssertionConversion(null);
+                  requestAnimationFrame(() => triggerRef.current?.focus());
+                }
+                if (event.key === 'Tab') trapFocus(event, assertionDialogRef.current);
+              }}
+              role="dialog"
+            >
+              <form
+                aria-busy={busy === assertionConversion.id}
+                className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-xl"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void convertAssertion();
+                }}
+                ref={assertionDialogRef}
+              >
+                <h2 className="text-xl font-semibold" id="inbox-assertion-conversion-title">
+                  Converter em afirmação
+                </h2>
+                <p className="mt-2 text-sm text-slate-600" id="inbox-assertion-help">
+                  A captura original será preservada como fonte rastreável da afirmação.
+                </p>
+                <div
+                  aria-labelledby="inbox-assertion-source-label"
+                  className="mt-4 max-h-28 overflow-y-auto rounded-xl bg-stone-100 p-3"
+                  id="inbox-assertion-source-text"
+                >
+                  <p className="text-xs font-semibold" id="inbox-assertion-source-label">
+                    Texto original da captura
+                  </p>
+                  <p className="mt-1 break-words whitespace-pre-wrap text-sm">
+                    {assertionConversion.rawText}
+                  </p>
+                </div>
+                {assertionError === null ? null : (
+                  <p className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-800" role="alert">
+                    {assertionError}
+                  </p>
+                )}
+                <label
+                  className="mt-5 block text-sm font-semibold"
+                  htmlFor="inbox-assertion-subject"
+                >
+                  Sujeito
+                </label>
+                <select
+                  className="mt-1 w-full rounded-xl border border-stone-300 px-3 py-2"
+                  disabled={busy !== null || entities.length === 0}
+                  id="inbox-assertion-subject"
+                  onChange={(event) => setAssertionSubjectEntityId(event.target.value)}
+                  ref={assertionSubjectRef}
+                  required
+                  value={assertionSubjectEntityId}
+                >
+                  <option disabled value="">
+                    Sujeito obrigatório
+                  </option>
+                  {entities.map((entity) => (
+                    <option key={entity.id} value={entity.id}>
+                      {entity.name}
+                    </option>
+                  ))}
+                </select>
+                <label
+                  className="mt-4 block text-sm font-semibold"
+                  htmlFor="inbox-assertion-object"
+                >
+                  Objeto (opcional)
+                </label>
+                <select
+                  className="mt-1 w-full rounded-xl border border-stone-300 px-3 py-2"
+                  disabled={busy !== null}
+                  id="inbox-assertion-object"
+                  onChange={(event) => setAssertionObjectEntityId(event.target.value)}
+                  value={assertionObjectEntityId}
+                >
+                  <option value="">Sem entidade-objeto</option>
+                  {entities.map((entity) => (
+                    <option key={entity.id} value={entity.id}>
+                      {entity.name}
+                    </option>
+                  ))}
+                </select>
+                <label
+                  className="mt-4 block text-sm font-semibold"
+                  htmlFor="inbox-assertion-statement"
+                >
+                  Declaração
+                </label>
+                <textarea
+                  className="mt-1 min-h-24 w-full rounded-xl border border-stone-300 px-3 py-2"
+                  disabled={busy !== null}
+                  id="inbox-assertion-statement"
+                  maxLength={10000}
+                  onChange={(event) => setAssertionStatement(event.target.value)}
+                  value={assertionStatement}
+                />
+                <p className="mt-1 text-sm text-slate-600">
+                  Informe uma declaração ou um predicado acompanhado de objeto ou valor.
+                </p>
+                <label
+                  className="mt-4 block text-sm font-semibold"
+                  htmlFor="inbox-assertion-predicate"
+                >
+                  Predicado
+                </label>
+                <input
+                  className="mt-1 w-full rounded-xl border border-stone-300 px-3 py-2"
+                  disabled={busy !== null}
+                  id="inbox-assertion-predicate"
+                  maxLength={200}
+                  onChange={(event) => setAssertionPredicate(event.target.value)}
+                  value={assertionPredicate}
+                />
+                <label className="mt-4 block text-sm font-semibold" htmlFor="inbox-assertion-value">
+                  Valor JSON (opcional)
+                </label>
+                <textarea
+                  className="mt-1 min-h-20 w-full rounded-xl border border-stone-300 px-3 py-2 font-mono text-sm"
+                  disabled={busy !== null}
+                  id="inbox-assertion-value"
+                  onChange={(event) => setAssertionValue(event.target.value)}
+                  value={assertionValue}
+                />
+                <fieldset
+                  className="mt-5 grid gap-4 rounded-xl border border-stone-200 p-4"
+                  disabled={busy !== null}
+                >
+                  <legend className="px-1 text-sm font-semibold">Metadados narrativos</legend>
+                  <MetadataSelect
+                    id="inbox-assertion-canon"
+                    label="Estado canônico"
+                    onChange={(value) =>
+                      setAssertionCanonState(value as typeof assertionCanonState)
+                    }
+                    options={[
+                      ['accepted', 'Aceito'],
+                      ['draft', 'Rascunho'],
+                      ['rejected', 'Rejeitado'],
+                      ['archived', 'Arquivado'],
+                    ]}
+                    value={assertionCanonState}
+                  />
+                  <MetadataSelect
+                    id="inbox-assertion-knowledge"
+                    label="Natureza do conhecimento"
+                    onChange={(value) =>
+                      setAssertionKnowledgeState(value as typeof assertionKnowledgeState)
+                    }
+                    options={[
+                      ['fact', 'Fato'],
+                      ['rumor', 'Rumor'],
+                      ['suspicion', 'Suspeita'],
+                      ['secret', 'Segredo'],
+                      ['possibility', 'Possibilidade'],
+                      ['disproved', 'Refutado'],
+                    ]}
+                    value={assertionKnowledgeState}
+                  />
+                  <MetadataSelect
+                    id="inbox-assertion-visibility"
+                    label="Visibilidade"
+                    onChange={(value) =>
+                      setAssertionVisibility(value as typeof assertionVisibility)
+                    }
+                    options={[
+                      ['gm', 'Somente mestre'],
+                      ['players', 'Jogadores'],
+                      ['public', 'Pública'],
+                    ]}
+                    value={assertionVisibility}
+                  />
+                </fieldset>
+                <div className="mt-6 flex justify-end gap-3">
+                  <button
+                    className={secondaryClass}
+                    disabled={busy !== null}
+                    onClick={() => {
+                      setAssertionConversion(null);
+                      requestAnimationFrame(() => triggerRef.current?.focus());
+                    }}
+                    type="button"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    className={primaryClass}
+                    disabled={
+                      busy !== null || entities.length === 0 || assertionSubjectEntityId === ''
+                    }
+                    type="submit"
+                  >
+                    {busy === assertionConversion.id ? 'Convertendo…' : 'Confirmar conversão'}
+                  </button>
+                </div>
+              </form>
+            </div>,
+            document.body,
+          )}
+      {noteConversion === null
+        ? null
+        : createPortal(
+            <div
+              aria-labelledby="inbox-note-conversion-title"
+              aria-modal="true"
+              className="fixed inset-0 z-40 grid place-items-center overflow-y-auto bg-slate-950/40 p-4"
+              onKeyDown={(event) => {
+                if (event.key === 'Escape' && busy === null) {
+                  setNoteConversion(null);
+                  requestAnimationFrame(() => triggerRef.current?.focus());
+                }
+                if (event.key === 'Tab') trapFocus(event, noteDialogRef.current);
+              }}
+              role="dialog"
+            >
+              <form
+                aria-busy={busy === noteConversion.id}
+                className="max-h-[calc(100vh-2rem)] w-full max-w-xl overflow-y-auto rounded-2xl bg-white p-6 shadow-xl"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void convertNote();
+                }}
+                ref={noteDialogRef}
+              >
+                <h2 className="text-xl font-semibold" id="inbox-note-conversion-title">
+                  Converter em nota
+                </h2>
+                <p className="mt-2 text-sm text-slate-600">
+                  O texto original será preservado como fonte rastreável.
+                </p>
+                <p className="mt-4 max-h-28 overflow-y-auto break-words whitespace-pre-wrap rounded-xl bg-stone-100 p-3 text-sm">
+                  {noteConversion.rawText}
+                </p>
+                {noteError === null ? null : (
+                  <p className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-800" role="alert">
+                    {noteError}
+                  </p>
+                )}
+                <label className="mt-4 block text-sm font-semibold" htmlFor="inbox-note-title">
+                  Título
+                </label>
+                <input
+                  className="mt-1 w-full rounded-xl border border-stone-300 px-3 py-2"
+                  disabled={busy !== null}
+                  id="inbox-note-title"
+                  maxLength={200}
+                  onChange={(event) => setNoteTitle(event.target.value)}
+                  ref={noteTitleRef}
+                  required
+                  value={noteTitle}
+                />
+                <label className="mt-4 block text-sm font-semibold" htmlFor="inbox-note-body">
+                  Corpo da nota
+                </label>
+                <textarea
+                  className="mt-1 min-h-32 w-full rounded-xl border border-stone-300 px-3 py-2"
+                  disabled={busy !== null}
+                  id="inbox-note-body"
+                  maxLength={100000}
+                  onChange={(event) => setNoteBody(event.target.value)}
+                  required
+                  value={noteBody}
+                />
+                <label className="mt-4 block text-sm font-semibold" htmlFor="inbox-note-type">
+                  Tipo de nota
+                </label>
+                <select
+                  className="mt-1 w-full rounded-xl border border-stone-300 px-3 py-2"
+                  disabled={busy !== null}
+                  id="inbox-note-type"
+                  onChange={(event) => setNoteType(event.target.value as typeof noteType)}
+                  value={noteType}
+                >
+                  {['general', 'idea', 'scene', 'clue', 'secret', 'preparation', 'reference'].map(
+                    (value) => (
+                      <option key={value} value={value}>
+                        {{ general: 'Geral', idea: 'Ideia', scene: 'Cena', clue: 'Pista', secret: 'Segredo', preparation: 'Preparação', reference: 'Referência' }[value]}
+                      </option>
+                    ),
+                  )}
+                </select>
+                <label className="mt-4 block text-sm font-semibold" htmlFor="inbox-note-link">
+                  Vincular entidade (opcional)
+                </label>
+                <select
+                  className="mt-1 w-full rounded-xl border border-stone-300 px-3 py-2"
+                  disabled={busy !== null}
+                  id="inbox-note-link"
+                  onChange={(event) => setNoteLinkEntityId(event.target.value)}
+                  value={noteLinkEntityId}
+                >
+                  <option value="">Sem vínculo</option>
+                  {entities.map((entity) => (
+                    <option key={entity.id} value={entity.id}>
+                      {entity.name}
+                    </option>
+                  ))}
+                </select>
+                <label className="mt-4 block text-sm font-semibold" htmlFor="inbox-note-role">
+                  Papel do vínculo
+                </label>
+                <input
+                  className="mt-1 w-full rounded-xl border border-stone-300 px-3 py-2"
+                  disabled={busy !== null || noteLinkEntityId === ''}
+                  id="inbox-note-role"
+                  maxLength={100}
+                  onChange={(event) => setNoteLinkRole(event.target.value)}
+                  value={noteLinkRole}
+                />
+                <fieldset className="mt-5 grid gap-4 rounded-xl border border-stone-200 p-4" disabled={busy !== null}>
+                  <legend className="px-1 text-sm font-semibold">Metadados narrativos</legend>
+                  <MetadataSelect id="inbox-note-canon" label="Estado canônico" value={noteCanonState} onChange={(value) => setNoteCanonState(value as typeof noteCanonState)} options={[["accepted","Aceito"],["draft","Rascunho"],["rejected","Rejeitado"],["archived","Arquivado"]]} />
+                  <MetadataSelect id="inbox-note-knowledge" label="Natureza do conhecimento" value={noteKnowledgeState} onChange={(value) => setNoteKnowledgeState(value as typeof noteKnowledgeState)} options={[["fact","Fato"],["rumor","Rumor"],["suspicion","Suspeita"],["secret","Segredo"],["possibility","Possibilidade"],["disproved","Refutado"]]} />
+                  <MetadataSelect id="inbox-note-visibility" label="Visibilidade" value={noteVisibility} onChange={(value) => setNoteVisibility(value as typeof noteVisibility)} options={[["gm","Somente mestre"],["players","Jogadores"],["public","Pública"]]} />
+                </fieldset>
+                <div className="mt-6 flex justify-end gap-3">
+                  <button
+                    className={secondaryClass}
+                    disabled={busy !== null}
+                    onClick={() => {
+                      setNoteConversion(null);
+                      requestAnimationFrame(() => triggerRef.current?.focus());
+                    }}
+                    type="button"
+                  >
+                    Cancelar
+                  </button>
+                  <button className={primaryClass} disabled={busy !== null} type="submit">
+                    {busy === noteConversion.id ? 'Convertendo…' : 'Confirmar conversão'}
+                  </button>
+                </div>
+              </form>
+            </div>,
+            document.body,
+          )}
+      {eventConversion === null
+        ? null
+        : createPortal(
+            <div
+              aria-labelledby="inbox-event-conversion-title"
+              aria-modal="true"
+              className="fixed inset-0 z-40 grid place-items-center overflow-y-auto bg-slate-950/40 p-4"
+              onKeyDown={(event) => {
+                if (event.key === 'Escape' && busy === null) {
+                  setEventConversion(null);
+                  requestAnimationFrame(() => triggerRef.current?.focus());
+                }
+                if (event.key === 'Tab') trapFocus(event, eventDialogRef.current);
+              }}
+              role="dialog"
+            >
+              <form
+                aria-busy={busy === eventConversion.id}
+                className="max-h-[calc(100vh-2rem)] w-full max-w-xl overflow-y-auto rounded-2xl bg-white p-6 shadow-xl"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void convertEvent();
+                }}
+                ref={eventDialogRef}
+              >
+                <h2 className="text-xl font-semibold" id="inbox-event-conversion-title">
+                  Converter em evento
+                </h2>
+                <p className="mt-2 text-sm text-slate-600">
+                  O texto original será preservado como fonte rastreável.
+                </p>
+                <p className="mt-4 max-h-28 overflow-y-auto break-words whitespace-pre-wrap rounded-xl bg-stone-100 p-3 text-sm">
+                  {eventConversion.rawText}
+                </p>
+                {eventError === null ? null : (
+                  <p className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-800" role="alert">
+                    {eventError}
+                  </p>
+                )}
+                <label className="mt-4 block text-sm font-semibold" htmlFor="inbox-event-title">
+                  Título
+                </label>
+                <input
+                  className="mt-1 w-full rounded-xl border border-stone-300 px-3 py-2"
+                  disabled={busy !== null}
+                  id="inbox-event-title"
+                  maxLength={200}
+                  onChange={(event) => setEventTitle(event.target.value)}
+                  ref={eventTitleRef}
+                  required
+                  value={eventTitle}
+                />
+                <label
+                  className="mt-4 block text-sm font-semibold"
+                  htmlFor="inbox-event-description"
+                >
+                  Descrição
+                </label>
+                <textarea
+                  className="mt-1 min-h-24 w-full rounded-xl border border-stone-300 px-3 py-2"
+                  disabled={busy !== null}
+                  id="inbox-event-description"
+                  maxLength={100000}
+                  onChange={(event) => setEventDescription(event.target.value)}
+                  value={eventDescription}
+                />
+                <label className="mt-4 block text-sm font-semibold" htmlFor="inbox-event-session">
+                  Sessão (opcional)
+                </label>
+                <select
+                  className="mt-1 w-full rounded-xl border border-stone-300 px-3 py-2"
+                  disabled={busy !== null}
+                  id="inbox-event-session"
+                  onChange={(event) => setEventSessionId(event.target.value)}
+                  value={eventSessionId}
+                >
+                  <option value="">Sem sessão associada</option>
+                  {[...sessions.values()].map((session) => (
+                    <option key={session.id} value={session.id}>
+                      {sessionLabel(session)}
+                    </option>
+                  ))}
+                </select>
+                <label className="mt-4 block text-sm font-semibold" htmlFor="inbox-event-order">
+                  Ordem narrativa
+                </label>
+                <input
+                  className="mt-1 w-full rounded-xl border border-stone-300 px-3 py-2"
+                  disabled={busy !== null}
+                  id="inbox-event-order"
+                  min={0}
+                  onChange={(event) => setEventOrder(Number(event.target.value))}
+                  type="number"
+                  value={eventOrder}
+                />
+                <label className="mt-4 block text-sm font-semibold" htmlFor="inbox-event-occurred">
+                  Rótulo temporal
+                </label>
+                <input
+                  className="mt-1 w-full rounded-xl border border-stone-300 px-3 py-2"
+                  disabled={busy !== null}
+                  id="inbox-event-occurred"
+                  maxLength={200}
+                  onChange={(event) => setEventOccurredAtLabel(event.target.value)}
+                  value={eventOccurredAtLabel}
+                />
+                <label className="mt-4 block text-sm font-semibold" htmlFor="inbox-event-link">
+                  Vincular entidade (opcional)
+                </label>
+                <select
+                  className="mt-1 w-full rounded-xl border border-stone-300 px-3 py-2"
+                  disabled={busy !== null}
+                  id="inbox-event-link"
+                  onChange={(event) => setEventLinkEntityId(event.target.value)}
+                  value={eventLinkEntityId}
+                >
+                  <option value="">Sem vínculo</option>
+                  {entities.map((entity) => (
+                    <option key={entity.id} value={entity.id}>
+                      {entity.name}
+                    </option>
+                  ))}
+                </select>
+                <label className="mt-4 block text-sm font-semibold" htmlFor="inbox-event-role">
+                  Papel do vínculo
+                </label>
+                <select
+                  className="mt-1 w-full rounded-xl border border-stone-300 px-3 py-2"
+                  disabled={busy !== null || eventLinkEntityId === ''}
+                  id="inbox-event-role"
+                  onChange={(event) => setEventLinkRole(event.target.value as typeof eventLinkRole)}
+                  value={eventLinkRole}
+                >
+                  {[
+                    'participant',
+                    'location',
+                    'cause',
+                    'target',
+                    'witness',
+                    'beneficiary',
+                    'victim',
+                    'related',
+                  ].map((value) => (
+                    <option key={value} value={value}>
+                      {{ participant: 'Participante', location: 'Local', cause: 'Causa', target: 'Alvo', witness: 'Testemunha', beneficiary: 'Beneficiário', victim: 'Vítima', related: 'Relacionado' }[value]}
+                    </option>
+                  ))}
+                </select>
+                <label
+                  className="mt-4 block text-sm font-semibold"
+                  htmlFor="inbox-event-link-order"
+                >
+                  Ordem do vínculo
+                </label>
+                <input
+                  className="mt-1 w-full rounded-xl border border-stone-300 px-3 py-2"
+                  disabled={busy !== null || eventLinkEntityId === ''}
+                  id="inbox-event-link-order"
+                  min={0}
+                  onChange={(event) => setEventLinkSortOrder(Number(event.target.value))}
+                  type="number"
+                  value={eventLinkSortOrder}
+                />
+                <fieldset className="mt-5 grid gap-4 rounded-xl border border-stone-200 p-4" disabled={busy !== null}>
+                  <legend className="px-1 text-sm font-semibold">Metadados narrativos</legend>
+                  <MetadataSelect id="inbox-event-canon" label="Estado canônico" value={eventCanonState} onChange={(value) => setEventCanonState(value as typeof eventCanonState)} options={[["accepted","Aceito"],["draft","Rascunho"],["rejected","Rejeitado"],["archived","Arquivado"]]} />
+                  <MetadataSelect id="inbox-event-knowledge" label="Natureza do conhecimento" value={eventKnowledgeState} onChange={(value) => setEventKnowledgeState(value as typeof eventKnowledgeState)} options={[["fact","Fato"],["rumor","Rumor"],["suspicion","Suspeita"],["secret","Segredo"],["possibility","Possibilidade"],["disproved","Refutado"]]} />
+                  <MetadataSelect id="inbox-event-visibility" label="Visibilidade" value={eventVisibility} onChange={(value) => setEventVisibility(value as typeof eventVisibility)} options={[["gm","Somente mestre"],["players","Jogadores"],["public","Pública"]]} />
+                </fieldset>
+                <div className="mt-6 flex justify-end gap-3">
+                  <button
+                    className={secondaryClass}
+                    disabled={busy !== null}
+                    onClick={() => {
+                      setEventConversion(null);
+                      requestAnimationFrame(() => triggerRef.current?.focus());
+                    }}
+                    type="button"
+                  >
+                    Cancelar
+                  </button>
+                  <button className={primaryClass} disabled={busy !== null} type="submit">
+                    {busy === eventConversion.id ? 'Convertendo…' : 'Confirmar conversão'}
                   </button>
                 </div>
               </form>

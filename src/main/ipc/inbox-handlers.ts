@@ -1,9 +1,15 @@
 import type { IpcMain, IpcMainInvokeEvent } from 'electron';
 import {
   captureInboxItemInputSchema,
+  convertInboxItemToAssertionInputSchema,
+  convertInboxItemToEventInputSchema,
+  convertInboxItemToNoteInputSchema,
   convertInboxItemToEntityInputSchema,
   convertInboxItemToRelationshipInputSchema,
   inboxEntityConversionResultSchema,
+  inboxAssertionConversionResultSchema,
+  inboxEventConversionResultSchema,
+  inboxNoteConversionResultSchema,
   inboxRelationshipConversionResultSchema,
   getInboxItemInputSchema,
   inboxItemSchema,
@@ -53,6 +59,42 @@ export function registerInboxIpcHandlers(
           inboxEntityConversionResultSchema,
           dependencies,
           (value) => dependencies.service.convertToEntity(value),
+        ),
+    },
+    {
+      channel: inboxChannels.convertToAssertion,
+      handler: (event, input) =>
+        executeIpcHandler(
+          event,
+          input,
+          convertInboxItemToAssertionInputSchema,
+          inboxAssertionConversionResultSchema,
+          dependencies,
+          (value) => dependencies.service.convertToAssertion(value),
+        ),
+    },
+    {
+      channel: inboxChannels.convertToNote,
+      handler: (event, input) =>
+        executeIpcHandler(
+          event,
+          input,
+          convertInboxItemToNoteInputSchema,
+          inboxNoteConversionResultSchema,
+          dependencies,
+          (value) => dependencies.service.convertToNote(value),
+        ),
+    },
+    {
+      channel: inboxChannels.convertToEvent,
+      handler: (event, input) =>
+        executeIpcHandler(
+          event,
+          input,
+          convertInboxItemToEventInputSchema,
+          inboxEventConversionResultSchema,
+          dependencies,
+          (value) => dependencies.service.convertToEvent(value),
         ),
     },
     {

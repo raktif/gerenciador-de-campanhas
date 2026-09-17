@@ -9,10 +9,19 @@ import type {
   InboxPageResult,
   ConvertInboxItemToEntityInput,
   ConvertInboxItemToRelationshipInput,
+  ConvertInboxItemToAssertionInput,
+  ConvertInboxItemToEventInput,
+  ConvertInboxItemToNoteInput,
   InboxEntityConversionResult,
   InboxRelationshipConversionResult,
+  InboxAssertionConversionResult,
+  InboxEventConversionResult,
+  InboxNoteConversionResult,
 } from '../../core/contracts/inbox';
 import type { Entity } from '../../core/contracts/entities';
+import type { Assertion } from '../../core/contracts/assertions';
+import type { Event, EventEntityLinkInput } from '../../core/contracts/events';
+import type { Note, NoteEntityLinkInput } from '../../core/contracts/notes';
 import type { Relationship } from '../../core/contracts/relationships';
 import type { EntityType } from '../../core/contracts/entity-types';
 import type { Session } from '../../core/contracts/sessions';
@@ -41,6 +50,26 @@ export interface InboxRepositoryPort {
     sourceId: string,
     timestamp: string,
   ): Omit<InboxRelationshipConversionResult, 'warnings'>;
+  convertToAssertion?(
+    input: { campaignId: string; id: string; revision: number },
+    assertion: Assertion,
+    sourceId: string,
+    timestamp: string,
+  ): InboxAssertionConversionResult;
+  convertToNote?(
+    input: { campaignId: string; id: string; revision: number },
+    note: Note,
+    links: NoteEntityLinkInput[],
+    sourceId: string,
+    timestamp: string,
+  ): InboxNoteConversionResult;
+  convertToEvent?(
+    input: { campaignId: string; id: string; revision: number },
+    event: Event,
+    links: EventEntityLinkInput[],
+    sourceId: string,
+    timestamp: string,
+  ): InboxEventConversionResult;
 }
 
 export interface InboxCampaignLookupPort {
@@ -252,6 +281,143 @@ export class InboxService {
     return { ...result, warnings };
   }
 
+  public convertToAssertion(
+    input: ConvertInboxItemToAssertionInput,
+  ): InboxAssertionConversionResult {
+    const current = this.requireConvertibleItem(input);
+    if (
+      this.dependencies.entities === undefined ||
+      this.dependencies.repository.convertToAssertion === undefined
+    )
+      throw new AppError('INBOX_CONVERSION_UNAVAILABLE', 'A conversão não está disponível.');
+    if (current.originKind === 'session' && current.sessionId === null)
+      throw new AppError(
+        'INVALID_INBOX_ORIGIN',
+        'A captura de sessão não possui sessão de origem.',
+      );
+
+    this.requireActiveAssertionEntity(
+      input.campaignId,
+      input.destination.subjectEntityId,
+      'sujeito',
+    );
+    if (input.destination.objectEntityId !== null)
+      this.requireActiveAssertionEntity(
+        input.campaignId,
+        input.destination.objectEntityId,
+        'objeto',
+      );
+    this.validateAssertionContent(input.destination);
+
+    const timestamp = this.now();
+    const sourceId = this.createId();
+    const assertion: Assertion = {
+      id: this.createId(),
+      campaignId: input.campaignId,
+      subjectEntityId: input.destination.subjectEntityId,
+      predicate: input.destination.predicate,
+      objectEntityId: input.destination.objectEntityId,
+      statement: input.destination.statement,
+      value: input.destination.value,
+      canonState: input.destination.canonState,
+      knowledgeState: input.destination.knowledgeState,
+      visibility: input.destination.visibility,
+      originKind: current.originKind,
+      sourceId,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      archivedAt: null,
+      revision: 1,
+    };
+    return this.dependencies.repository.convertToAssertion(input, assertion, sourceId, timestamp);
+  }
+
+  public convertToNote(input: ConvertInboxItemToNoteInput): InboxNoteConversionResult {
+    const current = this.requireConvertibleItem(input);
+    if (
+      this.dependencies.entities === undefined ||
+      this.dependencies.repository.convertToNote === undefined
+    )
+      throw new AppError('INBOX_CONVERSION_UNAVAILABLE', 'A conversão não está disponível.');
+    if (current.originKind === 'session' && current.sessionId === null)
+      throw new AppError(
+        'INVALID_INBOX_ORIGIN',
+        'A captura de sessão não possui sessão de origem.',
+      );
+    for (const link of input.destination.links)
+      this.requireActiveAssertionEntity(input.campaignId, link.entityId, 'objeto');
+    const timestamp = this.now();
+    const sourceId = this.createId();
+    const note: Note = {
+      id: this.createId(),
+      campaignId: input.campaignId,
+      title: input.destination.title,
+      bodyMarkdown: input.destination.bodyMarkdown,
+      noteType: input.destination.noteType,
+      canonState: input.destination.canonState,
+      knowledgeState: input.destination.knowledgeState,
+      visibility: input.destination.visibility,
+      originKind: current.originKind,
+      sourceId,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      archivedAt: null,
+      revision: 1,
+    };
+    return this.dependencies.repository.convertToNote(
+      input,
+      note,
+      input.destination.links,
+      sourceId,
+      timestamp,
+    );
+  }
+
+  public convertToEvent(input: ConvertInboxItemToEventInput): InboxEventConversionResult {
+    const current = this.requireConvertibleItem(input);
+    if (
+      this.dependencies.entities === undefined ||
+      this.dependencies.repository.convertToEvent === undefined
+    )
+      throw new AppError('INBOX_CONVERSION_UNAVAILABLE', 'A conversão não está disponível.');
+    if (current.originKind === 'session' && current.sessionId === null)
+      throw new AppError(
+        'INVALID_INBOX_ORIGIN',
+        'A captura de sessão não possui sessão de origem.',
+      );
+    if (input.destination.sessionId !== null)
+      this.requireSession(input.campaignId, input.destination.sessionId);
+    for (const link of input.destination.links)
+      this.requireActiveAssertionEntity(input.campaignId, link.entityId, 'objeto');
+    const timestamp = this.now();
+    const sourceId = this.createId();
+    const event: Event = {
+      id: this.createId(),
+      campaignId: input.campaignId,
+      sessionId: input.destination.sessionId,
+      title: input.destination.title,
+      descriptionMarkdown: input.destination.descriptionMarkdown,
+      eventOrder: input.destination.eventOrder,
+      occurredAtLabel: input.destination.occurredAtLabel,
+      canonState: input.destination.canonState,
+      knowledgeState: input.destination.knowledgeState,
+      visibility: input.destination.visibility,
+      originKind: current.originKind,
+      sourceId,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      archivedAt: null,
+      revision: 1,
+    };
+    return this.dependencies.repository.convertToEvent(
+      input,
+      event,
+      input.destination.links,
+      sourceId,
+      timestamp,
+    );
+  }
+
   private resolveRelationshipEndpoint(
     campaignId: string,
     endpoint: ConvertInboxItemToRelationshipInput['destination']['source'],
@@ -296,7 +462,12 @@ export class InboxService {
   }
 
   private requireConvertibleItem(
-    input: ConvertInboxItemToEntityInput | ConvertInboxItemToRelationshipInput,
+    input:
+      | ConvertInboxItemToEntityInput
+      | ConvertInboxItemToRelationshipInput
+      | ConvertInboxItemToAssertionInput
+      | ConvertInboxItemToNoteInput
+      | ConvertInboxItemToEventInput,
   ): InboxItem {
     const current = this.requireItem(input.campaignId, input.id);
     if (current.revision !== input.revision)
@@ -308,6 +479,38 @@ export class InboxService {
     if (current.status !== 'reviewing')
       throw new AppError('INVALID_INBOX_CONVERSION_STATE', 'A captura precisa estar em revisÃ£o.');
     return current;
+  }
+
+  private requireActiveAssertionEntity(
+    campaignId: string,
+    entityId: string,
+    role: 'sujeito' | 'objeto',
+  ): Entity {
+    const entity = this.dependencies.entities?.findById(campaignId, entityId) ?? null;
+    if (entity === null)
+      throw new AppError('ENTITY_NOT_FOUND', 'A entidade da afirmação não foi encontrada.', {
+        campaignId,
+        id: entityId,
+        role,
+      });
+    if (entity.archivedAt !== null)
+      throw new AppError('INVALID_ENTITY_STATE', `A entidade usada como ${role} está arquivada.`, {
+        entityId,
+        role,
+      });
+    return entity;
+  }
+
+  private validateAssertionContent(input: ConvertInboxItemToAssertionInput['destination']): void {
+    if (
+      input.statement !== null ||
+      (input.predicate !== null && (input.objectEntityId !== null || input.value !== null))
+    )
+      return;
+    throw new AppError(
+      'INVALID_ASSERTION_CONTENT',
+      'Informe uma declaração textual ou um predicado acompanhado de objeto ou valor.',
+    );
   }
 
   private transition(

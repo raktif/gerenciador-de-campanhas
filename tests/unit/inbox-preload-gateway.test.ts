@@ -22,6 +22,9 @@ describe('gateway do preload da captura rápida', () => {
       'archive',
       'restore',
       'convertToEntity',
+      'convertToAssertion',
+      'convertToNote',
+      'convertToEvent',
       'convertToRelationship',
     ]);
     expect('ipcRenderer' in gateway).toBe(false);
@@ -69,6 +72,51 @@ describe('operações de triagem no preload', () => {
         target: { mode: 'existing', entityId: '30000000-0000-4000-8000-000000000002' },
       },
     });
+    await gateway.inbox.convertToAssertion({
+      campaignId,
+      id: inboxItemId,
+      revision: 1,
+      destination: {
+        subjectEntityId: '30000000-0000-4000-8000-000000000001',
+        objectEntityId: null,
+        predicate: null,
+        statement: 'O sino tocou.',
+        value: null,
+        canonState: 'accepted',
+        knowledgeState: 'fact',
+        visibility: 'gm',
+      },
+    });
+    await gateway.inbox.convertToNote({
+      campaignId,
+      id: inboxItemId,
+      revision: 1,
+      destination: {
+        title: 'Nota',
+        bodyMarkdown: 'Corpo',
+        noteType: 'general',
+        links: [],
+        canonState: 'accepted',
+        knowledgeState: 'fact',
+        visibility: 'gm',
+      },
+    });
+    await gateway.inbox.convertToEvent({
+      campaignId,
+      id: inboxItemId,
+      revision: 1,
+      destination: {
+        title: 'Evento',
+        descriptionMarkdown: null,
+        sessionId: null,
+        eventOrder: 0,
+        occurredAtLabel: null,
+        links: [],
+        canonState: 'accepted',
+        knowledgeState: 'fact',
+        visibility: 'gm',
+      },
+    });
     expect(invocations.map((value) => value.channel)).toEqual([
       inboxChannels.get,
       inboxChannels.list,
@@ -77,6 +125,9 @@ describe('operações de triagem no preload', () => {
       inboxChannels.archive,
       inboxChannels.restore,
       inboxChannels.convertToRelationship,
+      inboxChannels.convertToAssertion,
+      inboxChannels.convertToNote,
+      inboxChannels.convertToEvent,
     ]);
     expect(() => gateway.inbox.archive({ campaignId, id: inboxItemId, revision: 0 })).toThrow();
     expect(() => gateway.inbox.list({ campaignId, filters: {}, extra: true } as never)).toThrow();
@@ -86,6 +137,23 @@ describe('operações de triagem no preload', () => {
         id: inboxItemId,
         revision: 1,
         destination: { entityTypeId: 'invalid', name: 'X', summary: null },
+      }),
+    ).toThrow();
+    expect(() =>
+      gateway.inbox.convertToAssertion({
+        campaignId,
+        id: inboxItemId,
+        revision: 1,
+        destination: {
+          subjectEntityId: 'invalid',
+          objectEntityId: null,
+          predicate: null,
+          statement: null,
+          value: null,
+          canonState: 'accepted',
+          knowledgeState: 'fact',
+          visibility: 'gm',
+        },
       }),
     ).toThrow();
   });

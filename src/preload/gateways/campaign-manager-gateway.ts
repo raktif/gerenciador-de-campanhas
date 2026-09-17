@@ -37,6 +37,9 @@ import {
 } from '../../core/contracts/events';
 import {
   captureInboxItemInputSchema,
+  convertInboxItemToAssertionInputSchema,
+  convertInboxItemToEventInputSchema,
+  convertInboxItemToNoteInputSchema,
   convertInboxItemToEntityInputSchema,
   convertInboxItemToRelationshipInputSchema,
   getInboxItemInputSchema,
@@ -45,6 +48,9 @@ import {
   type InboxItem,
   type InboxPageResult,
   type InboxEntityConversionResult,
+  type InboxAssertionConversionResult,
+  type InboxEventConversionResult,
+  type InboxNoteConversionResult,
   type InboxRelationshipConversionResult,
 } from '../../core/contracts/inbox';
 import type { CampaignManagerGateway } from '../../core/contracts/gateway';
@@ -358,6 +364,24 @@ export function createCampaignManagerGateway(invokeIpc: IpcInvoker): CampaignMan
           inboxChannels.convertToEntity,
           input,
           convertInboxItemToEntityInputSchema,
+        ),
+      convertToAssertion: (input) =>
+        invoke<InboxAssertionConversionResult>(
+          inboxChannels.convertToAssertion,
+          input,
+          convertInboxItemToAssertionInputSchema,
+        ),
+      convertToNote: (input) =>
+        invoke<InboxNoteConversionResult>(
+          inboxChannels.convertToNote,
+          input,
+          convertInboxItemToNoteInputSchema,
+        ),
+      convertToEvent: (input) =>
+        invoke<InboxEventConversionResult>(
+          inboxChannels.convertToEvent,
+          input,
+          convertInboxItemToEventInputSchema,
         ),
       convertToRelationship: (input) =>
         invoke<InboxRelationshipConversionResult>(

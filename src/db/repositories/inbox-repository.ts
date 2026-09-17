@@ -24,17 +24,35 @@ import {
 import { AppError } from '../../core/errors/app-error';
 import {
   entities,
+  assertions,
+  eventEntityLinks,
+  events,
+  inboxAssertionConversions,
   inboxEntityConversions,
+  inboxEventConversions,
   inboxItems,
+  inboxNoteConversions,
   inboxRelationshipConversions,
+  noteEntityLinks,
+  notes,
   relationships,
   sources,
 } from '../schema';
 import { entitySchema, type Entity } from '../../core/contracts/entities';
 import { relationshipSchema, type Relationship } from '../../core/contracts/relationships';
+import { assertionSchema, type Assertion } from '../../core/contracts/assertions';
+import {
+  eventDetailsSchema,
+  type Event,
+  type EventEntityLinkInput,
+} from '../../core/contracts/events';
+import { noteDetailsSchema, type Note, type NoteEntityLinkInput } from '../../core/contracts/notes';
 import type {
   InboxEntityConversionResult,
   InboxRelationshipConversionResult,
+  InboxAssertionConversionResult,
+  InboxEventConversionResult,
+  InboxNoteConversionResult,
 } from '../../core/contracts/inbox';
 import type * as schema from '../schema';
 
@@ -280,6 +298,182 @@ export class InboxRepository {
         inboxItem: inboxItemSchema.parse(converted),
         relationship: relationshipSchema.parse(relationship),
         createdEntities: createdEntities.map((entity) => entitySchema.parse(entity)),
+      };
+    });
+  }
+
+  public convertToAssertion(
+    input: { campaignId: string; id: string; revision: number },
+    assertion: Assertion,
+    sourceId: string,
+    timestamp: string,
+  ): InboxAssertionConversionResult {
+    return this.database.transaction((transaction) => {
+      const current = this.requireReviewingItem(transaction, input);
+      transaction
+        .insert(sources)
+        .values({
+          id: sourceId,
+          kind: current.originKind,
+          sessionId: current.sessionId,
+          description: current.rawText,
+          inboxItemId: current.id,
+          createdAt: timestamp,
+        })
+        .run();
+      transaction.insert(assertions).values(assertion).run();
+      const updated = transaction
+        .update(inboxItems)
+        .set({
+          status: 'converted',
+          convertedObjectType: 'assertion',
+          convertedObjectId: assertion.id,
+          updatedAt: timestamp,
+          revision: sql`${inboxItems.revision} + 1`,
+        })
+        .where(
+          and(
+            eq(inboxItems.campaignId, input.campaignId),
+            eq(inboxItems.id, input.id),
+            eq(inboxItems.revision, input.revision),
+          ),
+        )
+        .run();
+      if (updated.changes !== 1) throw new Error('Conflito de conversão inesperado.');
+      transaction
+        .insert(inboxAssertionConversions)
+        .values({
+          inboxItemId: current.id,
+          assertionId: assertion.id,
+          sourceId,
+          createdAt: timestamp,
+        })
+        .run();
+      const item = transaction.select().from(inboxItems).where(eq(inboxItems.id, current.id)).get();
+      if (item === undefined) throw new Error('A captura convertida não foi encontrada.');
+      return {
+        inboxItem: inboxItemSchema.parse(item),
+        assertion: assertionSchema.parse(assertion),
+      };
+    });
+  }
+
+  public convertToNote(
+    input: { campaignId: string; id: string; revision: number },
+    note: Note,
+    links: NoteEntityLinkInput[],
+    sourceId: string,
+    timestamp: string,
+  ): InboxNoteConversionResult {
+    return this.database.transaction((transaction) => {
+      const current = this.requireReviewingItem(transaction, input);
+      transaction
+        .insert(sources)
+        .values({
+          id: sourceId,
+          kind: current.originKind,
+          sessionId: current.sessionId,
+          description: current.rawText,
+          inboxItemId: current.id,
+          createdAt: timestamp,
+        })
+        .run();
+      transaction.insert(notes).values(note).run();
+      if (links.length > 0)
+        transaction
+          .insert(noteEntityLinks)
+          .values(links.map((link) => ({ noteId: note.id, ...link })))
+          .run();
+      const updated = transaction
+        .update(inboxItems)
+        .set({
+          status: 'converted',
+          convertedObjectType: 'note',
+          convertedObjectId: note.id,
+          updatedAt: timestamp,
+          revision: sql`${inboxItems.revision} + 1`,
+        })
+        .where(
+          and(
+            eq(inboxItems.campaignId, input.campaignId),
+            eq(inboxItems.id, input.id),
+            eq(inboxItems.revision, input.revision),
+          ),
+        )
+        .run();
+      if (updated.changes !== 1) throw new Error('Conflito de conversão inesperado.');
+      transaction
+        .insert(inboxNoteConversions)
+        .values({ inboxItemId: current.id, noteId: note.id, sourceId, createdAt: timestamp })
+        .run();
+      const item = transaction.select().from(inboxItems).where(eq(inboxItems.id, current.id)).get();
+      if (item === undefined) throw new Error('A captura convertida não foi encontrada.');
+      return {
+        inboxItem: inboxItemSchema.parse(item),
+        note: noteDetailsSchema.parse({
+          note,
+          links: links.map((link) => ({ noteId: note.id, ...link })),
+        }),
+      };
+    });
+  }
+
+  public convertToEvent(
+    input: { campaignId: string; id: string; revision: number },
+    event: Event,
+    links: EventEntityLinkInput[],
+    sourceId: string,
+    timestamp: string,
+  ): InboxEventConversionResult {
+    return this.database.transaction((transaction) => {
+      const current = this.requireReviewingItem(transaction, input);
+      transaction
+        .insert(sources)
+        .values({
+          id: sourceId,
+          kind: current.originKind,
+          sessionId: current.sessionId,
+          description: current.rawText,
+          inboxItemId: current.id,
+          createdAt: timestamp,
+        })
+        .run();
+      transaction.insert(events).values(event).run();
+      if (links.length > 0)
+        transaction
+          .insert(eventEntityLinks)
+          .values(links.map((link) => ({ eventId: event.id, ...link })))
+          .run();
+      const updated = transaction
+        .update(inboxItems)
+        .set({
+          status: 'converted',
+          convertedObjectType: 'event',
+          convertedObjectId: event.id,
+          updatedAt: timestamp,
+          revision: sql`${inboxItems.revision} + 1`,
+        })
+        .where(
+          and(
+            eq(inboxItems.campaignId, input.campaignId),
+            eq(inboxItems.id, input.id),
+            eq(inboxItems.revision, input.revision),
+          ),
+        )
+        .run();
+      if (updated.changes !== 1) throw new Error('Conflito de conversão inesperado.');
+      transaction
+        .insert(inboxEventConversions)
+        .values({ inboxItemId: current.id, eventId: event.id, sourceId, createdAt: timestamp })
+        .run();
+      const item = transaction.select().from(inboxItems).where(eq(inboxItems.id, current.id)).get();
+      if (item === undefined) throw new Error('A captura convertida não foi encontrada.');
+      return {
+        inboxItem: inboxItemSchema.parse(item),
+        event: eventDetailsSchema.parse({
+          event,
+          links: links.map((link) => ({ eventId: event.id, ...link })),
+        }),
       };
     });
   }

@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   captureInboxItemInputSchema,
   convertInboxItemToEntityInputSchema,
+  convertInboxItemToAssertionInputSchema,
+  convertInboxItemToEventInputSchema,
+  convertInboxItemToNoteInputSchema,
   convertInboxItemToRelationshipInputSchema,
   inboxItemSchema,
 } from '../../src/core/contracts/inbox';
@@ -138,5 +141,81 @@ describe('contratos de captura rápida', () => {
         },
       }),
     ).toThrow();
+  });
+
+  it('valida conversão strict para afirmação e aplica metadados padrão', () => {
+    expect(
+      convertInboxItemToAssertionInputSchema.parse({
+        campaignId,
+        id: inboxItemId,
+        revision: 1,
+        destination: {
+          subjectEntityId: '30000000-0000-4000-8000-000000000001',
+          statement: 'A ponte caiu.',
+        },
+      }),
+    ).toMatchObject({
+      destination: {
+        objectEntityId: null,
+        predicate: null,
+        value: null,
+        canonState: 'accepted',
+        knowledgeState: 'fact',
+        visibility: 'gm',
+      },
+    });
+    expect(() =>
+      convertInboxItemToAssertionInputSchema.parse({
+        campaignId,
+        id: inboxItemId,
+        revision: 1,
+        destination: {
+          subjectEntityId: '30000000-0000-4000-8000-000000000001',
+          statement: 'A ponte caiu.',
+          unexpected: true,
+        },
+      }),
+    ).toThrow();
+  });
+
+  it('valida conversões strict para nota e evento', () => {
+    expect(
+      convertInboxItemToNoteInputSchema.parse({
+        campaignId,
+        id: inboxItemId,
+        revision: 1,
+        destination: { title: 'Nota', bodyMarkdown: 'Corpo', noteType: 'clue', links: [] },
+      }),
+    ).toMatchObject({ destination: { noteType: 'clue', canonState: 'accepted' } });
+    expect(
+      convertInboxItemToEventInputSchema.parse({
+        campaignId,
+        id: inboxItemId,
+        revision: 1,
+        destination: { title: 'Evento', sessionId: null, eventOrder: 2, links: [] },
+      }),
+    ).toMatchObject({ destination: { eventOrder: 2, visibility: 'gm' } });
+    expect(() =>
+      convertInboxItemToNoteInputSchema.parse({
+        campaignId,
+        id: inboxItemId,
+        revision: 1,
+        destination: { title: 'Nota', bodyMarkdown: 'Corpo', extra: true },
+      }),
+    ).toThrow();
+    expect(() =>
+      convertInboxItemToEventInputSchema.parse({
+        campaignId,
+        id: inboxItemId,
+        revision: 1,
+        destination: { title: 'Evento', eventOrder: -1 },
+      }),
+    ).toThrow();
+    const duplicateLinks = [
+      { entityId: '30000000-0000-4000-8000-000000000001', role: 'related' },
+      { entityId: '30000000-0000-4000-8000-000000000001', role: 'related' },
+    ];
+    expect(() => convertInboxItemToNoteInputSchema.parse({ campaignId, id: inboxItemId, revision: 1, destination: { title: 'Nota', bodyMarkdown: 'Corpo', links: duplicateLinks } })).toThrow();
+    expect(() => convertInboxItemToEventInputSchema.parse({ campaignId, id: inboxItemId, revision: 1, destination: { title: 'Evento', links: duplicateLinks.map((link) => ({ ...link, role: 'related' as const, sortOrder: 0 })) } })).toThrow();
   });
 });

@@ -7,7 +7,10 @@ import {
   type InboxItem,
   type InboxPageRequest,
   type InboxPageResult,
+  type ConvertInboxItemToRelationshipInput,
 } from '../../src/core/contracts/inbox';
+import type { Entity } from '../../src/core/contracts/entities';
+import type { Relationship } from '../../src/core/contracts/relationships';
 import type { Session } from '../../src/core/contracts/sessions';
 import { AppError } from '../../src/core/errors/app-error';
 import { InboxService, type InboxRepositoryPort } from '../../src/main/services/inbox-service';
@@ -134,6 +137,63 @@ describe('InboxService', () => {
       'INBOX_ITEM_NOT_FOUND',
     );
   });
+  it('calcula avisos de duplicidade antes de persistir a conversão em relação', () => {
+    const repository = new RelationshipWarningRepository();
+    const source = entity('30000000-0000-4000-8000-000000000001', 'Mara');
+    const target = entity('30000000-0000-4000-8000-000000000002', 'Nara');
+    const ids = [
+      inboxItemId,
+      '90000000-0000-4000-8000-000000000001',
+      '40000000-0000-4000-8000-000000000001',
+    ];
+    const service = new InboxService({
+      repository,
+      campaigns: { findById: (id) => (id === campaignId ? createCampaign(id) : null) },
+      sessions: { findById: () => null },
+      entityTypes: {
+        findById: (owner: string, id: string) =>
+          owner === campaignId && id === source.entityTypeId
+            ? { id, campaignId, isArchived: false }
+            : null,
+      } as never,
+      entities: {
+        findById: (owner: string, id: string) =>
+          owner !== campaignId
+            ? null
+            : id === source.id
+              ? source
+              : id === target.id
+                ? target
+                : null,
+      },
+      relationships: {
+        validateAndNormalize: (_owner: string, input: unknown) => input,
+        duplicateWarnings: () => {
+          repository.order.push('warnings');
+          return [
+            {
+              code: 'POSSIBLE_DUPLICATE' as const,
+              message: 'Já existe uma relação ativa com o mesmo tipo, origem e destino.',
+              relationshipIds: ['40000000-0000-4000-8000-000000000099'],
+            },
+          ];
+        },
+      } as never,
+      createId: () => ids.shift() ?? '90000000-0000-4000-8000-000000000099',
+      now: () => timestamp,
+    });
+    const captured = service.capture(
+      captureInboxItemInputSchema.parse({ campaignId, rawText: 'Mara conhece Nara.' }),
+    );
+    const reviewing = service.beginReview({
+      campaignId,
+      id: captured.id,
+      revision: captured.revision,
+    });
+    const result = service.convertToRelationship(relationshipConversionInput(reviewing.revision));
+    expect(result.warnings).toHaveLength(1);
+    expect(repository.order).toEqual(['warnings', 'repository']);
+  });
 });
 
 class MemoryRepository implements InboxRepositoryPort {
@@ -187,6 +247,70 @@ class MemoryRepository implements InboxRepositoryPort {
   public count(): number {
     return this.records.length;
   }
+}
+
+class RelationshipWarningRepository extends MemoryRepository {
+  public readonly order: string[] = [];
+
+  public convertToRelationship(
+    input: { campaignId: string; id: string; revision: number },
+    relationship: Relationship,
+    createdEntities: Entity[],
+  ) {
+    this.order.push('repository');
+    const item = this.findById(input.campaignId, input.id);
+    if (item === null) throw new Error('Captura ausente.');
+    return {
+      inboxItem: inboxItemSchema.parse({
+        ...item,
+        status: 'converted',
+        convertedObjectType: 'relationship',
+        convertedObjectId: relationship.id,
+        revision: input.revision + 1,
+      }),
+      relationship,
+      createdEntities,
+    };
+  }
+}
+
+function entity(id: string, name: string): Entity {
+  return {
+    id,
+    campaignId,
+    entityTypeId: '60000000-0000-4000-8000-000000000001',
+    name,
+    summary: null,
+    canonState: 'accepted',
+    knowledgeState: 'fact',
+    visibility: 'gm',
+    originKind: 'manual',
+    sourceId: null,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    archivedAt: null,
+    revision: 1,
+  };
+}
+
+function relationshipConversionInput(revision: number): ConvertInboxItemToRelationshipInput {
+  return {
+    campaignId,
+    id: inboxItemId,
+    revision,
+    destination: {
+      relationshipTypeId: '50000000-0000-4000-8000-000000000001',
+      source: { mode: 'existing', entityId: '30000000-0000-4000-8000-000000000001' },
+      target: { mode: 'existing', entityId: '30000000-0000-4000-8000-000000000002' },
+      description: null,
+      strength: null,
+      canonState: 'accepted',
+      knowledgeState: 'fact',
+      visibility: 'gm',
+      validFromEventId: null,
+      validToEventId: null,
+    },
+  };
 }
 
 function createService(repository: InboxRepositoryPort): InboxService {
