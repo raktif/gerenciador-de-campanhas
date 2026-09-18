@@ -12,8 +12,9 @@ sessão e capturar informações durante o jogo, integralmente sem IA.
 
 Estado atual: os incrementos 2.0 (refinamento), 2.1 (fundação narrativa persistente), 2.2 (tipos de
 relação), 2.3 (relações e campos de referência), 2.4 (lista e vizinhança), 2.5 (afirmações e
-notas), 2.6 (sessões), 2.7 (eventos e cronologia) e 2.8 (captura rápida) estão concluídos; consulte
-[Fase 2 — Atividade 2.8](phase-2-activity-2.8.md). A 2.9 é o próximo incremento planejado.
+notas), 2.6 (sessões), 2.7 (eventos e cronologia), 2.8 (captura rápida) e 2.9 (triagem da Caixa de
+Entrada) estão concluídos; consulte a [rastreabilidade da atividade 2.9](phase-2-activity-2.9.md).
+A 2.10 é o incremento de integração e fechamento da fase.
 
 ## Escopo
 
@@ -219,12 +220,20 @@ após reiniciar o aplicativo.
 
 ### 2.9 — Triagem da Caixa de Entrada
 
-- implementar listagem, revisão, descarte e arquivamento;
-- converter para entidade, relação, afirmação, nota ou evento;
-- permitir selecionar ou criar entidades necessárias ao destino;
-- executar criação, proveniência e mudança de status em uma transação.
+Estado: concluída em 2026-09-18. Consulte a
+[rastreabilidade do incremento 2.9](phase-2-activity-2.9.md).
 
-Critério de saída: uma falha na conversão não cria objeto parcial nem altera o item original.
+- A Caixa de Entrada entrega listagem paginada, filtros, revisão, descarte, arquivamento e
+  restauração com revisão otimista e isolamento por campanha.
+- Capturas podem ser convertidas atomicamente em entidade, relação, afirmação, nota ou evento,
+  inclusive com entidades necessárias criadas no fluxo de relação.
+- Texto original, origem e ponte de conversão são preservados em `sources` e nas pontes explícitas
+  por destino; guardas de banco impedem perda ou troca cross-campaign dessa proveniência.
+- Contratos Zod, serviços, IPC/preload seguro, transações/rollback, diálogos acessíveis e E2E de
+  conversão e persistência compõem a evidência de aceite.
+
+Critério de saída atendido: uma falha na conversão não cria objeto parcial nem altera o item
+original; a evidência de rollback é mantida na integração SQLite e a de fluxo/persistência na E2E.
 
 ### 2.10 — Integração e fechamento
 

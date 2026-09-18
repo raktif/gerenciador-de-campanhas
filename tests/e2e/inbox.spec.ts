@@ -193,6 +193,9 @@ test('converte captura em relacao com endpoint existente e endpoint criado', asy
     await expect(noteDialog.getByLabel('Título')).toBeFocused();
     await noteDialog.getByLabel('Título').fill('Pista da ponte');
     await noteDialog.getByLabel('Corpo da nota').fill('O sino tocou à meia-noite.');
+    await noteDialog.getByLabel('Estado canônico').selectOption('draft');
+    await noteDialog.getByLabel('Natureza do conhecimento').selectOption('rumor');
+    await noteDialog.getByLabel('Visibilidade').selectOption('players');
     await noteDialog.getByRole('button', { name: 'Confirmar conversão' }).click();
     await expect(window.getByRole('status')).toContainText('Nota criada a partir da captura');
     const eventCapture = window
@@ -204,6 +207,9 @@ test('converte captura em relacao com endpoint existente e endpoint criado', asy
     await expect(eventDialog.getByLabel('Título')).toBeFocused();
     await eventDialog.getByLabel('Título').fill('O sino toca');
     await eventDialog.getByLabel('Ordem narrativa').fill('3');
+    await eventDialog.getByLabel('Estado canônico').selectOption('draft');
+    await eventDialog.getByLabel('Natureza do conhecimento').selectOption('rumor');
+    await eventDialog.getByLabel('Visibilidade').selectOption('players');
     await eventDialog.getByRole('button', { name: 'Confirmar conversão' }).click();
     await expect(window.getByRole('status')).toContainText('Evento criado a partir da captura');
     await application.close();
@@ -231,6 +237,28 @@ test('converte captura em relacao com endpoint existente e endpoint criado', asy
       status: 'converted',
       conversionType: 'assertion',
       sourceText: 'Captura de afirmação',
+    });
+    expect(readConvertedNote(dataDirectory)).toEqual({
+      title: 'Pista da ponte',
+      body: 'O sino tocou à meia-noite.',
+      canonState: 'draft',
+      knowledgeState: 'rumor',
+      visibility: 'players',
+      status: 'converted',
+      conversionType: 'note',
+      sourceText: 'Captura de nota',
+      hasConversionBridge: 1,
+    });
+    expect(readConvertedEvent(dataDirectory)).toEqual({
+      title: 'O sino toca',
+      eventOrder: 3,
+      canonState: 'draft',
+      knowledgeState: 'rumor',
+      visibility: 'players',
+      status: 'converted',
+      conversionType: 'event',
+      sourceText: 'Captura de evento',
+      hasConversionBridge: 1,
     });
   } finally {
     await application?.close();
@@ -353,6 +381,32 @@ function readConvertedAssertion(dataDirectory: string) {
     return database
       .prepare(
         `SELECT subject.name AS subjectName, assertions.statement AS statement, assertions.canon_state AS canonState, assertions.knowledge_state AS knowledgeState, assertions.visibility AS visibility, inbox_items.status AS status, inbox_items.converted_object_type AS conversionType, sources.description AS sourceText FROM assertions JOIN entities AS subject ON subject.id = assertions.subject_entity_id JOIN inbox_items ON inbox_items.converted_object_id = assertions.id JOIN sources ON sources.id = assertions.source_id WHERE inbox_items.raw_text = 'Captura de afirmação'`,
+      )
+      .get();
+  } finally {
+    database.close();
+  }
+}
+
+function readConvertedNote(dataDirectory: string) {
+  const database = new Database(path.join(dataDirectory, 'database', 'app.db'), { readonly: true });
+  try {
+    return database
+      .prepare(
+        `SELECT notes.title AS title, notes.body_markdown AS body, notes.canon_state AS canonState, notes.knowledge_state AS knowledgeState, notes.visibility AS visibility, inbox_items.status AS status, inbox_items.converted_object_type AS conversionType, sources.description AS sourceText, CASE WHEN inbox_note_conversions.note_id IS NOT NULL THEN 1 ELSE 0 END AS hasConversionBridge FROM notes JOIN inbox_items ON inbox_items.converted_object_id = notes.id JOIN sources ON sources.id = notes.source_id LEFT JOIN inbox_note_conversions ON inbox_note_conversions.note_id = notes.id WHERE inbox_items.raw_text = 'Captura de nota'`,
+      )
+      .get();
+  } finally {
+    database.close();
+  }
+}
+
+function readConvertedEvent(dataDirectory: string) {
+  const database = new Database(path.join(dataDirectory, 'database', 'app.db'), { readonly: true });
+  try {
+    return database
+      .prepare(
+        `SELECT events.title AS title, events.event_order AS eventOrder, events.canon_state AS canonState, events.knowledge_state AS knowledgeState, events.visibility AS visibility, inbox_items.status AS status, inbox_items.converted_object_type AS conversionType, sources.description AS sourceText, CASE WHEN inbox_event_conversions.event_id IS NOT NULL THEN 1 ELSE 0 END AS hasConversionBridge FROM events JOIN inbox_items ON inbox_items.converted_object_id = events.id JOIN sources ON sources.id = events.source_id LEFT JOIN inbox_event_conversions ON inbox_event_conversions.event_id = events.id WHERE inbox_items.raw_text = 'Captura de evento'`,
       )
       .get();
   } finally {
