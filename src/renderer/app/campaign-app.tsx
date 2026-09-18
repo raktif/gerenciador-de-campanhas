@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Campaign, CampaignPatch, CreateCampaignInput } from '../../core/contracts/campaigns';
 import type { Entity } from '../../core/contracts/entities';
 import { AssertionManager, type NarrativeContext } from '../features/assertions/assertion-manager';
@@ -43,6 +43,18 @@ export function CampaignApp(): React.JSX.Element {
   const [announcement, setAnnouncement] = useState<string | null>(null);
   const [narrativeContext, setNarrativeContext] = useState<NarrativeContext | undefined>();
   const [timelineEntity, setTimelineEntity] = useState<Entity | undefined>();
+  const contentRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    if (selectedCampaign === null) return;
+    const frame = requestAnimationFrame(() => {
+      const heading = contentRef.current?.querySelector<HTMLHeadingElement>('h1');
+      if (heading === null || heading === undefined) return;
+      heading.tabIndex = -1;
+      heading.focus();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [screen, selectedCampaign]);
 
   function openContext(entity: Entity, target: 'assertions' | 'notes'): void {
     setNarrativeContext({ entityId: entity.id, entityName: entity.name });
@@ -224,7 +236,7 @@ export function CampaignApp(): React.JSX.Element {
           </div>
         </aside>
 
-        <main className="min-w-0 px-8 py-8 lg:px-12 lg:py-10">
+        <main className="min-w-0 px-8 py-8 lg:px-12 lg:py-10" ref={contentRef}>
           {screen === 'create' ? (
             <CampaignForm
               busy={creating}

@@ -161,7 +161,9 @@ test('mantém navegação interna acessível para os módulos entregues da campa
 
     for (const [destination, heading] of destinations) {
       await navigation.getByRole('button', { name: destination, exact: true }).click();
-      await expect(window.getByRole('heading', { name: heading, exact: true })).toBeVisible();
+      const pageHeading = window.getByRole('heading', { name: heading, exact: true });
+      await expect(pageHeading).toBeVisible();
+      await expect(pageHeading).toBeFocused();
       await expect(
         navigation.getByRole('button', { name: destination, exact: true }),
       ).toHaveAttribute('aria-current', 'page');
