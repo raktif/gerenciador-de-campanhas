@@ -1,7 +1,9 @@
 # Fase 2 — Atividade 2.10C: Rastreabilidade integrada
 
-Estado: rastreabilidade consolidada em 2026-09-18. Este registro não declara a Fase 2 concluída:
-a execução única de fechamento, o empacotamento e o smoke test continuam reservados à 2.10E.
+Estado: 2.10A (navegação), 2.10B (acessibilidade/resiliência) e 2.10C (rastreabilidade) concluídas
+em 2026-09-18. A 2.10D está em fechamento documental; 2.10E permanece pendente. Este registro não
+declara a Fase 2 concluída: a execução única de fechamento, o empacotamento e o smoke test continuam
+reservados à 2.10E.
 
 ## Método e limites
 

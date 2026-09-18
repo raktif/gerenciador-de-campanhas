@@ -14,7 +14,9 @@ Estado atual: os incrementos 2.0 (refinamento), 2.1 (fundação narrativa persis
 relação), 2.3 (relações e campos de referência), 2.4 (lista e vizinhança), 2.5 (afirmações e
 notas), 2.6 (sessões), 2.7 (eventos e cronologia), 2.8 (captura rápida) e 2.9 (triagem da Caixa de
 Entrada) estão concluídos; consulte a [rastreabilidade da atividade 2.9](phase-2-activity-2.9.md).
-A 2.10 é o incremento de integração e fechamento da fase.
+Na 2.10, as subatividades 2.10A (navegação), 2.10B (acessibilidade e resiliência) e 2.10C
+(rastreabilidade) estão concluídas; a 2.10D está em fechamento documental e a 2.10E, de validação
+única, permanece pendente. A Fase 2 ainda não está concluída.
 
 ## Escopo
 
@@ -237,14 +239,36 @@ original; a evidência de rollback é mantida na integração SQLite e a de flux
 
 ### 2.10 — Integração e fechamento
 
-- consolidar a navegação interna da campanha;
-- revisar carregamento, vazios, erros, teclado, foco e anúncios de acessibilidade;
-- executar lint, formatação, tipos, testes unitários, IPC e integração;
-- executar E2E, empacotamento e smoke test do pacote;
-- atualizar README, arquitetura e estado da fase.
+- 2.10A concluída: consolidar a navegação interna da campanha, preservar a campanha selecionada,
+  marcar o destino atual e impedir módulos mutáveis em campanha não ativa;
+- 2.10B concluída: revisar carregamento, vazios, erros recuperáveis, operação ocupada, foco e
+  anúncios, com correção focal para Relações;
+- 2.10C concluída: registrar a matriz REL/GRF/AST/NOT/SES/EVT/TIM/INB e verificações manuais em
+  [Atividade 2.10](phase-2-activity-2.10.md);
+- 2.10D em fechamento: atualizar README, arquitetura e estado documental sem antecipar a aprovação
+  da fase;
+- 2.10E pendente: executar uma única vez lint, formatação, tipos, testes unitários, IPC,
+  integração, E2E, empacotamento e smoke test do pacote.
 
 Critério de saída: todos os critérios desta matriz possuem teste ou verificação manual documentada,
 e o aplicativo empacotado executa os fluxos essenciais sem IA.
+
+#### Procedimento obrigatório da 2.10E
+
+Com `APP_DATA_DIR` descartável, IA desligada e sem depender de rede, executar nesta ordem:
+
+```powershell
+pnpm verify
+pnpm test:e2e
+pnpm package
+pnpm test:package
+```
+
+`pnpm verify` reúne lint, Prettier, tipos, unitários e integração. O E2E abre o Electron e verifica
+persistência; o pacote e o smoke test confirmam inicialização, SQLite e FTS5 fora do fluxo de
+desenvolvimento. Registrar resultado, sistema operacional e qualquer limitação. Uma execução focal
+bloqueada por ambiente não equivale a aprovação; não repetir a suíte completa antes deste
+fechamento salvo risco técnico justificado.
 
 ## Contratos IPC planejados
 
