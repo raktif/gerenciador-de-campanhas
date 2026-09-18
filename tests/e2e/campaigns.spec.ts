@@ -74,6 +74,30 @@ test('cria, edita e gerencia o ciclo de vida após reiniciar', async () => {
       .getByRole('button', { name: 'Abrir campanha As Crônicas de Ethéria — revisada' })
       .click();
     await expect(window.getByText('Status: Arquivada')).toBeVisible();
+    const archivedNavigation = window.getByRole('navigation', {
+      name: 'Navegação da campanha As Crônicas de Ethéria — revisada',
+    });
+    await expect(
+      archivedNavigation.getByRole('button', { name: 'Detalhes da campanha', exact: true }),
+    ).toHaveAttribute('aria-current', 'page');
+    for (const destination of [
+      'Caixa de Entrada',
+      'Sessões',
+      'Cronologia',
+      'Gerenciar tipos de entidade',
+      'Ver entidades',
+      'Tipos de relação',
+      'Relações',
+      'Afirmações',
+      'Notas',
+    ]) {
+      await expect(
+        archivedNavigation.getByRole('button', { name: destination, exact: true }),
+      ).toHaveCount(0);
+    }
+    await expect(archivedNavigation).toContainText(
+      'Restaure a campanha para acessar seus registros.',
+    );
     await window.getByRole('button', { name: 'Restaurar' }).click();
     await window.getByRole('button', { name: 'Confirmar restauração' }).click();
 
@@ -97,6 +121,55 @@ test('cria, edita e gerencia o ciclo de vida após reiniciar', async () => {
     await expect(
       window.getByRole('heading', { name: 'As Crônicas de Ethéria — revisada' }),
     ).toBeVisible();
+  } finally {
+    await application?.close();
+    await rm(dataDirectory, { recursive: true, force: true });
+  }
+});
+
+test('mantém navegação interna acessível para os módulos entregues da campanha', async () => {
+  const dataDirectory = await mkdtemp(path.join(os.tmpdir(), 'rpg-campaign-navigation-e2e-'));
+  let application: ElectronApplication | null = null;
+
+  try {
+    application = await launch(dataDirectory);
+    const window = await application.firstWindow();
+    await window.getByRole('button', { name: 'Criar primeira campanha' }).click();
+    await window.getByLabel('Nome da campanha').fill('Navegação de Ethéria');
+    await window.getByRole('button', { name: 'Criar campanha', exact: true }).click();
+    await window.getByRole('button', { name: 'Abrir campanha Navegação de Ethéria' }).click();
+
+    const navigation = window.getByRole('navigation', {
+      name: 'Navegação da campanha Navegação de Ethéria',
+    });
+    await expect(navigation).toBeVisible();
+    await expect(
+      navigation.getByRole('button', { name: 'Detalhes da campanha', exact: true }),
+    ).toHaveAttribute('aria-current', 'page');
+
+    const destinations = [
+      ['Gerenciar tipos de entidade', 'Tipos de entidade'],
+      ['Ver entidades', 'Entidades'],
+      ['Tipos de relação', 'Tipos de relação'],
+      ['Relações', 'Relações'],
+      ['Afirmações', 'Afirmações'],
+      ['Notas', 'Notas'],
+      ['Sessões', 'Sessões'],
+      ['Cronologia', 'Cronologia da campanha'],
+      ['Caixa de Entrada', 'Caixa de Entrada'],
+    ] as const;
+
+    for (const [destination, heading] of destinations) {
+      await navigation.getByRole('button', { name: destination, exact: true }).click();
+      await expect(window.getByRole('heading', { name: heading, exact: true })).toBeVisible();
+      await expect(
+        navigation.getByRole('button', { name: destination, exact: true }),
+      ).toHaveAttribute('aria-current', 'page');
+    }
+
+    await expect(navigation.getByRole('button', { name: 'Relógios' })).toHaveCount(0);
+    await navigation.getByRole('button', { name: 'Campanhas', exact: true }).click();
+    await expect(window.getByRole('heading', { name: 'Campanhas', exact: true })).toBeVisible();
   } finally {
     await application?.close();
     await rm(dataDirectory, { recursive: true, force: true });

@@ -23,15 +23,6 @@ type CampaignFormProps = CommonCampaignFormProps &
         mode: 'edit';
         campaign: Campaign;
         onLifecycle: (action: LifecycleAction) => Promise<void>;
-        onManageEntityTypes: () => void;
-        onManageEntities: () => void;
-        onManageRelationshipTypes: () => void;
-        onManageRelationships: () => void;
-        onManageAssertions: () => void;
-        onManageNotes: () => void;
-        onManageSessions: () => void;
-        onManageTimeline: () => void;
-        onManageInbox: () => void;
         onSubmit: (patch: CampaignPatch) => Promise<void>;
       }
   );
@@ -120,98 +111,6 @@ export function CampaignForm(props: CampaignFormProps): React.JSX.Element {
         </header>
 
         <form className="space-y-8 px-8 py-8 sm:px-10" onSubmit={submit}>
-          {props.mode === 'edit' && props.campaign.status === 'active' ? (
-            <fieldset className="min-w-0 rounded-2xl border border-amber-200 bg-amber-50 p-5">
-              <legend className="font-semibold text-slate-950">Organização da campanha</legend>
-              <p className="mt-1 text-sm leading-6 text-slate-600" id="campaign-structure-help">
-                Configure as categorias usadas para pessoas, locais, facções e outros elementos.
-              </p>
-              <div className="mt-5 grid min-w-0 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                <button
-                  aria-describedby="campaign-structure-help"
-                  className="min-w-0 rounded-xl border border-stone-300 bg-white px-4 py-3 text-left text-sm font-semibold text-slate-700 hover:bg-stone-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700"
-                  disabled={busy}
-                  onClick={props.onManageAssertions}
-                  type="button"
-                >
-                  Afirmações
-                </button>
-                <button
-                  aria-describedby="campaign-structure-help"
-                  className="min-w-0 rounded-xl border border-stone-300 bg-white px-4 py-3 text-left text-sm font-semibold text-slate-700 hover:bg-stone-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700"
-                  disabled={busy}
-                  onClick={props.onManageNotes}
-                  type="button"
-                >
-                  Notas
-                </button>
-                <button
-                  aria-describedby="campaign-structure-help"
-                  className="min-w-0 rounded-xl border border-stone-300 bg-white px-4 py-3 text-left text-sm font-semibold text-slate-700 hover:bg-stone-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700"
-                  disabled={busy}
-                  onClick={props.onManageSessions}
-                  type="button"
-                >
-                  Sessões
-                </button>
-                <button
-                  aria-describedby="campaign-structure-help"
-                  className="min-w-0 rounded-xl border border-stone-300 bg-white px-4 py-3 text-left text-sm font-semibold text-slate-700 hover:bg-stone-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700"
-                  disabled={busy}
-                  onClick={props.onManageTimeline}
-                  type="button"
-                >
-                  Cronologia
-                </button>
-                <button
-                  aria-describedby="campaign-structure-help"
-                  className="min-w-0 rounded-xl border border-stone-300 bg-white px-4 py-3 text-left text-sm font-semibold text-slate-700 hover:bg-stone-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700"
-                  disabled={busy}
-                  onClick={props.onManageInbox}
-                  type="button"
-                >
-                  Caixa de Entrada
-                </button>
-                <button
-                  aria-describedby="campaign-structure-help"
-                  className="min-w-0 rounded-xl border border-stone-300 bg-white px-4 py-3 text-left text-sm font-semibold text-slate-700 hover:bg-stone-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700"
-                  disabled={busy}
-                  onClick={props.onManageRelationships}
-                  type="button"
-                >
-                  Relações
-                </button>
-                <button
-                  aria-describedby="campaign-structure-help"
-                  className="min-w-0 rounded-xl border border-slate-900 bg-white px-4 py-3 text-left text-sm font-semibold text-slate-900 hover:bg-stone-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700"
-                  disabled={busy}
-                  onClick={props.onManageEntities}
-                  type="button"
-                >
-                  Ver entidades
-                </button>
-                <button
-                  aria-describedby="campaign-structure-help"
-                  className="min-w-0 rounded-xl bg-slate-900 px-4 py-3 text-left text-sm font-semibold text-white hover:bg-slate-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700"
-                  disabled={busy}
-                  onClick={props.onManageEntityTypes}
-                  type="button"
-                >
-                  Gerenciar tipos de entidade
-                </button>
-                <button
-                  aria-describedby="campaign-structure-help"
-                  className="min-w-0 rounded-xl bg-amber-700 px-4 py-3 text-left text-sm font-semibold text-white hover:bg-amber-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700"
-                  disabled={busy}
-                  onClick={props.onManageRelationshipTypes}
-                  type="button"
-                >
-                  Tipos de relação
-                </button>
-              </div>
-            </fieldset>
-          ) : null}
-
           <div>
             <label className="block text-sm font-semibold text-slate-800" htmlFor="campaign-name">
               Nome da campanha <span className="text-amber-800">*</span>

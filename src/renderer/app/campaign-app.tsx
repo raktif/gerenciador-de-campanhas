@@ -27,6 +27,7 @@ type Screen =
   | 'sessions'
   | 'timeline'
   | 'inbox';
+type CampaignScreen = Exclude<Screen, 'campaigns' | 'create'>;
 type CampaignStatus = Campaign['status'];
 type LifecycleAction = 'archive' | 'restore' | 'moveToTrash';
 
@@ -45,11 +46,7 @@ export function CampaignApp(): React.JSX.Element {
 
   function openContext(entity: Entity, target: 'assertions' | 'notes'): void {
     setNarrativeContext({ entityId: entity.id, entityName: entity.name });
-    setScreen(target);
-  }
-
-  function openCampaignNarrative(target: 'assertions' | 'notes'): void {
-    setNarrativeContext(undefined);
+    setTimelineEntity(undefined);
     setScreen(target);
   }
 
@@ -58,12 +55,8 @@ export function CampaignApp(): React.JSX.Element {
     setNarrativeContext(undefined);
   }
 
-  function openCampaignTimeline(): void {
-    setTimelineEntity(undefined);
-    setScreen('timeline');
-  }
-
   function openEntityTimeline(entity: Entity): void {
+    setNarrativeContext(undefined);
     setTimelineEntity(entity);
     setScreen('timeline');
   }
@@ -114,7 +107,15 @@ export function CampaignApp(): React.JSX.Element {
   function returnToCampaigns(): void {
     setSelectedCampaign(null);
     setFormError(null);
+    setNarrativeContext(undefined);
+    setTimelineEntity(undefined);
     setScreen('campaigns');
+  }
+
+  function navigateWithinCampaign(target: CampaignScreen): void {
+    setNarrativeContext(undefined);
+    setTimelineEntity(undefined);
+    setScreen(target);
   }
 
   async function createCampaign(input: CreateCampaignInput): Promise<void> {
@@ -195,18 +196,27 @@ export function CampaignApp(): React.JSX.Element {
             </div>
           </div>
 
-          <nav aria-label="Navegação principal" className="mt-10">
-            <p className="px-3 text-[0.68rem] font-bold tracking-[0.18em] text-slate-500 uppercase">
-              Organização
-            </p>
-            <div
-              aria-current="page"
-              className="mt-3 flex items-center gap-3 rounded-xl bg-slate-800 px-3 py-3 text-sm font-semibold text-white shadow-inner"
-            >
-              <span aria-hidden="true" className="size-2 rounded-full bg-amber-400" />
-              Campanhas
-            </div>
-          </nav>
+          {selectedCampaign === null ? (
+            <nav aria-label="Navegação principal" className="mt-10">
+              <p className="px-3 text-[0.68rem] font-bold tracking-[0.18em] text-slate-500 uppercase">
+                Organização
+              </p>
+              <div
+                aria-current="page"
+                className="mt-3 flex items-center gap-3 rounded-xl bg-slate-800 px-3 py-3 text-sm font-semibold text-white shadow-inner"
+              >
+                <span aria-hidden="true" className="size-2 rounded-full bg-amber-400" />
+                Campanhas
+              </div>
+            </nav>
+          ) : (
+            <CampaignNavigation
+              campaign={selectedCampaign}
+              onExit={returnToCampaigns}
+              onNavigate={navigateWithinCampaign}
+              screen={screen}
+            />
+          )}
 
           <div className="mt-auto rounded-xl border border-slate-800 bg-slate-900 p-4 text-xs leading-5 text-slate-400">
             <p className="font-semibold text-slate-200">Privado e local</p>
@@ -274,15 +284,6 @@ export function CampaignApp(): React.JSX.Element {
               mode="edit"
               onCancel={returnToCampaigns}
               onLifecycle={changeLifecycle}
-              onManageEntities={() => setScreen('entities')}
-              onManageAssertions={() => openCampaignNarrative('assertions')}
-              onManageNotes={() => openCampaignNarrative('notes')}
-              onManageSessions={() => setScreen('sessions')}
-              onManageTimeline={openCampaignTimeline}
-              onManageInbox={() => setScreen('inbox')}
-              onManageEntityTypes={() => setScreen('entityTypes')}
-              onManageRelationshipTypes={() => setScreen('relationshipTypes')}
-              onManageRelationships={() => setScreen('relationships')}
               onSubmit={updateCampaign}
             />
           ) : (
@@ -305,6 +306,148 @@ export function CampaignApp(): React.JSX.Element {
       </div>
     </div>
   );
+}
+
+function CampaignNavigation({
+  campaign,
+  onExit,
+  onNavigate,
+  screen,
+}: {
+  campaign: Campaign;
+  onExit: () => void;
+  onNavigate: (target: CampaignScreen) => void;
+  screen: Screen;
+}): React.JSX.Element {
+  return (
+    <nav aria-label={`Navegação da campanha ${campaign.name}`} className="mt-8">
+      <button className={navigationItemClass(false)} onClick={onExit} type="button">
+        <span aria-hidden="true">←</span>
+        Campanhas
+      </button>
+
+      <div className="mt-6 border-y border-slate-800 px-3 py-4">
+        <p className="text-[0.68rem] font-bold tracking-[0.18em] text-slate-500 uppercase">
+          Campanha atual
+        </p>
+        <p className="mt-2 truncate text-sm font-semibold text-slate-100" title={campaign.name}>
+          {campaign.name}
+        </p>
+      </div>
+
+      <CampaignNavigationGroup label="Campanha">
+        <CampaignNavigationItem
+          active={screen === 'edit'}
+          label="Detalhes da campanha"
+          onClick={() => onNavigate('edit')}
+        />
+        {campaign.status === 'active' ? (
+          <>
+            <CampaignNavigationItem
+              active={screen === 'inbox'}
+              label="Caixa de Entrada"
+              onClick={() => onNavigate('inbox')}
+            />
+            <CampaignNavigationItem
+              active={screen === 'sessions'}
+              label="Sessões"
+              onClick={() => onNavigate('sessions')}
+            />
+            <CampaignNavigationItem
+              active={screen === 'timeline'}
+              label="Cronologia"
+              onClick={() => onNavigate('timeline')}
+            />
+          </>
+        ) : null}
+      </CampaignNavigationGroup>
+
+      {campaign.status === 'active' ? (
+        <CampaignNavigationGroup label="Mundo">
+          <CampaignNavigationItem
+            active={screen === 'entityTypes'}
+            label="Gerenciar tipos de entidade"
+            onClick={() => onNavigate('entityTypes')}
+          />
+          <CampaignNavigationItem
+            active={screen === 'entities'}
+            label="Ver entidades"
+            onClick={() => onNavigate('entities')}
+          />
+          <CampaignNavigationItem
+            active={screen === 'relationshipTypes'}
+            label="Tipos de relação"
+            onClick={() => onNavigate('relationshipTypes')}
+          />
+          <CampaignNavigationItem
+            active={screen === 'relationships'}
+            label="Relações"
+            onClick={() => onNavigate('relationships')}
+          />
+          <CampaignNavigationItem
+            active={screen === 'assertions'}
+            label="Afirmações"
+            onClick={() => onNavigate('assertions')}
+          />
+          <CampaignNavigationItem
+            active={screen === 'notes'}
+            label="Notas"
+            onClick={() => onNavigate('notes')}
+          />
+        </CampaignNavigationGroup>
+      ) : (
+        <p className="mt-6 px-3 text-xs leading-5 text-slate-400">
+          Restaure a campanha para acessar seus registros.
+        </p>
+      )}
+    </nav>
+  );
+}
+
+function CampaignNavigationGroup({
+  children,
+  label,
+}: {
+  children: React.ReactNode;
+  label: string;
+}): React.JSX.Element {
+  return (
+    <section className="mt-6" aria-label={label}>
+      <p className="px-3 text-[0.68rem] font-bold tracking-[0.18em] text-slate-500 uppercase">
+        {label}
+      </p>
+      <div className="mt-2 grid gap-1">{children}</div>
+    </section>
+  );
+}
+
+function CampaignNavigationItem({
+  active,
+  label,
+  onClick,
+}: {
+  active: boolean;
+  label: string;
+  onClick: () => void;
+}): React.JSX.Element {
+  return (
+    <button
+      aria-current={active ? 'page' : undefined}
+      className={navigationItemClass(active)}
+      onClick={onClick}
+      type="button"
+    >
+      {label}
+    </button>
+  );
+}
+
+function navigationItemClass(active: boolean): string {
+  return `flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-400 ${
+    active
+      ? 'bg-slate-800 text-white shadow-inner'
+      : 'text-slate-300 hover:bg-slate-900 hover:text-white'
+  }`;
 }
 
 function CampaignsScreen({
