@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import migrationManifest from './manifest.json';
 import phaseZeroMigration from './0001_phase_zero.sql?raw';
 import campaignsMigration from './0002_campaigns.sql?raw';
 import entityTypesMigration from './0003_entity_types.sql?raw';
@@ -120,3 +121,11 @@ export const migrations: readonly MigrationDefinition[] = [
     sql: noteEventInboxSourceUpdateGuardsMigration,
   },
 ];
+
+export const latestMigrationVersion = migrationManifest.latestVersion;
+
+if (
+  migrations.length !== latestMigrationVersion ||
+  migrations.some((migration, index) => migration.version !== index + 1)
+)
+  throw new Error('O manifesto de migrações não corresponde ao registro.');

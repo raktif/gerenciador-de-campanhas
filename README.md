@@ -1,6 +1,6 @@
 # Gerenciador de Campanhas de RPG
 
-Aplicativo desktop local-first para organizar campanhas de RPG. A Fase 0 entrega a fundação técnica: Electron seguro, React, persistência SQLite, migrações, busca FTS5, backup anterior a migrações, observabilidade local, IPC tipado e empacotamento. Conforme a ordem revisada pelo adendo 01, a Fase 1 entrega campanhas, tipos de entidade, definições de campo, entidades e arquivamento. Os incrementos 2.1 a 2.9 da Fase 2 estão concluídos: relações, vizinhança, afirmações, notas, sessões, eventos, cronologia, captura rápida e triagem da Caixa de Entrada.
+Aplicativo desktop local-first para organizar campanhas de RPG. A Fase 0 entrega a fundação técnica: Electron seguro, React, persistência SQLite, migrações, busca FTS5, backup anterior a migrações, observabilidade local, IPC tipado e empacotamento. Conforme a ordem revisada pelo adendo 01, a Fase 1 entrega campanhas, tipos de entidade, definições de campo, entidades e arquivamento. A Fase 2 está concluída: relações, vizinhança, afirmações, notas, sessões, eventos, cronologia, captura rápida, triagem da Caixa de Entrada e integração final.
 
 O aplicativo não abre servidor HTTP e não exige Node.js na máquina do usuário final.
 
@@ -28,16 +28,15 @@ Consulte [configuração de desenvolvimento](docs/development/setup.md), [arquit
 O refinamento técnico e a divisão incremental da próxima etapa estão em
 [Fase 2 — Refinamento técnico](docs/development/phase-2-refinement.md).
 
-Na atividade 2.10, a navegação interna da campanha, os ajustes de acessibilidade/resiliência e a
-rastreabilidade foram concluídos nas subatividades 2.10A, 2.10B e 2.10C. A 2.10D está em fechamento
-documental; a validação consolidada 2.10E ainda está pendente. Portanto, a Fase 2 não deve ser
-considerada concluída neste ponto. Consulte a [rastreabilidade da
+Na atividade 2.10, as subatividades 2.10A–2.10E foram concluídas em 2026-09-21. A rodada verificável
+aprovou `pnpm verify` (196 unitários e 66 integrações), 12 E2E, pacote Windows x64 e smoke test
+(schema 15, SQLite 3.53.4 e FTS5). Consulte a [rastreabilidade da
 2.10](docs/development/phase-2-activity-2.10.md) e o [refinamento da
 Fase 2](docs/development/phase-2-refinement.md).
 
 ## Estado e limites
 
-O produto disponível inclui somente o escopo entregue até 2.9 e a integração parcial da 2.10. Não
+O produto disponível inclui o escopo concluído até a Fase 2. Não
 inclui Relógios, Demandas, Consequências ou gerador determinístico (Fase 3); histórico geral,
 exportação, importação, restauração ou backup de campanha (Fase 4); Biblioteca/PDFs (Fase 5); nem IA
 ou provedores (Fases 6+). A infraestrutura FTS5 criada na Fase 0 permanece reservada para a futura
@@ -45,10 +44,9 @@ busca. Assinatura de código, notarização e publicação automática dependem 
 credenciais de release. Os makers para Windows, macOS e Linux estão configurados, mas cada artefato
 deve ser produzido no respectivo sistema operacional.
 
-## Fechamento pendente da Fase 2
+## Fechamento da Fase 2
 
-A 2.10E deve ser executada uma única vez, após as revisões, com dados descartáveis em
-`APP_DATA_DIR` e IA desligada. O procedimento é:
+A 2.10E foi executada em 2026-09-21 com dados descartáveis em `APP_DATA_DIR` e IA desligada:
 
 ```powershell
 pnpm verify
@@ -57,11 +55,10 @@ pnpm package
 pnpm test:package
 ```
 
-`pnpm verify` cobre lint, formatação, tipos e testes unitários/integração. O E2E abre o Electron e
-comprova persistência real; `pnpm package` gera o aplicativo desempacotado e `pnpm test:package`
-abre o pacote e verifica SQLite/FTS5. `pnpm make` só deve ser usado depois, quando for necessário
-produzir o artefato nativo da plataforma. Registre resultados, sistema operacional e limitações de
-release no fechamento, sem declarar aprovação se algum comando não tiver sido executado.
+`pnpm verify` cobriu lint, formatação, tipos e testes unitários/integração; o E2E comprovou
+persistência real; `pnpm package` gerou o aplicativo desempacotado Windows x64; e
+`pnpm test:package` confirmou startup, SQLite 3.53.4 e FTS5 com schema 15. `pnpm make` continua
+reservado à produção de artefato nativo da plataforma correspondente.
 
 Os fluxos da Fase 2 devem funcionar sem rede, provedor, runtime ou modelo de IA. O aplicativo não
 deve iniciar servidor HTTP nem fazer chamadas externas para esses fluxos.

@@ -14,9 +14,9 @@ Estado atual: os incrementos 2.0 (refinamento), 2.1 (fundação narrativa persis
 relação), 2.3 (relações e campos de referência), 2.4 (lista e vizinhança), 2.5 (afirmações e
 notas), 2.6 (sessões), 2.7 (eventos e cronologia), 2.8 (captura rápida) e 2.9 (triagem da Caixa de
 Entrada) estão concluídos; consulte a [rastreabilidade da atividade 2.9](phase-2-activity-2.9.md).
-Na 2.10, as subatividades 2.10A (navegação), 2.10B (acessibilidade e resiliência) e 2.10C
-(rastreabilidade) estão concluídas; a 2.10D está em fechamento documental e a 2.10E, de validação
-única, permanece pendente. A Fase 2 ainda não está concluída.
+Na 2.10, as subatividades 2.10A (navegação), 2.10B (acessibilidade e resiliência), 2.10C
+(rastreabilidade), 2.10D (documentação) e 2.10E (validação única) estão concluídas em 2026-09-21.
+A Fase 2 está concluída.
 
 ## Escopo
 
@@ -245,13 +245,12 @@ original; a evidência de rollback é mantida na integração SQLite e a de flux
   anúncios, com correção focal para Relações;
 - 2.10C concluída: registrar a matriz REL/GRF/AST/NOT/SES/EVT/TIM/INB e verificações manuais em
   [Atividade 2.10](phase-2-activity-2.10.md);
-- 2.10D em fechamento: atualizar README, arquitetura e estado documental sem antecipar a aprovação
-  da fase;
-- 2.10E pendente: executar uma única vez lint, formatação, tipos, testes unitários, IPC,
-  integração, E2E, empacotamento e smoke test do pacote.
+- 2.10D concluída: README, arquitetura e estado documental atualizados;
+- 2.10E concluída em 2026-09-21: lint, formatação, tipos, 196 testes unitários, 66 integrações,
+  12 E2E, pacote Windows x64 e smoke test aprovados.
 
-Critério de saída: todos os critérios desta matriz possuem teste ou verificação manual documentada,
-e o aplicativo empacotado executa os fluxos essenciais sem IA.
+Critério de saída atendido: todos os critérios desta matriz possuem teste ou revisão
+manual/documental registrada, e o aplicativo empacotado executa os fluxos essenciais sem IA.
 
 #### Procedimento obrigatório da 2.10E
 
@@ -269,6 +268,67 @@ persistência; o pacote e o smoke test confirmam inicialização, SQLite e FTS5 
 desenvolvimento. Registrar resultado, sistema operacional e qualquer limitação. Uma execução focal
 bloqueada por ambiente não equivale a aprovação; não repetir a suíte completa antes deste
 fechamento salvo risco técnico justificado.
+
+Resultado atual: a execução única da etapa `pnpm verify` em 2026-09-18 terminou com código `1` no
+lint (10 erros em `inbox-manager.tsx` e `inbox-handlers.test.ts`). Por isso, E2E, empacotamento e
+smoke test não foram iniciados. A 2.10E e a Fase 2 permanecem pendentes; o registro completo está em
+[Atividade 2.10](phase-2-activity-2.10.md).
+
+Uma rodada posterior autorizada iniciou `pnpm verify` com `APP_DATA_DIR` isolado, e os processos
+Node encerraram, mas o executor não devolveu código de saída, a linha de captura esperada nem saída
+após `eslint .`. Logo, essa rodada é inconclusiva e não substitui a falha registrada; E2E,
+empacotamento e smoke test não foram iniciados. Consulte o registro factual da atividade antes de
+autorizar novo fechamento.
+
+Na rodada final posterior, `pnpm verify` foi executado até terminar com código `1`, usando
+`APP_DATA_DIR` isolado em `tmp/phase-2-final-20260918-a47e`. Após o ESLint, o `prettier --check .`
+reportou estilo pendente em `docs/development/phase-2-activity-2.9.md`, `src/db/schema/index.ts` e
+`tests/unit/inbox-contracts.test.ts`. Portanto, typecheck, testes unitários e de integração, E2E,
+empacotamento e smoke test não foram iniciados nesta rodada. A 2.10E e a Fase 2 continuam pendentes.
+
+Com o estilo corrigido, a rodada seguinte usou `APP_DATA_DIR` isolado em
+`tmp/phase-2-final-20260918-b91f`: lint, Prettier e typecheck concluíram, mas `vitest run` falhou ao
+carregar `vitest.config.mts` com `spawn EPERM` durante a resolução de dependências do Vite. O
+`pnpm verify` retornou `1`; não foram executados testes unitários ou de integração, E2E,
+empacotamento ou smoke test. Trata-se de bloqueio de criação de processo no ambiente e não de
+aprovação; a 2.10E e a Fase 2 continuam pendentes.
+
+A repetição escalada de `pnpm verify` com `APP_DATA_DIR` isolado em
+`tmp/phase-2-final-20260918-c52e` eliminou o bloqueio de processo: lint, Prettier, typecheck e 196
+testes unitários (57 arquivos) passaram. A integração falhou (14 de 16 arquivos e 61 de 66 testes
+passaram): cinco asserções em `database.test.ts` e `phase-two-foundation.test.ts` esperavam schema
+versão `9` e receberam `15`, com ocorrências adicionais de `EBUSY` na limpeza de arquivos SQLite.
+E2E, empacotamento e smoke test não foram iniciados. A 2.10E e a Fase 2 continuam pendentes.
+
+A correção focal atualizou essas expectativas para a última versão do registro de migrações e tornou
+o cleanup dos dois testes resiliente no Windows: fecha contextos SQLite abertos antes da remoção e
+usa tentativas limitadas para arquivos ainda liberando. Os dois arquivos afetados passaram em
+execução escalada (11 testes), assim como o typecheck; essa evidência focal não substitui a nova
+rodada completa de fechamento. A 2.10E e a Fase 2 continuam pendentes.
+
+Na rodada completa escalada seguinte, com `APP_DATA_DIR` em
+`tmp/phase-2-final-20260918-d73b`, `pnpm verify` passou integralmente (196 testes unitários e 66 de
+integração). O E2E falhou com 10 de 12 cenários aprovados: o seletor de `campaigns.spec.ts` para
+`Detalhes da campanha` está ambíguo após o shell interno, e `inbox.spec.ts` não recebeu o aviso de
+possível duplicidade esperado após conversão em relação. Empacotamento e smoke test não foram
+iniciados; a 2.10E e a Fase 2 continuam pendentes.
+
+Ambos os cenários E2E foram corrigidos e passaram em execução focal escalada (2 testes): Campanhas
+usa agora o botão semântico de salvar, e Inbox monta explicitamente a relação duplicada `Mara → Nara`
+e confere a mensagem de duplicidade contratual, com leitura acessível do texto-fonte da afirmação.
+Prettier, typecheck e diff check passaram. É necessária nova execução E2E completa antes de
+empacotamento e smoke test; a 2.10E e a Fase 2 continuam pendentes.
+
+Na rodada `f44a`, verify, os 12 E2E e o empacotamento Windows x64 passaram; o smoke falhou apenas
+pela expectativa obsoleta de schema `8`. A correção introduziu manifesto único da versão de migração,
+validado pelo registro e pelo smoke, que passou focalmente com schema `15`, SQLite `3.53.4` e FTS5.
+É necessária nova rodada completa que gere o pacote com essa validação antes de concluir a 2.10E.
+
+O fechamento verificável de 2026-09-21 foi aprovado com evidências em
+`tmp/phase-2-final-verifiable-20260921-h7p3`: `pnpm verify` (196 unitários e 66 integrações),
+`pnpm test:e2e` (12 cenários), pacote Windows x64 e `pnpm test:package` (startup, schema `15`,
+SQLite `3.53.4` e FTS5). Os markers das quatro etapas registraram saída `0`; esta evidência final
+substitui as pendências históricas e conclui a 2.10E e a Fase 2.
 
 ## Contratos IPC planejados
 

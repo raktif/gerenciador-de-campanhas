@@ -1,12 +1,13 @@
 import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
-import { access, mkdtemp, rm } from 'node:fs/promises';
+import { access, mkdtemp, readFile, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
 const require = createRequire(import.meta.url);
 const Database = require('better-sqlite3');
 const repositoryRoot = process.cwd();
+const expectedSchemaVersion = await readLatestMigrationVersion(repositoryRoot);
 const packageDirectory = path.join(
   repositoryRoot,
   'out',
@@ -63,17 +64,34 @@ try {
 
   const database = new Database(databasePath, { readonly: true, fileMustExist: true });
   const schema = database.prepare('SELECT MAX(version) AS version FROM schema_migrations').get();
+  const migrations = database
+    .prepare('SELECT version FROM schema_migrations ORDER BY version')
+    .all();
   database.prepare('SELECT count(*) FROM app_search_fts').get();
   const sqlite = database.prepare('SELECT sqlite_version() AS version').get();
   database.close();
 
-  if (schema.version !== 8) throw new Error(`Schema inesperado: ${schema.version}`);
+  if (
+    !Number.isInteger(schema.version) ||
+    schema.version !== expectedSchemaVersion ||
+    migrations.length !== expectedSchemaVersion ||
+    migrations.some((migration, index) => migration.version !== index + 1)
+  )
+    throw new Error(`Histórico de migrações inesperado: ${JSON.stringify(migrations)}`);
   process.stdout.write(
     `Pacote validado (startup=ok, schema=${schema.version}, sqlite=${sqlite.version}, FTS5=ok).\n`,
   );
 } finally {
   child?.kill();
   await rm(dataDirectory, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+}
+
+async function readLatestMigrationVersion(root) {
+  const manifestPath = path.join(root, 'src', 'db', 'migrations', 'manifest.json');
+  const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
+  if (!Number.isInteger(manifest.latestVersion) || manifest.latestVersion < 1)
+    throw new Error(`Manifesto de migrações inválido: ${manifestPath}`);
+  return manifest.latestVersion;
 }
 
 async function waitForFile(filePath, timeoutMs, exitPromise, getStderr) {

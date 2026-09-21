@@ -22,13 +22,13 @@ um item não classificado e pode ser retomada pela Caixa de Entrada.
 
 ## Rastreabilidade
 
-| Requisito | Implementação | Evidência automatizada |
-| --- | --- | --- |
-| INB-01 | `InboxRepository.capture`, `InboxService.capture`, atalho e diálogo de Captura rápida | `tests/e2e/inbox.spec.ts` abre a Caixa de Entrada a partir da captura e confirma sua listagem |
-| INB-02 | contrato, serviço e persistência de `sessionId` opcional validam campanha e sessão ativa | contratos, serviço e integração de Inbox cobrem sessão inválida e isolamento |
-| INB-03 | `InboxRepository`/`InboxService` aplicam `new → reviewing`, descarte, arquivamento e restauração com revisão | unitários, IPC e primeiro cenário de `tests/e2e/inbox.spec.ts` cobrem filtro, descarte, retorno à triagem e paginação |
-| INB-04 | métodos `convertToEntity`, `convertToRelationship`, `convertToAssertion`, `convertToNote` e `convertToEvent` executam uma transação única | `tests/integration/inbox-repository.test.ts` cobre sucesso, conflito, rollback interno e isolamento por destino; E2E cobre os cinco fluxos visíveis |
-| INB-05 | `sources`, pontes `inbox_*_conversions` e ponteiros do item preservam texto e origem | integração verifica fonte/ponte; E2E reinicia o Electron e consulta SQLite para entidade, relação, afirmação, nota e evento |
+| Requisito | Implementação                                                                                                                             | Evidência automatizada                                                                                                                              |
+| --------- | ----------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| INB-01    | `InboxRepository.capture`, `InboxService.capture`, atalho e diálogo de Captura rápida                                                     | `tests/e2e/inbox.spec.ts` abre a Caixa de Entrada a partir da captura e confirma sua listagem                                                       |
+| INB-02    | contrato, serviço e persistência de `sessionId` opcional validam campanha e sessão ativa                                                  | contratos, serviço e integração de Inbox cobrem sessão inválida e isolamento                                                                        |
+| INB-03    | `InboxRepository`/`InboxService` aplicam `new → reviewing`, descarte, arquivamento e restauração com revisão                              | unitários, IPC e primeiro cenário de `tests/e2e/inbox.spec.ts` cobrem filtro, descarte, retorno à triagem e paginação                               |
+| INB-04    | métodos `convertToEntity`, `convertToRelationship`, `convertToAssertion`, `convertToNote` e `convertToEvent` executam uma transação única | `tests/integration/inbox-repository.test.ts` cobre sucesso, conflito, rollback interno e isolamento por destino; E2E cobre os cinco fluxos visíveis |
+| INB-05    | `sources`, pontes `inbox_*_conversions` e ponteiros do item preservam texto e origem                                                      | integração verifica fonte/ponte; E2E reinicia o Electron e consulta SQLite para entidade, relação, afirmação, nota e evento                         |
 
 ## Persistência, atomicidade e proveniência
 

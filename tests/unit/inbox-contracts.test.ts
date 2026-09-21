@@ -215,7 +215,28 @@ describe('contratos de captura rápida', () => {
       { entityId: '30000000-0000-4000-8000-000000000001', role: 'related' },
       { entityId: '30000000-0000-4000-8000-000000000001', role: 'related' },
     ];
-    expect(() => convertInboxItemToNoteInputSchema.parse({ campaignId, id: inboxItemId, revision: 1, destination: { title: 'Nota', bodyMarkdown: 'Corpo', links: duplicateLinks } })).toThrow();
-    expect(() => convertInboxItemToEventInputSchema.parse({ campaignId, id: inboxItemId, revision: 1, destination: { title: 'Evento', links: duplicateLinks.map((link) => ({ ...link, role: 'related' as const, sortOrder: 0 })) } })).toThrow();
+    expect(() =>
+      convertInboxItemToNoteInputSchema.parse({
+        campaignId,
+        id: inboxItemId,
+        revision: 1,
+        destination: { title: 'Nota', bodyMarkdown: 'Corpo', links: duplicateLinks },
+      }),
+    ).toThrow();
+    expect(() =>
+      convertInboxItemToEventInputSchema.parse({
+        campaignId,
+        id: inboxItemId,
+        revision: 1,
+        destination: {
+          title: 'Evento',
+          links: duplicateLinks.map((link) => ({
+            ...link,
+            role: 'related' as const,
+            sortOrder: 0,
+          })),
+        },
+      }),
+    ).toThrow();
   });
 });

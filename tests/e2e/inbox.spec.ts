@@ -149,9 +149,18 @@ test('converte captura em relacao com endpoint existente e endpoint criado', asy
     await duplicateCapture.getByRole('button', { name: 'Marcar como em revisão' }).click();
     await duplicateCapture.getByRole('button', { name: 'Converter em relação' }).click();
     const duplicateDialog = window.getByRole('dialog', { name: 'Converter em relação' });
-    await duplicateDialog.getByLabel('Entidade').nth(1).selectOption({ label: 'Nara' });
+    await duplicateDialog
+      .getByRole('group', { name: 'Entidade de origem' })
+      .getByLabel('Entidade', { exact: true })
+      .selectOption({ label: 'Mara' });
+    await duplicateDialog
+      .getByRole('group', { name: 'Entidade de destino' })
+      .getByLabel('Entidade', { exact: true })
+      .selectOption({ label: 'Nara' });
     await duplicateDialog.getByRole('button', { name: 'Confirmar conversão' }).click();
-    await expect(window.getByRole('status')).toContainText('possível duplicidade');
+    await expect(window.getByRole('status')).toContainText(
+      'Já existe uma relação ativa com o mesmo tipo, origem e destino.',
+    );
     const assertionCapture = window
       .getByText('Captura de afirmação', { exact: true })
       .locator('xpath=ancestor::article');
@@ -163,7 +172,11 @@ test('converte captura em relacao com endpoint existente e endpoint criado', asy
     await expect(
       assertionDialog.getByRole('button', { name: 'Confirmar conversão' }),
     ).toBeDisabled();
-    await expect(assertionDialog.getByText('Captura de afirmação', { exact: true })).toBeVisible();
+    await expect(
+      assertionDialog
+        .getByLabel('Texto original da captura')
+        .getByText('Captura de afirmação', { exact: true }),
+    ).toBeVisible();
     await expect
       .poll(() => window.locator('#root').evaluate((node) => node.hasAttribute('inert')))
       .toBe(true);

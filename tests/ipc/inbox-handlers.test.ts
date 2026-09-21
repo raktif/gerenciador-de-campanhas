@@ -233,12 +233,23 @@ describe('canais de triagem da Caixa de Entrada', () => {
         destination: {
           ...input.destination,
           links: [
-            { entityId: '30000000-0000-4000-8000-000000000001', role: 'related', ...(index === 1 ? { sortOrder: 0 } : {}) },
-            { entityId: '30000000-0000-4000-8000-000000000001', role: 'related', ...(index === 1 ? { sortOrder: 1 } : {}) },
+            {
+              entityId: '30000000-0000-4000-8000-000000000001',
+              role: 'related',
+              ...(index === 1 ? { sortOrder: 0 } : {}),
+            },
+            {
+              entityId: '30000000-0000-4000-8000-000000000001',
+              role: 'related',
+              ...(index === 1 ? { sortOrder: 1 } : {}),
+            },
           ],
         },
       };
-      expect(await convert(event(42), duplicate)).toMatchObject({ ok: false, error: { code: 'VALIDATION_ERROR' } });
+      expect(await convert(event(42), duplicate)).toMatchObject({
+        ok: false,
+        error: { code: 'VALIDATION_ERROR' },
+      });
       expect(await convert(event(42), inputs[index])).toMatchObject({ ok: true });
       service.failure = new AppError('REVISION_CONFLICT', 'Conflito.');
       expect(await convert(event(42), inputs[index])).toMatchObject({
@@ -269,21 +280,27 @@ class FakeInboxService {
   }
 
   public get(_input: { campaignId: string; id: string }): InboxItem {
+    void _input;
     return this.output();
   }
   public list(_input: InboxPageRequest): { items: InboxItem[]; nextCursor: null; total: number } {
+    void _input;
     return { items: [this.output()], nextCursor: null, total: 1 };
   }
   public beginReview(_input: InboxLifecycleInput): InboxItem {
+    void _input;
     return this.output();
   }
   public dismiss(_input: InboxLifecycleInput): InboxItem {
+    void _input;
     return this.output();
   }
   public archive(_input: InboxLifecycleInput): InboxItem {
+    void _input;
     return this.output();
   }
   public restore(_input: InboxLifecycleInput): InboxItem {
+    void _input;
     return this.output();
   }
   public convertToEntity(input: ConvertInboxItemToEntityInput): unknown {

@@ -4,18 +4,29 @@ import os from 'node:os';
 import path from 'node:path';
 import Database from 'better-sqlite3';
 import { afterEach, describe, expect, it } from 'vitest';
-import { ensureDataDirectories, getDataDirectories } from '../../src/core/storage/data-directories';
-import { openApplicationDatabase } from '../../src/db/connection';
+import {
+  ensureDataDirectories,
+  getDataDirectories,
+  type DataDirectories,
+} from '../../src/core/storage/data-directories';
+import { openApplicationDatabase, type DatabaseContext } from '../../src/db/connection';
 import { migrations } from '../../src/db/migrations/registry';
 import { TestLogger } from '../helpers/test-logger';
 
 const temporaryRoots: string[] = [];
+const contexts: DatabaseContext[] = [];
+const latestSchemaVersion = migrations.at(-1)?.version;
+
+if (latestSchemaVersion === undefined) throw new Error('Registro de migrações vazio.');
 
 afterEach(async () => {
+  for (const context of contexts.splice(0)) if (context.native.open) context.close();
   await Promise.all(
     temporaryRoots
       .splice(0)
-      .map((temporaryRoot) => rm(temporaryRoot, { recursive: true, force: true })),
+      .map((temporaryRoot) =>
+        rm(temporaryRoot, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 }),
+      ),
   );
 });
 
@@ -24,9 +35,9 @@ describe('fundação narrativa da Fase 2', () => {
     const root = await createTemporaryRoot();
     const directories = getDataDirectories(root);
     await ensureDataDirectories(directories);
-    const context = await openApplicationDatabase(directories, new TestLogger());
+    const context = await openTestDatabase(directories);
 
-    expect(context.schemaVersion).toBe(9);
+    expect(context.schemaVersion).toBe(latestSchemaVersion);
     const rows = context.native
       .prepare(
         `SELECT name FROM sqlite_master
@@ -87,7 +98,7 @@ describe('fundação narrativa da Fase 2', () => {
       .run(entityId, campaignId, entityTypeId, 'Kabotya', 'caderno-da-mesa', now, now);
     legacyDatabase.close();
 
-    const context = await openApplicationDatabase(directories, new TestLogger());
+    const context = await openTestDatabase(directories);
     const entity = context.native
       .prepare('SELECT name, source_id FROM entities WHERE id = ?')
       .get(entityId) as { name: string; source_id: string };
@@ -95,7 +106,7 @@ describe('fundação narrativa da Fase 2', () => {
       .prepare('SELECT kind, description FROM sources WHERE id = ?')
       .get(entity.source_id);
 
-    expect(context.schemaVersion).toBe(9);
+    expect(context.schemaVersion).toBe(latestSchemaVersion);
     expect(entity.name).toBe('Kabotya');
     expect(entity.source_id).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
@@ -109,7 +120,7 @@ describe('fundação narrativa da Fase 2', () => {
     const root = await createTemporaryRoot();
     const directories = getDataDirectories(root);
     await ensureDataDirectories(directories);
-    const context = await openApplicationDatabase(directories, new TestLogger());
+    const context = await openTestDatabase(directories);
     const first = createCampaignStructure(context.native, 'Primeira');
     const second = createCampaignStructure(context.native, 'Segunda');
     const sessionId = randomUUID();
@@ -163,7 +174,7 @@ describe('fundação narrativa da Fase 2', () => {
     const root = await createTemporaryRoot();
     const directories = getDataDirectories(root);
     await ensureDataDirectories(directories);
-    const context = await openApplicationDatabase(directories, new TestLogger());
+    const context = await openTestDatabase(directories);
     const { campaignId } = createCampaignStructure(context.native, 'Restrições');
     const now = timestamp();
     const insertSession = context.native.prepare(
@@ -228,8 +239,8 @@ describe('fundação narrativa da Fase 2', () => {
       .run(inboxItemId, firstCampaignId, localSessionId, 'Captura preservada', now, now, now);
     legacyDatabase.close();
 
-    const context = await openApplicationDatabase(directories, new TestLogger());
-    expect(context.schemaVersion).toBe(9);
+    const context = await openTestDatabase(directories);
+    expect(context.schemaVersion).toBe(latestSchemaVersion);
     expect(
       context.native
         .prepare('SELECT campaign_id, session_id, raw_text, status FROM inbox_items WHERE id = ?')
@@ -315,6 +326,12 @@ async function createTemporaryRoot(): Promise<string> {
   const root = await mkdtemp(path.join(os.tmpdir(), 'rpg-phase-two-foundation-test-'));
   temporaryRoots.push(root);
   return root;
+}
+
+async function openTestDatabase(directories: DataDirectories): Promise<DatabaseContext> {
+  const context = await openApplicationDatabase(directories, new TestLogger());
+  contexts.push(context);
+  return context;
 }
 
 function timestamp(): string {

@@ -32,7 +32,7 @@ test('cria, edita e gerencia o ciclo de vida após reiniciar', async () => {
     );
 
     await window.getByRole('button', { name: 'Abrir campanha As Crônicas de Ethéria' }).click();
-    await expect(window.getByText('Detalhes da campanha')).toBeVisible();
+    await expect(window.getByRole('button', { name: 'Salvar alterações' })).toBeVisible();
     await expect(window.getByLabel('Sistema')).toHaveValue('Sistema próprio');
     await window.getByLabel('Nome da campanha').fill('As Crônicas de Ethéria — revisada');
     await window.getByLabel('Sistema').fill('');

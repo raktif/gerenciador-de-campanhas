@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { Campaign } from '../../../core/contracts/campaigns';
-import type { InboxItem } from '../../../core/contracts/inbox';
+import type { ConvertInboxItemToAssertionInput, InboxItem } from '../../../core/contracts/inbox';
 import type { Session } from '../../../core/contracts/sessions';
 import type { EntityType } from '../../../core/contracts/entity-types';
 import type { Entity } from '../../../core/contracts/entities';
@@ -10,6 +10,7 @@ import { primaryClass, secondaryClass } from '../narrative/narrative-metadata-fi
 
 type Filter = 'pending' | 'dismissed' | 'archived';
 type Action = 'beginReview' | 'dismiss' | 'archive' | 'restore';
+type AssertionConversionValue = ConvertInboxItemToAssertionInput['destination']['value'];
 
 const statuses: Record<Filter, InboxItem['status'][]> = {
   pending: ['new', 'reviewing'],
@@ -91,8 +92,12 @@ export function InboxManager({
   const [noteLinkEntityId, setNoteLinkEntityId] = useState('');
   const [noteLinkRole, setNoteLinkRole] = useState('related');
   const [noteVisibility, setNoteVisibility] = useState<'gm' | 'players' | 'public'>('gm');
-  const [noteCanonState, setNoteCanonState] = useState<'draft' | 'accepted' | 'rejected' | 'archived'>('accepted');
-  const [noteKnowledgeState, setNoteKnowledgeState] = useState<'fact' | 'rumor' | 'suspicion' | 'secret' | 'possibility' | 'disproved'>('fact');
+  const [noteCanonState, setNoteCanonState] = useState<
+    'draft' | 'accepted' | 'rejected' | 'archived'
+  >('accepted');
+  const [noteKnowledgeState, setNoteKnowledgeState] = useState<
+    'fact' | 'rumor' | 'suspicion' | 'secret' | 'possibility' | 'disproved'
+  >('fact');
   const [noteError, setNoteError] = useState<string | null>(null);
   const noteDialogRef = useRef<HTMLFormElement>(null);
   const noteTitleRef = useRef<HTMLInputElement>(null);
@@ -115,8 +120,12 @@ export function InboxManager({
   >('related');
   const [eventLinkSortOrder, setEventLinkSortOrder] = useState(0);
   const [eventVisibility, setEventVisibility] = useState<'gm' | 'players' | 'public'>('gm');
-  const [eventCanonState, setEventCanonState] = useState<'draft' | 'accepted' | 'rejected' | 'archived'>('accepted');
-  const [eventKnowledgeState, setEventKnowledgeState] = useState<'fact' | 'rumor' | 'suspicion' | 'secret' | 'possibility' | 'disproved'>('fact');
+  const [eventCanonState, setEventCanonState] = useState<
+    'draft' | 'accepted' | 'rejected' | 'archived'
+  >('accepted');
+  const [eventKnowledgeState, setEventKnowledgeState] = useState<
+    'fact' | 'rumor' | 'suspicion' | 'secret' | 'possibility' | 'disproved'
+  >('fact');
   const [eventError, setEventError] = useState<string | null>(null);
   const eventDialogRef = useRef<HTMLFormElement>(null);
   const eventTitleRef = useRef<HTMLInputElement>(null);
@@ -428,12 +437,10 @@ export function InboxManager({
     if (assertionConversion === null || busy !== null) return;
     const statement = assertionStatement.trim();
     const predicate = assertionPredicate.trim();
-    let value: NonNullable<
-      Parameters<typeof window.campaignManager.inbox.convertToAssertion>[0]['destination']['value']
-    > | null = null;
+    let value: AssertionConversionValue = null;
     if (assertionValue.trim() !== '') {
       try {
-        value = JSON.parse(assertionValue) as typeof value;
+        value = JSON.parse(assertionValue) as NonNullable<AssertionConversionValue>;
       } catch {
         setAssertionError('O valor deve ser um JSON válido.');
         return;
@@ -870,22 +877,14 @@ export function InboxManager({
                           className="text-sm text-amber-900"
                           id={`inbox-relationship-reason-${item.id}`}
                         >
-                          {relationshipTypes.length === 0
-                            ? 'Crie um tipo de relação ativo para converter esta captura.'
-                            : 'Não há entidades ou tipos de entidade ativos compatíveis para os dois extremos.'}
+                          Crie um tipo de relação ativo para converter esta captura.
                           <button
                             className="ml-2 font-semibold underline"
                             disabled={busy !== null}
-                            onClick={
-                              relationshipTypes.length === 0
-                                ? onManageRelationshipTypes
-                                : onManageEntityTypes
-                            }
+                            onClick={onManageRelationshipTypes}
                             type="button"
                           >
-                            {relationshipTypes.length === 0
-                              ? 'Gerenciar tipos de relação'
-                              : 'Gerenciar tipos de entidade'}
+                            Gerenciar tipos de relação
                           </button>
                         </span>
                       ) : null}
@@ -1468,7 +1467,17 @@ export function InboxManager({
                   {['general', 'idea', 'scene', 'clue', 'secret', 'preparation', 'reference'].map(
                     (value) => (
                       <option key={value} value={value}>
-                        {{ general: 'Geral', idea: 'Ideia', scene: 'Cena', clue: 'Pista', secret: 'Segredo', preparation: 'Preparação', reference: 'Referência' }[value]}
+                        {
+                          {
+                            general: 'Geral',
+                            idea: 'Ideia',
+                            scene: 'Cena',
+                            clue: 'Pista',
+                            secret: 'Segredo',
+                            preparation: 'Preparação',
+                            reference: 'Referência',
+                          }[value]
+                        }
                       </option>
                     ),
                   )}
@@ -1501,11 +1510,48 @@ export function InboxManager({
                   onChange={(event) => setNoteLinkRole(event.target.value)}
                   value={noteLinkRole}
                 />
-                <fieldset className="mt-5 grid gap-4 rounded-xl border border-stone-200 p-4" disabled={busy !== null}>
+                <fieldset
+                  className="mt-5 grid gap-4 rounded-xl border border-stone-200 p-4"
+                  disabled={busy !== null}
+                >
                   <legend className="px-1 text-sm font-semibold">Metadados narrativos</legend>
-                  <MetadataSelect id="inbox-note-canon" label="Estado canônico" value={noteCanonState} onChange={(value) => setNoteCanonState(value as typeof noteCanonState)} options={[["accepted","Aceito"],["draft","Rascunho"],["rejected","Rejeitado"],["archived","Arquivado"]]} />
-                  <MetadataSelect id="inbox-note-knowledge" label="Natureza do conhecimento" value={noteKnowledgeState} onChange={(value) => setNoteKnowledgeState(value as typeof noteKnowledgeState)} options={[["fact","Fato"],["rumor","Rumor"],["suspicion","Suspeita"],["secret","Segredo"],["possibility","Possibilidade"],["disproved","Refutado"]]} />
-                  <MetadataSelect id="inbox-note-visibility" label="Visibilidade" value={noteVisibility} onChange={(value) => setNoteVisibility(value as typeof noteVisibility)} options={[["gm","Somente mestre"],["players","Jogadores"],["public","Pública"]]} />
+                  <MetadataSelect
+                    id="inbox-note-canon"
+                    label="Estado canônico"
+                    value={noteCanonState}
+                    onChange={(value) => setNoteCanonState(value as typeof noteCanonState)}
+                    options={[
+                      ['accepted', 'Aceito'],
+                      ['draft', 'Rascunho'],
+                      ['rejected', 'Rejeitado'],
+                      ['archived', 'Arquivado'],
+                    ]}
+                  />
+                  <MetadataSelect
+                    id="inbox-note-knowledge"
+                    label="Natureza do conhecimento"
+                    value={noteKnowledgeState}
+                    onChange={(value) => setNoteKnowledgeState(value as typeof noteKnowledgeState)}
+                    options={[
+                      ['fact', 'Fato'],
+                      ['rumor', 'Rumor'],
+                      ['suspicion', 'Suspeita'],
+                      ['secret', 'Segredo'],
+                      ['possibility', 'Possibilidade'],
+                      ['disproved', 'Refutado'],
+                    ]}
+                  />
+                  <MetadataSelect
+                    id="inbox-note-visibility"
+                    label="Visibilidade"
+                    value={noteVisibility}
+                    onChange={(value) => setNoteVisibility(value as typeof noteVisibility)}
+                    options={[
+                      ['gm', 'Somente mestre'],
+                      ['players', 'Jogadores'],
+                      ['public', 'Pública'],
+                    ]}
+                  />
                 </fieldset>
                 <div className="mt-6 flex justify-end gap-3">
                   <button
@@ -1671,7 +1717,18 @@ export function InboxManager({
                     'related',
                   ].map((value) => (
                     <option key={value} value={value}>
-                      {{ participant: 'Participante', location: 'Local', cause: 'Causa', target: 'Alvo', witness: 'Testemunha', beneficiary: 'Beneficiário', victim: 'Vítima', related: 'Relacionado' }[value]}
+                      {
+                        {
+                          participant: 'Participante',
+                          location: 'Local',
+                          cause: 'Causa',
+                          target: 'Alvo',
+                          witness: 'Testemunha',
+                          beneficiary: 'Beneficiário',
+                          victim: 'Vítima',
+                          related: 'Relacionado',
+                        }[value]
+                      }
                     </option>
                   ))}
                 </select>
@@ -1690,11 +1747,50 @@ export function InboxManager({
                   type="number"
                   value={eventLinkSortOrder}
                 />
-                <fieldset className="mt-5 grid gap-4 rounded-xl border border-stone-200 p-4" disabled={busy !== null}>
+                <fieldset
+                  className="mt-5 grid gap-4 rounded-xl border border-stone-200 p-4"
+                  disabled={busy !== null}
+                >
                   <legend className="px-1 text-sm font-semibold">Metadados narrativos</legend>
-                  <MetadataSelect id="inbox-event-canon" label="Estado canônico" value={eventCanonState} onChange={(value) => setEventCanonState(value as typeof eventCanonState)} options={[["accepted","Aceito"],["draft","Rascunho"],["rejected","Rejeitado"],["archived","Arquivado"]]} />
-                  <MetadataSelect id="inbox-event-knowledge" label="Natureza do conhecimento" value={eventKnowledgeState} onChange={(value) => setEventKnowledgeState(value as typeof eventKnowledgeState)} options={[["fact","Fato"],["rumor","Rumor"],["suspicion","Suspeita"],["secret","Segredo"],["possibility","Possibilidade"],["disproved","Refutado"]]} />
-                  <MetadataSelect id="inbox-event-visibility" label="Visibilidade" value={eventVisibility} onChange={(value) => setEventVisibility(value as typeof eventVisibility)} options={[["gm","Somente mestre"],["players","Jogadores"],["public","Pública"]]} />
+                  <MetadataSelect
+                    id="inbox-event-canon"
+                    label="Estado canônico"
+                    value={eventCanonState}
+                    onChange={(value) => setEventCanonState(value as typeof eventCanonState)}
+                    options={[
+                      ['accepted', 'Aceito'],
+                      ['draft', 'Rascunho'],
+                      ['rejected', 'Rejeitado'],
+                      ['archived', 'Arquivado'],
+                    ]}
+                  />
+                  <MetadataSelect
+                    id="inbox-event-knowledge"
+                    label="Natureza do conhecimento"
+                    value={eventKnowledgeState}
+                    onChange={(value) =>
+                      setEventKnowledgeState(value as typeof eventKnowledgeState)
+                    }
+                    options={[
+                      ['fact', 'Fato'],
+                      ['rumor', 'Rumor'],
+                      ['suspicion', 'Suspeita'],
+                      ['secret', 'Segredo'],
+                      ['possibility', 'Possibilidade'],
+                      ['disproved', 'Refutado'],
+                    ]}
+                  />
+                  <MetadataSelect
+                    id="inbox-event-visibility"
+                    label="Visibilidade"
+                    value={eventVisibility}
+                    onChange={(value) => setEventVisibility(value as typeof eventVisibility)}
+                    options={[
+                      ['gm', 'Somente mestre'],
+                      ['players', 'Jogadores'],
+                      ['public', 'Pública'],
+                    ]}
+                  />
                 </fieldset>
                 <div className="mt-6 flex justify-end gap-3">
                   <button

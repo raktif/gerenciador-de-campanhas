@@ -8,7 +8,7 @@ O SQLite usa WAL, foreign keys, busy timeout e migrações versionadas com check
 
 ## Estado arquitetural da Fase 2
 
-Os agregados entregues até 2.9 — relações, afirmações, notas, sessões, eventos, cronologia e Caixa
+Os agregados entregues na Fase 2 — relações, afirmações, notas, sessões, eventos, cronologia e Caixa
 de Entrada — continuam no processo principal, com contratos Zod estritos, revisão otimista,
 transações para operações compostas e isolamento obrigatório por `campaignId`. A navegação interna
 da campanha fica no renderer e só troca telas já implementadas; ela não cria rotas, IPC ou dados
@@ -19,9 +19,9 @@ foco ao título após trocar de módulo. Estados de carregamento, vazio, erro re
 ocupada permanecem responsabilidade de cada tela. A Caixa de Entrada mantém seus diálogos com foco
 contido e fundo inerte; o renderer continua sem acesso privilegiado.
 
-A Fase 2 ainda não introduz Relógios, Demandas, Consequências, portabilidade, Biblioteca/PDFs ou
-IA. Esses limites preservam o modo local sem IA e sem rede: não há servidor HTTP, provedor de IA,
-modelo ou chamada externa necessária aos fluxos atuais. O fechamento 2.10E deverá reexecutar
-verificações, pacote e smoke test antes de declarar a fase completa.
+A Fase 2 não introduz Relógios, Demandas, Consequências, portabilidade, Biblioteca/PDFs ou IA.
+Esses limites preservam o modo local sem IA e sem rede: não há servidor HTTP, provedor de IA, modelo
+ou chamada externa necessária aos fluxos atuais. O fechamento 2.10E foi aprovado em 2026-09-21 com
+verify, 12 E2E, pacote Windows x64 e smoke test de SQLite/FTS5.
 
 Decisões detalhadas ficam em [docs/adr](../adr/README.md).
