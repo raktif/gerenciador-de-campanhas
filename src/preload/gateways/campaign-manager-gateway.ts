@@ -35,6 +35,24 @@ import {
   type EventDetails,
   type EventPageResult,
 } from '../../core/contracts/events';
+import {
+  captureInboxItemInputSchema,
+  convertInboxItemToAssertionInputSchema,
+  convertInboxItemToEventInputSchema,
+  convertInboxItemToNoteInputSchema,
+  convertInboxItemToEntityInputSchema,
+  convertInboxItemToRelationshipInputSchema,
+  getInboxItemInputSchema,
+  inboxLifecycleInputSchema,
+  inboxPageRequestSchema,
+  type InboxItem,
+  type InboxPageResult,
+  type InboxEntityConversionResult,
+  type InboxAssertionConversionResult,
+  type InboxEventConversionResult,
+  type InboxNoteConversionResult,
+  type InboxRelationshipConversionResult,
+} from '../../core/contracts/inbox';
 import type { CampaignManagerGateway } from '../../core/contracts/gateway';
 import {
   createNoteInputSchema,
@@ -91,6 +109,7 @@ import {
   entityTypeChannels,
   eventChannels,
   fieldDefinitionChannels,
+  inboxChannels,
   noteChannels,
   phaseZeroChannels,
   relationshipTypeChannels,
@@ -326,6 +345,50 @@ export function createCampaignManagerGateway(invokeIpc: IpcInvoker): CampaignMan
         invoke<NoteDetails>(noteChannels.archive, input, noteLifecycleInputSchema),
       restore: (input) =>
         invoke<NoteDetails>(noteChannels.restore, input, noteLifecycleInputSchema),
+    },
+    inbox: {
+      capture: (input) =>
+        invoke<InboxItem>(inboxChannels.capture, input, captureInboxItemInputSchema),
+      get: (input) => invoke<InboxItem>(inboxChannels.get, input, getInboxItemInputSchema),
+      list: (input) => invoke<InboxPageResult>(inboxChannels.list, input, inboxPageRequestSchema),
+      beginReview: (input) =>
+        invoke<InboxItem>(inboxChannels.beginReview, input, inboxLifecycleInputSchema),
+      dismiss: (input) =>
+        invoke<InboxItem>(inboxChannels.dismiss, input, inboxLifecycleInputSchema),
+      archive: (input) =>
+        invoke<InboxItem>(inboxChannels.archive, input, inboxLifecycleInputSchema),
+      restore: (input) =>
+        invoke<InboxItem>(inboxChannels.restore, input, inboxLifecycleInputSchema),
+      convertToEntity: (input) =>
+        invoke<InboxEntityConversionResult>(
+          inboxChannels.convertToEntity,
+          input,
+          convertInboxItemToEntityInputSchema,
+        ),
+      convertToAssertion: (input) =>
+        invoke<InboxAssertionConversionResult>(
+          inboxChannels.convertToAssertion,
+          input,
+          convertInboxItemToAssertionInputSchema,
+        ),
+      convertToNote: (input) =>
+        invoke<InboxNoteConversionResult>(
+          inboxChannels.convertToNote,
+          input,
+          convertInboxItemToNoteInputSchema,
+        ),
+      convertToEvent: (input) =>
+        invoke<InboxEventConversionResult>(
+          inboxChannels.convertToEvent,
+          input,
+          convertInboxItemToEventInputSchema,
+        ),
+      convertToRelationship: (input) =>
+        invoke<InboxRelationshipConversionResult>(
+          inboxChannels.convertToRelationship,
+          input,
+          convertInboxItemToRelationshipInputSchema,
+        ),
     },
     events: {
       create: (input) => invoke<EventDetails>(eventChannels.create, input, createEventInputSchema),

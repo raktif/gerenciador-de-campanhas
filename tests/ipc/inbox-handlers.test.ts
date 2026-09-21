@@ -1,0 +1,624 @@
+import type { IpcMain, IpcMainInvokeEvent } from 'electron';
+import { describe, expect, it } from 'vitest';
+import type {
+  CaptureInboxItemInput,
+  ConvertInboxItemToAssertionInput,
+  ConvertInboxItemToEventInput,
+  ConvertInboxItemToNoteInput,
+  ConvertInboxItemToEntityInput,
+  ConvertInboxItemToRelationshipInput,
+  InboxItem,
+  InboxLifecycleInput,
+  InboxPageRequest,
+} from '../../src/core/contracts/inbox';
+import { inboxChannels } from '../../src/core/contracts/ipc-channels';
+import { AppError } from '../../src/core/errors/app-error';
+import { registerInboxIpcHandlers } from '../../src/main/ipc/inbox-handlers';
+import { TestLogger } from '../helpers/test-logger';
+
+type CapturedHandler = (event: IpcMainInvokeEvent, input: unknown) => Promise<unknown>;
+const campaignId = '00000000-0000-4000-8000-000000000001';
+const sessionId = '70000000-0000-4000-8000-000000000001';
+const inboxItemId = '80000000-0000-4000-8000-000000000001';
+const timestamp = '2026-09-14T12:00:00.000Z';
+
+describe('handler IPC da captura rápida', () => {
+  it('registra somente a captura, valida a entrada e remove o canal', async () => {
+    const handlers = new Map<string, CapturedHandler>();
+    const service = new FakeInboxService();
+    const unregister = registerInboxIpcHandlers(ipc(handlers), dependencies(service));
+    expect([...handlers.keys()]).toEqual([
+      inboxChannels.capture,
+      inboxChannels.convertToEntity,
+      inboxChannels.convertToAssertion,
+      inboxChannels.convertToNote,
+      inboxChannels.convertToEvent,
+      inboxChannels.convertToRelationship,
+      inboxChannels.get,
+      inboxChannels.list,
+      inboxChannels.beginReview,
+      inboxChannels.dismiss,
+      inboxChannels.archive,
+      inboxChannels.restore,
+    ]);
+
+    const result = await handler(handlers)(event(42), {
+      campaignId,
+      sessionId,
+      rawText: '  O sino tocou.  ',
+    });
+    expect(result).toMatchObject({ ok: true, data: inboxItem() });
+    expect(service.captureInput).toEqual({ campaignId, sessionId, rawText: '  O sino tocou.  ' });
+    unregister();
+    expect(handlers.size).toBe(0);
+  });
+
+  it('rejeita remetente e entrada antes do serviço e normaliza erro e saída inválida', async () => {
+    const handlers = new Map<string, CapturedHandler>();
+    const service = new FakeInboxService();
+    registerInboxIpcHandlers(ipc(handlers), dependencies(service));
+    const capture = handler(handlers);
+
+    expect(await capture(event(42), { campaignId, rawText: '' })).toMatchObject({
+      ok: false,
+      error: { code: 'VALIDATION_ERROR' },
+    });
+    expect(await capture(event(99), { campaignId, rawText: 'Válido' })).toMatchObject({
+      ok: false,
+      error: { code: 'IPC_SENDER_NOT_ALLOWED' },
+    });
+    expect(service.calls).toBe(0);
+
+    service.failure = new AppError('SESSION_NOT_FOUND', 'Ausente.');
+    expect(await capture(event(42), { campaignId, sessionId, rawText: 'Válido' })).toMatchObject({
+      ok: false,
+      error: { code: 'SESSION_NOT_FOUND' },
+    });
+    service.failure = null;
+    service.invalidOutput = true;
+    expect(await capture(event(42), { campaignId, rawText: 'Válido' })).toMatchObject({
+      ok: false,
+      error: { code: 'INTERNAL_ERROR' },
+    });
+  });
+});
+
+describe('canais de triagem da Caixa de Entrada', () => {
+  it('valida remetente, entrada strict e saída em todos os seis canais novos', async () => {
+    const handlers = new Map<string, CapturedHandler>();
+    const service = new FakeInboxService();
+    registerInboxIpcHandlers(ipc(handlers), dependencies(service));
+    const lifecycle = { campaignId, id: inboxItemId, revision: 1 };
+    const cases: [string, unknown][] = [
+      [inboxChannels.get, { campaignId, id: inboxItemId }],
+      [inboxChannels.list, { campaignId, filters: {} }],
+      [inboxChannels.beginReview, lifecycle],
+      [inboxChannels.dismiss, lifecycle],
+      [inboxChannels.archive, lifecycle],
+      [inboxChannels.restore, lifecycle],
+    ];
+    for (const [channel, input] of cases) {
+      const registered = handlers.get(channel);
+      if (registered === undefined) throw new Error('Canal não registrado.');
+      expect(await registered(event(99), input)).toMatchObject({
+        ok: false,
+        error: { code: 'IPC_SENDER_NOT_ALLOWED' },
+      });
+      expect(await registered(event(42), { ...(input as object), extra: true })).toMatchObject({
+        ok: false,
+        error: { code: 'VALIDATION_ERROR' },
+      });
+      expect(await registered(event(42), input)).toMatchObject({ ok: true });
+    }
+    service.invalidOutput = true;
+    const archive = handlers.get(inboxChannels.archive);
+    if (archive === undefined) throw new Error('Canal não registrado.');
+    expect(await archive(event(42), lifecycle)).toMatchObject({
+      ok: false,
+      error: { code: 'INTERNAL_ERROR' },
+    });
+  });
+
+  it('protege a conversão em entidade e encaminha somente sua entrada validada', async () => {
+    const handlers = new Map<string, CapturedHandler>();
+    const service = new FakeInboxService();
+    registerInboxIpcHandlers(ipc(handlers), dependencies(service));
+    const convert = handlers.get(inboxChannels.convertToEntity);
+    if (convert === undefined) throw new Error('Canal de conversão não registrado.');
+    const input = conversionInput();
+    expect(await convert(event(99), input)).toMatchObject({
+      ok: false,
+      error: { code: 'IPC_SENDER_NOT_ALLOWED' },
+    });
+    expect(await convert(event(42), { ...input, extra: true })).toMatchObject({
+      ok: false,
+      error: { code: 'VALIDATION_ERROR' },
+    });
+    expect(await convert(event(42), input)).toMatchObject({ ok: true, data: conversionResult() });
+    expect(service.convertInput).toEqual(input);
+    service.failure = new AppError('INVALID_INBOX_CONVERSION_STATE', 'Estado inválido.');
+    expect(await convert(event(42), input)).toMatchObject({
+      ok: false,
+      error: { code: 'INVALID_INBOX_CONVERSION_STATE' },
+    });
+    service.failure = null;
+    service.invalidOutput = true;
+    expect(await convert(event(42), input)).toMatchObject({
+      ok: false,
+      error: { code: 'INTERNAL_ERROR' },
+    });
+  });
+
+  it('protege a conversao em relacionamento', async () => {
+    const handlers = new Map<string, CapturedHandler>();
+    const service = new FakeInboxService();
+    registerInboxIpcHandlers(ipc(handlers), dependencies(service));
+    const convert = handlers.get(inboxChannels.convertToRelationship);
+    if (convert === undefined) throw new Error('Canal de conversao nao registrado.');
+    const input = relationshipConversionInput();
+    expect(await convert(event(99), input)).toMatchObject({
+      ok: false,
+      error: { code: 'IPC_SENDER_NOT_ALLOWED' },
+    });
+    expect(await convert(event(42), { ...input, extra: true })).toMatchObject({
+      ok: false,
+      error: { code: 'VALIDATION_ERROR' },
+    });
+    expect(await convert(event(42), input)).toMatchObject({ ok: true });
+    expect(service.relationshipConvertInput).toEqual(input);
+    service.failure = new AppError('REVISION_CONFLICT', 'Conflito.');
+    expect(await convert(event(42), input)).toMatchObject({
+      ok: false,
+      error: { code: 'REVISION_CONFLICT' },
+    });
+    service.failure = null;
+    service.invalidOutput = true;
+    expect(await convert(event(42), input)).toMatchObject({
+      ok: false,
+      error: { code: 'INTERNAL_ERROR' },
+    });
+  });
+
+  it('protege a conversão em afirmação e encaminha somente a entrada validada', async () => {
+    const handlers = new Map<string, CapturedHandler>();
+    const service = new FakeInboxService();
+    registerInboxIpcHandlers(ipc(handlers), dependencies(service));
+    const convert = handlers.get(inboxChannels.convertToAssertion);
+    if (convert === undefined) throw new Error('Canal de conversão não registrado.');
+    const input = assertionConversionInput();
+    expect(await convert(event(99), input)).toMatchObject({
+      ok: false,
+      error: { code: 'IPC_SENDER_NOT_ALLOWED' },
+    });
+    expect(await convert(event(42), { ...input, extra: true })).toMatchObject({
+      ok: false,
+      error: { code: 'VALIDATION_ERROR' },
+    });
+    expect(await convert(event(42), input)).toMatchObject({ ok: true });
+    expect(service.assertionConvertInput).toEqual(input);
+    service.failure = new AppError('INVALID_ASSERTION_CONTENT', 'Conteúdo inválido.');
+    expect(await convert(event(42), input)).toMatchObject({
+      ok: false,
+      error: { code: 'INVALID_ASSERTION_CONTENT' },
+    });
+    service.failure = null;
+    service.invalidOutput = true;
+    expect(await convert(event(42), input)).toMatchObject({
+      ok: false,
+      error: { code: 'INTERNAL_ERROR' },
+    });
+  });
+
+  it('protege nota e evento com remetente, contrato strict, erro e saída', async () => {
+    const handlers = new Map<string, CapturedHandler>();
+    const service = new FakeInboxService();
+    registerInboxIpcHandlers(ipc(handlers), dependencies(service));
+    const inputs = [noteConversionInput(), eventConversionInput()] as const;
+    const channels = [inboxChannels.convertToNote, inboxChannels.convertToEvent] as const;
+    for (const [index, channel] of channels.entries()) {
+      const convert = handlers.get(channel);
+      if (convert === undefined) throw new Error('Canal ausente.');
+      expect(await convert(event(99), inputs[index])).toMatchObject({
+        ok: false,
+        error: { code: 'IPC_SENDER_NOT_ALLOWED' },
+      });
+      expect(await convert(event(42), { ...inputs[index], extra: true })).toMatchObject({
+        ok: false,
+        error: { code: 'VALIDATION_ERROR' },
+      });
+      const input = inputs[index];
+      if (input === undefined) throw new Error('Entrada ausente.');
+      const duplicate = {
+        ...input,
+        destination: {
+          ...input.destination,
+          links: [
+            {
+              entityId: '30000000-0000-4000-8000-000000000001',
+              role: 'related',
+              ...(index === 1 ? { sortOrder: 0 } : {}),
+            },
+            {
+              entityId: '30000000-0000-4000-8000-000000000001',
+              role: 'related',
+              ...(index === 1 ? { sortOrder: 1 } : {}),
+            },
+          ],
+        },
+      };
+      expect(await convert(event(42), duplicate)).toMatchObject({
+        ok: false,
+        error: { code: 'VALIDATION_ERROR' },
+      });
+      expect(await convert(event(42), inputs[index])).toMatchObject({ ok: true });
+      service.failure = new AppError('REVISION_CONFLICT', 'Conflito.');
+      expect(await convert(event(42), inputs[index])).toMatchObject({
+        ok: false,
+        error: { code: 'REVISION_CONFLICT' },
+      });
+      service.failure = null;
+    }
+  });
+});
+
+class FakeInboxService {
+  public captureInput: CaptureInboxItemInput | null = null;
+  public calls = 0;
+  public failure: AppError | null = null;
+  public invalidOutput = false;
+  public convertInput: ConvertInboxItemToEntityInput | null = null;
+  public relationshipConvertInput: ConvertInboxItemToRelationshipInput | null = null;
+  public assertionConvertInput: ConvertInboxItemToAssertionInput | null = null;
+  public noteConvertInput: ConvertInboxItemToNoteInput | null = null;
+  public eventConvertInput: ConvertInboxItemToEventInput | null = null;
+
+  public capture(input: CaptureInboxItemInput): InboxItem {
+    this.calls += 1;
+    this.captureInput = input;
+    if (this.failure !== null) throw this.failure;
+    return (this.invalidOutput ? { invalid: true } : inboxItem()) as InboxItem;
+  }
+
+  public get(_input: { campaignId: string; id: string }): InboxItem {
+    void _input;
+    return this.output();
+  }
+  public list(_input: InboxPageRequest): { items: InboxItem[]; nextCursor: null; total: number } {
+    void _input;
+    return { items: [this.output()], nextCursor: null, total: 1 };
+  }
+  public beginReview(_input: InboxLifecycleInput): InboxItem {
+    void _input;
+    return this.output();
+  }
+  public dismiss(_input: InboxLifecycleInput): InboxItem {
+    void _input;
+    return this.output();
+  }
+  public archive(_input: InboxLifecycleInput): InboxItem {
+    void _input;
+    return this.output();
+  }
+  public restore(_input: InboxLifecycleInput): InboxItem {
+    void _input;
+    return this.output();
+  }
+  public convertToEntity(input: ConvertInboxItemToEntityInput): unknown {
+    this.convertInput = input;
+    if (this.failure !== null) throw this.failure;
+    return this.invalidOutput ? { invalid: true } : conversionResult();
+  }
+  public convertToRelationship(input: ConvertInboxItemToRelationshipInput): unknown {
+    this.relationshipConvertInput = input;
+    if (this.failure !== null) throw this.failure;
+    return this.invalidOutput ? { invalid: true } : relationshipConversionResult();
+  }
+  public convertToAssertion(input: ConvertInboxItemToAssertionInput): unknown {
+    this.assertionConvertInput = input;
+    if (this.failure !== null) throw this.failure;
+    return this.invalidOutput ? { invalid: true } : assertionConversionResult();
+  }
+  public convertToNote(input: ConvertInboxItemToNoteInput): unknown {
+    this.noteConvertInput = input;
+    if (this.failure !== null) throw this.failure;
+    return this.invalidOutput
+      ? { invalid: true }
+      : {
+          inboxItem: {
+            ...inboxItem(),
+            status: 'converted',
+            convertedObjectType: 'note',
+            convertedObjectId: '91000000-0000-4000-8000-000000000002',
+            revision: 2,
+          },
+          note: {
+            note: {
+              id: '91000000-0000-4000-8000-000000000002',
+              campaignId,
+              title: 'Nota',
+              bodyMarkdown: 'Corpo',
+              noteType: 'general',
+              canonState: 'accepted',
+              knowledgeState: 'fact',
+              visibility: 'gm',
+              originKind: 'manual',
+              sourceId: '91000000-0000-4000-8000-000000000003',
+              createdAt: timestamp,
+              updatedAt: timestamp,
+              archivedAt: null,
+              revision: 1,
+            },
+            links: [],
+          },
+        };
+  }
+  public convertToEvent(input: ConvertInboxItemToEventInput): unknown {
+    this.eventConvertInput = input;
+    if (this.failure !== null) throw this.failure;
+    return this.invalidOutput
+      ? { invalid: true }
+      : {
+          inboxItem: {
+            ...inboxItem(),
+            status: 'converted',
+            convertedObjectType: 'event',
+            convertedObjectId: '91000000-0000-4000-8000-000000000004',
+            revision: 2,
+          },
+          event: {
+            event: {
+              id: '91000000-0000-4000-8000-000000000004',
+              campaignId,
+              sessionId: null,
+              title: 'Evento',
+              descriptionMarkdown: null,
+              eventOrder: 0,
+              occurredAtLabel: null,
+              canonState: 'accepted',
+              knowledgeState: 'fact',
+              visibility: 'gm',
+              originKind: 'manual',
+              sourceId: '91000000-0000-4000-8000-000000000005',
+              createdAt: timestamp,
+              updatedAt: timestamp,
+              archivedAt: null,
+              revision: 1,
+            },
+            links: [],
+          },
+        };
+  }
+
+  private output(): InboxItem {
+    if (this.failure !== null) throw this.failure;
+    return (this.invalidOutput ? { invalid: true } : inboxItem()) as InboxItem;
+  }
+}
+
+function inboxItem(): InboxItem {
+  return {
+    id: inboxItemId,
+    campaignId,
+    sessionId: null,
+    rawText: 'O sino tocou.',
+    status: 'new',
+    originKind: 'manual',
+    capturedAt: timestamp,
+    convertedObjectType: null,
+    convertedObjectId: null,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    revision: 1,
+  };
+}
+
+function conversionInput(): ConvertInboxItemToEntityInput {
+  return {
+    campaignId,
+    id: inboxItemId,
+    revision: 1,
+    destination: {
+      entityTypeId: '60000000-0000-4000-8000-000000000001',
+      name: 'Iara',
+      summary: null,
+      canonState: 'accepted',
+      knowledgeState: 'fact',
+      visibility: 'gm',
+    },
+  };
+}
+
+function conversionResult() {
+  return {
+    inboxItem: {
+      ...inboxItem(),
+      status: 'converted' as const,
+      convertedObjectType: 'entity',
+      convertedObjectId: '90000000-0000-4000-8000-000000000001',
+      revision: 2,
+    },
+    entity: {
+      id: '90000000-0000-4000-8000-000000000001',
+      campaignId,
+      entityTypeId: '60000000-0000-4000-8000-000000000001',
+      name: 'Iara',
+      summary: null,
+      canonState: 'accepted' as const,
+      knowledgeState: 'fact' as const,
+      visibility: 'gm' as const,
+      originKind: 'manual' as const,
+      sourceId: '90000000-0000-4000-8000-000000000002',
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      archivedAt: null,
+      revision: 1,
+    },
+  };
+}
+
+function relationshipConversionInput(): ConvertInboxItemToRelationshipInput {
+  return {
+    campaignId,
+    id: inboxItemId,
+    revision: 1,
+    destination: {
+      relationshipTypeId: '50000000-0000-4000-8000-000000000001',
+      source: { mode: 'existing', entityId: '30000000-0000-4000-8000-000000000001' },
+      target: { mode: 'existing', entityId: '30000000-0000-4000-8000-000000000002' },
+      description: null,
+      strength: null,
+      canonState: 'accepted',
+      knowledgeState: 'fact',
+      visibility: 'gm',
+      validFromEventId: null,
+      validToEventId: null,
+    },
+  };
+}
+
+function relationshipConversionResult() {
+  return {
+    inboxItem: {
+      ...inboxItem(),
+      status: 'converted' as const,
+      convertedObjectType: 'relationship',
+      convertedObjectId: '40000000-0000-4000-8000-000000000001',
+      revision: 2,
+    },
+    relationship: {
+      id: '40000000-0000-4000-8000-000000000001',
+      campaignId,
+      relationshipTypeId: '50000000-0000-4000-8000-000000000001',
+      sourceEntityId: '30000000-0000-4000-8000-000000000001',
+      targetEntityId: '30000000-0000-4000-8000-000000000002',
+      description: null,
+      strength: null,
+      canonState: 'accepted',
+      knowledgeState: 'fact',
+      visibility: 'gm',
+      originKind: 'manual',
+      sourceId: '90000000-0000-4000-8000-000000000002',
+      validFromEventId: null,
+      validToEventId: null,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      archivedAt: null,
+      revision: 1,
+    },
+    createdEntities: [],
+    warnings: [],
+  };
+}
+
+function assertionConversionInput(): ConvertInboxItemToAssertionInput {
+  return {
+    campaignId,
+    id: inboxItemId,
+    revision: 1,
+    destination: {
+      subjectEntityId: '30000000-0000-4000-8000-000000000001',
+      objectEntityId: null,
+      predicate: null,
+      statement: 'O sino tocou.',
+      value: null,
+      canonState: 'accepted',
+      knowledgeState: 'fact',
+      visibility: 'gm',
+    },
+  };
+}
+
+function noteConversionInput(): ConvertInboxItemToNoteInput {
+  return {
+    campaignId,
+    id: inboxItemId,
+    revision: 1,
+    destination: {
+      title: 'Nota',
+      bodyMarkdown: 'Corpo',
+      noteType: 'general',
+      links: [],
+      canonState: 'accepted',
+      knowledgeState: 'fact',
+      visibility: 'gm',
+    },
+  };
+}
+
+function eventConversionInput(): ConvertInboxItemToEventInput {
+  return {
+    campaignId,
+    id: inboxItemId,
+    revision: 1,
+    destination: {
+      title: 'Evento',
+      descriptionMarkdown: null,
+      sessionId: null,
+      eventOrder: 0,
+      occurredAtLabel: null,
+      links: [],
+      canonState: 'accepted',
+      knowledgeState: 'fact',
+      visibility: 'gm',
+    },
+  };
+}
+
+function assertionConversionResult() {
+  return {
+    inboxItem: {
+      ...inboxItem(),
+      status: 'converted' as const,
+      convertedObjectType: 'assertion',
+      convertedObjectId: '91000000-0000-4000-8000-000000000001',
+      revision: 2,
+    },
+    assertion: {
+      id: '91000000-0000-4000-8000-000000000001',
+      campaignId,
+      subjectEntityId: '30000000-0000-4000-8000-000000000001',
+      predicate: null,
+      objectEntityId: null,
+      statement: 'O sino tocou.',
+      value: null,
+      canonState: 'accepted' as const,
+      knowledgeState: 'fact' as const,
+      visibility: 'gm' as const,
+      originKind: 'manual' as const,
+      sourceId: '91000000-0000-4000-8000-000000000002',
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      archivedAt: null,
+      revision: 1,
+    },
+  };
+}
+
+function dependencies(service: FakeInboxService) {
+  return {
+    service,
+    logger: new TestLogger(),
+    authorizedWebContentsId: 42,
+  } as never;
+}
+
+function ipc(handlers: Map<string, CapturedHandler>): IpcMain {
+  return {
+    handle: (channel: string, registered: CapturedHandler) => handlers.set(channel, registered),
+    removeHandler: (channel: string) => handlers.delete(channel),
+  } as unknown as IpcMain;
+}
+
+function event(senderId: number): IpcMainInvokeEvent {
+  const mainFrame = {};
+  return {
+    sender: { id: senderId, mainFrame },
+    senderFrame: mainFrame,
+  } as unknown as IpcMainInvokeEvent;
+}
+
+function handler(handlers: Map<string, CapturedHandler>): CapturedHandler {
+  const registered = handlers.get(inboxChannels.capture);
+  if (registered === undefined) throw new Error('Handler de captura não registrado.');
+  return registered;
+}

@@ -1,0 +1,172 @@
+import { describe, expect, it } from 'vitest';
+import { inboxChannels } from '../../src/core/contracts/ipc-channels';
+import {
+  createCampaignManagerGateway,
+  type IpcInvoker,
+} from '../../src/preload/gateways/campaign-manager-gateway';
+
+const campaignId = '00000000-0000-4000-8000-000000000001';
+const sessionId = '70000000-0000-4000-8000-000000000001';
+const inboxItemId = '80000000-0000-4000-8000-000000000001';
+
+describe('gateway do preload da captura rápida', () => {
+  it('expõe apenas a captura e encaminha entrada validada pelo canal aprovado', async () => {
+    const invocations: Invocation[] = [];
+    const gateway = createCampaignManagerGateway(invoker(invocations));
+    expect(Object.keys(gateway.inbox)).toEqual([
+      'capture',
+      'get',
+      'list',
+      'beginReview',
+      'dismiss',
+      'archive',
+      'restore',
+      'convertToEntity',
+      'convertToAssertion',
+      'convertToNote',
+      'convertToEvent',
+      'convertToRelationship',
+    ]);
+    expect('ipcRenderer' in gateway).toBe(false);
+    expect('invoke' in gateway).toBe(false);
+
+    await gateway.inbox.capture({ campaignId, sessionId, rawText: '  O sino tocou.  ' });
+
+    expect(invocations).toEqual([
+      {
+        channel: inboxChannels.capture,
+        input: { campaignId, sessionId, rawText: '  O sino tocou.  ' },
+      },
+    ]);
+  });
+
+  it('rejeita entrada inválida antes de invocar IPC', () => {
+    const invocations: Invocation[] = [];
+    const gateway = createCampaignManagerGateway(invoker(invocations));
+    expect(() => gateway.inbox.capture({ campaignId, rawText: ' ' })).toThrow();
+    expect(() =>
+      gateway.inbox.capture({ campaignId, sessionId: 'sessão-inválida', rawText: 'Válido' }),
+    ).toThrow();
+    expect(invocations).toHaveLength(0);
+  });
+});
+
+describe('operações de triagem no preload', () => {
+  it('encaminha os seis métodos nos canais aprovados e valida schemas', async () => {
+    const invocations: Invocation[] = [];
+    const gateway = createCampaignManagerGateway(invoker(invocations));
+    const lifecycle = { campaignId, id: inboxItemId, revision: 1 };
+    await gateway.inbox.get({ campaignId, id: inboxItemId });
+    await gateway.inbox.list({ campaignId, filters: {} });
+    await gateway.inbox.beginReview(lifecycle);
+    await gateway.inbox.dismiss(lifecycle);
+    await gateway.inbox.archive(lifecycle);
+    await gateway.inbox.restore(lifecycle);
+    await gateway.inbox.convertToRelationship({
+      campaignId,
+      id: inboxItemId,
+      revision: 1,
+      destination: {
+        relationshipTypeId: '50000000-0000-4000-8000-000000000001',
+        source: { mode: 'existing', entityId: '30000000-0000-4000-8000-000000000001' },
+        target: { mode: 'existing', entityId: '30000000-0000-4000-8000-000000000002' },
+      },
+    });
+    await gateway.inbox.convertToAssertion({
+      campaignId,
+      id: inboxItemId,
+      revision: 1,
+      destination: {
+        subjectEntityId: '30000000-0000-4000-8000-000000000001',
+        objectEntityId: null,
+        predicate: null,
+        statement: 'O sino tocou.',
+        value: null,
+        canonState: 'accepted',
+        knowledgeState: 'fact',
+        visibility: 'gm',
+      },
+    });
+    await gateway.inbox.convertToNote({
+      campaignId,
+      id: inboxItemId,
+      revision: 1,
+      destination: {
+        title: 'Nota',
+        bodyMarkdown: 'Corpo',
+        noteType: 'general',
+        links: [],
+        canonState: 'accepted',
+        knowledgeState: 'fact',
+        visibility: 'gm',
+      },
+    });
+    await gateway.inbox.convertToEvent({
+      campaignId,
+      id: inboxItemId,
+      revision: 1,
+      destination: {
+        title: 'Evento',
+        descriptionMarkdown: null,
+        sessionId: null,
+        eventOrder: 0,
+        occurredAtLabel: null,
+        links: [],
+        canonState: 'accepted',
+        knowledgeState: 'fact',
+        visibility: 'gm',
+      },
+    });
+    expect(invocations.map((value) => value.channel)).toEqual([
+      inboxChannels.get,
+      inboxChannels.list,
+      inboxChannels.beginReview,
+      inboxChannels.dismiss,
+      inboxChannels.archive,
+      inboxChannels.restore,
+      inboxChannels.convertToRelationship,
+      inboxChannels.convertToAssertion,
+      inboxChannels.convertToNote,
+      inboxChannels.convertToEvent,
+    ]);
+    expect(() => gateway.inbox.archive({ campaignId, id: inboxItemId, revision: 0 })).toThrow();
+    expect(() => gateway.inbox.list({ campaignId, filters: {}, extra: true } as never)).toThrow();
+    expect(() =>
+      gateway.inbox.convertToEntity({
+        campaignId,
+        id: inboxItemId,
+        revision: 1,
+        destination: { entityTypeId: 'invalid', name: 'X', summary: null },
+      }),
+    ).toThrow();
+    expect(() =>
+      gateway.inbox.convertToAssertion({
+        campaignId,
+        id: inboxItemId,
+        revision: 1,
+        destination: {
+          subjectEntityId: 'invalid',
+          objectEntityId: null,
+          predicate: null,
+          statement: null,
+          value: null,
+          canonState: 'accepted',
+          knowledgeState: 'fact',
+          visibility: 'gm',
+        },
+      }),
+    ).toThrow();
+  });
+});
+
+interface Invocation {
+  channel: string;
+  input: unknown;
+}
+
+function invoker(invocations: Invocation[]): IpcInvoker {
+  return (channel, input) => {
+    invocations.push({ channel, input });
+    return Promise.resolve({ ok: true, data: null, requestId: 'test-request' });
+  };
+}

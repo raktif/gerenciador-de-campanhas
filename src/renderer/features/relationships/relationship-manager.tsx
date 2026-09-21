@@ -35,11 +35,13 @@ export function RelationshipManager({
   const [form, setForm] = useState<FormState>(emptyForm);
   const [editing, setEditing] = useState<Relationship | null>(null);
   const [showArchived, setShowArchived] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (): Promise<void> => {
+    setLoading(true);
     setError(null);
     try {
       const [relations, activeTypes, archivedTypes, activeEntities, archivedEntities] =
@@ -92,6 +94,8 @@ export function RelationshipManager({
       setError(
         loadError instanceof Error ? loadError.message : 'Não foi possível carregar as relações.',
       );
+    } finally {
+      setLoading(false);
     }
   }, [campaign.id, showArchived]);
   useEffect(() => {
@@ -110,38 +114,51 @@ export function RelationshipManager({
       description: form.description.trim() || null,
       strength: form.strength === '' ? null : Number(form.strength),
     };
-    const result =
-      editing === null
-        ? await window.campaignManager.relationships.create({ campaignId: campaign.id, ...values })
-        : await window.campaignManager.relationships.update({
-            campaignId: campaign.id,
-            id: editing.id,
-            revision: editing.revision,
-            patch: values,
-          });
-    if (!result.ok) setError(result.error.message);
-    else {
-      setAnnouncement(
-        result.data.warnings[0]?.message ??
-          (editing === null ? 'Relação criada.' : 'Relação atualizada.'),
-      );
-      setEditing(null);
-      setForm(emptyForm);
-      await load();
+    try {
+      const result =
+        editing === null
+          ? await window.campaignManager.relationships.create({
+              campaignId: campaign.id,
+              ...values,
+            })
+          : await window.campaignManager.relationships.update({
+              campaignId: campaign.id,
+              id: editing.id,
+              revision: editing.revision,
+              patch: values,
+            });
+      if (!result.ok) setError(result.error.message);
+      else {
+        setAnnouncement(
+          result.data.warnings[0]?.message ??
+            (editing === null ? 'Relação criada.' : 'Relação atualizada.'),
+        );
+        setEditing(null);
+        setForm(emptyForm);
+        await load();
+      }
+    } catch {
+      setError('Não foi possível concluir a operação. Revise os dados e tente novamente.');
+    } finally {
+      setBusy(false);
     }
-    setBusy(false);
   }
   async function lifecycle(item: Relationship): Promise<void> {
     setBusy(true);
     setError(null);
     const input = { campaignId: campaign.id, id: item.id, revision: item.revision };
-    const result =
-      item.archivedAt === null
-        ? await window.campaignManager.relationships.archive(input)
-        : await window.campaignManager.relationships.restore(input);
-    if (!result.ok) setError(result.error.message);
-    else await load();
-    setBusy(false);
+    try {
+      const result =
+        item.archivedAt === null
+          ? await window.campaignManager.relationships.archive(input)
+          : await window.campaignManager.relationships.restore(input);
+      if (!result.ok) setError(result.error.message);
+      else await load();
+    } catch {
+      setError('Não foi possível concluir a operação. Revise os dados e tente novamente.');
+    } finally {
+      setBusy(false);
+    }
   }
   function beginEdit(item: Relationship): void {
     setEditing(item);
@@ -165,7 +182,7 @@ export function RelationshipManager({
   const activeTypes = types.filter((item) => !item.isArchived);
   const activeEntities = entities.filter((item) => item.archivedAt === null);
   return (
-    <section aria-labelledby="relationships-title">
+    <section aria-busy={loading || busy} aria-labelledby="relationships-title">
       <button className={backClass} onClick={onBack} type="button">
         ← Voltar para detalhes da campanha
       </button>
@@ -180,8 +197,14 @@ export function RelationshipManager({
           Conecte os elementos do mundo usando os tipos de relação da campanha.
         </p>
       </header>
-      <RelationshipNeighborhood campaign={campaign} entities={entities} types={types} />
-      {!showArchived && activeTypes.length > 0 && activeEntities.length > 0 ? (
+      {loading ? (
+        <p aria-live="polite" className="mt-6 text-sm text-slate-600" role="status">
+          Carregando relações…
+        </p>
+      ) : (
+        <RelationshipNeighborhood campaign={campaign} entities={entities} types={types} />
+      )}
+      {!loading && !showArchived && activeTypes.length > 0 && activeEntities.length > 0 ? (
         <form
           className="mt-6 grid gap-4 rounded-2xl border border-stone-200 bg-white p-6 md:grid-cols-2"
           onSubmit={(event) => void save(event)}
@@ -194,6 +217,7 @@ export function RelationshipManager({
             value={form.relationshipTypeId}
             options={activeTypes.map((item) => ({ id: item.id, label: item.name }))}
             onChange={(value) => setForm({ ...form, relationshipTypeId: value })}
+            disabled={busy}
           />
           <span />
           <Select
@@ -201,17 +225,20 @@ export function RelationshipManager({
             value={form.sourceEntityId}
             options={activeEntities.map((item) => ({ id: item.id, label: item.name }))}
             onChange={(value) => setForm({ ...form, sourceEntityId: value })}
+            disabled={busy}
           />
           <Select
             label="Destino"
             value={form.targetEntityId}
             options={activeEntities.map((item) => ({ id: item.id, label: item.name }))}
             onChange={(value) => setForm({ ...form, targetEntityId: value })}
+            disabled={busy}
           />
           <label className={labelClass}>
             Descrição
             <input
               className={inputClass}
+              disabled={busy}
               value={form.description}
               onChange={(event) => setForm({ ...form, description: event.target.value })}
             />
@@ -220,6 +247,7 @@ export function RelationshipManager({
             Intensidade
             <input
               className={inputClass}
+              disabled={busy}
               type="number"
               step="any"
               value={form.strength}
@@ -246,10 +274,18 @@ export function RelationshipManager({
         </form>
       ) : null}
       <div className="mt-6 flex gap-2">
-        <Filter active={!showArchived} onClick={() => setShowArchived(false)}>
+        <Filter
+          active={!showArchived}
+          disabled={busy || loading}
+          onClick={() => setShowArchived(false)}
+        >
           Ativas
         </Filter>
-        <Filter active={showArchived} onClick={() => setShowArchived(true)}>
+        <Filter
+          active={showArchived}
+          disabled={busy || loading}
+          onClick={() => setShowArchived(true)}
+        >
           Arquivadas
         </Filter>
       </div>
@@ -262,38 +298,62 @@ export function RelationshipManager({
         </p>
       )}
       {error === null ? null : (
-        <p
+        <div
           className="mt-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800"
           role="alert"
         >
-          {error}
-        </p>
+          <p>{error}</p>
+          <button
+            className="mt-3 text-sm font-semibold underline"
+            disabled={busy || loading}
+            onClick={() => void load()}
+            type="button"
+          >
+            Tentar novamente
+          </button>
+        </div>
       )}
-      <div className="mt-6 grid gap-4" data-testid="relationship-list">
-        {relationships.map((item) => (
-          <article className="rounded-2xl border border-stone-200 bg-white p-6" key={item.id}>
-            <h2 className="text-lg font-semibold">{relationshipLabel(item)}</h2>
-            {item.description === null ? null : (
-              <p className="mt-2 text-slate-600">{item.description}</p>
-            )}
-            <div className="mt-4 flex justify-end gap-3">
-              {item.archivedAt === null ? (
-                <button className={secondaryClass} onClick={() => beginEdit(item)} type="button">
-                  Editar
+      {loading || error !== null ? null : relationships.length === 0 ? (
+        <div className="mt-6 rounded-2xl border border-dashed border-stone-300 bg-white p-12 text-center">
+          <h2 className="text-xl font-semibold">Nenhuma relação encontrada</h2>
+          <p className="mt-2 text-slate-600">
+            {showArchived
+              ? 'Relações arquivadas aparecerão aqui.'
+              : 'Crie tipos e entidades para registrar a primeira conexão.'}
+          </p>
+        </div>
+      ) : (
+        <div className="mt-6 grid gap-4" data-testid="relationship-list">
+          {relationships.map((item) => (
+            <article className="rounded-2xl border border-stone-200 bg-white p-6" key={item.id}>
+              <h2 className="text-lg font-semibold">{relationshipLabel(item)}</h2>
+              {item.description === null ? null : (
+                <p className="mt-2 text-slate-600">{item.description}</p>
+              )}
+              <div className="mt-4 flex justify-end gap-3">
+                {item.archivedAt === null ? (
+                  <button
+                    className={secondaryClass}
+                    disabled={busy}
+                    onClick={() => beginEdit(item)}
+                    type="button"
+                  >
+                    Editar
+                  </button>
+                ) : null}
+                <button
+                  className={secondaryClass}
+                  disabled={busy}
+                  onClick={() => void lifecycle(item)}
+                  type="button"
+                >
+                  {item.archivedAt === null ? 'Arquivar' : 'Restaurar'}
                 </button>
-              ) : null}
-              <button
-                className={secondaryClass}
-                disabled={busy}
-                onClick={() => void lifecycle(item)}
-                type="button"
-              >
-                {item.archivedAt === null ? 'Arquivar' : 'Restaurar'}
-              </button>
-            </div>
-          </article>
-        ))}
-      </div>
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
     </section>
   );
 }
@@ -313,11 +373,13 @@ export async function collectPages<T>(
 }
 
 function Select({
+  disabled,
   label,
   value,
   options,
   onChange,
 }: {
+  disabled: boolean;
   label: string;
   value: string;
   options: { id: string; label: string }[];
@@ -328,6 +390,7 @@ function Select({
       {label} *
       <select
         className={inputClass}
+        disabled={disabled}
         required
         value={value}
         onChange={(event) => onChange(event.target.value)}
@@ -344,10 +407,12 @@ function Select({
 }
 function Filter({
   active,
+  disabled,
   onClick,
   children,
 }: {
   active: boolean;
+  disabled: boolean;
   onClick: () => void;
   children: React.ReactNode;
 }): React.JSX.Element {
@@ -355,6 +420,7 @@ function Filter({
     <button
       aria-pressed={active}
       className={`rounded-full px-4 py-2 text-sm font-semibold ${active ? 'bg-slate-900 text-white' : 'border border-stone-300 bg-white text-slate-600'}`}
+      disabled={disabled}
       onClick={onClick}
       type="button"
     >

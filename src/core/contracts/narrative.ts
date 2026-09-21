@@ -90,11 +90,26 @@ export const sourceSchema = z
     aiRunId: identifierSchema.nullable(),
     importBatchId: identifierSchema.nullable(),
     rulesetPackId: identifierSchema.nullable(),
+    inboxItemId: identifierSchema.nullable(),
     description: z.string().trim().min(1).max(2000).nullable(),
     createdAt: timestampSchema,
   })
   .strict()
   .superRefine((source, context) => {
+    if (source.inboxItemId !== null) {
+      if (source.kind !== 'manual' && source.kind !== 'session')
+        context.addIssue({
+          code: 'custom',
+          message: 'Uma captura só pode preservar origem manual ou de sessão.',
+          path: ['inboxItemId'],
+        });
+      if (source.description === null)
+        context.addIssue({
+          code: 'custom',
+          message: 'A fonte de captura deve preservar o texto original.',
+          path: ['description'],
+        });
+    }
     const references = {
       session: source.sessionId,
       document: source.documentChunkId,

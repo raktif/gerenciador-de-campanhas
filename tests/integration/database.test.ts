@@ -4,19 +4,30 @@ import os from 'node:os';
 import path from 'node:path';
 import Database from 'better-sqlite3';
 import { afterEach, describe, expect, it } from 'vitest';
-import { ensureDataDirectories, getDataDirectories } from '../../src/core/storage/data-directories';
-import { openApplicationDatabase } from '../../src/db/connection';
+import {
+  ensureDataDirectories,
+  getDataDirectories,
+  type DataDirectories,
+} from '../../src/core/storage/data-directories';
+import { openApplicationDatabase, type DatabaseContext } from '../../src/db/connection';
 import { migrations } from '../../src/db/migrations/registry';
 import { PhaseZeroRepository } from '../../src/db/repositories/phase-zero-repository';
 import { TestLogger } from '../helpers/test-logger';
 
 const temporaryRoots: string[] = [];
+const contexts: DatabaseContext[] = [];
+const latestSchemaVersion = migrations.at(-1)?.version;
+
+if (latestSchemaVersion === undefined) throw new Error('Registro de migrações vazio.');
 
 afterEach(async () => {
+  for (const context of contexts.splice(0)) if (context.native.open) context.close();
   await Promise.all(
     temporaryRoots
       .splice(0)
-      .map((temporaryRoot) => rm(temporaryRoot, { recursive: true, force: true })),
+      .map((temporaryRoot) =>
+        rm(temporaryRoot, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 }),
+      ),
   );
 });
 
@@ -25,9 +36,9 @@ describe('SQLite embutido', () => {
     const root = await createTemporaryRoot();
     const directories = getDataDirectories(root);
     await ensureDataDirectories(directories);
-    const context = await openApplicationDatabase(directories, new TestLogger());
+    const context = await openTestDatabase(directories);
 
-    expect(context.schemaVersion).toBe(8);
+    expect(context.schemaVersion).toBe(latestSchemaVersion);
     expect(context.sqliteVersion).toMatch(/^3\./);
     expect(context.fts5Available).toBe(true);
     expect(context.native.pragma('foreign_keys', { simple: true })).toBe(1);
@@ -49,12 +60,12 @@ describe('SQLite embutido', () => {
     const root = await createTemporaryRoot();
     const directories = getDataDirectories(root);
     await ensureDataDirectories(directories);
-    const firstContext = await openApplicationDatabase(directories, new TestLogger());
+    const firstContext = await openTestDatabase(directories);
     const expected = { value: 'persistente', savedAt: new Date().toISOString() };
     new PhaseZeroRepository(firstContext.orm).write(expected);
     firstContext.close();
 
-    const secondContext = await openApplicationDatabase(directories, new TestLogger());
+    const secondContext = await openTestDatabase(directories);
     expect(new PhaseZeroRepository(secondContext.orm).read()).toEqual(expected);
     secondContext.close();
   });
@@ -86,8 +97,8 @@ describe('SQLite embutido', () => {
       .run(campaignId, 'Campanha preservada', timestamp(), timestamp());
     legacyDatabase.close();
 
-    const context = await openApplicationDatabase(directories, new TestLogger());
-    expect(context.schemaVersion).toBe(8);
+    const context = await openTestDatabase(directories);
+    expect(context.schemaVersion).toBe(latestSchemaVersion);
     expect(
       context.native.prepare('SELECT name FROM campaigns WHERE id = ?').get(campaignId),
     ).toEqual({ name: 'Campanha preservada' });
@@ -105,7 +116,7 @@ describe('SQLite embutido', () => {
     const root = await createTemporaryRoot();
     const directories = getDataDirectories(root);
     await ensureDataDirectories(directories);
-    const firstContext = await openApplicationDatabase(directories, new TestLogger());
+    const firstContext = await openTestDatabase(directories);
     const id = randomUUID();
     const timestamp = new Date().toISOString();
 
@@ -117,7 +128,7 @@ describe('SQLite embutido', () => {
       .run(id, 'Ethéria', timestamp, timestamp);
     firstContext.close();
 
-    const secondContext = await openApplicationDatabase(directories, new TestLogger());
+    const secondContext = await openTestDatabase(directories);
     const campaign = secondContext.native
       .prepare(
         `SELECT id, name, system_name, concept, genre, tone, summary, image_path,
@@ -148,7 +159,7 @@ describe('SQLite embutido', () => {
     const root = await createTemporaryRoot();
     const directories = getDataDirectories(root);
     await ensureDataDirectories(directories);
-    const context = await openApplicationDatabase(directories, new TestLogger());
+    const context = await openTestDatabase(directories);
     const insert = context.native.prepare(
       `INSERT INTO campaigns (id, name, status, created_at, updated_at, revision)
        VALUES (?, ?, ?, ?, ?, ?)`,
@@ -175,7 +186,7 @@ describe('SQLite embutido', () => {
     legacyDatabase.prepare('INSERT INTO legacy_data (value) VALUES (?)').run('preservado');
     legacyDatabase.close();
 
-    const context = await openApplicationDatabase(directories, new TestLogger());
+    const context = await openTestDatabase(directories);
     context.close();
     const backupFiles = (await readdir(directories.automaticBackups)).filter((name) =>
       name.endsWith('.db'),
@@ -198,6 +209,12 @@ async function createTemporaryRoot(): Promise<string> {
   const root = await mkdtemp(path.join(os.tmpdir(), 'rpg-campaign-manager-test-'));
   temporaryRoots.push(root);
   return root;
+}
+
+async function openTestDatabase(directories: DataDirectories): Promise<DatabaseContext> {
+  const context = await openApplicationDatabase(directories, new TestLogger());
+  contexts.push(context);
+  return context;
 }
 
 function timestamp(): string {

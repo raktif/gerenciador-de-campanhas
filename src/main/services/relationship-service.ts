@@ -226,7 +226,7 @@ export class RelationshipService {
     );
   }
 
-  private validateAndNormalize(
+  public validateAndNormalize(
     campaignId: string,
     value: Pick<
       Relationship,
@@ -243,6 +243,8 @@ export class RelationshipService {
       | 'validFromEventId'
       | 'validToEventId'
     >,
+    sourceOverride?: Entity,
+    targetOverride?: Entity,
   ) {
     const type = this.requireRelationshipType(campaignId, value.relationshipTypeId);
     if (type.isArchived)
@@ -251,8 +253,15 @@ export class RelationshipService {
         'Não é possível usar um tipo de relação arquivado.',
         { id: type.id },
       );
-    let source = this.requireActiveEntity(campaignId, value.sourceEntityId);
-    let target = this.requireActiveEntity(campaignId, value.targetEntityId);
+    let source = sourceOverride ?? this.requireActiveEntity(campaignId, value.sourceEntityId);
+    let target = targetOverride ?? this.requireActiveEntity(campaignId, value.targetEntityId);
+    if (source.campaignId !== campaignId || target.campaignId !== campaignId)
+      throw new AppError('ENTITY_NOT_FOUND', 'A entidade nÃ£o foi encontrada nesta campanha.');
+    if (source.archivedAt !== null || target.archivedAt !== null)
+      throw new AppError(
+        'INVALID_ENTITY_STATE',
+        'NÃ£o Ã© possÃ­vel relacionar uma entidade arquivada.',
+      );
     if (type.isSymmetric && source.id.localeCompare(target.id) > 0)
       [source, target] = [target, source];
     this.requireAllowed(type.allowedSourceTypeIds, source, 'origem');
@@ -283,7 +292,7 @@ export class RelationshipService {
         { entityId: entity.id, entityTypeId: entity.entityTypeId, role },
       );
   }
-  private duplicateWarnings(value: Relationship, exceptId?: string) {
+  public duplicateWarnings(value: Relationship, exceptId?: string) {
     const duplicates = this.dependencies.repository.findActiveEquivalent(
       value.campaignId,
       value.relationshipTypeId,

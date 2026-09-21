@@ -79,6 +79,21 @@ export const noteChannels = {
   restore: 'notes:restore',
 } as const;
 
+export const inboxChannels = {
+  capture: 'inbox:capture',
+  get: 'inbox:get',
+  list: 'inbox:list',
+  beginReview: 'inbox:begin-review',
+  dismiss: 'inbox:dismiss',
+  archive: 'inbox:archive',
+  restore: 'inbox:restore',
+  convertToEntity: 'inbox:convert-to-entity',
+  convertToRelationship: 'inbox:convert-to-relationship',
+  convertToAssertion: 'inbox:convert-to-assertion',
+  convertToNote: 'inbox:convert-to-note',
+  convertToEvent: 'inbox:convert-to-event',
+} as const;
+
 export const eventChannels = {
   create: 'events:create',
   get: 'events:get',

@@ -368,6 +368,7 @@ export const sources = sqliteTable(
     aiRunId: text('ai_run_id'),
     importBatchId: text('import_batch_id'),
     rulesetPackId: text('ruleset_pack_id'),
+    inboxItemId: text('inbox_item_id'),
     description: text('description'),
     createdAt: text('created_at').notNull(),
   },
@@ -379,7 +380,8 @@ export const sources = sqliteTable(
     ),
     uniqueIndex('sources_session_unique')
       .on(table.sessionId)
-      .where(sql`${table.kind} = 'session'`),
+      .where(sql`${table.kind} = 'session' AND ${table.inboxItemId} IS NULL`),
+    uniqueIndex('sources_inbox_item_unique').on(table.inboxItemId),
   ],
 );
 
@@ -718,3 +720,46 @@ export const inboxItems = sqliteTable(
     ),
   ],
 );
+
+export const inboxEntityConversions = sqliteTable(
+  'inbox_entity_conversions',
+  {
+    inboxItemId: text('inbox_item_id').primaryKey(),
+    entityId: text('entity_id').notNull(),
+    sourceId: text('source_id').notNull(),
+    createdAt: text('created_at').notNull(),
+  },
+  (table) => [uniqueIndex('inbox_entity_conversions_entity_unique').on(table.entityId)],
+);
+
+export const inboxRelationshipConversions = sqliteTable(
+  'inbox_relationship_conversions',
+  {
+    inboxItemId: text('inbox_item_id').primaryKey(),
+    relationshipId: text('relationship_id').notNull().unique(),
+    sourceId: text('source_id').notNull().unique(),
+    createdAt: text('created_at').notNull(),
+  },
+  (table) => [
+    uniqueIndex('inbox_relationship_conversions_relationship_unique').on(table.relationshipId),
+  ],
+);
+
+export const inboxAssertionConversions = sqliteTable('inbox_assertion_conversions', {
+  inboxItemId: text('inbox_item_id').primaryKey(),
+  assertionId: text('assertion_id').notNull().unique(),
+  sourceId: text('source_id').notNull().unique(),
+  createdAt: text('created_at').notNull(),
+});
+export const inboxNoteConversions = sqliteTable('inbox_note_conversions', {
+  inboxItemId: text('inbox_item_id').primaryKey(),
+  noteId: text('note_id').notNull().unique(),
+  sourceId: text('source_id').notNull().unique(),
+  createdAt: text('created_at').notNull(),
+});
+export const inboxEventConversions = sqliteTable('inbox_event_conversions', {
+  inboxItemId: text('inbox_item_id').primaryKey(),
+  eventId: text('event_id').notNull().unique(),
+  sourceId: text('source_id').notNull().unique(),
+  createdAt: text('created_at').notNull(),
+});

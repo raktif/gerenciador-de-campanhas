@@ -23,6 +23,7 @@ describe('gateway do preload', () => {
       'entityTypes',
       'events',
       'fieldDefinitions',
+      'inbox',
       'notes',
       'phaseZero',
       'relationshipTypes',
