@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   campaignChannels,
+  diagnosticsChannels,
   entityChannels,
   entityTypeChannels,
   fieldDefinitionChannels,
@@ -19,6 +20,7 @@ describe('gateway do preload', () => {
     expect(Object.keys(gateway).sort()).toEqual([
       'assertions',
       'campaigns',
+      'diagnostics',
       'entities',
       'entityTypes',
       'events',
@@ -344,6 +346,38 @@ describe('gateway do preload', () => {
     expect(() => gateway.campaigns.create({ name: '   ' })).toThrow();
     expect(() => gateway.entityTypes.list({ campaignId: 'campanha-inválida' })).toThrow();
     expect(invocations).toHaveLength(0);
+  });
+
+  it('expõe somente a cópia de diagnóstico de inicialização validada', async () => {
+    const invocations: Invocation[] = [];
+    const gateway = createCampaignManagerGateway(createInvoker(invocations));
+
+    await gateway.diagnostics.copyStartupDiagnostic({
+      version: 1,
+      screen: 'campaigns',
+      operation: 'campaigns.list',
+      code: 'DATABASE_UNAVAILABLE',
+    });
+
+    expect(invocations).toEqual([
+      {
+        channel: diagnosticsChannels.copyStartupDiagnostic,
+        input: {
+          version: 1,
+          screen: 'campaigns',
+          operation: 'campaigns.list',
+          code: 'DATABASE_UNAVAILABLE',
+        },
+      },
+    ]);
+    expect(() =>
+      gateway.diagnostics.copyStartupDiagnostic({
+        version: 1,
+        screen: 'campaigns',
+        operation: 'campaigns.list',
+        code: 'INVALID\\PATH',
+      }),
+    ).toThrow();
   });
 
   it('normaliza a consulta de vizinhança antes de invocar o IPC', async () => {

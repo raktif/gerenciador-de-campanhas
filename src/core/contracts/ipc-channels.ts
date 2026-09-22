@@ -5,6 +5,10 @@ export const phaseZeroChannels = {
   openDataDirectory: 'storage:open-data-directory',
 } as const;
 
+export const diagnosticsChannels = {
+  copyStartupDiagnostic: 'diagnostics:copy-startup',
+} as const;
+
 export const campaignChannels = {
   create: 'campaigns:create',
   get: 'campaigns:get',

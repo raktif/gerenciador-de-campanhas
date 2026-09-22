@@ -1,4 +1,6 @@
-import { app, dialog, ipcMain, shell, type BrowserWindow } from 'electron';
+import { app, clipboard, dialog, ipcMain, shell, type BrowserWindow } from 'electron';
+import type { CampaignPageRequest, CampaignPageResult } from '../../core/contracts/campaigns';
+import { AppError } from '../../core/errors/app-error';
 import { readEnvironment, resolveDataRoot } from '../../core/config/environment';
 import { FileLogger } from '../../core/logging/logger';
 import { ensureDataDirectories, getDataDirectories } from '../../core/storage/data-directories';
@@ -18,6 +20,7 @@ import { TimelineRepository } from '../../db/repositories/timeline-repository';
 import { SessionIntentionRepository } from '../../db/repositories/session-intention-repository';
 import { SessionRepository } from '../../db/repositories/session-repository';
 import { registerCampaignIpcHandlers } from '../ipc/campaign-handlers';
+import { registerDiagnosticsIpcHandlers } from '../ipc/diagnostics-handlers';
 import { registerAssertionIpcHandlers } from '../ipc/assertion-handlers';
 import { registerEntityIpcHandlers } from '../ipc/entity-handlers';
 import { registerEntityTypeIpcHandlers } from '../ipc/entity-type-handlers';
@@ -31,6 +34,7 @@ import { registerRelationshipIpcHandlers } from '../ipc/relationship-handlers';
 import { registerSessionIpcHandlers } from '../ipc/session-handlers';
 import { registerTimelineIpcHandlers } from '../ipc/timeline-handlers';
 import { CampaignService } from '../services/campaign-service';
+import { StartupDiagnosticsService } from '../services/startup-diagnostics-service';
 import { AssertionService } from '../services/assertion-service';
 import { EntityService } from '../services/entity-service';
 import { EntityTypeService } from '../services/entity-type-service';
@@ -99,9 +103,17 @@ export async function bootstrapApplication(): Promise<RunningApplication> {
     logger,
     authorizedWebContentsId: window.webContents.id,
   });
-  const campaignService = new CampaignService({ repository: campaignRepository });
+  const campaignService = createCampaignService(campaignRepository);
   const unregisterCampaignIpc = registerCampaignIpcHandlers(ipcMain, {
     service: campaignService,
+    logger,
+    authorizedWebContentsId: window.webContents.id,
+  });
+  const startupDiagnosticsService = new StartupDiagnosticsService((text) =>
+    clipboard.writeText(text),
+  );
+  const unregisterDiagnosticsIpc = registerDiagnosticsIpcHandlers(ipcMain, {
+    service: startupDiagnosticsService,
     logger,
     authorizedWebContentsId: window.webContents.id,
   });
@@ -244,6 +256,7 @@ export async function bootstrapApplication(): Promise<RunningApplication> {
       disposed = true;
       unregisterIpc();
       unregisterCampaignIpc();
+      unregisterDiagnosticsIpc();
       unregisterEntityTypeIpc();
       unregisterFieldDefinitionIpc();
       unregisterEntityIpc();
@@ -266,4 +279,25 @@ export function showBootstrapError(error: unknown): void {
     'Não foi possível iniciar o Gerenciador de Campanhas de RPG',
     `${message}\n\nNenhum dado foi removido. Consulte a pasta de logs para diagnóstico.`,
   );
+}
+
+function createCampaignService(repository: CampaignRepository): CampaignService {
+  if (
+    process.env.NODE_ENV === 'test' &&
+    process.env.CAMPAIGN_MANAGER_TEST_FAIL_INITIAL_CAMPAIGN_LIST === '1'
+  )
+    return new InitialCampaignListFailureService({ repository });
+  return new CampaignService({ repository });
+}
+
+class InitialCampaignListFailureService extends CampaignService {
+  private shouldFail = true;
+
+  public override list(input: CampaignPageRequest): CampaignPageResult {
+    if (this.shouldFail) {
+      this.shouldFail = false;
+      throw new AppError('DATABASE_UNAVAILABLE', 'Falha de teste na leitura de campanhas.');
+    }
+    return super.list(input);
+  }
 }

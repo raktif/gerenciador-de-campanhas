@@ -55,6 +55,10 @@ import {
 } from '../../core/contracts/inbox';
 import type { CampaignManagerGateway } from '../../core/contracts/gateway';
 import {
+  copyStartupDiagnosticInputSchema,
+  type CopiedStartupDiagnostic,
+} from '../../core/contracts/diagnostics';
+import {
   createNoteInputSchema,
   getNoteInputSchema,
   noteLifecycleInputSchema,
@@ -105,6 +109,7 @@ import {
 import {
   assertionChannels,
   campaignChannels,
+  diagnosticsChannels,
   entityChannels,
   entityTypeChannels,
   eventChannels,
@@ -164,6 +169,14 @@ export function createCampaignManagerGateway(invokeIpc: IpcInvoker): CampaignMan
   };
 
   return {
+    diagnostics: {
+      copyStartupDiagnostic: (input) =>
+        invoke<CopiedStartupDiagnostic>(
+          diagnosticsChannels.copyStartupDiagnostic,
+          input,
+          copyStartupDiagnosticInputSchema,
+        ),
+    },
     phaseZero: {
       getStatus: (input = {}) =>
         invoke<ApplicationStatus>(phaseZeroChannels.getStatus, input, emptyInputSchema),

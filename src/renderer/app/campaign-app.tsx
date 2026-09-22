@@ -1,6 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Campaign, CampaignPatch, CreateCampaignInput } from '../../core/contracts/campaigns';
 import type { Entity } from '../../core/contracts/entities';
+import {
+  beginCampaignLoad,
+  createCampaignStartupFailure,
+  initialCampaignLoadState,
+  invalidateCampaignLoad,
+  resolveCampaignLoad,
+  type CampaignLoadPhase,
+  type CampaignLoadState,
+  type CampaignStartupFailure,
+} from './campaign-startup';
 import { AssertionManager, type NarrativeContext } from '../features/assertions/assertion-manager';
 import { CampaignForm } from '../features/campaigns/campaign-form';
 import { CampaignList } from '../features/campaigns/campaign-list';
@@ -35,8 +45,8 @@ export function CampaignApp(): React.JSX.Element {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [statusFilter, setStatusFilter] = useState<CampaignStatus>('active');
   const [screen, setScreen] = useState<Screen>('campaigns');
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [campaignLoadState, setCampaignLoadState] =
+    useState<CampaignLoadState>(initialCampaignLoadState);
   const [formError, setFormError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
@@ -44,6 +54,14 @@ export function CampaignApp(): React.JSX.Element {
   const [narrativeContext, setNarrativeContext] = useState<NarrativeContext | undefined>();
   const [timelineEntity, setTimelineEntity] = useState<Entity | undefined>();
   const contentRef = useRef<HTMLElement>(null);
+  const campaignLoadStateRef = useRef<CampaignLoadState>(initialCampaignLoadState);
+
+  useEffect(
+    () => () => {
+      campaignLoadStateRef.current = invalidateCampaignLoad(campaignLoadStateRef.current);
+    },
+    [],
+  );
 
   useEffect(() => {
     if (selectedCampaign === null) return;
@@ -79,17 +97,39 @@ export function CampaignApp(): React.JSX.Element {
   }
 
   const loadCampaigns = useCallback(async (): Promise<void> => {
-    setLoading(true);
-    setLoadError(null);
-    const result = await window.campaignManager.campaigns.list({
-      filters: { statuses: [statusFilter] },
-    });
-    if (result.ok) {
-      setCampaigns(result.data.items);
-    } else {
-      setLoadError(result.error.message);
+    const loading = beginCampaignLoad(campaignLoadStateRef.current);
+    campaignLoadStateRef.current = loading;
+    setCampaignLoadState(loading);
+
+    try {
+      const result = await window.campaignManager.campaigns.list({
+        filters: { statuses: [statusFilter] },
+      });
+      if (loading.request !== campaignLoadStateRef.current.request) return;
+
+      if (result.ok) {
+        setCampaigns(result.data.items);
+        const ready = resolveCampaignLoad(campaignLoadStateRef.current, loading.request, {
+          ok: true,
+        });
+        campaignLoadStateRef.current = ready;
+        setCampaignLoadState(ready);
+      } else {
+        const failed = resolveCampaignLoad(campaignLoadStateRef.current, loading.request, {
+          ok: false,
+          error: result.error,
+        });
+        campaignLoadStateRef.current = failed;
+        setCampaignLoadState(failed);
+      }
+    } catch {
+      if (loading.request !== campaignLoadStateRef.current.request) return;
+      const failed = resolveCampaignLoad(campaignLoadStateRef.current, loading.request, {
+        ok: false,
+      });
+      campaignLoadStateRef.current = failed;
+      setCampaignLoadState(failed);
     }
-    setLoading(false);
   }, [statusFilter]);
 
   useEffect(() => {
@@ -105,7 +145,9 @@ export function CampaignApp(): React.JSX.Element {
   function selectStatus(status: CampaignStatus): void {
     setAnnouncement(null);
     setCampaigns([]);
-    setLoading(true);
+    const pending = invalidateCampaignLoad(campaignLoadStateRef.current);
+    campaignLoadStateRef.current = pending;
+    setCampaignLoadState(pending);
     setStatusFilter(status);
   }
 
@@ -302,12 +344,12 @@ export function CampaignApp(): React.JSX.Element {
             <CampaignsScreen
               announcement={announcement}
               campaigns={campaigns}
-              error={loadError}
-              loading={loading}
+              failure={campaignLoadState.failure}
               onCreate={beginCreation}
               onOpen={beginEditing}
               onRetry={() => void loadCampaigns()}
               onStatusChange={selectStatus}
+              phase={campaignLoadState.phase}
               status={statusFilter}
             />
           )}
@@ -465,27 +507,29 @@ function navigationItemClass(active: boolean): string {
 function CampaignsScreen({
   announcement,
   campaigns,
-  error,
-  loading,
+  failure,
   onCreate,
   onOpen,
   onRetry,
   onStatusChange,
+  phase,
   status,
 }: {
   announcement: string | null;
   campaigns: Campaign[];
-  error: string | null;
-  loading: boolean;
+  failure: CampaignStartupFailure | null;
   onCreate: () => void;
   onOpen: (campaign: Campaign) => void;
   onRetry: () => void;
   onStatusChange: (status: CampaignStatus) => void;
+  phase: CampaignLoadPhase;
   status: CampaignStatus;
 }): React.JSX.Element {
-  if (loading) {
+  if (phase === 'initializing' || phase === 'loading-campaigns') {
+    const message = phase === 'initializing' ? 'Inicializando…' : 'Carregando campanhas…';
     return (
-      <section aria-busy="true" aria-label="Carregando campanhas" className="animate-pulse">
+      <section aria-busy="true" aria-label={message} className="animate-pulse" role="status">
+        <p className="sr-only">{message}</p>
         <div className="h-5 w-28 rounded bg-stone-200" />
         <div className="mt-4 h-10 w-80 rounded bg-stone-200" />
         <div className="mt-10 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
@@ -497,26 +541,10 @@ function CampaignsScreen({
     );
   }
 
-  if (error !== null) {
+  if (phase === 'error')
     return (
-      <section className="grid min-h-[70vh] place-items-center">
-        <div className="max-w-lg rounded-2xl border border-red-200 bg-white p-8 text-center shadow-sm">
-          <p className="text-sm font-bold tracking-wider text-red-700 uppercase">
-            Não foi possível carregar
-          </p>
-          <h1 className="mt-3 text-2xl font-semibold">Suas campanhas continuam preservadas</h1>
-          <p className="mt-3 leading-7 text-slate-600">{error}</p>
-          <button
-            className="mt-6 rounded-xl bg-slate-900 px-5 py-3 font-semibold text-white hover:bg-slate-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700"
-            onClick={onRetry}
-            type="button"
-          >
-            Tentar novamente
-          </button>
-        </div>
-      </section>
+      <StartupFailureScreen failure={failure ?? createCampaignStartupFailure()} onRetry={onRetry} />
     );
-  }
 
   if (campaigns.length === 0) {
     if (status !== 'active') {
@@ -595,6 +623,121 @@ function CampaignsScreen({
 
       <div className="mt-8">
         <CampaignList campaigns={campaigns} onOpen={onOpen} />
+      </div>
+    </section>
+  );
+}
+
+function StartupFailureScreen({
+  failure,
+  onRetry,
+}: {
+  failure: CampaignStartupFailure;
+  onRetry: () => void;
+}): React.JSX.Element {
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const helpTriggerRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => headingRef.current?.focus());
+    return () => cancelAnimationFrame(frame);
+  }, [failure.code]);
+
+  async function copyDiagnostic(): Promise<void> {
+    try {
+      const result = await window.campaignManager.diagnostics.copyStartupDiagnostic(
+        failure.diagnostic,
+      );
+      setCopyFeedback(
+        result.ok
+          ? 'Diagnóstico copiado.'
+          : 'Não foi possível copiar o diagnóstico neste dispositivo.',
+      );
+    } catch {
+      setCopyFeedback('Não foi possível copiar o diagnóstico neste dispositivo.');
+    }
+  }
+
+  function handleKeyDown(event: React.KeyboardEvent<HTMLElement>): void {
+    if (event.key !== 'Escape' || !helpOpen) return;
+    event.preventDefault();
+    setHelpOpen(false);
+    requestAnimationFrame(() => helpTriggerRef.current?.focus());
+  }
+
+  return (
+    <section
+      aria-labelledby="startup-error-title"
+      className="grid min-h-[70vh] place-items-center"
+      onKeyDown={handleKeyDown}
+    >
+      <div className="max-w-lg rounded-2xl border border-red-200 bg-white p-8 text-center shadow-sm">
+        <p className="text-sm font-bold tracking-wider text-red-700 uppercase">
+          Erro de inicialização
+        </p>
+        <h1
+          aria-describedby="startup-error-description startup-error-suggested-action"
+          className="mt-3 text-2xl font-semibold"
+          id="startup-error-title"
+          ref={headingRef}
+          tabIndex={-1}
+        >
+          {failure.title}
+        </h1>
+        <p className="mt-3 leading-7 text-slate-600" id="startup-error-description">
+          {failure.message}
+        </p>
+        <p className="mt-2 text-sm text-slate-600" id="startup-error-suggested-action">
+          {failure.suggestedAction}
+        </p>
+        <p className="mt-4 text-xs font-semibold tracking-wide text-slate-500">
+          Código: {failure.code}
+        </p>
+        <div className="mt-6 flex flex-wrap justify-center gap-3">
+          <button
+            className="rounded-xl bg-slate-900 px-5 py-3 font-semibold text-white hover:bg-slate-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700"
+            onClick={onRetry}
+            type="button"
+          >
+            Tentar novamente
+          </button>
+          <button
+            aria-controls="startup-recovery-help"
+            aria-expanded={helpOpen}
+            className="rounded-xl border border-stone-300 bg-white px-5 py-3 font-semibold text-slate-700 hover:bg-stone-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700"
+            onClick={() => setHelpOpen((current) => !current)}
+            ref={helpTriggerRef}
+            type="button"
+          >
+            Abrir Ajuda
+          </button>
+          <button
+            className="rounded-xl border border-stone-300 bg-white px-5 py-3 font-semibold text-slate-700 hover:bg-stone-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700"
+            onClick={() => void copyDiagnostic()}
+            type="button"
+          >
+            Copiar diagnóstico
+          </button>
+        </div>
+        {copyFeedback === null ? null : (
+          <p className="mt-4 text-sm text-slate-600" role="status">
+            {copyFeedback}
+          </p>
+        )}
+        {helpOpen ? (
+          <aside
+            className="mt-6 rounded-xl border border-stone-200 bg-stone-50 p-4 text-left text-sm leading-6 text-slate-700"
+            id="startup-recovery-help"
+          >
+            <h2 className="font-semibold text-slate-900">Recuperação da inicialização</h2>
+            <p className="mt-2">
+              Tente carregar novamente. Se a falha persistir, copie o diagnóstico e consulte a
+              documentação de solução de problemas quando a Ajuda completa estiver disponível.
+            </p>
+          </aside>
+        ) : null}
       </div>
     </section>
   );

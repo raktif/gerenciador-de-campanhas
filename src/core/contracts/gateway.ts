@@ -1,5 +1,6 @@
 import type { AssertionGateway } from './assertions';
 import type { CampaignGateway } from './campaigns';
+import type { DiagnosticsGateway } from './diagnostics';
 import type { EntityGateway } from './entities';
 import type { EntityTypeGateway } from './entity-types';
 import type { EventGateway } from './events';
@@ -17,6 +18,7 @@ import type {
 } from './sessions';
 
 export interface CampaignManagerGateway {
+  diagnostics: DiagnosticsGateway;
   phaseZero: PhaseZeroGateway;
   campaigns: CampaignGateway;
   entityTypes: EntityTypeGateway;
