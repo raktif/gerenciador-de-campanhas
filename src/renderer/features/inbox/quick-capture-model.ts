@@ -45,6 +45,15 @@ export type InboxCapture = (input: CaptureInboxItemInput) => Promise<Result<Inbo
 
 export type QuickCaptureResult = { ok: true; item: InboxItem } | { ok: false; message: string };
 
+export interface QuickCaptureFeedback {
+  captureId: string;
+  message: string;
+}
+
+export function createQuickCaptureFeedback(item: Pick<InboxItem, 'id'>): QuickCaptureFeedback {
+  return { captureId: item.id, message: 'Captura salva na Caixa de Entrada.' };
+}
+
 export async function submitQuickCapture(
   capture: InboxCapture,
   campaignId: string,

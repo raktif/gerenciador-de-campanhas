@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Campaign } from '../../../core/contracts/campaigns';
 import type { Session } from '../../../core/contracts/sessions';
 import {
+  createQuickCaptureFeedback,
   inProgressSessions,
   isQuickCaptureShortcut,
   quickCaptureAriaShortcut,
@@ -25,11 +26,14 @@ export function QuickCapture({
   const [sessionsLoading, setSessionsLoading] = useState(false);
   const [sessionError, setSessionError] = useState<string | null>(null);
   const [captureError, setCaptureError] = useState<string | null>(null);
-  const [announcement, setAnnouncement] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<ReturnType<typeof createQuickCaptureFeedback> | null>(
+    null,
+  );
   const [busy, setBusy] = useState(false);
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useRef<HTMLElement>(null);
+  const feedbackRef = useRef<HTMLElement>(null);
   const platform = navigator.platform;
   const shortcutLabel = quickCaptureShortcutLabel(platform);
   const ariaShortcut = quickCaptureAriaShortcut(platform);
@@ -78,11 +82,25 @@ export function QuickCapture({
     requestAnimationFrame(() => triggerRef.current?.focus());
   }, [busy]);
 
+  const dismissFeedback = useCallback((): void => {
+    setFeedback(null);
+  }, []);
+
+  const openInboxFromFeedback = useCallback((): void => {
+    dismissFeedback();
+    onOpenInbox();
+  }, [dismissFeedback, onOpenInbox]);
+
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent): void {
       if (open && event.key === 'Escape') {
         event.preventDefault();
         closeCapture();
+        return;
+      }
+      if (feedback !== null && event.key === 'Escape') {
+        event.preventDefault();
+        dismissFeedback();
         return;
       }
       if (isQuickCaptureShortcut(event, platform)) {
@@ -92,7 +110,18 @@ export function QuickCapture({
     }
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [closeCapture, open, openCapture, platform]);
+  }, [closeCapture, dismissFeedback, feedback, open, openCapture, platform]);
+
+  useEffect(() => {
+    if (feedback === null) return;
+    function onPointerDown(event: PointerEvent): void {
+      const target = event.target;
+      if (target instanceof Node && feedbackRef.current?.contains(target)) return;
+      dismissFeedback();
+    }
+    document.addEventListener('pointerdown', onPointerDown);
+    return () => document.removeEventListener('pointerdown', onPointerDown);
+  }, [dismissFeedback, feedback]);
 
   useEffect(() => {
     if (!open) return;
@@ -123,7 +152,7 @@ export function QuickCapture({
       setRawText('');
       setSessionId('');
       setOpen(false);
-      setAnnouncement('Captura salva na Caixa de Entrada.');
+      setFeedback(createQuickCaptureFeedback(result.item));
       requestAnimationFrame(() => triggerRef.current?.focus());
     } else setCaptureError(result.message);
     setBusy(false);
@@ -150,16 +179,33 @@ export function QuickCapture({
   return (
     <>
       <div className="fixed right-6 bottom-6 z-20 flex flex-col items-end gap-3">
-        {announcement === null ? null : (
-          <div
+        {feedback === null ? null : (
+          <section
             className="max-w-sm rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 shadow-lg"
+            data-testid="quick-capture-feedback"
             role="status"
+            aria-atomic="true"
+            ref={feedbackRef}
           >
-            <p aria-live="polite">{announcement}</p>
-            <button className="mt-2 font-semibold underline" onClick={onOpenInbox} type="button">
+            <div className="flex items-start justify-between gap-3">
+              <p>{feedback.message}</p>
+              <button
+                aria-label="Fechar aviso de captura"
+                className="-mt-1 rounded px-1 font-semibold text-emerald-800 hover:bg-emerald-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-800"
+                onClick={dismissFeedback}
+                type="button"
+              >
+                <span aria-hidden="true">×</span>
+              </button>
+            </div>
+            <button
+              className="mt-2 font-semibold underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-800"
+              onClick={openInboxFromFeedback}
+              type="button"
+            >
               Abrir Caixa de Entrada
             </button>
-          </div>
+          </section>
         )}
         <button
           aria-haspopup="dialog"
