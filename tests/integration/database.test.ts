@@ -112,6 +112,77 @@ describe('SQLite embutido', () => {
     context.close();
   });
 
+  it('aceita o checksum histórico da versão 9 e aplica as migrações posteriores', async () => {
+    const root = await createTemporaryRoot();
+    const directories = getDataDirectories(root);
+    await ensureDataDirectories(directories);
+    const databasePath = path.join(directories.database, 'app.db');
+    const legacyDatabase = new Database(databasePath);
+    legacyDatabase.exec(`
+      CREATE TABLE schema_migrations (
+        version INTEGER PRIMARY KEY NOT NULL,
+        name TEXT NOT NULL,
+        checksum TEXT NOT NULL,
+        applied_at TEXT NOT NULL
+      );
+    `);
+    const insertMigration = legacyDatabase.prepare(
+      'INSERT INTO schema_migrations (version, name, checksum, applied_at) VALUES (?, ?, ?, ?)',
+    );
+    const historicalVersionNineChecksum =
+      '98b4b72f7029aaaba84433f0fe5cb2bdbadd00004098df35e5f5a8e7ed121f53';
+
+    for (const migration of migrations.filter(({ version }) => version <= 9)) {
+      legacyDatabase.exec(migration.sql);
+      insertMigration.run(
+        migration.version,
+        migration.name,
+        migration.version === 9 ? historicalVersionNineChecksum : migration.checksum,
+        timestamp(),
+      );
+    }
+    legacyDatabase.close();
+
+    const context = await openTestDatabase(directories);
+    expect(context.schemaVersion).toBe(latestSchemaVersion);
+    expect(
+      context.native.prepare('SELECT checksum FROM schema_migrations WHERE version = 9').get(),
+    ).toEqual({ checksum: historicalVersionNineChecksum });
+    expect(
+      context.native
+        .prepare(
+          'SELECT version, checksum FROM schema_migrations WHERE version BETWEEN 10 AND 15 ORDER BY version',
+        )
+        .all(),
+    ).toEqual(
+      migrations
+        .filter(({ version }) => version >= 10)
+        .map(({ version, checksum }) => ({ version, checksum })),
+    );
+    context.close();
+    expect(
+      (await readdir(directories.automaticBackups)).filter((name) => name.endsWith('.db')),
+    ).toHaveLength(1);
+  });
+
+  it('continua rejeitando um checksum desconhecido de migração aplicada', async () => {
+    const root = await createTemporaryRoot();
+    const directories = getDataDirectories(root);
+    await ensureDataDirectories(directories);
+    const context = await openTestDatabase(directories);
+    context.close();
+
+    const native = new Database(path.join(directories.database, 'app.db'));
+    native
+      .prepare('UPDATE schema_migrations SET checksum = ? WHERE version = 9')
+      .run('0'.repeat(64));
+    native.close();
+
+    await expect(openApplicationDatabase(directories, new TestLogger())).rejects.toThrow(
+      'Checksum de migração inválido para a versão 9.',
+    );
+  });
+
   it('cria e persiste uma campanha somente com os campos obrigatórios', async () => {
     const root = await createTemporaryRoot();
     const directories = getDataDirectories(root);
