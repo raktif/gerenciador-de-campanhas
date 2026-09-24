@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { BrowserWindow } from 'electron';
-import { loadMainWindowContent } from './main-window-navigation';
+import { loadMainWindowContent, selectMainWindowDevelopmentUrl } from './main-window-navigation';
 
 export function createMainWindow(): BrowserWindow {
   const mainWindow = new BrowserWindow({
@@ -46,7 +46,14 @@ export function createMainWindow(): BrowserWindow {
 export function loadMainWindow(window: BrowserWindow): Promise<void> {
   return loadMainWindowContent(
     window,
-    MAIN_WINDOW_VITE_DEV_SERVER_URL,
+    selectMainWindowDevelopmentUrl(MAIN_WINDOW_VITE_DEV_SERVER_URL, process.env.NODE_ENV),
     path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`),
+    {
+      onRetry: (attempt, maximumAttempts) => {
+        console.warn(
+          `Renderer Vite ainda indisponível; repetindo carregamento inicial (${String(attempt)}/${String(maximumAttempts)}).`,
+        );
+      },
+    },
   );
 }

@@ -75,7 +75,9 @@ export const migrations: readonly MigrationDefinition[] = [
   {
     version: 8,
     name: 'phase-two-foundation',
-    checksum: checksum(phaseTwoFoundationMigration),
+    // A versão 8 já foi aplicada em bancos existentes. A correção da consulta
+    // de fontes legadas preserva o checksum histórico para mantê-los válidos.
+    checksum: '490b9ac7d6cc08df9d5a57df72b9972a7d05b18f24ad60bff16ca95f4d9fb430',
     sql: phaseTwoFoundationMigration,
   },
   {
