@@ -44,7 +44,8 @@ test('carrega a tela inicial sem reload manual em banco vazio e com campanha per
     await test.step('reinicia após encerramento inesperado', async () => {
       const process = application?.process();
       if (process === undefined) throw new Error('A aplicação Electron não está em execução.');
-      if (!process.kill('SIGKILL')) throw new Error('Não foi possível encerrar o processo Electron.');
+      if (!process.kill('SIGKILL'))
+        throw new Error('Não foi possível encerrar o processo Electron.');
       await application?.close();
       application = null;
 
@@ -107,6 +108,9 @@ async function launch(
     ),
   );
   delete inheritedEnvironment.ELECTRON_RUN_AS_NODE;
+  delete inheritedEnvironment.CAMPAIGN_MANAGER_TEST_FAIL_INITIAL_CAMPAIGN_LIST;
+  delete inheritedEnvironment.E2E_SESSION_LIST_FAIL_ONCE;
+  delete inheritedEnvironment.E2E_SESSION_LIST_DELAY_MS;
 
   return electron.launch({
     executablePath: electronExecutable,

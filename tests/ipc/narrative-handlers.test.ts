@@ -41,8 +41,8 @@ describe('handlers IPC narrativos', () => {
     expect(service.createInput).toMatchObject({
       statement: 'Uma possibilidade.',
       canonState: 'accepted',
-      sourceId: null,
     });
+    expect(service.createInput).not.toHaveProperty('sourceId');
     expect(service.listInput).toEqual({
       campaignId,
       limit: 50,

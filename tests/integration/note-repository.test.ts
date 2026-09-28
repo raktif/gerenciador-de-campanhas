@@ -14,6 +14,7 @@ import { openApplicationDatabase, type DatabaseContext } from '../../src/db/conn
 import { EntityRepository } from '../../src/db/repositories/entity-repository';
 import { CampaignRepository } from '../../src/db/repositories/campaign-repository';
 import { NoteRepository } from '../../src/db/repositories/note-repository';
+import { SessionRepository } from '../../src/db/repositories/session-repository';
 import { NoteService } from '../../src/main/services/note-service';
 import { TestLogger } from '../helpers/test-logger';
 
@@ -43,6 +44,7 @@ describe('NoteRepository', () => {
       repository,
       campaigns: new CampaignRepository(context.orm),
       entities: new EntityRepository(context.orm),
+      sessions: new SessionRepository(context.orm),
       createId: () => noteA,
       now: () => timestamp,
     });
@@ -206,6 +208,7 @@ describe('NoteRepository', () => {
       repository,
       campaigns: new CampaignRepository(context.orm),
       entities: new EntityRepository(context.orm),
+      sessions: new SessionRepository(context.orm),
       createId: () => noteA,
       now: () => '2026-09-03T15:00:00.000Z',
     });
@@ -254,11 +257,11 @@ describe('NoteRepository', () => {
             title: 'Fonte estrangeira',
             bodyMarkdown: 'Registro',
             originKind: 'session',
-            sourceId,
+            sessionId,
           }),
         ),
       ),
-    ).toBe('NOTE_SOURCE_CAMPAIGN_MISMATCH');
+    ).toBe('SESSION_NOT_FOUND');
     context.close();
   });
 });

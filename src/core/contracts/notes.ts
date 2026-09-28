@@ -68,6 +68,7 @@ export const noteSchema = z
     visibility: z.enum(visibilityStates),
     originKind: z.enum(originKinds),
     sourceId: nullableSourceIdSchema,
+    sessionId: z.uuid().optional(),
     createdAt: z.iso.datetime(),
     updatedAt: z.iso.datetime(),
     archivedAt: z.iso.datetime().nullable(),
@@ -91,10 +92,25 @@ export const createNoteInputSchema = z
     knowledgeState: z.enum(knowledgeStates).default(manualNarrativeDefaults.knowledgeState),
     visibility: z.enum(visibilityStates).default(manualNarrativeDefaults.visibility),
     originKind: z.enum(originKinds).default(manualNarrativeDefaults.originKind),
-    sourceId: nullableSourceIdSchema.default(null),
+    sessionId: z.uuid().optional(),
     links: noteEntityLinksInputSchema.default([]),
   })
-  .strict();
+  .strict()
+  .superRefine((input, context) => {
+    if (input.originKind === 'session') {
+      if (input.sessionId === undefined)
+        context.addIssue({
+          code: 'custom',
+          message: 'Escolha a sessão de origem.',
+          path: ['sessionId'],
+        });
+    } else if (input.sessionId !== undefined)
+      context.addIssue({
+        code: 'custom',
+        message: 'A sessão só pode ser usada com origem de sessão.',
+        path: ['sessionId'],
+      });
+  });
 export type CreateNoteInput = z.output<typeof createNoteInputSchema>;
 export type CreateNoteInputRequest = z.input<typeof createNoteInputSchema>;
 
@@ -107,7 +123,7 @@ export const notePatchSchema = z
     knowledgeState: z.enum(knowledgeStates).optional(),
     visibility: z.enum(visibilityStates).optional(),
     originKind: z.enum(originKinds).optional(),
-    sourceId: nullableSourceIdSchema.optional(),
+    sessionId: z.uuid().optional(),
   })
   .strict()
   .refine((patch) => Object.keys(patch).length > 0, 'Informe ao menos uma alteração.');

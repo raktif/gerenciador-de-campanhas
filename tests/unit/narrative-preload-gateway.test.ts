@@ -54,7 +54,6 @@ describe('gateways narrativos do preload', () => {
     expect(invocations[0]?.input).toMatchObject({
       statement: 'Pista.',
       canonState: 'accepted',
-      sourceId: null,
     });
     expect(invocations[2]?.input).toEqual({
       campaignId,
@@ -76,8 +75,7 @@ describe('gateways narrativos do preload', () => {
         campaignId,
         subjectEntityId: entityId,
         statement: 'Conteúdo válido.',
-        originKind: 'document',
-        sourceId: 'fonte-inválida',
+        originKind: 'session',
       }),
     ).toThrow();
     expect(() => gateway.notes.create({ campaignId, title: ' ', bodyMarkdown: ' ' })).toThrow();
@@ -86,8 +84,7 @@ describe('gateways narrativos do preload', () => {
         campaignId,
         title: 'Nota válida',
         bodyMarkdown: 'Conteúdo válido.',
-        originKind: 'document',
-        sourceId: 'fonte-inválida',
+        originKind: 'session',
       }),
     ).toThrow();
     expect(invocations).toHaveLength(0);

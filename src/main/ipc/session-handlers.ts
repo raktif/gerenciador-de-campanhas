@@ -20,16 +20,26 @@ import {
   sessionSchema,
   updateSessionInputSchema,
   updateSessionIntentionInputSchema,
+  type CreateSessionInput,
+  type GetSessionInput,
+  type Session,
+  type SessionPageRequest,
+  type SessionPageResult,
+  type UpdateSessionInput,
 } from '../../core/contracts/sessions';
 import type { Result } from '../../core/contracts/result';
 import type { Logger } from '../../core/logging/logger';
 import type { SessionIntentionService } from '../services/session-intention-service';
 import type { SessionParticipantService } from '../services/session-participant-service';
-import type { SessionService } from '../services/session-service';
 import { executeIpcHandler } from './ipc-handler';
 
 export interface SessionHandlerDependencies {
-  sessions: SessionService;
+  sessions: {
+    create(input: CreateSessionInput): Session | Promise<Session>;
+    get(input: GetSessionInput): Session | Promise<Session>;
+    list(input: SessionPageRequest): SessionPageResult | Promise<SessionPageResult>;
+    update(input: UpdateSessionInput): Session | Promise<Session>;
+  };
   participants: SessionParticipantService;
   intentions: SessionIntentionService;
   logger: Logger;

@@ -21,6 +21,7 @@ import {
   visibilityOptions,
   type NarrativeMetadataValues,
 } from '../narrative/narrative-metadata-fields';
+import { useSessionSourceOptions } from '../narrative/session-source-options';
 
 type View = 'list' | 'create' | 'edit';
 const noteTypeOptions = [
@@ -130,7 +131,7 @@ export function NoteManager({
       knowledgeState: input.knowledgeState,
       visibility: input.visibility,
       originKind: input.originKind,
-      sourceId: input.sourceId,
+      ...(input.sessionId === undefined ? {} : { sessionId: input.sessionId }),
     };
     try {
       const result =
@@ -403,6 +404,9 @@ function NoteForm({
     sourceId: details?.note.sourceId ?? null,
   });
   const [validation, setValidation] = useState<string | null>(null);
+  const [sessionId, setSessionId] = useState(details?.note.sessionId ?? '');
+  const sessionSource = useSessionSourceOptions(campaign.id);
+  const sessionUnavailable = metadata.originKind === 'session' && !sessionSource.available;
   function submit(event: React.SyntheticEvent<HTMLFormElement, SubmitEvent>): void {
     event.preventDefault();
     setValidation(null);
@@ -428,13 +432,32 @@ function NoteForm({
       setValidation('Remova vínculos duplicados.');
       return;
     }
+    if (sessionUnavailable) {
+      setValidation(
+        sessionSource.loading
+          ? 'Aguarde o carregamento das sessões de origem.'
+          : 'A origem por sessão não está disponível. Escolha outra origem ou recarregue as sessões.',
+      );
+      return;
+    }
+    if (metadata.originKind === 'session' && sessionId === '') {
+      setValidation('Escolha a sessão de origem.');
+      return;
+    }
+    const metadataInput = {
+      canonState: metadata.canonState,
+      knowledgeState: metadata.knowledgeState,
+      visibility: metadata.visibility,
+      originKind: metadata.originKind,
+    };
     void onSubmit({
       campaignId: campaign.id,
       title: title.trim(),
       bodyMarkdown: body,
       noteType,
       links: links.map((link) => ({ ...link, role: link.role.trim() })),
-      ...metadata,
+      ...metadataInput,
+      ...(metadata.originKind === 'session' ? { sessionId } : {}),
     });
   }
   function updateLink(index: number, patch: Partial<NoteEntityLinkInput>): void {
@@ -490,7 +513,13 @@ function NoteForm({
               ))}
             </select>
           </label>
-          <NarrativeMetadataFields disabled={busy} values={metadata} onChange={setMetadata} />
+          <NarrativeMetadataFields
+            disabled={busy}
+            hideSourceIdentifier
+            sessionSource={{ ...sessionSource, value: sessionId, onChange: setSessionId }}
+            values={metadata}
+            onChange={setMetadata}
+          />
           <fieldset className="rounded-2xl border border-stone-200 p-5">
             <legend className="px-2 font-semibold">Vínculos com entidades</legend>
             <div className="mt-3 grid gap-4">
@@ -558,7 +587,7 @@ function NoteForm({
             <button className={secondaryClass} disabled={busy} onClick={onCancel} type="button">
               Cancelar
             </button>
-            <button className={primaryClass} disabled={busy} type="submit">
+            <button className={primaryClass} disabled={busy || sessionUnavailable} type="submit">
               {busy ? 'Salvando…' : details === null ? 'Criar nota' : 'Salvar nota'}
             </button>
           </div>

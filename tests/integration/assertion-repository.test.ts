@@ -13,6 +13,7 @@ import { openApplicationDatabase, type DatabaseContext } from '../../src/db/conn
 import { AssertionRepository } from '../../src/db/repositories/assertion-repository';
 import { CampaignRepository } from '../../src/db/repositories/campaign-repository';
 import { EntityRepository } from '../../src/db/repositories/entity-repository';
+import { SessionRepository } from '../../src/db/repositories/session-repository';
 import { AssertionService } from '../../src/main/services/assertion-service';
 import { TestLogger } from '../helpers/test-logger';
 
@@ -41,6 +42,7 @@ describe('AssertionRepository', () => {
       repository,
       campaigns: new CampaignRepository(context.orm),
       entities: new EntityRepository(context.orm),
+      sessions: new SessionRepository(context.orm),
       createId: () => '50000000-0000-4000-8000-000000000099',
     });
     const input = createAssertionInputSchema.parse({
@@ -194,6 +196,7 @@ describe('AssertionRepository', () => {
       repository,
       campaigns: new CampaignRepository(context.orm),
       entities: new EntityRepository(context.orm),
+      sessions: new SessionRepository(context.orm),
       now: () => '2026-09-02T15:00:00.000Z',
     });
     const archived = service.archive({ campaignId, id: updated.id, revision: 2 });
@@ -232,21 +235,21 @@ describe('AssertionRepository', () => {
       repository,
       campaigns: new CampaignRepository(context.orm),
       entities: new EntityRepository(context.orm),
+      sessions: new SessionRepository(context.orm),
     });
     const request = createAssertionInputSchema.parse({
       campaignId,
       subjectEntityId,
       statement: 'Registrado em sessão.',
       originKind: 'session',
-      sourceId,
+      sessionId,
     });
-    expect(captureCode(() => service.create(request))).toBe('ASSERTION_SOURCE_CAMPAIGN_MISMATCH');
+    expect(captureCode(() => service.create(request))).toBe('SESSION_NOT_FOUND');
     expect(
       captureCode(() =>
         service.create({
           ...request,
           originKind: 'manual',
-          sourceId: null,
           subjectEntityId: foreignEntityId,
         }),
       ),

@@ -114,23 +114,34 @@ describe('AssertionService', () => {
       subjectEntityId,
       statement: 'Registrado durante a sessão.',
       originKind: 'session',
+      sessionId: sourceId,
     });
     expect(capture(() => createService(new MemoryRepository()).create(missingSource)).code).toBe(
-      'ASSERTION_SOURCE_REQUIRED',
+      'SESSION_NOT_FOUND',
     );
 
     const repository = new MemoryRepository();
-    repository.sources.set(sourceId, { kind: 'session', sessionCampaignId: otherCampaignId });
+    repository.sources.set(sourceId, {
+      kind: 'session',
+      sessionCampaignId: otherCampaignId,
+      sessionId: sourceId,
+    });
     const withSource = { ...missingSource, sourceId };
     expect(capture(() => createService(repository).create(withSource)).code).toBe(
-      'ASSERTION_SOURCE_CAMPAIGN_MISMATCH',
+      'SESSION_NOT_FOUND',
     );
-    repository.sources.set(sourceId, { kind: 'manual', sessionCampaignId: null });
+    repository.sources.set(sourceId, { kind: 'manual', sessionCampaignId: null, sessionId: null });
     expect(capture(() => createService(repository).create(withSource)).code).toBe(
-      'ASSERTION_SOURCE_KIND_MISMATCH',
+      'SESSION_NOT_FOUND',
     );
-    repository.sources.set(sourceId, { kind: 'session', sessionCampaignId: campaignId });
-    expect(createService(repository).create(withSource).sourceId).toBe(sourceId);
+    repository.sources.set(sourceId, {
+      kind: 'session',
+      sessionCampaignId: campaignId,
+      sessionId: sourceId,
+    });
+    expect(capture(() => createService(repository).create(withSource)).code).toBe(
+      'SESSION_NOT_FOUND',
+    );
   });
 
   it('valida filtro de entidade, revisão e ciclo de arquivamento', () => {
@@ -164,6 +175,30 @@ describe('AssertionService', () => {
     const restored = service.restore({ campaignId, id: archived.id, revision: 2 });
     expect(restored).toMatchObject({ archivedAt: null, revision: 3 });
   });
+});
+
+it('projeta a sessionId real de fontes legadas ao consultar afirmações', () => {
+  const repository = new MemoryRepository([createAssertion({ originKind: 'session', sourceId })]);
+  const legacySessionId = '70000000-0000-4000-8000-000000000001';
+  repository.sources.set(sourceId, {
+    kind: 'session',
+    sessionCampaignId: campaignId,
+    sessionId: legacySessionId,
+  });
+  const service = createService(repository);
+  expect(service.get({ campaignId, id: createAssertion().id }).sessionId).toBe(legacySessionId);
+  expect(
+    service.list(assertionPageRequestSchema.parse({ campaignId, filters: { archived: false } }))
+      .items[0]?.sessionId,
+  ).toBe(legacySessionId);
+  expect(
+    service.update({
+      campaignId,
+      id: createAssertion().id,
+      revision: 1,
+      patch: { statement: 'Revisada.' },
+    }).sessionId,
+  ).toBe(legacySessionId);
 });
 
 class MemoryRepository implements AssertionRepositoryPort {

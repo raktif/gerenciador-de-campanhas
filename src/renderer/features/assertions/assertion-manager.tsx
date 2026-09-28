@@ -15,6 +15,7 @@ import {
   visibilityOptions,
   type NarrativeMetadataValues,
 } from '../narrative/narrative-metadata-fields';
+import { useSessionSourceOptions } from '../narrative/session-source-options';
 
 type View = 'list' | 'create' | 'edit';
 export interface NarrativeContext {
@@ -131,7 +132,7 @@ export function AssertionManager({
                 knowledgeState: input.knowledgeState,
                 visibility: input.visibility,
                 originKind: input.originKind,
-                sourceId: input.sourceId,
+                ...(input.sessionId === undefined ? {} : { sessionId: input.sessionId }),
               },
             });
       if (result.ok) {
@@ -396,6 +397,9 @@ function AssertionForm({
     sourceId: assertion?.sourceId ?? null,
   });
   const [validation, setValidation] = useState<string | null>(null);
+  const [sessionId, setSessionId] = useState(assertion?.sessionId ?? '');
+  const sessionSource = useSessionSourceOptions(campaign.id);
+  const sessionUnavailable = metadata.originKind === 'session' && !sessionSource.available;
   function submit(event: React.SyntheticEvent<HTMLFormElement, SubmitEvent>): void {
     event.preventDefault();
     setValidation(null);
@@ -407,11 +411,25 @@ function AssertionForm({
       if (structured && object === '' && value.trim() === '')
         throw new Error('Informe uma entidade objeto ou um valor JSON.');
       if (!structured && statement.trim() === '') throw new Error('Informe a afirmação textual.');
+      if (sessionUnavailable)
+        throw new Error(
+          sessionSource.loading
+            ? 'Aguarde o carregamento das sessões de origem.'
+            : 'A origem por sessão não está disponível. Escolha outra origem ou recarregue as sessões.',
+        );
+      if (metadata.originKind === 'session' && sessionId === '')
+        throw new Error('Escolha a sessão de origem.');
       if (!structured && statement.trim().length > 10000)
         throw new Error('A afirmação textual deve ter no máximo 10000 caracteres.');
       let parsed: CreateAssertionInput['value'] = null;
       if (structured && value.trim() !== '')
         parsed = JSON.parse(value) as CreateAssertionInput['value'];
+      const metadataInput = {
+        canonState: metadata.canonState,
+        knowledgeState: metadata.knowledgeState,
+        visibility: metadata.visibility,
+        originKind: metadata.originKind,
+      };
       void onSubmit({
         campaignId: campaign.id,
         subjectEntityId: subject,
@@ -419,7 +437,8 @@ function AssertionForm({
         objectEntityId: structured ? object || null : null,
         statement: structured ? null : statement.trim() || null,
         value: structured ? parsed : null,
-        ...metadata,
+        ...metadataInput,
+        ...(metadata.originKind === 'session' ? { sessionId } : {}),
       });
     } catch (reason) {
       setValidation(message(reason));
@@ -526,7 +545,13 @@ function AssertionForm({
               />
             </label>
           )}
-          <NarrativeMetadataFields disabled={busy} values={metadata} onChange={setMetadata} />
+          <NarrativeMetadataFields
+            disabled={busy}
+            hideSourceIdentifier
+            sessionSource={{ ...sessionSource, value: sessionId, onChange: setSessionId }}
+            values={metadata}
+            onChange={setMetadata}
+          />
           {error === null && validation === null ? null : (
             <p className="rounded-xl bg-red-50 p-4 text-red-800" role="alert">
               {error ?? validation}
@@ -536,7 +561,7 @@ function AssertionForm({
             <button className={secondaryClass} disabled={busy} onClick={onCancel} type="button">
               Cancelar
             </button>
-            <button className={primaryClass} disabled={busy} type="submit">
+            <button className={primaryClass} disabled={busy || sessionUnavailable} type="submit">
               {busy ? 'Salvando…' : assertion === null ? 'Criar afirmação' : 'Salvar afirmação'}
             </button>
           </div>

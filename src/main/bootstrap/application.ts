@@ -31,7 +31,10 @@ import { registerNoteIpcHandlers } from '../ipc/note-handlers';
 import { registerInboxIpcHandlers } from '../ipc/inbox-handlers';
 import { registerRelationshipTypeIpcHandlers } from '../ipc/relationship-type-handlers';
 import { registerRelationshipIpcHandlers } from '../ipc/relationship-handlers';
-import { registerSessionIpcHandlers } from '../ipc/session-handlers';
+import {
+  registerSessionIpcHandlers,
+  type SessionHandlerDependencies,
+} from '../ipc/session-handlers';
 import { registerTimelineIpcHandlers } from '../ipc/timeline-handlers';
 import { CampaignService } from '../services/campaign-service';
 import { StartupDiagnosticsService } from '../services/startup-diagnostics-service';
@@ -172,6 +175,7 @@ export async function bootstrapApplication(): Promise<RunningApplication> {
     repository: assertionRepository,
     campaigns: campaignRepository,
     entities: entityRepository,
+    sessions: sessionRepository,
   });
   const unregisterAssertionIpc = registerAssertionIpcHandlers(ipcMain, {
     service: assertionService,
@@ -182,6 +186,7 @@ export async function bootstrapApplication(): Promise<RunningApplication> {
     repository: noteRepository,
     campaigns: campaignRepository,
     entities: entityRepository,
+    sessions: sessionRepository,
   });
   const unregisterNoteIpc = registerNoteIpcHandlers(ipcMain, {
     service: noteService,
@@ -226,6 +231,7 @@ export async function bootstrapApplication(): Promise<RunningApplication> {
     repository: sessionRepository,
     campaigns: campaignRepository,
   });
+  const sessionHandlerService = createSessionHandlerService(sessionService);
   const sessionParticipantService = new SessionParticipantService({
     repository: sessionRepository,
     campaigns: campaignRepository,
@@ -238,7 +244,7 @@ export async function bootstrapApplication(): Promise<RunningApplication> {
     entities: entityRepository,
   });
   const unregisterSessionIpc = registerSessionIpcHandlers(ipcMain, {
-    sessions: sessionService,
+    sessions: sessionHandlerService,
     participants: sessionParticipantService,
     intentions: sessionIntentionService,
     logger,
@@ -300,4 +306,33 @@ class InitialCampaignListFailureService extends CampaignService {
     }
     return super.list(input);
   }
+}
+
+function createSessionHandlerService(
+  service: SessionService,
+): SessionHandlerDependencies['sessions'] {
+  const shouldInjectFailure =
+    process.env.NODE_ENV === 'test' && process.env.E2E_SESSION_LIST_FAIL_ONCE === '1';
+  const configuredDelay =
+    process.env.NODE_ENV === 'test' ? Number(process.env.E2E_SESSION_LIST_DELAY_MS ?? 0) : 0;
+  const delayMilliseconds =
+    Number.isFinite(configuredDelay) && configuredDelay > 0 ? configuredDelay : 0;
+
+  if (!shouldInjectFailure && delayMilliseconds === 0) return service;
+
+  let shouldFail = shouldInjectFailure;
+  return {
+    create: (input) => service.create(input),
+    get: (input) => service.get(input),
+    list: async (input) => {
+      if (shouldFail) {
+        shouldFail = false;
+        throw new AppError('TEST_SESSION_LIST_FAILURE', 'Falha de teste ao carregar sessões.');
+      }
+      if (delayMilliseconds > 0)
+        await new Promise<void>((resolve) => setTimeout(resolve, delayMilliseconds));
+      return service.list(input);
+    },
+    update: (input) => service.update(input),
+  };
 }

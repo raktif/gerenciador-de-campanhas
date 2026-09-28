@@ -53,13 +53,15 @@ export interface NoteRepositoryUpdate {
   campaignId: string;
   id: string;
   revision: number;
-  patch: NotePatch | { archivedAt: string | null };
+  patch: Omit<NotePatch, 'sessionId'> | { archivedAt: string | null };
+  sessionId?: string;
   links?: NoteEntityLinkInput[];
 }
 
 export interface NoteSourceContext {
   kind: Note['originKind'];
   sessionCampaignId: string | null;
+  sessionId: string | null;
 }
 
 export class NoteRepository {
@@ -67,7 +69,8 @@ export class NoteRepository {
 
   public insert(note: Note, links: NoteEntityLinkInput[]): NoteDetails {
     this.database.transaction((transaction) => {
-      transaction.insert(notes).values(note).run();
+      const persisted = ensureSessionSource(transaction, note);
+      transaction.insert(notes).values(persisted).run();
       if (links.length > 0)
         transaction
           .insert(noteEntityLinks)
@@ -97,7 +100,11 @@ export class NoteRepository {
 
   public findSourceContext(id: string): NoteSourceContext | null {
     const row = this.database
-      .select({ kind: sources.kind, sessionCampaignId: sessions.campaignId })
+      .select({
+        kind: sources.kind,
+        sessionCampaignId: sessions.campaignId,
+        sessionId: sources.sessionId,
+      })
       .from(sources)
       .leftJoin(sessions, eq(sources.sessionId, sessions.id))
       .where(eq(sources.id, id))
@@ -143,9 +150,18 @@ export class NoteRepository {
 
   public update(input: NoteRepositoryUpdate, updatedAt: string): NoteDetails {
     this.database.transaction((transaction) => {
+      const sourceId =
+        input.sessionId === undefined
+          ? undefined
+          : ensureSessionSourceId(transaction, input.campaignId, input.sessionId, updatedAt);
       const result = transaction
         .update(notes)
-        .set({ ...input.patch, updatedAt, revision: sql`${notes.revision} + 1` })
+        .set({
+          ...input.patch,
+          ...(sourceId === undefined ? {} : { sourceId }),
+          updatedAt,
+          revision: sql`${notes.revision} + 1`,
+        })
         .where(
           and(
             eq(notes.campaignId, input.campaignId),
@@ -184,6 +200,65 @@ export class NoteRepository {
     if (details === null) throw notFound(campaignId, id);
     return details;
   }
+}
+
+function ensureSessionSourceId(
+  transaction: Parameters<Parameters<BetterSQLite3Database<typeof schema>['transaction']>[0]>[0],
+  campaignId: string,
+  sessionId: string,
+  createdAt: string,
+): string {
+  const session = transaction
+    .select({ id: sessions.id })
+    .from(sessions)
+    .where(and(eq(sessions.id, sessionId), eq(sessions.campaignId, campaignId)))
+    .get();
+  if (session === undefined)
+    throw new AppError('SESSION_NOT_FOUND', 'Sessão não encontrada nesta campanha.', {
+      campaignId,
+      id: sessionId,
+    });
+  const current = transaction
+    .select({ id: sources.id })
+    .from(sources)
+    .where(and(eq(sources.kind, 'session'), eq(sources.sessionId, session.id)))
+    .get();
+  const sourceId = current?.id ?? session.id;
+  if (current === undefined)
+    transaction
+      .insert(sources)
+      .values({ id: sourceId, kind: 'session', sessionId: session.id, createdAt })
+      .run();
+  return sourceId;
+}
+
+function ensureSessionSource(
+  transaction: Parameters<Parameters<BetterSQLite3Database<typeof schema>['transaction']>[0]>[0],
+  note: Note,
+): Note {
+  if (note.originKind !== 'session' || note.sourceId === null) return note;
+  const session = transaction
+    .select({ id: sessions.id })
+    .from(sessions)
+    .where(and(eq(sessions.id, note.sourceId), eq(sessions.campaignId, note.campaignId)))
+    .get();
+  if (session === undefined)
+    throw new AppError('SESSION_NOT_FOUND', 'A sessão não foi encontrada nesta campanha.', {
+      campaignId: note.campaignId,
+      id: note.sourceId,
+    });
+  const current = transaction
+    .select({ id: sources.id })
+    .from(sources)
+    .where(and(eq(sources.kind, 'session'), eq(sources.sessionId, session.id)))
+    .get();
+  const sourceId = current?.id ?? note.sourceId;
+  if (current === undefined)
+    transaction
+      .insert(sources)
+      .values({ id: sourceId, kind: 'session', sessionId: session.id, createdAt: note.createdAt })
+      .run();
+  return { ...note, sourceId };
 }
 
 function createBaseFilters(

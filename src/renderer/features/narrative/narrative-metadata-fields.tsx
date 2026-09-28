@@ -1,3 +1,4 @@
+import { useEffect, useRef, type Ref } from 'react';
 import type { NarrativeMetadata } from '../../../core/contracts/narrative';
 
 export interface NarrativeMetadataValues extends Omit<NarrativeMetadata, 'sourceId'> {
@@ -23,10 +24,43 @@ export function NarrativeMetadataFields({
     options: readonly SessionSourceOption[];
     value: string;
     onChange: (sessionId: string) => void;
-    error?: string;
+    error?: string | undefined;
+    loading?: boolean | undefined;
+    available?: boolean | undefined;
+    retry?: (() => void) | undefined;
   };
   hideSourceIdentifier?: boolean;
 }): React.JSX.Element {
+  const originSelectRef = useRef<HTMLSelectElement>(null);
+  const sessionSelectRef = useRef<HTMLSelectElement>(null);
+  const retryButtonRef = useRef<HTMLButtonElement>(null);
+  const retryFocusPhaseRef = useRef<SessionRetryFocusPhase>('idle');
+
+  useEffect(() => {
+    const next = advanceSessionRetryFocus({
+      available: sessionSource?.available,
+      error: sessionSource?.error,
+      loading: sessionSource?.loading,
+      phase: retryFocusPhaseRef.current,
+    });
+    retryFocusPhaseRef.current = next.phase;
+    if (next.target === undefined) return;
+
+    if (next.target === 'session') {
+      sessionSelectRef.current?.focus();
+    } else if (next.target === 'retry') {
+      retryButtonRef.current?.focus();
+    } else {
+      originSelectRef.current?.focus();
+    }
+  }, [sessionSource?.available, sessionSource?.error, sessionSource?.loading]);
+
+  const retrySessions = (): void => {
+    retryFocusPhaseRef.current = 'awaiting-loading';
+    originSelectRef.current?.focus();
+    sessionSource?.retry?.();
+  };
+
   return (
     <fieldset className="grid gap-4 rounded-2xl border border-stone-200 p-5 md:grid-cols-2">
       <legend className="px-2 font-semibold">Metadados narrativos</legend>
@@ -58,7 +92,9 @@ export function NarrativeMetadataFields({
         options={visibilityOptions}
       />
       <Select
+        id="narrative-origin-kind"
         label="Origem"
+        selectRef={originSelectRef}
         value={values.originKind}
         disabled={disabled}
         onChange={(value) =>
@@ -71,18 +107,15 @@ export function NarrativeMetadataFields({
         options={originOptions}
       />
       {values.originKind === 'session' && sessionSource !== undefined ? (
-        <label className={labelClass} htmlFor="narrative-source-session">
-          Sessão de origem *
+        <div className={labelClass}>
+          <label htmlFor="narrative-source-session">Sessão de origem *</label>
           <select
-            aria-describedby={
-              sessionSource.error === undefined
-                ? 'narrative-source-session-help'
-                : 'narrative-source-session-help narrative-source-session-error'
-            }
+            aria-describedby={sessionSourceDescription(sessionSource)}
             aria-invalid={sessionSource.error === undefined ? undefined : true}
             className={inputClass}
-            disabled={disabled}
+            disabled={disabled || sessionSource.loading || sessionSource.available === false}
             id="narrative-source-session"
+            ref={sessionSelectRef}
             required
             value={sessionSource.value}
             onChange={(event) => sessionSource.onChange(event.target.value)}
@@ -100,15 +133,39 @@ export function NarrativeMetadataFields({
           >
             Escolha a sessão desta campanha que deu origem ao evento.
           </span>
-          {sessionSource.error === undefined ? null : (
+          {sessionSource.loading ? (
             <span
-              className="mt-1 block text-sm font-normal text-red-800"
-              id="narrative-source-session-error"
+              className="mt-1 block text-sm font-normal text-slate-700"
+              id="narrative-source-session-loading"
+              role="status"
             >
-              {sessionSource.error}
+              Carregando sessões…
             </span>
+          ) : null}
+          {!sessionSource.loading && sessionSource.error === undefined && sessionSource.available === false ? (
+            <span
+              aria-live="polite"
+              className="mt-1 block text-sm font-normal text-slate-700"
+              id="narrative-source-session-unavailable"
+              role="status"
+            >
+              Não há sessões nesta campanha. Crie uma sessão ou escolha outra origem.
+            </span>
+          ) : null}
+          {sessionSource.error === undefined ? null : (
+            <div aria-live="polite" className="mt-1 text-sm font-normal text-red-800" role="status">
+              <span id="narrative-source-session-error">{sessionSource.error}</span>
+              <button
+                className={`${secondaryClass} mt-2`}
+                onClick={retrySessions}
+                ref={retryButtonRef}
+                type="button"
+              >
+                Tentar carregar sessões novamente
+              </button>
+            </div>
           )}
-        </label>
+        </div>
       ) : values.originKind === 'manual' || hideSourceIdentifier ? null : (
         <label className={labelClass}>
           Identificador da fonte *
@@ -134,17 +191,21 @@ export function NarrativeMetadataFields({
 }
 
 function Select({
+  id,
   label,
   value,
   disabled,
   onChange,
   options,
+  selectRef,
 }: {
+  id?: string | undefined;
   label: string;
   value: string;
   disabled: boolean;
   onChange: (value: string) => void;
   options: readonly (readonly [string, string])[];
+  selectRef?: Ref<HTMLSelectElement> | undefined;
 }): React.JSX.Element {
   return (
     <label className={labelClass}>
@@ -152,7 +213,9 @@ function Select({
       <select
         className={inputClass}
         disabled={disabled}
+        id={id}
         onChange={(event) => onChange(event.target.value)}
+        ref={selectRef}
         value={value}
       >
         {options.map(([optionValue, optionLabel]) => (
@@ -200,6 +263,54 @@ export const primaryClass =
   'rounded-xl bg-amber-700 px-5 py-2.5 font-semibold text-white hover:bg-amber-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 disabled:cursor-wait disabled:opacity-60';
 export const secondaryClass =
   'rounded-xl border border-stone-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-stone-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 disabled:opacity-60';
+
+export function sessionSourceDescription({
+  available,
+  error,
+  loading,
+}: {
+  available?: boolean | undefined;
+  error?: string | undefined;
+  loading?: boolean | undefined;
+}): string {
+  const helpId = 'narrative-source-session-help';
+  if (loading) {
+    return `${helpId} narrative-source-session-loading`;
+  }
+  if (error !== undefined) {
+    return `${helpId} narrative-source-session-error`;
+  }
+  if (available === false) {
+    return `${helpId} narrative-source-session-unavailable`;
+  }
+  return helpId;
+}
+
+export type SessionRetryFocusPhase = 'awaiting-loading' | 'awaiting-result' | 'idle';
+
+export function advanceSessionRetryFocus({
+  available,
+  error,
+  loading,
+  phase,
+}: {
+  available?: boolean | undefined;
+  error?: string | undefined;
+  loading?: boolean | undefined;
+  phase: SessionRetryFocusPhase;
+}): {
+  phase: SessionRetryFocusPhase;
+  target: 'origin' | 'retry' | 'session' | undefined;
+} {
+  if (phase === 'idle') return { phase, target: undefined };
+  if (phase === 'awaiting-loading') {
+    return loading ? { phase: 'awaiting-result', target: undefined } : { phase, target: undefined };
+  }
+  if (loading) return { phase, target: undefined };
+  if (error !== undefined) return { phase: 'idle', target: 'retry' };
+  if (available) return { phase: 'idle', target: 'session' };
+  return { phase: 'idle', target: 'origin' };
+}
 
 export function knowledgeLabel(value: NarrativeMetadata['knowledgeState']): string {
   return knowledgeOptions.find(([key]) => key === value)?.[1] ?? value;
