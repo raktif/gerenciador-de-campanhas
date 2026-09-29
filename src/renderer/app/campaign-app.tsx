@@ -55,6 +55,8 @@ export function CampaignApp(): React.JSX.Element {
   const [announcement, setAnnouncement] = useState<string | null>(null);
   const [narrativeContext, setNarrativeContext] = useState<NarrativeContext | undefined>();
   const [timelineEntity, setTimelineEntity] = useState<Entity | undefined>();
+  const [relationshipEntity, setRelationshipEntity] = useState<Entity | undefined>();
+  const [relationshipReturnEntity, setRelationshipReturnEntity] = useState<Entity | undefined>();
   const contentRef = useRef<HTMLElement>(null);
   const campaignLoadStateRef = useRef<CampaignLoadState>(initialCampaignLoadState);
 
@@ -91,6 +93,20 @@ export function CampaignApp(): React.JSX.Element {
     setNarrativeContext(undefined);
     setTimelineEntity(entity);
     setScreen('timeline');
+  }
+
+  function openEntityRelationships(entity: Entity): void {
+    setNarrativeContext(undefined);
+    setTimelineEntity(undefined);
+    setRelationshipReturnEntity(undefined);
+    setRelationshipEntity(entity);
+    setScreen('relationships');
+  }
+
+  function returnFromRelationships(): void {
+    if (relationshipEntity !== undefined) setRelationshipReturnEntity(relationshipEntity);
+    setScreen(relationshipEntity === undefined ? 'edit' : 'entities');
+    setRelationshipEntity(undefined);
   }
 
   function returnFromTimeline(): void {
@@ -165,12 +181,16 @@ export function CampaignApp(): React.JSX.Element {
     setFormFailure(null);
     setNarrativeContext(undefined);
     setTimelineEntity(undefined);
+    setRelationshipEntity(undefined);
+    setRelationshipReturnEntity(undefined);
     setScreen('campaigns');
   }
 
   function navigateWithinCampaign(target: CampaignScreen): void {
     setNarrativeContext(undefined);
     setTimelineEntity(undefined);
+    setRelationshipEntity(undefined);
+    setRelationshipReturnEntity(undefined);
     setScreen(target);
   }
 
@@ -308,12 +328,19 @@ export function CampaignApp(): React.JSX.Element {
               onOpenAssertions={(entity) => openContext(entity, 'assertions')}
               onOpenNotes={(entity) => openContext(entity, 'notes')}
               onOpenTimeline={openEntityTimeline}
-              onOpenRelationships={() => setScreen('relationships')}
+              onOpenRelationships={openEntityRelationships}
+              {...(relationshipReturnEntity === undefined
+                ? {}
+                : { initialDetailEntity: relationshipReturnEntity, focusRelationshipButton: true })}
             />
           ) : screen === 'relationshipTypes' && selectedCampaign !== null ? (
             <RelationshipTypeManager campaign={selectedCampaign} onBack={() => setScreen('edit')} />
           ) : screen === 'relationships' && selectedCampaign !== null ? (
-            <RelationshipManager campaign={selectedCampaign} onBack={() => setScreen('edit')} />
+            <RelationshipManager
+              campaign={selectedCampaign}
+              {...(relationshipEntity === undefined ? {} : { centralEntity: relationshipEntity })}
+              onBack={returnFromRelationships}
+            />
           ) : screen === 'assertions' && selectedCampaign !== null ? (
             <AssertionManager
               campaign={selectedCampaign}

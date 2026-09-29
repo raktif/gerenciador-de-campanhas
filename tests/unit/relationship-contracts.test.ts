@@ -13,6 +13,7 @@ describe('contratos de relações e vizinhança', () => {
       campaignId,
       entityId,
       depth: 1,
+      directOnly: false,
       maxEntities: 100,
       maxRelationships: 200,
       filters: {

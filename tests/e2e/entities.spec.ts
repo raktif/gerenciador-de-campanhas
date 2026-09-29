@@ -99,12 +99,48 @@ test('cadastra entidade com metadados, edita, arquiva e persiste após reiniciar
     await window.getByLabel('Nome *').fill('Mara');
     await window.getByRole('button', { name: 'Criar entidade' }).click();
     await expect(window.getByTestId('entity-list')).toContainText('Mara');
+    await window.getByRole('button', { name: 'Nova entidade', exact: true }).click();
+    await window.getByLabel('Nome *').fill('Nilo');
+    await window.getByRole('button', { name: 'Criar entidade' }).click();
+    await expect(window.getByTestId('entity-list')).toContainText('Nilo');
     await window.getByRole('button', { name: 'Relações' }).click();
     await window.getByLabel('Tipo *').selectOption({ label: 'Aliado de' });
     await window.getByLabel('Origem *').selectOption({ label: 'Gorel' });
     await window.getByLabel('Destino *').selectOption({ label: 'Mara' });
     await window.getByRole('button', { name: 'Criar relação' }).click();
     await expect(window.getByTestId('relationship-list')).toContainText('Gorel');
+    await window.getByRole('button', { name: 'Ver entidades' }).click();
+
+    await window.getByRole('button', { name: 'Abrir detalhes de Gorel' }).first().click();
+    await window.getByRole('button', { name: 'Ver relações' }).focus();
+    await window.keyboard.press('Enter');
+    await expect(window.getByLabel('Entidade central').locator('option:checked')).toHaveText('Gorel');
+    await expect(window.getByLabel('Profundidade')).toHaveValue('1');
+    await expect(window.getByTestId('neighborhood-text-list')).toContainText('Gorel');
+    await expect(window.getByTestId('neighborhood-text-list')).toContainText('Mara');
+    await window.getByRole('button', { name: 'Voltar para detalhes de Gorel' }).focus();
+    await window.keyboard.press('Enter');
+    await expect(window.getByRole('heading', { name: 'Gorel', exact: true })).toBeVisible();
+    await expect(window.getByRole('button', { name: 'Ver relações' })).toBeFocused();
+    await window.getByRole('button', { name: 'Voltar para entidades' }).click();
+
+    await window.getByRole('button', { name: 'Relações' }).click();
+    await window.getByLabel('Entidade central').selectOption({ label: 'Gorel' });
+    await window.getByLabel('Tipo *').selectOption({ label: 'Aliado de' });
+    await window.getByLabel('Origem *').selectOption({ label: 'Mara' });
+    await window.getByLabel('Destino *').selectOption({ label: 'Gorel' });
+    await window.getByRole('button', { name: 'Criar relação' }).click();
+    await expect(window.getByLabel('Entidade central').locator('option:checked')).toHaveText('Gorel');
+    await expect(window.getByLabel('Profundidade')).toHaveValue('1');
+    await expect(window.getByTestId('neighborhood-text-list')).toContainText('Gorel');
+    await window.getByRole('button', { name: 'Ver entidades' }).click();
+
+    await window.getByRole('button', { name: 'Abrir detalhes de Nilo' }).first().click();
+    await window.getByRole('button', { name: 'Ver relações' }).click();
+    await expect(window.getByLabel('Entidade central').locator('option:checked')).toHaveText('Nilo');
+    await expect(window.getByRole('status')).toContainText(
+      'Nenhuma conexão corresponde aos filtros.',
+    );
     await window.getByRole('button', { name: 'Ver entidades' }).click();
 
     await window.getByRole('button', { name: 'Abrir detalhes de Gorel' }).first().click();

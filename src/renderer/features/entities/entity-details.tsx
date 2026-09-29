@@ -16,6 +16,7 @@ export function EntityDetailsView({
   onOpenNotes,
   onOpenTimeline,
   onOpenRelationships,
+  focusRelationshipButton = false,
 }: {
   campaign: Campaign;
   details: EntityDetails;
@@ -25,7 +26,8 @@ export function EntityDetailsView({
   onOpenAssertions: () => void;
   onOpenNotes: () => void;
   onOpenTimeline: () => void;
-  onOpenRelationships: () => void;
+  onOpenRelationships: (entity: EntityDetails['entity']) => void;
+  focusRelationshipButton?: boolean;
 }): React.JSX.Element {
   const [fields, setFields] = useState<FieldDefinition[]>([]);
   const [relationships, setRelationships] = useState<Relationship[]>([]);
@@ -33,10 +35,11 @@ export function EntityDetailsView({
   const [relatedEntities, setRelatedEntities] = useState<EntityDetails['entity'][]>([]);
   const [fieldsLoading, setFieldsLoading] = useState(true);
   const titleRef = useRef<HTMLHeadingElement>(null);
+  const relationshipsButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
-    titleRef.current?.focus();
-  }, []);
+    (focusRelationshipButton ? relationshipsButtonRef.current : titleRef.current)?.focus();
+  }, [focusRelationshipButton]);
 
   useEffect(() => {
     let cancelled = false;
@@ -181,7 +184,12 @@ export function EntityDetailsView({
               <h2 className={sectionTitleClass} id="entity-relationships-title">
                 Relações
               </h2>
-              <button className={secondaryClass} onClick={onOpenRelationships} type="button">
+              <button
+                className={secondaryClass}
+                onClick={() => onOpenRelationships(details.entity)}
+                ref={relationshipsButtonRef}
+                type="button"
+              >
                 Ver relações
               </button>
             </div>

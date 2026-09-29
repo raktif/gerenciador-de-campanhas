@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Campaign } from '../../../core/contracts/campaigns';
 import type { Entity } from '../../../core/contracts/entities';
 import type { RelationshipType } from '../../../core/contracts/relationship-types';
@@ -29,10 +29,14 @@ export function RelationshipNeighborhood({
   campaign,
   entities,
   types,
+  centralEntityId,
+  directOnly = false,
 }: {
   campaign: Campaign;
   entities: Entity[];
   types: RelationshipType[];
+  centralEntityId?: string;
+  directOnly?: boolean;
 }): React.JSX.Element {
   const [entityId, setEntityId] = useState('');
   const [depth, setDepth] = useState<1 | 2 | 3>(1);
@@ -40,6 +44,18 @@ export function RelationshipNeighborhood({
   const [result, setResult] = useState<RelationshipNeighborhoodResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<UserFacingError | null>(null);
+  const initializedCentralContext = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (centralEntityId === undefined) return;
+    const validCentralEntityId = resolveCentralEntityId(centralEntityId, campaign.id, entities);
+    if (validCentralEntityId === '') return;
+    const contextKey = `${campaign.id}:${validCentralEntityId}`;
+    if (initializedCentralContext.current === contextKey) return;
+    initializedCentralContext.current = contextKey;
+    setEntityId(validCentralEntityId);
+    setDepth(1);
+  }, [campaign.id, centralEntityId, entities]);
 
   useEffect(() => {
     let cancelled = false;
@@ -54,6 +70,7 @@ export function RelationshipNeighborhood({
         campaignId: campaign.id,
         entityId,
         depth,
+        directOnly,
         filters: {
           relationshipTypeIds:
             filters.relationshipTypeId === '' ? [] : [filters.relationshipTypeId],
@@ -79,7 +96,7 @@ export function RelationshipNeighborhood({
     return () => {
       cancelled = true;
     };
-  }, [campaign.id, depth, entityId, filters]);
+  }, [campaign.id, depth, directOnly, entityId, filters]);
 
   const entityNames = useMemo(
     () => new Map((result?.nodes ?? []).map((node) => [node.entity.id, node.entity.name])),
@@ -120,6 +137,7 @@ export function RelationshipNeighborhood({
           Profundidade
           <select
             className={inputClass}
+            disabled={directOnly}
             value={depth}
             onChange={(event) => setDepth(Number(event.target.value) as 1 | 2 | 3)}
           >
@@ -302,7 +320,7 @@ export function RelationshipNeighborhood({
           <div className="mt-6" data-testid="neighborhood-text-list">
             <h3 className="text-lg font-semibold">Lista textual acessível</h3>
             {result.relationships.length === 0 ? (
-              <p className="mt-3 text-sm text-slate-600">
+              <p aria-live="polite" className="mt-3 text-sm text-slate-600" role="status">
                 Nenhuma conexão corresponde aos filtros.
               </p>
             ) : (
@@ -357,6 +375,17 @@ export function RelationshipNeighborhood({
       )}
     </section>
   );
+}
+
+export function resolveCentralEntityId(
+  centralEntityId: string | undefined,
+  campaignId: string,
+  entities: Entity[],
+): string {
+  if (centralEntityId === undefined) return '';
+  return entities.some((entity) => entity.id === centralEntityId && entity.campaignId === campaignId)
+    ? centralEntityId
+    : '';
 }
 
 interface GraphPoint {

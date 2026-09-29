@@ -3,6 +3,8 @@ import type { FieldDefinition } from '../../src/core/contracts/field-definitions
 import type { RelationshipType } from '../../src/core/contracts/relationship-types';
 import type { Relationship } from '../../src/core/contracts/relationships';
 import { referencedEntityIds } from '../../src/renderer/features/entities/entity-details';
+import { resolveCentralEntityId } from '../../src/renderer/features/relationships/relationship-neighborhood';
+import type { Entity } from '../../src/core/contracts/entities';
 
 const entityId = '00000000-0000-4000-8000-000000000001';
 const relatedEntityId = '00000000-0000-4000-8000-000000000002';
@@ -28,6 +30,36 @@ describe('referencedEntityIds', () => {
     ).toEqual([relatedEntityId]);
   });
 });
+
+describe('resolveCentralEntityId', () => {
+  it('mantém a entidade central apenas quando pertence à campanha atual', () => {
+    const central = entity(entityId, '50000000-0000-4000-8000-000000000001');
+    const foreign = entity(relatedEntityId, '50000000-0000-4000-8000-000000000002');
+
+    expect(resolveCentralEntityId(central.id, central.campaignId, [central])).toBe(central.id);
+    expect(resolveCentralEntityId(foreign.id, central.campaignId, [foreign])).toBe('');
+    expect(resolveCentralEntityId(undefined, central.campaignId, [central])).toBe('');
+  });
+});
+
+function entity(id: string, campaignId: string): Entity {
+  return {
+    id,
+    campaignId,
+    entityTypeId: '30000000-0000-4000-8000-000000000001',
+    name: 'Entidade',
+    summary: null,
+    canonState: 'accepted',
+    knowledgeState: 'fact',
+    visibility: 'gm',
+    originKind: 'manual',
+    sourceId: null,
+    createdAt: '2026-09-29T12:00:00.000Z',
+    updatedAt: '2026-09-29T12:00:00.000Z',
+    archivedAt: null,
+    revision: 1,
+  };
+}
 
 function referenceField(direction: 'outgoing' | 'incoming'): FieldDefinition {
   return {

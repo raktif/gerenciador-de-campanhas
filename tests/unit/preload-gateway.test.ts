@@ -394,6 +394,7 @@ describe('gateway do preload', () => {
           campaignId: '00000000-0000-4000-8000-000000000001',
           entityId: '30000000-0000-4000-8000-000000000001',
           depth: 1,
+          directOnly: false,
           maxEntities: 100,
           maxRelationships: 200,
           filters: {

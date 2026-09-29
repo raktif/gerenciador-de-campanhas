@@ -30,9 +30,11 @@ const emptyForm: FormState = {
 export function RelationshipManager({
   campaign,
   onBack,
+  centralEntity,
 }: {
   campaign: Campaign;
   onBack: () => void;
+  centralEntity?: Entity;
 }): React.JSX.Element {
   const [relationships, setRelationships] = useState<Relationship[]>([]);
   const [types, setTypes] = useState<RelationshipType[]>([]);
@@ -194,10 +196,14 @@ export function RelationshipManager({
   };
   const activeTypes = types.filter((item) => !item.isArchived);
   const activeEntities = entities.filter((item) => item.archivedAt === null);
+  const contextualEntity =
+    centralEntity?.campaignId === campaign.id ? centralEntity : undefined;
   return (
     <section aria-busy={loading || busy} aria-labelledby="relationships-title">
       <button className={backClass} onClick={onBack} type="button">
-        ← Voltar para detalhes da campanha
+        {contextualEntity === undefined
+          ? '← Voltar para detalhes da campanha'
+          : `← Voltar para detalhes de ${contextualEntity.name}`}
       </button>
       <header className="border-b border-stone-200 pb-7">
         <p className="text-xs font-bold tracking-[0.18em] text-amber-800 uppercase">
@@ -215,7 +221,14 @@ export function RelationshipManager({
           Carregando relações…
         </p>
       ) : (
-        <RelationshipNeighborhood campaign={campaign} entities={entities} types={types} />
+        <RelationshipNeighborhood
+          campaign={campaign}
+          entities={entities}
+          types={types}
+          {...(contextualEntity === undefined
+            ? {}
+            : { centralEntityId: contextualEntity.id, directOnly: true })}
+        />
       )}
       {!loading && !showArchived && activeTypes.length > 0 && activeEntities.length > 0 ? (
         <form

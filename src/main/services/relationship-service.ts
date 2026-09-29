@@ -161,10 +161,16 @@ export class RelationshipService {
       foundRelationships.set(relationship.id, relationship);
     }
 
+    const relationships = input.directOnly
+      ? [...foundRelationships.values()].filter(
+          (relationship) =>
+            relationship.sourceEntityId === root.id || relationship.targetEntityId === root.id,
+        )
+      : [...foundRelationships.values()];
     return {
       rootEntityId: root.id,
       nodes: [...nodes.values()],
-      relationships: [...foundRelationships.values()],
+      relationships,
       truncated,
     };
   }

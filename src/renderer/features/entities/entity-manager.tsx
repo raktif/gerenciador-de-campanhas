@@ -20,13 +20,17 @@ export function EntityManager({
   onOpenNotes,
   onOpenTimeline,
   onOpenRelationships,
+  initialDetailEntity,
+  focusRelationshipButton = false,
 }: {
   campaign: Campaign;
   onBack: () => void;
   onOpenAssertions: (entity: Entity) => void;
   onOpenNotes: (entity: Entity) => void;
   onOpenTimeline: (entity: Entity) => void;
-  onOpenRelationships: () => void;
+  onOpenRelationships: (entity: Entity) => void;
+  initialDetailEntity?: Entity;
+  focusRelationshipButton?: boolean;
 }): React.JSX.Element {
   const [entityTypes, setEntityTypes] = useState<EntityType[]>([]);
   const [entities, setEntities] = useState<Entity[]>([]);
@@ -42,6 +46,7 @@ export function EntityManager({
   const [announcement, setAnnouncement] = useState<string | null>(null);
   const listFocusTargetRef = useRef<string | null>(null);
   const [pendingListFocusTarget, setPendingListFocusTarget] = useState<string | null>(null);
+  const loadedInitialDetailEntityId = useRef<string | null>(null);
 
   const loadEntityTypes = useCallback(async (): Promise<void> => {
     const result = await window.campaignManager.entityTypes.list({
@@ -79,6 +84,16 @@ export function EntityManager({
       ?.focus();
     setPendingListFocusTarget(null);
   }, [entities, pendingListFocusTarget, view]);
+  useEffect(() => {
+    if (
+      initialDetailEntity === undefined ||
+      initialDetailEntity.campaignId !== campaign.id ||
+      loadedInitialDetailEntityId.current === initialDetailEntity.id
+    )
+      return;
+    loadedInitialDetailEntityId.current = initialDetailEntity.id;
+    void loadDetails(initialDetailEntity, 'details');
+  }, [campaign.id, initialDetailEntity]);
 
   function restoreListFocus(): void {
     if (listFocusTargetRef.current !== null) setPendingListFocusTarget(listFocusTargetRef.current);
@@ -268,6 +283,9 @@ export function EntityManager({
         onOpenNotes={() => onOpenNotes(viewing.entity)}
         onOpenTimeline={() => onOpenTimeline(viewing.entity)}
         onOpenRelationships={onOpenRelationships}
+        focusRelationshipButton={
+          focusRelationshipButton && initialDetailEntity?.id === viewing.entity.id
+        }
       />
     );
   }
