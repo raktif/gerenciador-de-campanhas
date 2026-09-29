@@ -29,7 +29,7 @@ describe('handlers IPC de diagnóstico', () => {
     ).resolves.toMatchObject({ ok: true, data: { copied: true } });
     expect(copied).toEqual([
       [
-        'Gerenciador de Campanhas de RPG — diagnóstico de inicialização',
+        'Gerenciador de Campanhas de RPG — diagnóstico da aplicação',
         'versão=1',
         'tela=campaigns',
         'operação=campaigns.list',

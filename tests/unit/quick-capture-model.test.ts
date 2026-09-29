@@ -60,7 +60,14 @@ describe('modelo de captura rápida', () => {
       'Texto preservado.',
       sessionId,
     );
-    expect(failure).toEqual({ ok: false, message: 'Sessão indisponível.' });
+    expect(failure).toMatchObject({
+      ok: false,
+      error: {
+        code: 'SESSION_NOT_FOUND',
+        title: 'A sessão de origem não foi encontrada nesta campanha',
+        canCopyDiagnostics: true,
+      },
+    });
   });
 
   it('cria um feedback único identificado pela captura mais recente', () => {

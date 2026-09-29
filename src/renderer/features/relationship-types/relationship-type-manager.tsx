@@ -6,6 +6,11 @@ import type {
   RelationshipTypePatch,
 } from '../../../core/contracts/relationship-types';
 import { RelationshipTypeForm, type RelationshipTypeCreateValues } from './relationship-type-form';
+import {
+  presentUserFacingError,
+  type UserFacingError,
+} from '../../../core/errors/user-facing-error';
+import { UserFacingErrorNotice } from '../../components/user-facing-error-notice';
 
 type View = 'list' | 'create' | 'edit';
 
@@ -24,7 +29,7 @@ export function RelationshipTypeManager({
   const [pending, setPending] = useState<RelationshipType | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<UserFacingError | null>(null);
   const [announcement, setAnnouncement] = useState<string | null>(null);
 
   const load = useCallback(async (): Promise<void> => {
@@ -42,9 +47,10 @@ export function RelationshipTypeManager({
         filters: { isArchived: false },
       }),
     ]);
-    if (!relationshipResult.ok) setError(relationshipResult.error.message);
+    if (!relationshipResult.ok)
+      setError(presentUserFacingError(relationshipResult.error, 'relationship-types.list'));
     else setTypes(relationshipResult.data.items);
-    if (!entityResult.ok) setError(entityResult.error.message);
+    if (!entityResult.ok) setError(presentUserFacingError(entityResult.error, 'entity-types.list'));
     else setEntityTypes(entityResult.data.items);
     setLoading(false);
   }, [campaign.id, showArchived]);
@@ -59,14 +65,14 @@ export function RelationshipTypeManager({
         campaignId: campaign.id,
         ...values,
       });
-      if (!result.ok) setError(result.error.message);
+      if (!result.ok) setError(presentUserFacingError(result.error, 'relationship-types.mutate'));
       else {
         setTypes((current) => [...current, result.data].sort(compare));
         setView('list');
         setAnnouncement(`Tipo de relação “${result.data.name}” criado.`);
       }
     } catch {
-      setError(validationMessage);
+      setError(presentUserFacingError({ code: 'VALIDATION_ERROR' }, 'relationship-types.mutate'));
     } finally {
       setBusy(false);
     }
@@ -83,7 +89,7 @@ export function RelationshipTypeManager({
         revision: editing.revision,
         patch,
       });
-      if (!result.ok) setError(result.error.message);
+      if (!result.ok) setError(presentUserFacingError(result.error, 'relationship-types.mutate'));
       else {
         setTypes((current) =>
           current.map((item) => (item.id === result.data.id ? result.data : item)).sort(compare),
@@ -93,7 +99,7 @@ export function RelationshipTypeManager({
         setAnnouncement(`Tipo de relação “${result.data.name}” atualizado.`);
       }
     } catch {
-      setError(validationMessage);
+      setError(presentUserFacingError({ code: 'VALIDATION_ERROR' }, 'relationship-types.mutate'));
     } finally {
       setBusy(false);
     }
@@ -106,7 +112,7 @@ export function RelationshipTypeManager({
     const result = pending.isArchived
       ? await window.campaignManager.relationshipTypes.restore(input)
       : await window.campaignManager.relationshipTypes.archive(input);
-    if (!result.ok) setError(result.error.message);
+    if (!result.ok) setError(presentUserFacingError(result.error, 'relationship-types.mutate'));
     else {
       setTypes((current) => current.filter(({ id }) => id !== result.data.id));
       setAnnouncement(
@@ -119,30 +125,44 @@ export function RelationshipTypeManager({
 
   if (view === 'create')
     return (
-      <RelationshipTypeForm
-        busy={busy}
-        entityTypes={entityTypes}
-        error={error}
-        mode="create"
-        onCancel={() => setView('list')}
-        onSubmit={create}
-      />
+      <>
+        <RelationshipTypeForm
+          busy={busy}
+          entityTypes={entityTypes}
+          error={null}
+          mode="create"
+          onCancel={() => setView('list')}
+          onSubmit={create}
+        />
+        {error === null ? null : (
+          <div className="mx-auto mt-5 max-w-3xl">
+            <UserFacingErrorNotice error={error} operation="relationship-types.mutate" />
+          </div>
+        )}
+      </>
     );
   if (view === 'edit' && editing !== null)
     return (
-      <RelationshipTypeForm
-        busy={busy}
-        entityTypes={entityTypes}
-        error={error}
-        key={`${editing.id}:${String(editing.revision)}`}
-        mode="edit"
-        onCancel={() => {
-          setEditing(null);
-          setView('list');
-        }}
-        onSubmit={update}
-        relationshipType={editing}
-      />
+      <>
+        <RelationshipTypeForm
+          busy={busy}
+          entityTypes={entityTypes}
+          error={null}
+          key={`${editing.id}:${String(editing.revision)}`}
+          mode="edit"
+          onCancel={() => {
+            setEditing(null);
+            setView('list');
+          }}
+          onSubmit={update}
+          relationshipType={editing}
+        />
+        {error === null ? null : (
+          <div className="mx-auto mt-5 max-w-3xl">
+            <UserFacingErrorNotice error={error} operation="relationship-types.mutate" />
+          </div>
+        )}
+      </>
     );
 
   return (
@@ -233,15 +253,12 @@ export function RelationshipTypeManager({
         </div>
       )}
       {error === null ? null : (
-        <div className="mt-6 rounded-xl border border-red-200 bg-red-50 p-4" role="alert">
-          <p className="text-sm text-red-800">{error}</p>
-          <button
-            className="mt-3 text-sm font-semibold text-red-800 underline"
-            onClick={() => void load()}
-            type="button"
-          >
-            Tentar novamente
-          </button>
+        <div className="mt-6">
+          <UserFacingErrorNotice
+            error={error}
+            operation="relationship-types.list"
+            onRetry={() => void load()}
+          />
         </div>
       )}
       {loading ? (
@@ -360,4 +377,3 @@ const secondaryClass =
   'rounded-xl border border-stone-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-stone-50 disabled:opacity-60';
 const backClass =
   'mb-6 inline-flex rounded-lg px-2 py-1 text-sm font-semibold text-slate-600 hover:text-slate-950';
-const validationMessage = 'Não foi possível validar os dados. Revise os campos e tente novamente.';

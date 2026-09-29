@@ -23,6 +23,8 @@ import { RelationshipManager } from '../features/relationships/relationship-mana
 import { SessionManager } from '../features/sessions/session-manager';
 import { TimelineManager } from '../features/timeline/timeline-manager';
 import { InboxManager } from '../features/inbox/inbox-manager';
+import { presentUserFacingError, type UserFacingError } from '../../core/errors/user-facing-error';
+import { UserFacingErrorNotice } from '../components/user-facing-error-notice';
 
 type Screen =
   | 'campaigns'
@@ -47,7 +49,7 @@ export function CampaignApp(): React.JSX.Element {
   const [screen, setScreen] = useState<Screen>('campaigns');
   const [campaignLoadState, setCampaignLoadState] =
     useState<CampaignLoadState>(initialCampaignLoadState);
-  const [formError, setFormError] = useState<string | null>(null);
+  const [formFailure, setFormFailure] = useState<UserFacingError | null>(null);
   const [creating, setCreating] = useState(false);
   const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
   const [announcement, setAnnouncement] = useState<string | null>(null);
@@ -137,7 +139,7 @@ export function CampaignApp(): React.JSX.Element {
   }, [loadCampaigns]);
 
   function beginCreation(): void {
-    setFormError(null);
+    setFormFailure(null);
     setAnnouncement(null);
     setScreen('create');
   }
@@ -153,14 +155,14 @@ export function CampaignApp(): React.JSX.Element {
 
   function beginEditing(campaign: Campaign): void {
     setSelectedCampaign(campaign);
-    setFormError(null);
+    setFormFailure(null);
     setAnnouncement(null);
     setScreen('edit');
   }
 
   function returnToCampaigns(): void {
     setSelectedCampaign(null);
-    setFormError(null);
+    setFormFailure(null);
     setNarrativeContext(undefined);
     setTimelineEntity(undefined);
     setScreen('campaigns');
@@ -174,14 +176,15 @@ export function CampaignApp(): React.JSX.Element {
 
   async function createCampaign(input: CreateCampaignInput): Promise<void> {
     setCreating(true);
-    setFormError(null);
+    setFormFailure(null);
     const result = await window.campaignManager.campaigns.create(input);
     if (result.ok) {
       setCampaigns((current) => [result.data, ...current]);
       setScreen('campaigns');
       setAnnouncement(`Campanha “${result.data.name}” criada.`);
     } else {
-      setFormError(result.error.message);
+      const failure = presentUserFacingError(result.error, 'campaigns.mutate');
+      setFormFailure(failure);
     }
     setCreating(false);
   }
@@ -190,7 +193,7 @@ export function CampaignApp(): React.JSX.Element {
     if (selectedCampaign === null) return;
 
     setCreating(true);
-    setFormError(null);
+    setFormFailure(null);
     const input = { id: selectedCampaign.id, revision: selectedCampaign.revision };
     const result =
       action === 'archive'
@@ -205,7 +208,8 @@ export function CampaignApp(): React.JSX.Element {
       setScreen('campaigns');
       setAnnouncement(lifecycleAnnouncement(action, result.data.name));
     } else {
-      setFormError(result.error.message);
+      const failure = presentUserFacingError(result.error, 'campaigns.mutate');
+      setFormFailure(failure);
     }
     setCreating(false);
   }
@@ -214,7 +218,7 @@ export function CampaignApp(): React.JSX.Element {
     if (selectedCampaign === null) return;
 
     setCreating(true);
-    setFormError(null);
+    setFormFailure(null);
     const result = await window.campaignManager.campaigns.update({
       id: selectedCampaign.id,
       revision: selectedCampaign.revision,
@@ -228,7 +232,8 @@ export function CampaignApp(): React.JSX.Element {
       setScreen('campaigns');
       setAnnouncement(`Campanha “${result.data.name}” atualizada.`);
     } else {
-      setFormError(result.error.message);
+      const failure = presentUserFacingError(result.error, 'campaigns.mutate');
+      setFormFailure(failure);
     }
     setCreating(false);
   }
@@ -280,13 +285,20 @@ export function CampaignApp(): React.JSX.Element {
 
         <main className="min-w-0 px-8 py-8 lg:px-12 lg:py-10" ref={contentRef}>
           {screen === 'create' ? (
-            <CampaignForm
-              busy={creating}
-              error={formError}
-              mode="create"
-              onCancel={returnToCampaigns}
-              onSubmit={createCampaign}
-            />
+            <>
+              <CampaignForm
+                busy={creating}
+                error={null}
+                mode="create"
+                onCancel={returnToCampaigns}
+                onSubmit={createCampaign}
+              />
+              {formFailure === null ? null : (
+                <div className="mt-5">
+                  <UserFacingErrorNotice error={formFailure} operation="campaigns.mutate" />
+                </div>
+              )}
+            </>
           ) : screen === 'entityTypes' && selectedCampaign !== null ? (
             <EntityTypeManager campaign={selectedCampaign} onBack={() => setScreen('edit')} />
           ) : screen === 'entities' && selectedCampaign !== null ? (
@@ -330,16 +342,23 @@ export function CampaignApp(): React.JSX.Element {
               onManageRelationshipTypes={() => setScreen('relationshipTypes')}
             />
           ) : screen === 'edit' && selectedCampaign !== null ? (
-            <CampaignForm
-              busy={creating}
-              campaign={selectedCampaign}
-              error={formError}
-              key={`${selectedCampaign.id}:${String(selectedCampaign.revision)}`}
-              mode="edit"
-              onCancel={returnToCampaigns}
-              onLifecycle={changeLifecycle}
-              onSubmit={updateCampaign}
-            />
+            <>
+              <CampaignForm
+                busy={creating}
+                campaign={selectedCampaign}
+                error={null}
+                key={`${selectedCampaign.id}:${String(selectedCampaign.revision)}`}
+                mode="edit"
+                onCancel={returnToCampaigns}
+                onLifecycle={changeLifecycle}
+                onSubmit={updateCampaign}
+              />
+              {formFailure === null ? null : (
+                <div className="mt-5">
+                  <UserFacingErrorNotice error={formFailure} operation="campaigns.mutate" />
+                </div>
+              )}
+            </>
           ) : (
             <CampaignsScreen
               announcement={announcement}
@@ -692,9 +711,12 @@ function StartupFailureScreen({
         <p className="mt-2 text-sm text-slate-600" id="startup-error-suggested-action">
           {failure.suggestedAction}
         </p>
-        <p className="mt-4 text-xs font-semibold tracking-wide text-slate-500">
-          Código: {failure.code}
-        </p>
+        <details className="mt-4 text-left text-xs text-slate-600">
+          <summary className="cursor-pointer text-center font-semibold tracking-wide text-slate-500">
+            Ver detalhes técnicos
+          </summary>
+          <p className="mt-2">Código: {failure.code}</p>
+        </details>
         <div className="mt-6 flex flex-wrap justify-center gap-3">
           <button
             className="rounded-xl bg-slate-900 px-5 py-3 font-semibold text-white hover:bg-slate-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700"

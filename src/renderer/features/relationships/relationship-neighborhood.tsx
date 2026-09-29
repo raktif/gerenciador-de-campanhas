@@ -6,6 +6,11 @@ import type {
   Relationship,
   RelationshipNeighborhoodResult,
 } from '../../../core/contracts/relationships';
+import {
+  presentUserFacingError,
+  type UserFacingError,
+} from '../../../core/errors/user-facing-error';
+import { UserFacingErrorNotice } from '../../components/user-facing-error-notice';
 
 interface NeighborhoodFilters {
   relationshipTypeId: string;
@@ -34,7 +39,7 @@ export function RelationshipNeighborhood({
   const [filters, setFilters] = useState(emptyFilters);
   const [result, setResult] = useState<RelationshipNeighborhoodResult | null>(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<UserFacingError | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -67,7 +72,7 @@ export function RelationshipNeighborhood({
         if (response.ok) setResult(response.data);
         else {
           setResult(null);
-          setError(response.error.message);
+          setError(presentUserFacingError(response.error, 'relationships.list'));
         }
         setLoading(false);
       });
@@ -177,12 +182,14 @@ export function RelationshipNeighborhood({
         </p>
       ) : null}
       {error === null ? null : (
-        <p
-          className="mt-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800"
-          role="alert"
-        >
-          {error}
-        </p>
+        <div className="mt-6">
+          <UserFacingErrorNotice
+            compact
+            error={error}
+            operation="relationships.list"
+            onRetry={() => setFilters((current) => ({ ...current }))}
+          />
+        </div>
       )}
       {result === null || loading ? null : (
         <>

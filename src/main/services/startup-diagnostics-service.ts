@@ -9,7 +9,7 @@ export class StartupDiagnosticsService {
   public copyStartupDiagnostic(input: CopyStartupDiagnosticInput): CopiedStartupDiagnostic {
     this.copy(
       [
-        'Gerenciador de Campanhas de RPG — diagnóstico de inicialização',
+        'Gerenciador de Campanhas de RPG — diagnóstico da aplicação',
         `versão=${String(input.version)}`,
         `tela=${input.screen}`,
         `operação=${input.operation}`,

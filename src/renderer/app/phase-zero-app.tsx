@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { ApplicationStatus, PhaseZeroTestRecord } from '../../core/contracts/phase-zero';
 import type { Result } from '../../core/contracts/result';
+import { userFacingErrorMessage } from '../../core/errors/user-facing-error';
 
 type Feedback =
   | { tone: 'neutral'; message: string }
@@ -22,7 +23,7 @@ export function PhaseZeroApp(): React.JSX.Element {
       setStatus(result.data);
       setFeedback({ tone: 'success', message: 'A fundação local está pronta.' });
     } else {
-      setFeedback({ tone: 'error', message: result.error.message });
+      setFeedback({ tone: 'error', message: userFacingErrorMessage(result.error, 'phase-zero.operation') });
     }
     setBusyAction(null);
   }, []);
@@ -41,7 +42,7 @@ export function PhaseZeroApp(): React.JSX.Element {
     setBusyAction('read');
     const result = await window.campaignManager.phaseZero.readTest();
     if (!result.ok) {
-      setFeedback({ tone: 'error', message: result.error.message });
+      setFeedback({ tone: 'error', message: userFacingErrorMessage(result.error, 'phase-zero.operation') });
     } else if (result.data === null) {
       setFeedback({ tone: 'neutral', message: 'Nenhum valor de teste foi gravado ainda.' });
     } else {
@@ -59,7 +60,7 @@ export function PhaseZeroApp(): React.JSX.Element {
     setFeedback(
       result.ok
         ? { tone: 'success', message: 'Pasta de dados aberta pelo sistema.' }
-        : { tone: 'error', message: result.error.message },
+        : { tone: 'error', message: userFacingErrorMessage(result.error, 'phase-zero.operation') },
     );
     setBusyAction(null);
   }
@@ -71,7 +72,7 @@ export function PhaseZeroApp(): React.JSX.Element {
             tone: 'success',
             message: `${prefix}: ${result.data.value} (${formatDate(result.data.savedAt)})`,
           }
-        : { tone: 'error', message: result.error.message },
+        : { tone: 'error', message: userFacingErrorMessage(result.error, 'phase-zero.operation') },
     );
   }
 

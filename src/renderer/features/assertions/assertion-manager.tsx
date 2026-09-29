@@ -16,6 +16,12 @@ import {
   type NarrativeMetadataValues,
 } from '../narrative/narrative-metadata-fields';
 import { useSessionSourceOptions } from '../narrative/session-source-options';
+import {
+  presentUserFacingError,
+  userFacingErrorMessage,
+  type UserFacingError,
+} from '../../../core/errors/user-facing-error';
+import { UserFacingErrorNotice } from '../../components/user-facing-error-notice';
 
 type View = 'list' | 'create' | 'edit';
 export interface NarrativeContext {
@@ -43,7 +49,7 @@ export function AssertionManager({
   const [cursor, setCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<UserFacingError | null>(null);
   const [announcement, setAnnouncement] = useState<string | null>(null);
   const [pending, setPending] = useState<Assertion | null>(null);
 
@@ -68,9 +74,9 @@ export function AssertionManager({
         if (result.ok) {
           setItems((current) => (append ? [...current, ...result.data.items] : result.data.items));
           setCursor(result.data.nextCursor);
-        } else setError(result.error.message);
+        } else setError(presentUserFacingError(result.error, 'assertions.list'));
       } catch {
-        setError(unexpectedGatewayError);
+        setError(presentUserFacingError(undefined, 'assertions.list'));
       } finally {
         setLoading(false);
       }
@@ -86,7 +92,7 @@ export function AssertionManager({
   useEffect(() => {
     void loadAllEntities(campaign.id)
       .then(setEntities)
-      .catch(() => setError(unexpectedGatewayError));
+      .catch(() => setError(presentUserFacingError(undefined, 'entities.list')));
   }, [campaign.id]);
 
   async function beginEdit(item: Assertion): Promise<void> {
@@ -99,13 +105,13 @@ export function AssertionManager({
         id: item.id,
       });
       if (!result.ok) {
-        setError(result.error.message);
+        setError(presentUserFacingError(result.error, 'assertions.mutate'));
         return;
       }
       setEditing(result.data);
       setView('edit');
     } catch {
-      setError(unexpectedGatewayError);
+      setError(presentUserFacingError(undefined, 'assertions.mutate'));
     } finally {
       setBusy(false);
     }
@@ -140,9 +146,9 @@ export function AssertionManager({
         setEditing(null);
         setView('list');
         await load(false);
-      } else setError(result.error.message);
+      } else setError(presentUserFacingError(result.error, 'assertions.mutate'));
     } catch {
-      setError(unexpectedGatewayError);
+      setError(presentUserFacingError(undefined, 'assertions.mutate'));
     } finally {
       setBusy(false);
     }
@@ -160,9 +166,9 @@ export function AssertionManager({
         setAnnouncement(restore ? 'Afirmação restaurada.' : 'Afirmação arquivada.');
         setPending(null);
         await load(false);
-      } else setError(result.error.message);
+      } else setError(presentUserFacingError(result.error, 'assertions.mutate'));
     } catch {
-      setError(unexpectedGatewayError);
+      setError(presentUserFacingError(undefined, 'assertions.mutate'));
     } finally {
       setBusy(false);
     }
@@ -170,20 +176,27 @@ export function AssertionManager({
 
   if (view !== 'list')
     return (
-      <AssertionForm
-        campaign={campaign}
-        {...(context === undefined ? {} : { context })}
-        entities={entities}
-        assertion={editing}
-        busy={busy}
-        error={error}
-        onCancel={() => {
-          setEditing(null);
-          setView('list');
-          setError(null);
-        }}
-        onSubmit={submit}
-      />
+      <>
+        <AssertionForm
+          campaign={campaign}
+          {...(context === undefined ? {} : { context })}
+          entities={entities}
+          assertion={editing}
+          busy={busy}
+          error={null}
+          onCancel={() => {
+            setEditing(null);
+            setView('list');
+            setError(null);
+          }}
+          onSubmit={submit}
+        />
+        {error === null ? null : (
+          <div className="mx-auto mt-5 max-w-5xl">
+            <UserFacingErrorNotice error={error} operation="assertions.mutate" />
+          </div>
+        )}
+      </>
     );
   return (
     <section aria-labelledby="assertions-title">
@@ -257,14 +270,12 @@ export function AssertionManager({
         </p>
       )}
       {error === null ? null : (
-        <div
-          className="mt-5 rounded-xl border border-red-200 bg-red-50 p-4 text-red-800"
-          role="alert"
-        >
-          {error}
-          <button className="ml-3 underline" onClick={() => void load(false)} type="button">
-            Tentar novamente
-          </button>
+        <div className="mt-5">
+          <UserFacingErrorNotice
+            error={error}
+            operation="assertions.list"
+            onRetry={() => void load(false)}
+          />
         </div>
       )}
       {pending === null ? null : (
@@ -581,7 +592,7 @@ async function loadAllEntities(campaignId: string): Promise<Entity[]> {
       ...(cursor === undefined ? {} : { cursor }),
       filters: { archived: false },
     });
-    if (!result.ok) throw new Error(result.error.message);
+    if (!result.ok) throw new Error(userFacingErrorMessage(result.error, 'entities.list'));
     items.push(...result.data.items);
     cursor = result.data.nextCursor ?? undefined;
   } while (cursor !== undefined);
@@ -634,5 +645,3 @@ function Badge({ children }: { children: React.ReactNode }): React.JSX.Element {
 function message(error: unknown): string {
   return error instanceof Error ? error.message : 'Não foi possível concluir a operação.';
 }
-const unexpectedGatewayError =
-  'Não foi possível concluir a operação. Revise os dados e tente novamente.';

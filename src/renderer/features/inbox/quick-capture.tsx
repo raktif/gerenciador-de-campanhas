@@ -9,8 +9,9 @@ import {
   quickCaptureShortcutLabel,
   submitQuickCapture,
 } from './quick-capture-model';
-
-const genericLoadError = 'Não foi possível carregar as sessões em andamento.';
+import type { UserFacingError } from '../../../core/errors/user-facing-error';
+import { presentUserFacingError } from '../../../core/errors/user-facing-error';
+import { UserFacingErrorNotice } from '../../components/user-facing-error-notice';
 
 export function QuickCapture({
   campaign,
@@ -24,8 +25,8 @@ export function QuickCapture({
   const [sessionId, setSessionId] = useState('');
   const [sessions, setSessions] = useState<Session[]>([]);
   const [sessionsLoading, setSessionsLoading] = useState(false);
-  const [sessionError, setSessionError] = useState<string | null>(null);
-  const [captureError, setCaptureError] = useState<string | null>(null);
+  const [sessionError, setSessionError] = useState<UserFacingError | null>(null);
+  const [captureError, setCaptureError] = useState<UserFacingError | null>(null);
   const [feedback, setFeedback] = useState<ReturnType<typeof createQuickCaptureFeedback> | null>(
     null,
   );
@@ -54,7 +55,7 @@ export function QuickCapture({
           ...(cursor === undefined ? {} : { cursor }),
         });
         if (!result.ok) {
-          setSessionError(result.error.message);
+          setSessionError(presentUserFacingError(result.error, 'sessions.list'));
           return;
         }
         loaded.push(...result.data.items);
@@ -62,7 +63,7 @@ export function QuickCapture({
       } while (cursor !== undefined);
       setSessions(inProgressSessions(loaded));
     } catch {
-      setSessionError(genericLoadError);
+      setSessionError(presentUserFacingError(undefined, 'sessions.list'));
     } finally {
       setSessionsLoading(false);
     }
@@ -154,7 +155,7 @@ export function QuickCapture({
       setOpen(false);
       setFeedback(createQuickCaptureFeedback(result.item));
       requestAnimationFrame(() => triggerRef.current?.focus());
-    } else setCaptureError(result.message);
+    } else setCaptureError(result.error);
     setBusy(false);
   }
 
@@ -311,26 +312,18 @@ export function QuickCapture({
                   ))}
                 </select>
                 {sessionError === null ? null : (
-                  <div className="mt-2 text-sm text-red-800" role="alert">
-                    <p>{sessionError}</p>
-                    <button
-                      className="mt-2 font-semibold underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700"
-                      disabled={sessionsLoading}
-                      onClick={() => void loadSessions()}
-                      type="button"
-                    >
-                      Tentar carregar sessões novamente
-                    </button>
+                  <div className="mt-2">
+                    <UserFacingErrorNotice
+                      compact
+                      error={sessionError}
+                      operation="sessions.list"
+                      onRetry={() => void loadSessions()}
+                    />
                   </div>
                 )}
               </div>
               {captureError === null ? null : (
-                <p
-                  className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
-                  role="alert"
-                >
-                  {captureError}
-                </p>
+                <UserFacingErrorNotice compact error={captureError} operation="inbox.capture" />
               )}
               <div className="flex flex-wrap justify-end gap-3 border-t border-stone-200 pt-5">
                 <button

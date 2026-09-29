@@ -3,6 +3,11 @@ import type { Campaign } from '../../../core/contracts/campaigns';
 import type { Entity, EntityDetails, EntityLifecycleInput } from '../../../core/contracts/entities';
 import type { EntityType } from '../../../core/contracts/entity-types';
 import { EntityForm, type EntityFormSubmitValues } from './entity-form';
+import {
+  presentUserFacingError,
+  type UserFacingError,
+} from '../../../core/errors/user-facing-error';
+import { UserFacingErrorNotice } from '../../components/user-facing-error-notice';
 
 type View = 'list' | 'create' | 'edit';
 type LifecycleAction = 'archive' | 'restore';
@@ -29,7 +34,7 @@ export function EntityManager({
   const [pending, setPending] = useState<{ action: LifecycleAction; entity: Entity } | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<UserFacingError | null>(null);
   const [announcement, setAnnouncement] = useState<string | null>(null);
 
   const loadEntityTypes = useCallback(async (): Promise<void> => {
@@ -51,7 +56,7 @@ export function EntityManager({
       },
     });
     if (result.ok) setEntities(result.data.items);
-    else setError(result.error.message);
+    else setError(presentUserFacingError(result.error, 'entities.list'));
     setLoading(false);
   }, [campaign.id, showArchived, typeFilter]);
 
@@ -77,7 +82,7 @@ export function EntityManager({
     });
     setBusy(false);
     if (!details.ok) {
-      setError(details.error.message);
+      setError(presentUserFacingError(details.error, 'entities.mutate'));
       return;
     }
     setEditing(details.data);
@@ -103,7 +108,7 @@ export function EntityManager({
       referenceValues: values.referenceValues,
     });
     if (!result.ok) {
-      setError(result.error.message);
+      setError(presentUserFacingError(result.error, 'entities.mutate'));
       setBusy(false);
       return;
     }
@@ -136,7 +141,7 @@ export function EntityManager({
       referenceValues: values.referenceValues,
     });
     if (!result.ok) {
-      setError(result.error.message);
+      setError(presentUserFacingError(result.error, 'entities.mutate'));
       setBusy(false);
       return;
     }
@@ -169,38 +174,52 @@ export function EntityManager({
       setPending(null);
       await loadEntities();
     } else {
-      setError(result.error.message);
+      setError(presentUserFacingError(result.error, 'entities.mutate'));
     }
     setBusy(false);
   }
 
   if (view === 'create') {
     return (
-      <EntityForm
-        busy={busy}
-        campaign={campaign}
-        entityTypes={entityTypes}
-        error={error}
-        mode="create"
-        onCancel={returnToList}
-        onSubmit={createEntity}
-      />
+      <>
+        <EntityForm
+          busy={busy}
+          campaign={campaign}
+          entityTypes={entityTypes}
+          error={null}
+          mode="create"
+          onCancel={returnToList}
+          onSubmit={createEntity}
+        />
+        {error === null ? null : (
+          <div className="mx-auto mt-5 max-w-5xl">
+            <UserFacingErrorNotice error={error} operation="entities.mutate" />
+          </div>
+        )}
+      </>
     );
   }
   if (view === 'edit' && editing !== null) {
     return (
-      <EntityForm
-        busy={busy}
-        campaign={campaign}
-        entity={editing.entity}
-        entityTypes={entityTypes}
-        error={error}
-        fieldValues={editing.fieldValues}
-        key={`${editing.entity.id}:${String(editing.entity.revision)}`}
-        mode="edit"
-        onCancel={returnToList}
-        onSubmit={updateEntity}
-      />
+      <>
+        <EntityForm
+          busy={busy}
+          campaign={campaign}
+          entity={editing.entity}
+          entityTypes={entityTypes}
+          error={null}
+          fieldValues={editing.fieldValues}
+          key={`${editing.entity.id}:${String(editing.entity.revision)}`}
+          mode="edit"
+          onCancel={returnToList}
+          onSubmit={updateEntity}
+        />
+        {error === null ? null : (
+          <div className="mx-auto mt-5 max-w-5xl">
+            <UserFacingErrorNotice error={error} operation="entities.mutate" />
+          </div>
+        )}
+      </>
     );
   }
   return (
@@ -300,15 +319,12 @@ export function EntityManager({
       )}
 
       {error === null ? null : (
-        <div className="mt-6 rounded-xl border border-red-200 bg-red-50 p-4" role="alert">
-          <p className="text-sm text-red-800">{error}</p>
-          <button
-            className="mt-2 text-sm font-semibold underline"
-            onClick={() => void loadEntities()}
-            type="button"
-          >
-            Tentar novamente
-          </button>
+        <div className="mt-6">
+          <UserFacingErrorNotice
+            error={error}
+            operation="entities.list"
+            onRetry={() => void loadEntities()}
+          />
         </div>
       )}
 

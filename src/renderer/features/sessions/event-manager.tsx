@@ -24,19 +24,22 @@ import {
   linksChanged,
   validateEventInput,
 } from './event-manager-model';
+import {
+  presentUserFacingError,
+  userFacingErrorMessage,
+  type UserFacingError as UserFacingErrorPresentation,
+} from '../../../core/errors/user-facing-error';
+import { UserFacingErrorNotice } from '../../components/user-facing-error-notice';
 
 type View = 'list' | 'create' | 'edit';
 interface PendingLifecycle {
   event: Event;
   restore: boolean;
 }
-interface UserFacingError {
-  message: string;
+interface EventError extends UserFacingErrorPresentation {
   field?: 'sourceSession';
 }
 
-const gatewayError =
-  'N\u00e3o foi poss\u00edvel concluir a opera\u00e7\u00e3o. Revise os dados e tente novamente.';
 const eventRoleLabels: Record<EventEntityLinkInput['role'], string> = {
   participant: 'Participante',
   location: 'Local',
@@ -48,28 +51,37 @@ const eventRoleLabels: Record<EventEntityLinkInput['role'], string> = {
   related: 'Relacionado',
 };
 
-function eventFailure(code: string, message: string): UserFacingError {
+function eventFailure(error: { code: string }): EventError {
+  const presentation = presentUserFacingError(error, 'events.mutate');
+  const { code } = error;
   if (code === 'EVENT_SESSION_SOURCE_REQUIRED')
-    return { message: 'Selecione a sessão que originou este evento.', field: 'sourceSession' };
+    return {
+      ...presentation,
+      message: 'Selecione a sessão que originou este evento.',
+      field: 'sourceSession',
+    };
   if (code === 'EVENT_SESSION_SOURCE_AMBIGUOUS')
     return {
+      ...presentation,
       message: 'Escolha novamente a sessão desta campanha que originou o evento.',
       field: 'sourceSession',
     };
   if (code === 'SESSION_NOT_FOUND')
     return {
+      ...presentation,
       message: 'A sessão selecionada não está disponível nesta campanha. Escolha outra.',
       field: 'sourceSession',
     };
   if (code === 'VALIDATION_ERROR')
     return {
+      ...presentation,
       message: 'Revise os campos destacados e tente novamente.',
     };
-  return { message };
+  return presentation;
 }
 
 function sourceSessionError(
-  error: UserFacingError | null,
+  error: EventError | null,
   validation: string | null,
 ): Record<string, never> | { error: string } {
   if (error?.field === 'sourceSession') return { error: error.message };
@@ -94,7 +106,7 @@ export function EventManager({
   const [loading, setLoading] = useState(true);
   const [referencesLoading, setReferencesLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<UserFacingError | null>(null);
+  const [error, setError] = useState<EventError | null>(null);
   const [announcement, setAnnouncement] = useState<string | null>(null);
   const [pending, setPending] = useState<PendingLifecycle | null>(null);
 
@@ -112,9 +124,9 @@ export function EventManager({
         if (result.ok) {
           setItems((current) => (append ? [...current, ...result.data.items] : result.data.items));
           setCursor(result.data.nextCursor);
-        } else setError({ message: result.error.message });
+        } else setError(presentUserFacingError(result.error, 'events.list'));
       } catch {
-        setError({ message: gatewayError });
+        setError(presentUserFacingError(undefined, 'events.list'));
       } finally {
         setLoading(false);
       }
@@ -132,7 +144,7 @@ export function EventManager({
       setSessions(loadedSessions);
       setEntities(loadedEntities);
     } catch {
-      setError({ message: gatewayError });
+      setError(presentUserFacingError(undefined, 'events.list'));
     } finally {
       setReferencesLoading(false);
     }
@@ -159,9 +171,9 @@ export function EventManager({
       if (result.ok) {
         setEditing(result.data);
         setView('edit');
-      } else setError({ message: result.error.message });
+      } else setError(presentUserFacingError(result.error, 'events.mutate'));
     } catch {
-      setError({ message: gatewayError });
+      setError(presentUserFacingError(undefined, 'events.mutate'));
     } finally {
       setBusy(false);
     }
@@ -181,9 +193,9 @@ export function EventManager({
         setEditing(null);
         setView('list');
         await load(false);
-      } else setError(eventFailure(result.error.code, result.error.message));
+      } else setError(eventFailure(result.error));
     } catch {
-      setError({ message: gatewayError });
+      setError(presentUserFacingError(undefined, 'events.mutate'));
     } finally {
       setBusy(false);
     }
@@ -221,9 +233,9 @@ export function EventManager({
         setAnnouncement(pending.restore ? 'Evento restaurado.' : 'Evento arquivado.');
         setPending(null);
         await load(false);
-      } else setError({ message: result.error.message });
+      } else setError(presentUserFacingError(result.error, 'events.mutate'));
     } catch {
-      setError({ message: gatewayError });
+      setError(presentUserFacingError(undefined, 'events.mutate'));
     } finally {
       setBusy(false);
     }
@@ -317,19 +329,15 @@ export function EventManager({
         </p>
       )}
       {error === null ? null : (
-        <div className="mt-5 rounded-xl bg-red-50 p-4 text-red-800" role="alert">
-          <p>{error.message}</p>
-          <button
-            className={`${secondaryClass} mt-3`}
-            disabled={busy || loading}
-            onClick={() => {
+        <div className="mt-5">
+          <UserFacingErrorNotice
+            error={error}
+            operation="events.list"
+            onRetry={() => {
               void load(false);
               void loadReferences();
             }}
-            type="button"
-          >
-            Tentar novamente
-          </button>
+          />
         </div>
       )}
       {pending === null ? null : (
@@ -445,7 +453,7 @@ function EventEditor({
   sessions: Session[];
   entities: Entity[];
   busy: boolean;
-  error: UserFacingError | null;
+  error: EventError | null;
   onCancel: () => void;
   onSubmit: (input: CreateEventInput) => Promise<void>;
 }): React.JSX.Element {
@@ -736,9 +744,12 @@ function EventEditor({
               Adicionar vínculo
             </button>
           </fieldset>
-          {error === null && validation === null ? null : (
+          {error === null ? null : (
+            <UserFacingErrorNotice error={error} operation="events.mutate" />
+          )}
+          {validation === null ? null : (
             <p className="rounded-xl bg-red-50 p-4 text-red-800" role="alert">
-              {error?.message ?? validation}
+              {validation}
             </p>
           )}
           <div className="flex justify-end gap-3">
@@ -765,7 +776,7 @@ async function loadAllSessions(campaignId: string): Promise<Session[]> {
       filters: {},
       ...(cursor === undefined ? {} : { cursor }),
     });
-    if (!result.ok) throw new Error(result.error.message);
+    if (!result.ok) throw new Error(userFacingErrorMessage(result.error, 'sessions.list'));
     items.push(...result.data.items);
     cursor = result.data.nextCursor ?? undefined;
   } while (cursor !== undefined);
@@ -782,7 +793,7 @@ async function loadAllActiveEntities(campaignId: string): Promise<Entity[]> {
       filters: { archived: false },
       ...(cursor === undefined ? {} : { cursor }),
     });
-    if (!result.ok) throw new Error(result.error.message);
+    if (!result.ok) throw new Error(userFacingErrorMessage(result.error, 'entities.list'));
     items.push(...result.data.items);
     cursor = result.data.nextCursor ?? undefined;
   } while (cursor !== undefined);

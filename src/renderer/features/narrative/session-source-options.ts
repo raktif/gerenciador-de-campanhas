@@ -1,16 +1,20 @@
 import { useEffect, useState } from 'react';
 import type { Session } from '../../../core/contracts/sessions';
 import type { SessionSourceOption } from './narrative-metadata-fields';
+import {
+  presentUserFacingError,
+  type UserFacingError,
+} from '../../../core/errors/user-facing-error';
 
 export function useSessionSourceOptions(campaignId: string): {
   options: readonly SessionSourceOption[];
-  error: string | undefined;
+  error: UserFacingError | undefined;
   loading: boolean;
   available: boolean;
   retry: () => void;
 } {
   const [options, setOptions] = useState<SessionSourceOption[]>([]);
-  const [error, setError] = useState<string>();
+  const [error, setError] = useState<UserFacingError>();
   const [loading, setLoading] = useState(true);
   const [attempt, setAttempt] = useState(0);
 
@@ -22,8 +26,8 @@ export function useSessionSourceOptions(campaignId: string): {
       .then((items) => {
         if (active) setOptions(items);
       })
-      .catch(() => {
-        if (active) setError('Não foi possível carregar as sessões da campanha.');
+      .catch((reason: unknown) => {
+        if (active) setError(presentUserFacingError(reason, 'sessions.list'));
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -54,7 +58,7 @@ async function load(campaignId: string): Promise<SessionSourceOption[]> {
       order: 'desc',
       ...(cursor === undefined ? {} : { cursor }),
     });
-    if (!result.ok) throw new Error(result.error.message);
+    if (!result.ok) throw result.error;
     sessions.push(...result.data.items);
     cursor = result.data.nextCursor ?? undefined;
   } while (cursor !== undefined);

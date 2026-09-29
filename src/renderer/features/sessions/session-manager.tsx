@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Campaign } from '../../../core/contracts/campaigns';
 import type { Entity } from '../../../core/contracts/entities';
 import type {
@@ -9,6 +9,12 @@ import type {
 } from '../../../core/contracts/sessions';
 import { inputClass, primaryClass, secondaryClass } from '../narrative/narrative-metadata-fields';
 import { EventManager } from './event-manager';
+import {
+  presentUserFacingError,
+  type UserFacingError,
+  type UserFacingErrorOperation,
+} from '../../../core/errors/user-facing-error';
+import { UserFacingErrorNotice } from '../../components/user-facing-error-notice';
 
 type View = 'list' | 'create' | 'edit';
 type SessionStatus = Session['status'];
@@ -19,8 +25,12 @@ interface PendingTransition {
 interface ParticipantDraft extends SessionParticipantInput {
   key: number;
 }
+type SessionOperation = Extract<UserFacingErrorOperation, 'sessions.list' | 'sessions.mutate'>;
+interface SessionOperationFailure {
+  error: UserFacingError;
+  operation: SessionOperation;
+}
 
-const errorMessage = 'Não foi possível concluir a operação. Revise os dados e tente novamente.';
 const roleLabels: Record<SessionParticipantInput['role'], string> = {
   player_character: 'Personagem jogador',
   ally: 'Aliado',
@@ -44,7 +54,7 @@ export function SessionManager({
   const [editing, setEditing] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<UserFacingError | null>(null);
   const [announcement, setAnnouncement] = useState<string | null>(null);
   const [pending, setPending] = useState<PendingTransition | null>(null);
   const [section, setSection] = useState<'sessions' | 'events'>('sessions');
@@ -63,9 +73,9 @@ export function SessionManager({
         if (result.ok) {
           setItems((current) => (append ? [...current, ...result.data.items] : result.data.items));
           setCursor(result.data.nextCursor);
-        } else setError(result.error.message);
+        } else setError(presentUserFacingError(result.error, 'sessions.list'));
       } catch {
-        setError(errorMessage);
+        setError(presentUserFacingError(undefined, 'sessions.list'));
       } finally {
         setLoading(false);
       }
@@ -81,7 +91,7 @@ export function SessionManager({
   useEffect(() => {
     void loadAllEntities(campaign.id)
       .then(setEntities)
-      .catch(() => setError(errorMessage));
+      .catch((loadError: unknown) => setError(presentUserFacingError(loadError, 'entities.list')));
   }, [campaign.id]);
 
   async function beginEdit(item: Session): Promise<void> {
@@ -96,9 +106,9 @@ export function SessionManager({
       if (result.ok) {
         setEditing(result.data);
         setView('edit');
-      } else setError(result.error.message);
+      } else setError(presentUserFacingError(result.error, 'sessions.mutate'));
     } catch {
-      setError(errorMessage);
+      setError(presentUserFacingError(undefined, 'sessions.mutate'));
     } finally {
       setBusy(false);
     }
@@ -122,9 +132,9 @@ export function SessionManager({
         setView('edit');
         setAnnouncement(editing === null ? 'Sessão planejada.' : 'Sessão atualizada.');
         await load(false);
-      } else setError(result.error.message);
+      } else setError(presentUserFacingError(result.error, 'sessions.mutate'));
     } catch {
-      setError(errorMessage);
+      setError(presentUserFacingError(undefined, 'sessions.mutate'));
     } finally {
       setBusy(false);
     }
@@ -145,9 +155,9 @@ export function SessionManager({
         setPending(null);
         setAnnouncement(`Sessão ${statusLabel(result.data.status).toLowerCase()}.`);
         await load(false);
-      } else setError(result.error.message);
+      } else setError(presentUserFacingError(result.error, 'sessions.mutate'));
     } catch {
-      setError(errorMessage);
+      setError(presentUserFacingError(undefined, 'sessions.mutate'));
     } finally {
       setBusy(false);
     }
@@ -228,16 +238,12 @@ export function SessionManager({
         </p>
       )}
       {error === null ? null : (
-        <div role="alert" className="mt-5 rounded-xl bg-red-50 p-4 text-red-800">
-          <p>{error}</p>
-          <button
-            className={`${secondaryClass} mt-3`}
-            disabled={loading}
-            onClick={() => void load(false)}
-            type="button"
-          >
-            Tentar novamente
-          </button>
+        <div className="mt-5">
+          <UserFacingErrorNotice
+            error={error}
+            operation="sessions.list"
+            onRetry={() => void load(false)}
+          />
         </div>
       )}
       {loading ? (
@@ -306,7 +312,7 @@ function SessionEditor({
   entities: Entity[];
   session: Session | null;
   busy: boolean;
-  error: string | null;
+  error: UserFacingError | null;
   pending: PendingTransition | null;
   onBack: () => void;
   onSave: (input: CreateSessionInput) => Promise<void>;
@@ -325,12 +331,14 @@ function SessionEditor({
   const [intentions, setIntentions] = useState<SessionIntention[]>([]);
   const [intentionCursor, setIntentionCursor] = useState<string | null>(null);
   const [participantsLoading, setParticipantsLoading] = useState(false);
-  const [participantError, setParticipantError] = useState<string | null>(null);
+  const [participantError, setParticipantError] = useState<SessionOperationFailure | null>(null);
   const [intentionsLoading, setIntentionsLoading] = useState(false);
   const [intentionText, setIntentionText] = useState('');
   const [intentionEntityId, setIntentionEntityId] = useState('');
   const [editingIntention, setEditingIntention] = useState<SessionIntention | null>(null);
   const [intentionError, setIntentionError] = useState<string | null>(null);
+  const [intentionOperationError, setIntentionOperationError] =
+    useState<SessionOperationFailure | null>(null);
   const loadParticipants = useCallback(async () => {
     if (session === null) return;
     setParticipantsLoading(true);
@@ -340,10 +348,19 @@ function SessionEditor({
         campaignId: campaign.id,
         sessionId: session.id,
       });
-      if (result.ok) setParticipants(result.data.map((item, index) => ({ ...item, key: index })));
-      else setParticipantError(result.error.message);
+      if (result.ok) {
+        setParticipants(result.data.map((item, index) => ({ ...item, key: index })));
+        setParticipantError(null);
+      } else
+        setParticipantError({
+          error: presentUserFacingError(result.error, 'sessions.list'),
+          operation: 'sessions.list',
+        });
     } catch {
-      setParticipantError(errorMessage);
+      setParticipantError({
+        error: presentUserFacingError(undefined, 'sessions.list'),
+        operation: 'sessions.list',
+      });
     } finally {
       setParticipantsLoading(false);
     }
@@ -352,7 +369,7 @@ function SessionEditor({
     async (append = false, nextCursor?: string) => {
       if (session === null) return;
       setIntentionsLoading(true);
-      setIntentionError(null);
+      setIntentionOperationError(null);
       try {
         const result = await window.campaignManager.sessionIntentions.list({
           campaignId: campaign.id,
@@ -366,9 +383,16 @@ function SessionEditor({
             append ? mergeIntentions(current, result.data.items) : result.data.items,
           );
           setIntentionCursor(result.data.nextCursor);
-        } else setIntentionError(result.error.message);
+        } else
+          setIntentionOperationError({
+            error: presentUserFacingError(result.error, 'sessions.list'),
+            operation: 'sessions.list',
+          });
       } catch {
-        setIntentionError(errorMessage);
+        setIntentionOperationError({
+          error: presentUserFacingError(undefined, 'sessions.list'),
+          operation: 'sessions.list',
+        });
       } finally {
         setIntentionsLoading(false);
       }
@@ -421,9 +445,16 @@ function SessionEditor({
         })),
       });
       if (result.ok) onReplace({ ...session, revision: session.revision + 1 });
-      else setParticipantError(result.error.message);
+      else
+        setParticipantError({
+          error: presentUserFacingError(result.error, 'sessions.mutate'),
+          operation: 'sessions.mutate',
+        });
     } catch {
-      setParticipantError(errorMessage);
+      setParticipantError({
+        error: presentUserFacingError(undefined, 'sessions.mutate'),
+        operation: 'sessions.mutate',
+      });
     } finally {
       onBusyChange(false);
     }
@@ -431,7 +462,7 @@ function SessionEditor({
   async function saveIntention(): Promise<void> {
     if (session === null || intentionText.trim() === '') return;
     onBusyChange(true);
-    setIntentionError(null);
+    setIntentionOperationError(null);
     try {
       const result =
         editingIntention === null
@@ -456,9 +487,16 @@ function SessionEditor({
         setIntentionEntityId('');
         setEditingIntention(null);
         await loadIntentions();
-      } else setIntentionError(result.error.message);
+      } else
+        setIntentionOperationError({
+          error: presentUserFacingError(result.error, 'sessions.mutate'),
+          operation: 'sessions.mutate',
+        });
     } catch {
-      setIntentionError(errorMessage);
+      setIntentionOperationError({
+        error: presentUserFacingError(undefined, 'sessions.mutate'),
+        operation: 'sessions.mutate',
+      });
     } finally {
       onBusyChange(false);
     }
@@ -469,7 +507,7 @@ function SessionEditor({
   ): Promise<void> {
     if (session === null) return;
     onBusyChange(true);
-    setIntentionError(null);
+    setIntentionOperationError(null);
     try {
       const result = await window.campaignManager.sessionIntentions.update({
         campaignId: campaign.id,
@@ -479,9 +517,16 @@ function SessionEditor({
         patch: { status },
       });
       if (result.ok) await loadIntentions();
-      else setIntentionError(result.error.message);
+      else
+        setIntentionOperationError({
+          error: presentUserFacingError(result.error, 'sessions.mutate'),
+          operation: 'sessions.mutate',
+        });
     } catch {
-      setIntentionError(errorMessage);
+      setIntentionOperationError({
+        error: presentUserFacingError(undefined, 'sessions.mutate'),
+        operation: 'sessions.mutate',
+      });
     } finally {
       onBusyChange(false);
     }
@@ -544,9 +589,12 @@ function SessionEditor({
           onChange={setNotes}
           disabled={busy}
         />
-        {error === null && intentionError === null ? null : (
+        {error === null ? null : (
+          <UserFacingErrorNotice error={error} operation="sessions.mutate" />
+        )}
+        {intentionError === null ? null : (
           <p role="alert" className="rounded-xl bg-red-50 p-4 text-red-800">
-            {error ?? intentionError}
+            {intentionError}
           </p>
         )}
         {pending === null ? null : (
@@ -591,7 +639,8 @@ function SessionEditor({
             setParticipants={setParticipants}
             busy={busy}
             loading={participantsLoading}
-            error={participantError}
+            error={participantError?.error ?? null}
+            operation={participantError?.operation ?? 'sessions.list'}
             onSave={() => void replaceParticipants()}
             onRetry={() => void loadParticipants()}
           />
@@ -604,7 +653,8 @@ function SessionEditor({
             editing={editingIntention}
             busy={busy}
             loading={intentionsLoading}
-            error={intentionError}
+            error={intentionOperationError?.error ?? null}
+            operation={intentionOperationError?.operation ?? 'sessions.list'}
             onText={setIntentionText}
             onEntity={setIntentionEntityId}
             onSave={() => void saveIntention()}
@@ -637,6 +687,7 @@ function ParticipantEditor({
   busy,
   loading,
   error,
+  operation,
   onSave,
   onRetry,
 }: {
@@ -645,10 +696,26 @@ function ParticipantEditor({
   setParticipants: React.Dispatch<React.SetStateAction<ParticipantDraft[]>>;
   busy: boolean;
   loading: boolean;
-  error: string | null;
+  error: UserFacingError | null;
+  operation: SessionOperation;
   onSave: () => void;
   onRetry: () => void;
 }): React.JSX.Element {
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  const retryButtonRef = useRef<HTMLButtonElement>(null);
+  const [retrying, setRetrying] = useState(false);
+  useEffect(() => {
+    if (!retrying || loading) return;
+    if (error === null) titleRef.current?.focus();
+    else retryButtonRef.current?.focus();
+    setRetrying(false);
+  }, [error, loading, retrying]);
+
+  function retry(): void {
+    setRetrying(true);
+    onRetry();
+  }
+
   const add = () =>
     setParticipants((current) => [
       ...current,
@@ -669,20 +736,19 @@ function ParticipantEditor({
       className="mt-6 rounded-2xl border border-stone-200 bg-white p-6"
       aria-labelledby="participants-title"
     >
-      <h2 className="text-xl font-semibold" id="participants-title">
+      <h2 className="text-xl font-semibold" id="participants-title" ref={titleRef} tabIndex={-1}>
         Participantes
       </h2>
       {error === null ? null : (
-        <div role="alert" className="mt-4 rounded-xl bg-red-50 p-4 text-red-800">
-          <p>{error}</p>
-          <button
-            className={`${secondaryClass} mt-3`}
-            disabled={busy || loading}
-            onClick={onRetry}
-            type="button"
-          >
-            Tentar novamente
-          </button>
+        <div className="mt-4">
+          <UserFacingErrorNotice
+            compact
+            error={error}
+            operation={operation}
+            onRetry={retry}
+            retryButtonRef={retryButtonRef}
+            retryDisabled={busy || loading}
+          />
         </div>
       )}
       <p className="mt-1 text-sm text-slate-600">
@@ -786,12 +852,7 @@ function ParticipantEditor({
         >
           Salvar participantes
         </button>
-        <button
-          className={secondaryClass}
-          disabled={busy || loading}
-          onClick={onRetry}
-          type="button"
-        >
+        <button className={secondaryClass} disabled={busy || loading} onClick={retry} type="button">
           Atualizar participantes
         </button>
       </div>
@@ -809,6 +870,7 @@ function IntentionEditor({
   busy,
   loading,
   error,
+  operation,
   onText,
   onEntity,
   onSave,
@@ -826,7 +888,8 @@ function IntentionEditor({
   editing: SessionIntention | null;
   busy: boolean;
   loading: boolean;
-  error: string | null;
+  error: UserFacingError | null;
+  operation: SessionOperation;
   onText: (value: string) => void;
   onEntity: (value: string) => void;
   onSave: () => void;
@@ -836,12 +899,27 @@ function IntentionEditor({
   onLoadMore: () => void;
   onRetry: () => void;
 }): React.JSX.Element {
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  const retryButtonRef = useRef<HTMLButtonElement>(null);
+  const [retrying, setRetrying] = useState(false);
+  useEffect(() => {
+    if (!retrying || loading) return;
+    if (error === null) titleRef.current?.focus();
+    else retryButtonRef.current?.focus();
+    setRetrying(false);
+  }, [error, loading, retrying]);
+
+  function retry(): void {
+    setRetrying(true);
+    onRetry();
+  }
+
   return (
     <section
       className="mt-6 rounded-2xl border border-stone-200 bg-white p-6"
       aria-labelledby="intentions-title"
     >
-      <h2 className="text-xl font-semibold" id="intentions-title">
+      <h2 className="text-xl font-semibold" id="intentions-title" ref={titleRef} tabIndex={-1}>
         Intenções
       </h2>
       <div className="mt-4 grid gap-3 md:grid-cols-[1fr_15rem_auto]">
@@ -888,16 +966,15 @@ function IntentionEditor({
         </div>
       </div>
       {error === null ? null : (
-        <div role="alert" className="mt-4 rounded-xl bg-red-50 p-4 text-red-800">
-          <p>{error}</p>
-          <button
-            className={`${secondaryClass} mt-3`}
-            disabled={busy || loading}
-            onClick={onRetry}
-            type="button"
-          >
-            Tentar novamente
-          </button>
+        <div className="mt-4">
+          <UserFacingErrorNotice
+            compact
+            error={error}
+            operation={operation}
+            onRetry={retry}
+            retryButtonRef={retryButtonRef}
+            retryDisabled={busy || loading}
+          />
         </div>
       )}
       <div aria-busy={loading}>
@@ -1174,7 +1251,7 @@ async function loadAllEntities(campaignId: string): Promise<Entity[]> {
       ...(cursor === undefined ? {} : { cursor }),
       filters: { archived: false },
     });
-    if (!result.ok) throw new Error(result.error.message);
+    if (!result.ok) throw result.error;
     items.push(...result.data.items);
     cursor = result.data.nextCursor ?? undefined;
   } while (cursor !== undefined);

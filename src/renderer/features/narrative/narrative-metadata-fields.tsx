@@ -1,5 +1,7 @@
 import { useEffect, useRef, type Ref } from 'react';
 import type { NarrativeMetadata } from '../../../core/contracts/narrative';
+import type { UserFacingError } from '../../../core/errors/user-facing-error';
+import { UserFacingErrorNotice } from '../../components/user-facing-error-notice';
 
 export interface NarrativeMetadataValues extends Omit<NarrativeMetadata, 'sourceId'> {
   sourceId: string | null;
@@ -9,6 +11,8 @@ export interface SessionSourceOption {
   id: string;
   label: string;
 }
+
+type SessionSourceError = UserFacingError | string;
 
 export function NarrativeMetadataFields({
   values,
@@ -24,7 +28,7 @@ export function NarrativeMetadataFields({
     options: readonly SessionSourceOption[];
     value: string;
     onChange: (sessionId: string) => void;
-    error?: string | undefined;
+    error?: SessionSourceError | undefined;
     loading?: boolean | undefined;
     available?: boolean | undefined;
     retry?: (() => void) | undefined;
@@ -142,7 +146,9 @@ export function NarrativeMetadataFields({
               Carregando sessões…
             </span>
           ) : null}
-          {!sessionSource.loading && sessionSource.error === undefined && sessionSource.available === false ? (
+          {!sessionSource.loading &&
+          sessionSource.error === undefined &&
+          sessionSource.available === false ? (
             <span
               aria-live="polite"
               className="mt-1 block text-sm font-normal text-slate-700"
@@ -153,16 +159,34 @@ export function NarrativeMetadataFields({
             </span>
           ) : null}
           {sessionSource.error === undefined ? null : (
-            <div aria-live="polite" className="mt-1 text-sm font-normal text-red-800" role="status">
-              <span id="narrative-source-session-error">{sessionSource.error}</span>
-              <button
-                className={`${secondaryClass} mt-2`}
-                onClick={retrySessions}
-                ref={retryButtonRef}
-                type="button"
-              >
-                Tentar carregar sessões novamente
-              </button>
+            <div className="mt-1 text-sm font-normal text-red-800">
+              {typeof sessionSource.error === 'string' ? (
+                <>
+                  <span id="narrative-source-session-error">{sessionSource.error}</span>
+                  <button
+                    className={`${secondaryClass} mt-2`}
+                    onClick={retrySessions}
+                    ref={retryButtonRef}
+                    type="button"
+                  >
+                    Tentar carregar sessões novamente
+                  </button>
+                </>
+              ) : (
+                <>
+                  <span className="sr-only" id="narrative-source-session-error">
+                    {sessionSource.error.title}
+                  </span>
+                  <UserFacingErrorNotice
+                    compact
+                    error={sessionSource.error}
+                    operation="sessions.list"
+                    onRetry={retrySessions}
+                    retryLabel="Tentar carregar sessões novamente"
+                    retryButtonRef={retryButtonRef}
+                  />
+                </>
+              )}
             </div>
           )}
         </div>
@@ -270,7 +294,7 @@ export function sessionSourceDescription({
   loading,
 }: {
   available?: boolean | undefined;
-  error?: string | undefined;
+  error?: SessionSourceError | undefined;
   loading?: boolean | undefined;
 }): string {
   const helpId = 'narrative-source-session-help';
@@ -295,7 +319,7 @@ export function advanceSessionRetryFocus({
   phase,
 }: {
   available?: boolean | undefined;
-  error?: string | undefined;
+  error?: SessionSourceError | undefined;
   loading?: boolean | undefined;
   phase: SessionRetryFocusPhase;
 }): {

@@ -1,5 +1,10 @@
 import type { AppErrorPayload } from '../../core/contracts/result';
 import type { CopyStartupDiagnosticInput } from '../../core/contracts/diagnostics';
+import {
+  createUserFacingDiagnostic,
+  presentUserFacingError,
+  type UserFacingError,
+} from '../../core/errors/user-facing-error';
 
 export type CampaignLoadPhase = 'initializing' | 'loading-campaigns' | 'ready' | 'error';
 
@@ -9,16 +14,9 @@ export interface CampaignLoadState {
   failure: CampaignStartupFailure | null;
 }
 
-export interface CampaignStartupFailure {
-  code: string;
-  title: string;
-  message: string;
-  suggestedAction: string;
+export interface CampaignStartupFailure extends UserFacingError {
   diagnostic: CopyStartupDiagnosticInput;
 }
-
-const fallbackCode = 'CAMPAIGN_LIST_UNAVAILABLE';
-const safeCodePattern = /^[A-Z0-9_]{1,80}$/;
 
 export const initialCampaignLoadState: CampaignLoadState = {
   phase: 'initializing',
@@ -51,23 +49,10 @@ export function invalidateCampaignLoad(state: CampaignLoadState): CampaignLoadSt
 export function createCampaignStartupFailure(
   error?: Pick<AppErrorPayload, 'code'>,
 ): CampaignStartupFailure {
-  const code = normalizeCode(error?.code);
+  const presentation = presentUserFacingError(error, 'campaigns.list');
 
   return {
-    code,
-    title: 'Não foi possível carregar suas campanhas',
-    message: 'Seus dados continuam salvos. A leitura local das campanhas não foi concluída.',
-    suggestedAction:
-      'Tente novamente. Se o problema continuar, abra a ajuda ou copie o diagnóstico.',
-    diagnostic: {
-      version: 1,
-      screen: 'campaigns',
-      operation: 'campaigns.list',
-      code,
-    },
+    ...presentation,
+    diagnostic: createUserFacingDiagnostic(presentation, 'campaigns.list'),
   };
-}
-
-function normalizeCode(value: string | undefined): string {
-  return value !== undefined && safeCodePattern.test(value) ? value : fallbackCode;
 }

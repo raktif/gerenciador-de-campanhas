@@ -6,6 +6,11 @@ import type {
   FieldDefinitionPatch,
 } from '../../../core/contracts/field-definitions';
 import { FieldDefinitionForm, type FieldDefinitionCreateValues } from './field-definition-form';
+import {
+  presentUserFacingError,
+  type UserFacingError,
+} from '../../../core/errors/user-facing-error';
+import { UserFacingErrorNotice } from '../../components/user-facing-error-notice';
 
 type View = 'list' | 'create' | 'edit';
 
@@ -25,7 +30,7 @@ export function FieldDefinitionManager({
   const [pending, setPending] = useState<FieldDefinition | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<UserFacingError | null>(null);
   const [announcement, setAnnouncement] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -37,7 +42,7 @@ export function FieldDefinitionManager({
       filters: { isArchived: showArchived },
     });
     if (result.ok) setFields(result.data.items);
-    else setError(result.error.message);
+    else setError(presentUserFacingError(result.error, 'field-definitions.list'));
     setLoading(false);
   }, [campaign.id, entityType.id, showArchived]);
   useEffect(() => {
@@ -57,9 +62,9 @@ export function FieldDefinitionManager({
         setFields((items) => [...items, result.data].sort(compare));
         setView('list');
         setAnnouncement(`Campo “${result.data.label}” criado.`);
-      } else setError(result.error.message);
+      } else setError(presentUserFacingError(result.error, 'field-definitions.mutate'));
     } catch {
-      setError(validationFailureMessage);
+      setError(presentUserFacingError({ code: 'VALIDATION_ERROR' }, 'field-definitions.mutate'));
     } finally {
       setBusy(false);
     }
@@ -83,9 +88,9 @@ export function FieldDefinitionManager({
         setEditing(null);
         setView('list');
         setAnnouncement(`Campo “${result.data.label}” atualizado.`);
-      } else setError(result.error.message);
+      } else setError(presentUserFacingError(result.error, 'field-definitions.mutate'));
     } catch {
-      setError(validationFailureMessage);
+      setError(presentUserFacingError({ code: 'VALIDATION_ERROR' }, 'field-definitions.mutate'));
     } finally {
       setBusy(false);
     }
@@ -109,7 +114,7 @@ export function FieldDefinitionManager({
         `Campo “${result.data.label}” ${pending.isArchived ? 'restaurado' : 'arquivado'}.`,
       );
       setPending(null);
-    } else setError(result.error.message);
+    } else setError(presentUserFacingError(result.error, 'field-definitions.mutate'));
     setBusy(false);
   }
   function backToList(): void {
@@ -119,25 +124,39 @@ export function FieldDefinitionManager({
   }
   if (view === 'create')
     return (
-      <FieldDefinitionForm
-        busy={busy}
-        error={error}
-        mode="create"
-        onCancel={backToList}
-        onSubmit={create}
-      />
+      <>
+        <FieldDefinitionForm
+          busy={busy}
+          error={null}
+          mode="create"
+          onCancel={backToList}
+          onSubmit={create}
+        />
+        {error === null ? null : (
+          <div className="mx-auto mt-5 max-w-3xl">
+            <UserFacingErrorNotice error={error} operation="field-definitions.mutate" />
+          </div>
+        )}
+      </>
     );
   if (view === 'edit' && editing !== null)
     return (
-      <FieldDefinitionForm
-        busy={busy}
-        error={error}
-        field={editing}
-        key={`${editing.id}:${String(editing.revision)}`}
-        mode="edit"
-        onCancel={backToList}
-        onSubmit={update}
-      />
+      <>
+        <FieldDefinitionForm
+          busy={busy}
+          error={null}
+          field={editing}
+          key={`${editing.id}:${String(editing.revision)}`}
+          mode="edit"
+          onCancel={backToList}
+          onSubmit={update}
+        />
+        {error === null ? null : (
+          <div className="mx-auto mt-5 max-w-3xl">
+            <UserFacingErrorNotice error={error} operation="field-definitions.mutate" />
+          </div>
+        )}
+      </>
     );
 
   return (
@@ -230,15 +249,12 @@ export function FieldDefinitionManager({
         </div>
       )}
       {error === null ? null : (
-        <div className="mt-6 rounded-xl border border-red-200 bg-red-50 p-4" role="alert">
-          <p className="text-sm text-red-800">{error}</p>
-          <button
-            className="mt-2 text-sm font-semibold underline"
-            onClick={() => void load()}
-            type="button"
-          >
-            Tentar novamente
-          </button>
+        <div className="mt-6">
+          <UserFacingErrorNotice
+            error={error}
+            operation="field-definitions.list"
+            onRetry={() => void load()}
+          />
         </div>
       )}
       {loading ? (
@@ -353,5 +369,3 @@ const primaryClass =
 const secondaryClass =
   'rounded-xl border border-stone-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 disabled:opacity-60';
 const backClass = 'mb-6 rounded-lg px-2 py-1 text-sm font-semibold text-slate-600';
-const validationFailureMessage =
-  'Não foi possível validar os dados. Revise os campos e tente novamente.';

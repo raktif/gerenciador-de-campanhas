@@ -6,6 +6,11 @@ import type { Relationship } from '../../../core/contracts/relationships';
 import type { PageResult } from '../../../core/contracts/pagination';
 import type { Result } from '../../../core/contracts/result';
 import { RelationshipNeighborhood } from './relationship-neighborhood';
+import {
+  presentUserFacingError,
+  type UserFacingError,
+} from '../../../core/errors/user-facing-error';
+import { UserFacingErrorNotice } from '../../components/user-facing-error-notice';
 
 interface FormState {
   relationshipTypeId: string;
@@ -37,7 +42,10 @@ export function RelationshipManager({
   const [showArchived, setShowArchived] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<UserFacingError | null>(null);
+  const [errorOperation, setErrorOperation] = useState<
+    'relationships.list' | 'relationships.mutate'
+  >('relationships.list');
   const [announcement, setAnnouncement] = useState<string | null>(null);
 
   const load = useCallback(async (): Promise<void> => {
@@ -91,9 +99,8 @@ export function RelationshipManager({
       setTypes([...activeTypes, ...archivedTypes]);
       setEntities([...activeEntities, ...archivedEntities]);
     } catch (loadError) {
-      setError(
-        loadError instanceof Error ? loadError.message : 'Não foi possível carregar as relações.',
-      );
+      setError(presentUserFacingError(loadError, 'relationships.list'));
+      setErrorOperation('relationships.list');
     } finally {
       setLoading(false);
     }
@@ -127,8 +134,10 @@ export function RelationshipManager({
               revision: editing.revision,
               patch: values,
             });
-      if (!result.ok) setError(result.error.message);
-      else {
+      if (!result.ok) {
+        setError(presentUserFacingError(result.error, 'relationships.mutate'));
+        setErrorOperation('relationships.mutate');
+      } else {
         setAnnouncement(
           result.data.warnings[0]?.message ??
             (editing === null ? 'Relação criada.' : 'Relação atualizada.'),
@@ -138,7 +147,8 @@ export function RelationshipManager({
         await load();
       }
     } catch {
-      setError('Não foi possível concluir a operação. Revise os dados e tente novamente.');
+      setError(presentUserFacingError(undefined, 'relationships.mutate'));
+      setErrorOperation('relationships.mutate');
     } finally {
       setBusy(false);
     }
@@ -152,10 +162,13 @@ export function RelationshipManager({
         item.archivedAt === null
           ? await window.campaignManager.relationships.archive(input)
           : await window.campaignManager.relationships.restore(input);
-      if (!result.ok) setError(result.error.message);
-      else await load();
+      if (!result.ok) {
+        setError(presentUserFacingError(result.error, 'relationships.mutate'));
+        setErrorOperation('relationships.mutate');
+      } else await load();
     } catch {
-      setError('Não foi possível concluir a operação. Revise os dados e tente novamente.');
+      setError(presentUserFacingError(undefined, 'relationships.mutate'));
+      setErrorOperation('relationships.mutate');
     } finally {
       setBusy(false);
     }
@@ -298,19 +311,12 @@ export function RelationshipManager({
         </p>
       )}
       {error === null ? null : (
-        <div
-          className="mt-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800"
-          role="alert"
-        >
-          <p>{error}</p>
-          <button
-            className="mt-3 text-sm font-semibold underline"
-            disabled={busy || loading}
-            onClick={() => void load()}
-            type="button"
-          >
-            Tentar novamente
-          </button>
+        <div className="mt-6">
+          <UserFacingErrorNotice
+            error={error}
+            operation={errorOperation}
+            onRetry={() => void load()}
+          />
         </div>
       )}
       {loading || error !== null ? null : relationships.length === 0 ? (
@@ -365,7 +371,7 @@ export async function collectPages<T>(
   let cursor: string | undefined;
   do {
     const result = await fetchPage(cursor);
-    if (!result.ok) throw new Error(result.error.message);
+    if (!result.ok) throw result.error;
     items.push(...result.data.items);
     cursor = result.data.nextCursor ?? undefined;
   } while (cursor !== undefined);

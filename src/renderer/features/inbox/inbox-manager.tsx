@@ -7,6 +7,11 @@ import type { EntityType } from '../../../core/contracts/entity-types';
 import type { Entity } from '../../../core/contracts/entities';
 import type { RelationshipType } from '../../../core/contracts/relationship-types';
 import { primaryClass, secondaryClass } from '../narrative/narrative-metadata-fields';
+import {
+  presentUserFacingError,
+  type UserFacingError,
+} from '../../../core/errors/user-facing-error';
+import { UserFacingErrorNotice } from '../../components/user-facing-error-notice';
 
 type Filter = 'pending' | 'dismissed' | 'archived';
 type Action = 'beginReview' | 'dismiss' | 'archive' | 'restore';
@@ -37,7 +42,7 @@ export function InboxManager({
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<UserFacingError | null>(null);
   const [announcement, setAnnouncement] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<{
     item: InboxItem;
@@ -64,7 +69,7 @@ export function InboxManager({
   const [conversionVisibility, setConversionVisibility] = useState<'gm' | 'players' | 'public'>(
     'gm',
   );
-  const [conversionError, setConversionError] = useState<string | null>(null);
+  const [conversionError, setConversionError] = useState<UserFacingError | null>(null);
   const conversionDialogRef = useRef<HTMLFormElement>(null);
   const conversionNameRef = useRef<HTMLInputElement>(null);
   const [assertionConversion, setAssertionConversion] = useState<InboxItem | null>(null);
@@ -80,7 +85,7 @@ export function InboxManager({
     'fact' | 'rumor' | 'suspicion' | 'secret' | 'possibility' | 'disproved'
   >('fact');
   const [assertionVisibility, setAssertionVisibility] = useState<'gm' | 'players' | 'public'>('gm');
-  const [assertionError, setAssertionError] = useState<string | null>(null);
+  const [assertionError, setAssertionError] = useState<UserFacingError | null>(null);
   const assertionDialogRef = useRef<HTMLFormElement>(null);
   const assertionSubjectRef = useRef<HTMLSelectElement>(null);
   const [noteConversion, setNoteConversion] = useState<InboxItem | null>(null);
@@ -98,7 +103,7 @@ export function InboxManager({
   const [noteKnowledgeState, setNoteKnowledgeState] = useState<
     'fact' | 'rumor' | 'suspicion' | 'secret' | 'possibility' | 'disproved'
   >('fact');
-  const [noteError, setNoteError] = useState<string | null>(null);
+  const [noteError, setNoteError] = useState<UserFacingError | null>(null);
   const noteDialogRef = useRef<HTMLFormElement>(null);
   const noteTitleRef = useRef<HTMLInputElement>(null);
   const [eventConversion, setEventConversion] = useState<InboxItem | null>(null);
@@ -126,7 +131,7 @@ export function InboxManager({
   const [eventKnowledgeState, setEventKnowledgeState] = useState<
     'fact' | 'rumor' | 'suspicion' | 'secret' | 'possibility' | 'disproved'
   >('fact');
-  const [eventError, setEventError] = useState<string | null>(null);
+  const [eventError, setEventError] = useState<UserFacingError | null>(null);
   const eventDialogRef = useRef<HTMLFormElement>(null);
   const eventTitleRef = useRef<HTMLInputElement>(null);
   const announcementRef = useRef<HTMLParagraphElement>(null);
@@ -154,7 +159,7 @@ export function InboxManager({
   const [relationshipVisibility, setRelationshipVisibility] = useState<'gm' | 'players' | 'public'>(
     'gm',
   );
-  const [relationshipError, setRelationshipError] = useState<string | null>(null);
+  const [relationshipError, setRelationshipError] = useState<UserFacingError | null>(null);
   const relationshipDialogRef = useRef<HTMLFormElement>(null);
   const relationshipTypeRef = useRef<HTMLSelectElement>(null);
   const selectedRelationshipType = relationshipTypes.find((type) => type.id === relationshipTypeId);
@@ -196,10 +201,10 @@ export function InboxManager({
         if (result.ok) {
           setItems((current) => (append ? [...current, ...result.data.items] : result.data.items));
           setCursor(result.data.nextCursor);
-        } else setError(result.error.message);
+        } else setError(presentUserFacingError(result.error, 'inbox.list'));
       } catch {
         if (requestId !== requestRef.current) return;
-        setError('Não foi possível carregar a Caixa de Entrada. Tente novamente.');
+        setError(presentUserFacingError(undefined, 'inbox.list'));
       } finally {
         if (requestId === requestRef.current) {
           setLoading(false);
@@ -338,9 +343,9 @@ export function InboxManager({
                 : 'Captura restaurada para novas pendências.',
         );
         await load(false);
-      } else setError(result.error.message);
+      } else setError(presentUserFacingError(result.error, 'inbox.convert'));
     } catch {
-      setError('Não foi possível concluir a ação. Tente novamente.');
+      setError(presentUserFacingError(undefined, 'inbox.convert'));
     } finally {
       setBusy(null);
     }
@@ -370,9 +375,9 @@ export function InboxManager({
         setAnnouncement(`Entidade “${result.data.entity.name}” criada a partir da captura.`);
         await load(false);
         requestAnimationFrame(() => announcementRef.current?.focus());
-      } else setConversionError(result.error.message);
+      } else setConversionError(presentUserFacingError(result.error, 'inbox.convert'));
     } catch {
-      setConversionError('Não foi possível converter a captura. Tente novamente.');
+      setConversionError(presentUserFacingError(undefined, 'inbox.convert'));
     } finally {
       setBusy(null);
     }
@@ -425,9 +430,9 @@ export function InboxManager({
         );
         await load(false);
         requestAnimationFrame(() => announcementRef.current?.focus());
-      } else setRelationshipError(result.error.message);
+      } else setRelationshipError(presentUserFacingError(result.error, 'inbox.convert'));
     } catch {
-      setRelationshipError('Não foi possível converter a captura em relação. Tente novamente.');
+      setRelationshipError(presentUserFacingError(undefined, 'inbox.convert'));
     } finally {
       setBusy(null);
     }
@@ -442,7 +447,7 @@ export function InboxManager({
       try {
         value = JSON.parse(assertionValue) as NonNullable<AssertionConversionValue>;
       } catch {
-        setAssertionError('O valor deve ser um JSON válido.');
+        setAssertionError(presentUserFacingError({ code: 'VALIDATION_ERROR' }, 'inbox.convert'));
         return;
       }
     }
@@ -450,7 +455,7 @@ export function InboxManager({
       statement === '' &&
       (predicate === '' || (assertionObjectEntityId === '' && value === null))
     ) {
-      setAssertionError('Informe uma declaração ou um predicado acompanhado de objeto ou valor.');
+      setAssertionError(presentUserFacingError({ code: 'VALIDATION_ERROR' }, 'inbox.convert'));
       return;
     }
     setBusy(assertionConversion.id);
@@ -478,9 +483,9 @@ export function InboxManager({
         );
         await load(false);
         requestAnimationFrame(() => announcementRef.current?.focus());
-      } else setAssertionError(result.error.message);
+      } else setAssertionError(presentUserFacingError(result.error, 'inbox.convert'));
     } catch {
-      setAssertionError('Não foi possível converter a captura em afirmação. Tente novamente.');
+      setAssertionError(presentUserFacingError(undefined, 'inbox.convert'));
     } finally {
       setBusy(null);
     }
@@ -513,9 +518,9 @@ export function InboxManager({
         );
         await load(false);
         requestAnimationFrame(() => announcementRef.current?.focus());
-      } else setNoteError(result.error.message);
+      } else setNoteError(presentUserFacingError(result.error, 'inbox.convert'));
     } catch {
-      setNoteError('Não foi possível converter a captura em nota. Tente novamente.');
+      setNoteError(presentUserFacingError(undefined, 'inbox.convert'));
     } finally {
       setBusy(null);
     }
@@ -558,9 +563,9 @@ export function InboxManager({
         );
         await load(false);
         requestAnimationFrame(() => announcementRef.current?.focus());
-      } else setEventError(result.error.message);
+      } else setEventError(presentUserFacingError(result.error, 'inbox.convert'));
     } catch {
-      setEventError('Não foi possível converter a captura em evento. Tente novamente.');
+      setEventError(presentUserFacingError(undefined, 'inbox.convert'));
     } finally {
       setBusy(null);
     }
@@ -617,16 +622,12 @@ export function InboxManager({
         </p>
       )}
       {error === null ? null : (
-        <div className="mt-5 rounded-xl bg-red-50 p-4 text-red-800" role="alert">
-          <p>{error}</p>
-          <button
-            className={`${secondaryClass} mt-3`}
-            disabled={loading}
-            onClick={() => void load(false)}
-            type="button"
-          >
-            Tentar novamente
-          </button>
+        <div className="mt-5">
+          <UserFacingErrorNotice
+            error={error}
+            operation="inbox.list"
+            onRetry={() => void load(false)}
+          />
         </div>
       )}
       {loading ? (
@@ -1063,9 +1064,13 @@ export function InboxManager({
                   </div>
                 ) : null}
                 {conversionError === null ? null : (
-                  <p className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-800" role="alert">
-                    {conversionError}
-                  </p>
+                  <div className="mt-4">
+                    <UserFacingErrorNotice
+                      compact
+                      error={conversionError}
+                      operation="inbox.convert"
+                    />
+                  </div>
                 )}
                 <label className="mt-5 block text-sm font-semibold" htmlFor="inbox-entity-type">
                   Tipo de entidade
@@ -1226,9 +1231,13 @@ export function InboxManager({
                   </p>
                 </div>
                 {assertionError === null ? null : (
-                  <p className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-800" role="alert">
-                    {assertionError}
-                  </p>
+                  <div className="mt-4">
+                    <UserFacingErrorNotice
+                      compact
+                      error={assertionError}
+                      operation="inbox.convert"
+                    />
+                  </div>
                 )}
                 <label
                   className="mt-5 block text-sm font-semibold"
@@ -1425,9 +1434,9 @@ export function InboxManager({
                   {noteConversion.rawText}
                 </p>
                 {noteError === null ? null : (
-                  <p className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-800" role="alert">
-                    {noteError}
-                  </p>
+                  <div className="mt-4">
+                    <UserFacingErrorNotice compact error={noteError} operation="inbox.convert" />
+                  </div>
                 )}
                 <label className="mt-4 block text-sm font-semibold" htmlFor="inbox-note-title">
                   Título
@@ -1608,9 +1617,9 @@ export function InboxManager({
                   {eventConversion.rawText}
                 </p>
                 {eventError === null ? null : (
-                  <p className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-800" role="alert">
-                    {eventError}
-                  </p>
+                  <div className="mt-4">
+                    <UserFacingErrorNotice compact error={eventError} operation="inbox.convert" />
+                  </div>
                 )}
                 <label className="mt-4 block text-sm font-semibold" htmlFor="inbox-event-title">
                   Título
@@ -1855,9 +1864,13 @@ export function InboxManager({
                   </p>
                 </div>
                 {relationshipError === null ? null : (
-                  <p className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-800" role="alert">
-                    {relationshipError}
-                  </p>
+                  <div className="mt-4">
+                    <UserFacingErrorNotice
+                      compact
+                      error={relationshipError}
+                      operation="inbox.convert"
+                    />
+                  </div>
                 )}
                 {!canChooseRelationshipSource || !canChooseRelationshipTarget ? (
                   <div className="mt-4 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">

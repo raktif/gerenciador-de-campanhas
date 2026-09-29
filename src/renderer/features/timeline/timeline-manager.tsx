@@ -9,8 +9,11 @@ import {
   visibilityLabel,
 } from '../narrative/narrative-metadata-fields';
 import { linkSummary, originLabel, rolesForEntity, timelineGroupLabel } from './timeline-model';
-
-const gatewayError = 'Não foi possível carregar a cronologia. Tente novamente.';
+import {
+  presentUserFacingError,
+  type UserFacingError,
+} from '../../../core/errors/user-facing-error';
+import { UserFacingErrorNotice } from '../../components/user-facing-error-notice';
 
 export function TimelineManager({
   campaign,
@@ -25,7 +28,7 @@ export function TimelineManager({
   const [cursor, setCursor] = useState<string | null>(null);
   const [archived, setArchived] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<UserFacingError | null>(null);
   const [announcement, setAnnouncement] = useState<string | null>(null);
   const heading = useRef<HTMLHeadingElement>(null);
 
@@ -52,9 +55,9 @@ export function TimelineManager({
           setCursor(result.data.nextCursor);
           if (append)
             setAnnouncement(`${String(result.data.items.length)} eventos adicionais carregados.`);
-        } else setError(result.error.message);
+        } else setError(presentUserFacingError(result.error, 'timeline.list'));
       } catch {
-        setError(gatewayError);
+        setError(presentUserFacingError(undefined, 'timeline.list'));
       } finally {
         setLoading(false);
       }
@@ -120,16 +123,12 @@ export function TimelineManager({
         </p>
       )}
       {error === null ? null : (
-        <div className="mt-5 rounded-xl bg-red-50 p-4 text-red-800" role="alert">
-          <p>{error}</p>
-          <button
-            className={`${secondaryClass} mt-3`}
-            disabled={loading}
-            onClick={() => void load(false)}
-            type="button"
-          >
-            Tentar novamente
-          </button>
+        <div className="mt-5">
+          <UserFacingErrorNotice
+            error={error}
+            operation="timeline.list"
+            onRetry={() => void load(false)}
+          />
         </div>
       )}
       {loading && items.length === 0 ? (

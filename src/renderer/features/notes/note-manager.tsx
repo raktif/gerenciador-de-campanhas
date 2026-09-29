@@ -22,6 +22,12 @@ import {
   type NarrativeMetadataValues,
 } from '../narrative/narrative-metadata-fields';
 import { useSessionSourceOptions } from '../narrative/session-source-options';
+import {
+  presentUserFacingError,
+  userFacingErrorMessage,
+  type UserFacingError,
+} from '../../../core/errors/user-facing-error';
+import { UserFacingErrorNotice } from '../../components/user-facing-error-notice';
 
 type View = 'list' | 'create' | 'edit';
 const noteTypeOptions = [
@@ -55,7 +61,7 @@ export function NoteManager({
   const [cursor, setCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<UserFacingError | null>(null);
   const [announcement, setAnnouncement] = useState<string | null>(null);
   const [pending, setPending] = useState<Note | null>(null);
   const load = useCallback(
@@ -78,9 +84,9 @@ export function NoteManager({
         if (result.ok) {
           setItems((current) => (append ? [...current, ...result.data.items] : result.data.items));
           setCursor(result.data.nextCursor);
-        } else setError(result.error.message);
+        } else setError(presentUserFacingError(result.error, 'notes.list'));
       } catch {
-        setError(unexpectedGatewayError);
+        setError(presentUserFacingError(undefined, 'notes.list'));
       } finally {
         setLoading(false);
       }
@@ -95,7 +101,7 @@ export function NoteManager({
   useEffect(() => {
     void loadAllEntities(campaign.id)
       .then(setEntities)
-      .catch(() => setError(unexpectedGatewayError));
+      .catch(() => setError(presentUserFacingError(undefined, 'entities.list')));
   }, [campaign.id]);
   async function beginEdit(item: Note): Promise<void> {
     if (busy) return;
@@ -107,13 +113,13 @@ export function NoteManager({
         id: item.id,
       });
       if (!result.ok) {
-        setError(result.error.message);
+        setError(presentUserFacingError(result.error, 'notes.mutate'));
         return;
       }
       setEditing(result.data);
       setView('edit');
     } catch {
-      setError(unexpectedGatewayError);
+      setError(presentUserFacingError(undefined, 'notes.mutate'));
     } finally {
       setBusy(false);
     }
@@ -149,9 +155,9 @@ export function NoteManager({
         setEditing(null);
         setView('list');
         await load(false);
-      } else setError(result.error.message);
+      } else setError(presentUserFacingError(result.error, 'notes.mutate'));
     } catch {
-      setError(unexpectedGatewayError);
+      setError(presentUserFacingError(undefined, 'notes.mutate'));
     } finally {
       setBusy(false);
     }
@@ -169,29 +175,36 @@ export function NoteManager({
         setAnnouncement(restore ? 'Nota restaurada.' : 'Nota arquivada.');
         setPending(null);
         await load(false);
-      } else setError(result.error.message);
+      } else setError(presentUserFacingError(result.error, 'notes.mutate'));
     } catch {
-      setError(unexpectedGatewayError);
+      setError(presentUserFacingError(undefined, 'notes.mutate'));
     } finally {
       setBusy(false);
     }
   }
   if (view !== 'list')
     return (
-      <NoteForm
-        campaign={campaign}
-        {...(context === undefined ? {} : { context })}
-        entities={entities}
-        details={editing}
-        busy={busy}
-        error={error}
-        onCancel={() => {
-          setEditing(null);
-          setView('list');
-          setError(null);
-        }}
-        onSubmit={submit}
-      />
+      <>
+        <NoteForm
+          campaign={campaign}
+          {...(context === undefined ? {} : { context })}
+          entities={entities}
+          details={editing}
+          busy={busy}
+          error={null}
+          onCancel={() => {
+            setEditing(null);
+            setView('list');
+            setError(null);
+          }}
+          onSubmit={submit}
+        />
+        {error === null ? null : (
+          <div className="mx-auto mt-5 max-w-5xl">
+            <UserFacingErrorNotice error={error} operation="notes.mutate" />
+          </div>
+        )}
+      </>
     );
   return (
     <section aria-labelledby="notes-title">
@@ -266,14 +279,12 @@ export function NoteManager({
         </p>
       )}
       {error === null ? null : (
-        <div
-          className="mt-5 rounded-xl border border-red-200 bg-red-50 p-4 text-red-800"
-          role="alert"
-        >
-          {error}
-          <button className="ml-3 underline" onClick={() => void load(false)} type="button">
-            Tentar novamente
-          </button>
+        <div className="mt-5">
+          <UserFacingErrorNotice
+            error={error}
+            operation="notes.list"
+            onRetry={() => void load(false)}
+          />
         </div>
       )}
       {pending === null ? null : (
@@ -607,7 +618,7 @@ async function loadAllEntities(campaignId: string): Promise<Entity[]> {
       ...(cursor === undefined ? {} : { cursor }),
       filters: { archived: false },
     });
-    if (!result.ok) throw new Error(result.error.message);
+    if (!result.ok) throw new Error(userFacingErrorMessage(result.error, 'entities.list'));
     items.push(...result.data.items);
     cursor = result.data.nextCursor ?? undefined;
   } while (cursor !== undefined);
@@ -648,5 +659,3 @@ function noteTypeLabel(value: Note['noteType']): string {
 function Badge({ children }: { children: React.ReactNode }): React.JSX.Element {
   return <span className="rounded-full bg-stone-100 px-3 py-1">{children}</span>;
 }
-const unexpectedGatewayError =
-  'Não foi possível concluir a operação. Revise os dados e tente novamente.';
