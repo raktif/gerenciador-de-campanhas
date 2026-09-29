@@ -11,6 +11,26 @@ export interface DevelopmentNavigationOptions {
 const developmentNavigationAttempts = 8;
 const developmentNavigationDelayMilliseconds = 250;
 
+export function isMainWindowNavigationAllowed(currentUrl: string, targetUrl: string): boolean {
+  try {
+    const target = new URL(targetUrl);
+    if (currentUrl === '' || currentUrl === 'about:blank')
+      return (
+        target.protocol === 'http:' || target.protocol === 'https:' || target.protocol === 'file:'
+      );
+
+    const current = new URL(currentUrl);
+
+    if (current.protocol === 'http:' || current.protocol === 'https:')
+      return target.origin === current.origin;
+    if (current.protocol === 'file:')
+      return target.protocol === 'file:' && target.pathname === current.pathname;
+    return target.href === current.href;
+  } catch {
+    return false;
+  }
+}
+
 export function selectMainWindowDevelopmentUrl(
   developmentUrl: string | undefined,
   nodeEnvironment: string | undefined,

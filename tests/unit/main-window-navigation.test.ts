@@ -1,10 +1,44 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  isMainWindowNavigationAllowed,
   loadMainWindowContent,
   selectMainWindowDevelopmentUrl,
 } from '../../src/main/windows/main-window-navigation';
 
 describe('navegação inicial da janela principal', () => {
+  it('permite a primeira navegação mesmo quando o about:blank já terminou de carregar', () => {
+    expect(isMainWindowNavigationAllowed('about:blank', 'http://localhost:5173/')).toBe(true);
+    expect(isMainWindowNavigationAllowed('', 'file:///app/renderer/index.html')).toBe(true);
+    expect(isMainWindowNavigationAllowed('about:blank', 'javascript:alert(1)')).toBe(false);
+  });
+
+  it('permite reload e navegação interna sem liberar destinos externos', () => {
+    expect(isMainWindowNavigationAllowed('http://localhost:5173/', 'http://localhost:5173/')).toBe(
+      true,
+    );
+    expect(
+      isMainWindowNavigationAllowed(
+        'http://localhost:5173/campaigns',
+        'http://localhost:5173/entities',
+      ),
+    ).toBe(true);
+    expect(isMainWindowNavigationAllowed('http://localhost:5173/', 'https://example.com/')).toBe(
+      false,
+    );
+    expect(
+      isMainWindowNavigationAllowed(
+        'file:///app/renderer/index.html',
+        'file:///app/renderer/index.html#entities',
+      ),
+    ).toBe(true);
+    expect(
+      isMainWindowNavigationAllowed(
+        'file:///app/renderer/index.html',
+        'file:///app/renderer/other.html',
+      ),
+    ).toBe(false);
+  });
+
   it('carrega o arquivo do renderer na produção', async () => {
     const window = { loadFile: vi.fn().mockResolvedValue(undefined), loadURL: vi.fn() };
 

@@ -1,15 +1,16 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Campaign } from '../../../core/contracts/campaigns';
 import type { Entity, EntityDetails, EntityLifecycleInput } from '../../../core/contracts/entities';
 import type { EntityType } from '../../../core/contracts/entity-types';
 import { EntityForm, type EntityFormSubmitValues } from './entity-form';
+import { EntityDetailsView } from './entity-details';
 import {
   presentUserFacingError,
   type UserFacingError,
 } from '../../../core/errors/user-facing-error';
 import { UserFacingErrorNotice } from '../../components/user-facing-error-notice';
 
-type View = 'list' | 'create' | 'edit';
+type View = 'list' | 'create' | 'details' | 'edit';
 type LifecycleAction = 'archive' | 'restore';
 
 export function EntityManager({
@@ -18,12 +19,14 @@ export function EntityManager({
   onOpenAssertions,
   onOpenNotes,
   onOpenTimeline,
+  onOpenRelationships,
 }: {
   campaign: Campaign;
   onBack: () => void;
   onOpenAssertions: (entity: Entity) => void;
   onOpenNotes: (entity: Entity) => void;
   onOpenTimeline: (entity: Entity) => void;
+  onOpenRelationships: () => void;
 }): React.JSX.Element {
   const [entityTypes, setEntityTypes] = useState<EntityType[]>([]);
   const [entities, setEntities] = useState<Entity[]>([]);
@@ -31,11 +34,14 @@ export function EntityManager({
   const [showArchived, setShowArchived] = useState(false);
   const [view, setView] = useState<View>('list');
   const [editing, setEditing] = useState<EntityDetails | null>(null);
+  const [viewing, setViewing] = useState<EntityDetails | null>(null);
   const [pending, setPending] = useState<{ action: LifecycleAction; entity: Entity } | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<UserFacingError | null>(null);
   const [announcement, setAnnouncement] = useState<string | null>(null);
+  const listFocusTargetRef = useRef<string | null>(null);
+  const [pendingListFocusTarget, setPendingListFocusTarget] = useState<string | null>(null);
 
   const loadEntityTypes = useCallback(async (): Promise<void> => {
     const result = await window.campaignManager.entityTypes.list({
@@ -66,14 +72,27 @@ export function EntityManager({
   useEffect(() => {
     void loadEntities();
   }, [loadEntities]);
+  useEffect(() => {
+    if (view !== 'list' || pendingListFocusTarget === null) return;
+    document
+      .querySelector<HTMLElement>(`[data-entity-focus-id="${pendingListFocusTarget}"]`)
+      ?.focus();
+    setPendingListFocusTarget(null);
+  }, [entities, pendingListFocusTarget, view]);
+
+  function restoreListFocus(): void {
+    if (listFocusTargetRef.current !== null) setPendingListFocusTarget(listFocusTargetRef.current);
+  }
 
   function returnToList(): void {
+    restoreListFocus();
     setEditing(null);
+    setViewing(null);
     setError(null);
     setView('list');
   }
 
-  async function beginEdit(entity: Entity): Promise<void> {
+  async function loadDetails(entity: Entity, destination: 'details' | 'edit'): Promise<void> {
     setBusy(true);
     setError(null);
     const details = await window.campaignManager.entities.get({
@@ -85,7 +104,20 @@ export function EntityManager({
       setError(presentUserFacingError(details.error, 'entities.mutate'));
       return;
     }
-    setEditing(details.data);
+    if (destination === 'details') setViewing(details.data);
+    else setEditing(details.data);
+    setView(destination);
+  }
+
+  function openDetails(entity: Entity, focusTarget: string): void {
+    listFocusTargetRef.current = focusTarget;
+    void loadDetails(entity, 'details');
+  }
+
+  function beginEditFromDetails(): void {
+    if (viewing === null) return;
+    setEditing(viewing);
+    setViewing(null);
     setView('edit');
   }
 
@@ -113,6 +145,7 @@ export function EntityManager({
       return;
     }
     setAnnouncement(`Entidade “${result.data.entity.name}” criada.`);
+    listFocusTargetRef.current = null;
     setView('list');
     setBusy(false);
     await loadEntities();
@@ -146,6 +179,7 @@ export function EntityManager({
       return;
     }
     setAnnouncement(`Entidade “${result.data.entity.name}” atualizada.`);
+    restoreListFocus();
     setEditing(null);
     setView('list');
     setBusy(false);
@@ -222,6 +256,21 @@ export function EntityManager({
       </>
     );
   }
+  if (view === 'details' && viewing !== null) {
+    return (
+      <EntityDetailsView
+        campaign={campaign}
+        details={viewing}
+        entityTypes={entityTypes}
+        onBack={returnToList}
+        onEdit={beginEditFromDetails}
+        onOpenAssertions={() => onOpenAssertions(viewing.entity)}
+        onOpenNotes={() => onOpenNotes(viewing.entity)}
+        onOpenTimeline={() => onOpenTimeline(viewing.entity)}
+        onOpenRelationships={onOpenRelationships}
+      />
+    );
+  }
   return (
     <section aria-labelledby="entities-title">
       <button className={backClass} onClick={onBack} type="button">
@@ -244,6 +293,7 @@ export function EntityManager({
             className={primaryClass}
             disabled={entityTypes.length === 0}
             onClick={() => {
+              listFocusTargetRef.current = null;
               setError(null);
               setView('create');
             }}
@@ -348,7 +398,17 @@ export function EntityManager({
             >
               <div className="flex justify-between gap-5">
                 <div>
-                  <h2 className="text-xl font-semibold">{entity.name}</h2>
+                  <h2 className="text-xl font-semibold">
+                    <button
+                      aria-label={`Abrir detalhes de ${entity.name}`}
+                      className="rounded text-left hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700"
+                      data-entity-focus-id={`${entity.id}:title`}
+                      onClick={() => openDetails(entity, `${entity.id}:title`)}
+                      type="button"
+                    >
+                      {entity.name}
+                    </button>
+                  </h2>
                   <div className="mt-2 flex flex-wrap gap-2 text-xs font-semibold text-slate-600">
                     <span className="rounded-full bg-stone-100 px-3 py-1">
                       {entityTypes.find((type) => type.id === entity.entityTypeId)?.singularName ??
@@ -395,12 +455,13 @@ export function EntityManager({
                   Cronologia
                 </button>
                 <button
-                  aria-label={`Editar ${entity.name}`}
+                  aria-label={`Abrir detalhes de ${entity.name}`}
                   className={secondaryClass}
-                  onClick={() => void beginEdit(entity)}
+                  data-entity-focus-id={`${entity.id}:details`}
+                  onClick={() => openDetails(entity, `${entity.id}:details`)}
                   type="button"
                 >
-                  Editar
+                  Ver detalhes
                 </button>
                 <button
                   aria-label={`${entity.archivedAt !== null ? 'Restaurar' : 'Arquivar'} ${entity.name}`}

@@ -308,6 +308,7 @@ export function CampaignApp(): React.JSX.Element {
               onOpenAssertions={(entity) => openContext(entity, 'assertions')}
               onOpenNotes={(entity) => openContext(entity, 'notes')}
               onOpenTimeline={openEntityTimeline}
+              onOpenRelationships={() => setScreen('relationships')}
             />
           ) : screen === 'relationshipTypes' && selectedCampaign !== null ? (
             <RelationshipTypeManager campaign={selectedCampaign} onBack={() => setScreen('edit')} />

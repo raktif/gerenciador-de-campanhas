@@ -73,6 +73,7 @@ test('recupera falha de carregamento com retry, ajuda acessível e diagnóstico 
     });
     await expect(errorTitle).toBeVisible();
     await expect(errorTitle).toBeFocused();
+    await window.getByText('Ver detalhes técnicos', { exact: true }).click();
     await expect(window.getByText('Código: DATABASE_UNAVAILABLE')).toBeVisible();
 
     const help = window.getByRole('button', { name: 'Abrir Ajuda' });

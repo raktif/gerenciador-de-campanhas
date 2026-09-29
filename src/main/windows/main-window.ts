@@ -1,6 +1,10 @@
 import path from 'node:path';
 import { BrowserWindow } from 'electron';
-import { loadMainWindowContent, selectMainWindowDevelopmentUrl } from './main-window-navigation';
+import {
+  isMainWindowNavigationAllowed,
+  loadMainWindowContent,
+  selectMainWindowDevelopmentUrl,
+} from './main-window-navigation';
 
 export function createMainWindow(): BrowserWindow {
   const mainWindow = new BrowserWindow({
@@ -32,12 +36,9 @@ export function createMainWindow(): BrowserWindow {
   mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   mainWindow.webContents.on('will-attach-webview', (event) => event.preventDefault());
 
-  let initialNavigationComplete = false;
-  mainWindow.webContents.on('did-finish-load', () => {
-    initialNavigationComplete = true;
-  });
-  mainWindow.webContents.on('will-navigate', (event) => {
-    if (initialNavigationComplete) event.preventDefault();
+  mainWindow.webContents.on('will-navigate', (event, targetUrl) => {
+    if (!isMainWindowNavigationAllowed(mainWindow.webContents.getURL(), targetUrl))
+      event.preventDefault();
   });
 
   return mainWindow;

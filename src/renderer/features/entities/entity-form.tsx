@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type {
   Entity,
   EntityReferenceValueInput,
@@ -63,6 +63,11 @@ export function EntityForm(props: EntityFormProps): React.JSX.Element {
   const [referenceValues, setReferenceValues] = useState<Record<string, string[]>>({});
   const [referenceEntities, setReferenceEntities] = useState<Entity[]>([]);
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const continueEditingRef = useRef<HTMLButtonElement>(null);
+  const discardDialogRef = useRef<HTMLElement>(null);
+  const cancelInvokerRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -151,6 +156,52 @@ export function EntityForm(props: EntityFormProps): React.JSX.Element {
     };
   }, [fields, props.campaign.id, props.mode, props.mode === 'edit' ? props.entity.id : 'create']);
 
+  useEffect(() => {
+    if (confirmDiscard) continueEditingRef.current?.focus();
+  }, [confirmDiscard]);
+
+  function requestCancel(event: React.MouseEvent<HTMLButtonElement>): void {
+    cancelInvokerRef.current = event.currentTarget;
+    if (hasUnsavedChanges) {
+      setConfirmDiscard(true);
+      return;
+    }
+    props.onCancel();
+  }
+
+  function discardChanges(): void {
+    setConfirmDiscard(false);
+    props.onCancel();
+  }
+
+  function continueEditing(): void {
+    setConfirmDiscard(false);
+    requestAnimationFrame(() => cancelInvokerRef.current?.focus());
+  }
+
+  function handleDiscardDialogKeyDown(event: React.KeyboardEvent<HTMLElement>): void {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      continueEditing();
+      return;
+    }
+    if (event.key !== 'Tab') return;
+    const focusable = discardDialogRef.current?.querySelectorAll<HTMLButtonElement>(
+      'button:not([disabled])',
+    );
+    if (focusable === undefined || focusable.length === 0) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (first === undefined || last === undefined) return;
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+
   function submit(event: React.SyntheticEvent<HTMLFormElement, SubmitEvent>): void {
     event.preventDefault();
     setValidationError(null);
@@ -188,7 +239,7 @@ export function EntityForm(props: EntityFormProps): React.JSX.Element {
 
   return (
     <section aria-labelledby="entity-form-title" className="mx-auto w-full max-w-4xl">
-      <button className={backClass} disabled={props.busy} onClick={props.onCancel} type="button">
+      <button className={backClass} disabled={props.busy} onClick={requestCancel} type="button">
         ← Voltar para entidades
       </button>
       <div className="overflow-hidden rounded-3xl border border-stone-200 bg-white shadow-sm">
@@ -209,7 +260,10 @@ export function EntityForm(props: EntityFormProps): React.JSX.Element {
                 autoFocus
                 className={inputClass}
                 disabled={props.busy}
-                onChange={(event) => setName(event.target.value)}
+                onChange={(event) => {
+                  setName(event.target.value);
+                  setHasUnsavedChanges(true);
+                }}
                 required
                 value={name}
               />
@@ -219,7 +273,10 @@ export function EntityForm(props: EntityFormProps): React.JSX.Element {
               <select
                 className={inputClass}
                 disabled={props.busy || props.mode === 'edit'}
-                onChange={(event) => setEntityTypeId(event.target.value)}
+                onChange={(event) => {
+                  setEntityTypeId(event.target.value);
+                  setHasUnsavedChanges(true);
+                }}
                 required
                 value={entityTypeId}
               >
@@ -240,7 +297,10 @@ export function EntityForm(props: EntityFormProps): React.JSX.Element {
             <textarea
               className={`${inputClass} min-h-24`}
               disabled={props.busy}
-              onChange={(event) => setSummary(event.target.value)}
+              onChange={(event) => {
+                setSummary(event.target.value);
+                setHasUnsavedChanges(true);
+              }}
               value={summary}
             />
           </label>
@@ -252,7 +312,10 @@ export function EntityForm(props: EntityFormProps): React.JSX.Element {
               <select
                 className={inputClass}
                 disabled={props.busy}
-                onChange={(event) => setCanonState(event.target.value as Entity['canonState'])}
+                onChange={(event) => {
+                  setCanonState(event.target.value as Entity['canonState']);
+                  setHasUnsavedChanges(true);
+                }}
                 value={canonState}
               >
                 <option value="draft">Rascunho</option>
@@ -266,9 +329,10 @@ export function EntityForm(props: EntityFormProps): React.JSX.Element {
               <select
                 className={inputClass}
                 disabled={props.busy}
-                onChange={(event) =>
-                  setKnowledgeState(event.target.value as Entity['knowledgeState'])
-                }
+                onChange={(event) => {
+                  setKnowledgeState(event.target.value as Entity['knowledgeState']);
+                  setHasUnsavedChanges(true);
+                }}
                 value={knowledgeState}
               >
                 <option value="fact">Fato</option>
@@ -284,7 +348,10 @@ export function EntityForm(props: EntityFormProps): React.JSX.Element {
               <select
                 className={inputClass}
                 disabled={props.busy}
-                onChange={(event) => setVisibility(event.target.value as Entity['visibility'])}
+                onChange={(event) => {
+                  setVisibility(event.target.value as Entity['visibility']);
+                  setHasUnsavedChanges(true);
+                }}
                 value={visibility}
               >
                 <option value="gm">Somente mestre</option>
@@ -297,7 +364,10 @@ export function EntityForm(props: EntityFormProps): React.JSX.Element {
               <select
                 className={inputClass}
                 disabled={props.busy}
-                onChange={(event) => setOriginKind(event.target.value as Entity['originKind'])}
+                onChange={(event) => {
+                  setOriginKind(event.target.value as Entity['originKind']);
+                  setHasUnsavedChanges(true);
+                }}
                 value={originKind}
               >
                 <option value="manual">Manual</option>
@@ -333,9 +403,10 @@ export function EntityForm(props: EntityFormProps): React.JSX.Element {
                     )}
                     field={field}
                     key={field.id}
-                    onChange={(selected) =>
-                      setReferenceValues((current) => ({ ...current, [field.id]: selected }))
-                    }
+                    onChange={(selected) => {
+                      setReferenceValues((current) => ({ ...current, [field.id]: selected }));
+                      setHasUnsavedChanges(true);
+                    }}
                     value={referenceValues[field.id] ?? []}
                   />
                 ) : (
@@ -343,9 +414,10 @@ export function EntityForm(props: EntityFormProps): React.JSX.Element {
                     disabled={props.busy}
                     field={field}
                     key={field.id}
-                    onChange={(value) =>
-                      setValues((current) => ({ ...current, [field.id]: value }))
-                    }
+                    onChange={(value) => {
+                      setValues((current) => ({ ...current, [field.id]: value }));
+                      setHasUnsavedChanges(true);
+                    }}
                     value={values[field.id] ?? ''}
                   />
                 ),
@@ -366,7 +438,7 @@ export function EntityForm(props: EntityFormProps): React.JSX.Element {
             <button
               className={secondaryClass}
               disabled={props.busy}
-              onClick={props.onCancel}
+              onClick={requestCancel}
               type="button"
             >
               Cancelar
@@ -381,6 +453,39 @@ export function EntityForm(props: EntityFormProps): React.JSX.Element {
           </div>
         </form>
       </div>
+      {confirmDiscard ? (
+        <div className="fixed inset-0 z-30 grid place-items-center bg-slate-950/40 p-6" role="presentation">
+          <section
+            aria-describedby="entity-discard-description"
+            aria-labelledby="entity-discard-title"
+            aria-modal="true"
+            className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"
+            onKeyDown={handleDiscardDialogKeyDown}
+            ref={discardDialogRef}
+            role="dialog"
+          >
+            <h2 className="text-xl font-semibold" id="entity-discard-title">
+              Descartar alterações?
+            </h2>
+            <p className="mt-3 text-slate-600" id="entity-discard-description">
+              Você possui alterações que ainda não foram salvas.
+            </p>
+            <div className="mt-6 flex flex-wrap justify-end gap-3">
+              <button
+                className={secondaryClass}
+                onClick={continueEditing}
+                ref={continueEditingRef}
+                type="button"
+              >
+                Continuar editando
+              </button>
+              <button className={primaryClass} onClick={discardChanges} type="button">
+                Descartar alterações
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </section>
   );
 }
