@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Campaign } from '../../../core/contracts/campaigns';
 import type { EntityType } from '../../../core/contracts/entity-types';
 import type {
@@ -32,6 +32,10 @@ export function FieldDefinitionManager({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<UserFacingError | null>(null);
   const [announcement, setAnnouncement] = useState<string | null>(null);
+  const createButtonRef = useRef<HTMLButtonElement | null>(null);
+  const editButtonRefs = useRef(new Map<string, HTMLButtonElement>());
+  const returnFocusTarget = useRef<{ kind: 'create' } | { kind: 'edit'; id: string } | null>(null);
+  const shouldRestoreFocus = useRef(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -48,6 +52,14 @@ export function FieldDefinitionManager({
   useEffect(() => {
     void load();
   }, [load]);
+  useEffect(() => {
+    if (view !== 'list' || !shouldRestoreFocus.current) return;
+    shouldRestoreFocus.current = false;
+    const target = returnFocusTarget.current;
+    returnFocusTarget.current = null;
+    if (target?.kind === 'edit') editButtonRefs.current.get(target.id)?.focus();
+    else createButtonRef.current?.focus();
+  }, [fields, view]);
 
   async function create(values: FieldDefinitionCreateValues): Promise<void> {
     setBusy(true);
@@ -60,7 +72,7 @@ export function FieldDefinitionManager({
       });
       if (result.ok) {
         setFields((items) => [...items, result.data].sort(compare));
-        setView('list');
+        closeForm();
         setAnnouncement(`Campo “${result.data.label}” criado.`);
       } else setError(presentUserFacingError(result.error, 'field-definitions.mutate'));
     } catch {
@@ -86,7 +98,7 @@ export function FieldDefinitionManager({
           items.map((item) => (item.id === result.data.id ? result.data : item)).sort(compare),
         );
         setEditing(null);
-        setView('list');
+        closeForm();
         setAnnouncement(`Campo “${result.data.label}” atualizado.`);
       } else setError(presentUserFacingError(result.error, 'field-definitions.mutate'));
     } catch {
@@ -117,10 +129,22 @@ export function FieldDefinitionManager({
     } else setError(presentUserFacingError(result.error, 'field-definitions.mutate'));
     setBusy(false);
   }
-  function backToList(): void {
+  function closeForm(): void {
+    shouldRestoreFocus.current = true;
     setEditing(null);
     setError(null);
     setView('list');
+  }
+  function openCreate(): void {
+    returnFocusTarget.current = { kind: 'create' };
+    setError(null);
+    setView('create');
+  }
+  function openEdit(field: FieldDefinition): void {
+    returnFocusTarget.current = { kind: 'edit', id: field.id };
+    setEditing(field);
+    setError(null);
+    setView('edit');
   }
   if (view === 'create')
     return (
@@ -129,7 +153,7 @@ export function FieldDefinitionManager({
           busy={busy}
           error={null}
           mode="create"
-          onCancel={backToList}
+          onCancel={closeForm}
           onSubmit={create}
         />
         {error === null ? null : (
@@ -148,7 +172,7 @@ export function FieldDefinitionManager({
           field={editing}
           key={`${editing.id}:${String(editing.revision)}`}
           mode="edit"
-          onCancel={backToList}
+          onCancel={closeForm}
           onSubmit={update}
         />
         {error === null ? null : (
@@ -178,14 +202,7 @@ export function FieldDefinitionManager({
           </p>
         </div>
         {!showArchived ? (
-          <button
-            className={primaryClass}
-            onClick={() => {
-              setError(null);
-              setView('create');
-            }}
-            type="button"
-          >
+          <button className={primaryClass} onClick={openCreate} ref={createButtonRef} type="button">
             Novo campo
           </button>
         ) : null}
@@ -270,7 +287,8 @@ export function FieldDefinitionManager({
           {!showArchived ? (
             <button
               className={`${primaryClass} mt-6`}
-              onClick={() => setView('create')}
+              onClick={openCreate}
+              ref={createButtonRef}
               type="button"
             >
               Criar primeiro campo
@@ -287,9 +305,7 @@ export function FieldDefinitionManager({
               <div className="flex justify-between gap-5">
                 <div>
                   <h2 className="text-xl font-semibold">{field.label}</h2>
-                  <p className="mt-1 text-sm text-slate-500">
-                    {field.key} · {dataTypeLabel(field.dataType)}
-                  </p>
+                  <p className="mt-1 text-sm text-slate-500">{dataTypeLabel(field.dataType)}</p>
                   {field.description === null ? null : (
                     <p className="mt-3 text-slate-600">{field.description}</p>
                   )}
@@ -305,10 +321,10 @@ export function FieldDefinitionManager({
                 <button
                   className={secondaryClass}
                   aria-label={`Editar campo ${field.label}`}
-                  onClick={() => {
-                    setEditing(field);
-                    setError(null);
-                    setView('edit');
+                  onClick={() => openEdit(field)}
+                  ref={(node) => {
+                    if (node === null) editButtonRefs.current.delete(field.id);
+                    else editButtonRefs.current.set(field.id, node);
                   }}
                   type="button"
                 >

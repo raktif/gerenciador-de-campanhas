@@ -21,6 +21,7 @@ import {
   type FieldDefinitionPageResult,
 } from '../../core/contracts/field-definitions';
 import { AppError } from '../../core/errors/app-error';
+import { createTechnicalKeyCandidate } from '../../core/identifiers/technical-key';
 import { entityTypes, fieldDefinitions } from '../schema';
 import type * as schema from '../schema';
 
@@ -39,7 +40,6 @@ const cursorSchema = z
 type FieldDefinitionCursor = z.infer<typeof cursorSchema>;
 
 type MutableField =
-  | 'key'
   | 'label'
   | 'description'
   | 'dataType'
@@ -79,6 +79,36 @@ export class FieldDefinitionRepository {
     } catch (error) {
       throw translateConstraintError(error, fieldDefinition.entityTypeId, fieldDefinition.key);
     }
+  }
+
+  public insertWithGeneratedKey(
+    fieldDefinition: Omit<FieldDefinition, 'key'>,
+    baseKey: string,
+  ): FieldDefinition {
+    return this.database.transaction((transaction) => {
+      const occupiedKeys = new Set(
+        transaction
+          .select({ key: fieldDefinitions.key })
+          .from(fieldDefinitions)
+          .where(eq(fieldDefinitions.entityTypeId, fieldDefinition.entityTypeId))
+          .all()
+          .map(({ key }) => key),
+      );
+      let ordinal = 1;
+      let key = createTechnicalKeyCandidate(baseKey, ordinal);
+      while (occupiedKeys.has(key)) {
+        ordinal += 1;
+        key = createTechnicalKeyCandidate(baseKey, ordinal);
+      }
+
+      const generated = fieldDefinitionSchema.parse({ ...fieldDefinition, key });
+      try {
+        transaction.insert(fieldDefinitions).values(generated).run();
+      } catch (error) {
+        throw translateConstraintError(error, generated.entityTypeId, generated.key);
+      }
+      return generated;
+    });
   }
 
   public findById(campaignId: string, entityTypeId: string, id: string): FieldDefinition | null {
@@ -199,8 +229,7 @@ export class FieldDefinitionRepository {
         );
       }
     } catch (error) {
-      const key = typeof input.patch.key === 'string' ? input.patch.key : undefined;
-      throw translateConstraintError(error, input.entityTypeId, key);
+      throw translateConstraintError(error, input.entityTypeId);
     }
 
     const updated = this.findById(input.campaignId, input.entityTypeId, input.id);

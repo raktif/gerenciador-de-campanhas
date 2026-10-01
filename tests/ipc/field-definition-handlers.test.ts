@@ -31,7 +31,6 @@ describe('handlers IPC de definições de campo', () => {
     await required(handlers, fieldDefinitionChannels.create)(event(42), {
       campaignId,
       entityTypeId,
-      key: 'nome',
       label: '  Nome  ',
       dataType: 'short_text',
     });
@@ -58,7 +57,7 @@ describe('handlers IPC de definições de campo', () => {
       await handler(event(42), {
         campaignId,
         entityTypeId,
-        key: 'Chave Inválida',
+        key: 'nome',
         label: 'Nome',
         dataType: 'short_text',
       }),
@@ -67,7 +66,6 @@ describe('handlers IPC de definições de campo', () => {
       await handler(event(99), {
         campaignId,
         entityTypeId,
-        key: 'nome',
         label: 'Nome',
         dataType: 'short_text',
       }),

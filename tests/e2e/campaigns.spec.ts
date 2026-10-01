@@ -3,6 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { _electron as electron, expect, test, type ElectronApplication } from '@playwright/test';
+import type { CampaignManagerGateway } from '../../src/core/contracts/gateway';
 
 const repositoryRoot = process.cwd();
 const requireFromRepository = createRequire(path.join(repositoryRoot, 'package.json'));
@@ -234,14 +235,18 @@ test('configura tipos de entidade isolados na campanha e os recupera após reini
     await expect(window.getByRole('heading', { name: 'Definições de campo' })).toBeVisible();
     await expect(window.getByText('Nenhuma definição de campo criada')).toBeVisible();
     await window.getByRole('button', { name: 'Criar primeiro campo' }).click();
-    await window.getByLabel('Rótulo *').fill('Nome');
-    await window.getByLabel('Chave *').fill('nome_completo');
-    await window.getByRole('button', { name: 'Criar definição de campo' }).click();
-    await expect(window.getByRole('alert')).toContainText(
-      'A chave deve usar apenas letras minúsculas sem acentos, números e hífens simples.',
-    );
-    await expect(window.getByRole('button', { name: 'Criar definição de campo' })).toBeEnabled();
-    await window.getByLabel('Chave *').fill('nome');
+    const fieldLabel = window.getByLabel('Rótulo *');
+    await expect(fieldLabel).toBeFocused();
+    await expect(window.getByLabel('Chave', { exact: true })).toHaveCount(0);
+    await expect(fieldLabel).toHaveAttribute('aria-describedby', 'field-key-generation-help');
+    await expect(
+      window.getByText('A chave técnica será gerada automaticamente ao criar o campo.'),
+    ).toBeVisible();
+    await window.getByRole('button', { name: 'Cancelar' }).click();
+    await expect(window.getByRole('button', { name: 'Criar primeiro campo' })).toBeFocused();
+    await window.getByRole('button', { name: 'Criar primeiro campo' }).click();
+    await expect(fieldLabel).toBeFocused();
+    await fieldLabel.fill('Nome');
     await window.getByLabel('Descrição').fill('Nome pelo qual a pessoa é conhecida.');
     await window.getByLabel('Papel semântico').selectOption('name');
     await window.getByLabel('Obrigatório').check();
@@ -249,12 +254,22 @@ test('configura tipos de entidade isolados na campanha e os recupera após reini
     await window.getByRole('button', { name: 'Criar definição de campo' }).click();
     await expect(window.getByTestId('field-definition-list')).toContainText('Nome');
     await expect(window.getByRole('status')).toContainText('Campo “Nome” criado.');
+    await expect(window.getByRole('button', { name: 'Novo campo' })).toBeFocused();
+    const keyBeforeRename = await readFieldKey(window, 'Nome');
+    expect(keyBeforeRename).toBe('protagonista-nome');
 
     await window.getByRole('button', { name: 'Editar campo Nome' }).click();
+    await expect(window.getByLabel('Rótulo *')).toBeFocused();
+    await window.getByRole('button', { name: 'Cancelar' }).click();
+    await expect(window.getByRole('button', { name: 'Editar campo Nome' })).toBeFocused();
+    await window.getByRole('button', { name: 'Editar campo Nome' }).click();
+    await expect(window.getByLabel('Rótulo *')).toBeFocused();
     await window.getByLabel('Rótulo *').fill('Nome completo');
     await window.getByLabel('Valor padrão (JSON)').fill('"Desconhecido"');
     await window.getByRole('button', { name: 'Salvar definição de campo' }).click();
     await expect(window.getByTestId('field-definition-list')).toContainText('Nome completo');
+    await expect(window.getByRole('button', { name: 'Editar campo Nome completo' })).toBeFocused();
+    expect(await readFieldKey(window, 'Nome completo')).toBe(keyBeforeRename);
     await window.getByRole('button', { name: 'Arquivar campo Nome completo' }).click();
     await window.getByRole('button', { name: 'Confirmar arquivamento do campo' }).click();
     await expect(window.getByText('Nenhuma definição de campo criada')).toBeVisible();
@@ -301,4 +316,30 @@ async function launch(dataDirectory: string): Promise<ElectronApplication> {
       NODE_ENV: 'test',
     },
   });
+}
+
+async function readFieldKey(
+  window: Awaited<ReturnType<ElectronApplication['firstWindow']>>,
+  label: string,
+): Promise<string> {
+  return window.evaluate(async (requestedLabel) => {
+    const gateway = (globalThis as unknown as { campaignManager: CampaignManagerGateway })
+      .campaignManager;
+    const campaigns = await gateway.campaigns.list({});
+    if (!campaigns.ok) throw new Error('Não foi possível consultar a campanha do teste.');
+    const campaign = campaigns.data.items[0];
+    if (campaign === undefined) throw new Error('Campanha do teste ausente.');
+    const entityTypes = await gateway.entityTypes.list({ campaignId: campaign.id });
+    if (!entityTypes.ok) throw new Error('Não foi possível consultar os grupos do teste.');
+    const entityType = entityTypes.data.items[0];
+    if (entityType === undefined) throw new Error('Grupo do teste ausente.');
+    const fields = await gateway.fieldDefinitions.list({
+      campaignId: campaign.id,
+      entityTypeId: entityType.id,
+    });
+    if (!fields.ok) throw new Error('Não foi possível consultar os campos do teste.');
+    const field = fields.data.items.find((item) => item.label === requestedLabel);
+    if (field === undefined) throw new Error(`Campo ausente: ${requestedLabel}`);
+    return field.key;
+  }, label);
 }

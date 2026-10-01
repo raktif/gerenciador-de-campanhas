@@ -14,14 +14,12 @@ describe('contratos de definições de campo', () => {
       createFieldDefinitionInputSchema.parse({
         campaignId,
         entityTypeId,
-        key: 'nome-completo',
         label: '  Nome completo  ',
         dataType: 'short_text',
       }),
     ).toEqual({
       campaignId,
       entityTypeId,
-      key: 'nome-completo',
       label: 'Nome completo',
       description: null,
       dataType: 'short_text',
@@ -40,16 +38,17 @@ describe('contratos de definições de campo', () => {
     });
   });
 
-  it('rejeita chaves instáveis e atualizações vazias', () => {
+  it('rejeita tentativas de fornecer ou alterar a chave técnica e atualizações vazias', () => {
     expect(() =>
       createFieldDefinitionInputSchema.parse({
         campaignId,
         entityTypeId,
-        key: 'Nome--Completo',
+        key: 'nome',
         label: 'Nome',
         dataType: 'short_text',
       }),
     ).toThrow();
+    expect(() => fieldDefinitionPatchSchema.parse({ key: 'outra-chave' })).toThrow();
     expect(() => fieldDefinitionPatchSchema.parse({})).toThrow();
   });
 

@@ -32,7 +32,6 @@ describe('FieldDefinitionService', () => {
       createFieldDefinitionInputSchema.parse({
         campaignId,
         entityTypeId,
-        key: 'nome',
         label: 'Nome',
         dataType: 'short_text',
       }),
@@ -41,7 +40,7 @@ describe('FieldDefinitionService', () => {
     expect(created).toMatchObject({
       id: fieldId,
       entityTypeId,
-      key: 'nome',
+      key: 'vilao-nome',
       required: false,
       isArchived: false,
       createdAt: secondTimestamp,
@@ -75,6 +74,20 @@ describe('FieldDefinitionService', () => {
     ).toMatchObject({ isArchived: false, revision: 3 });
   });
 
+  it('preserva a chave técnica quando o rótulo é alterado', () => {
+    const service = createService(new MemoryFieldDefinitionRepository([createField()]));
+
+    const updated = service.update({
+      campaignId,
+      entityTypeId,
+      id: fieldId,
+      revision: 1,
+      patch: { label: 'Nome completo' },
+    });
+
+    expect(updated).toMatchObject({ key: 'nome', label: 'Nome completo', revision: 2 });
+  });
+
   it('valida configurações e destinos de campos de referência', () => {
     const service = createService(new MemoryFieldDefinitionRepository());
     expect(() =>
@@ -82,7 +95,6 @@ describe('FieldDefinitionService', () => {
         createFieldDefinitionInputSchema.parse({
           campaignId,
           entityTypeId,
-          key: 'aliados',
           label: 'Aliados',
           dataType: 'entity_reference_list',
           allowedTargetTypeIds: [targetTypeId],
@@ -96,7 +108,6 @@ describe('FieldDefinitionService', () => {
           createFieldDefinitionInputSchema.parse({
             campaignId,
             entityTypeId,
-            key: 'nome',
             label: 'Nome',
             dataType: 'short_text',
             referenceDirection: 'outgoing',
@@ -110,7 +121,6 @@ describe('FieldDefinitionService', () => {
           createFieldDefinitionInputSchema.parse({
             campaignId,
             entityTypeId,
-            key: 'inimigo',
             label: 'Inimigo',
             dataType: 'entity_reference',
             allowedTargetTypeIds: ['10000000-0000-4000-8000-000000000099'],
@@ -146,9 +156,20 @@ class MemoryFieldDefinitionRepository implements FieldDefinitionRepositoryPort {
     for (const field of fields) this.records.set(field.id, field);
   }
 
-  public insert(field: FieldDefinition): FieldDefinition {
-    this.records.set(field.id, field);
-    return field;
+  public insertWithGeneratedKey(
+    field: Omit<FieldDefinition, 'key'>,
+    baseKey: string,
+  ): FieldDefinition {
+    let ordinal = 1;
+    let key = baseKey;
+    const occupied = new Set([...this.records.values()].map((record) => record.key));
+    while (occupied.has(key)) {
+      ordinal += 1;
+      key = `${baseKey}-${String(ordinal)}`;
+    }
+    const generated = fieldDefinitionSchema.parse({ ...field, key });
+    this.records.set(generated.id, generated);
+    return generated;
   }
 
   public findById(
@@ -240,7 +261,7 @@ function createEntityType(id: string): EntityType {
     campaignId,
     packId: null,
     name: 'Tipo',
-    singularName: 'Tipo',
+    singularName: 'Vilão',
     slug: id === entityTypeId ? 'personagens' : 'faccoes',
     description: null,
     icon: null,

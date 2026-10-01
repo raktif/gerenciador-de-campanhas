@@ -151,7 +151,6 @@ describe('gateway do preload', () => {
     await gateway.fieldDefinitions.create({
       campaignId: identity.id,
       entityTypeId: entityTypeIdentity.id,
-      key: 'nome',
       label: '  Nome  ',
       dataType: 'short_text',
     });
@@ -267,7 +266,6 @@ describe('gateway do preload', () => {
         input: {
           campaignId: identity.id,
           entityTypeId: entityTypeIdentity.id,
-          key: 'nome',
           label: 'Nome',
           dataType: 'short_text',
           description: null,

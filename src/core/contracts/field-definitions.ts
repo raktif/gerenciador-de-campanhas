@@ -76,7 +76,6 @@ export const fieldDefinitionSchema = z
 export type FieldDefinition = z.infer<typeof fieldDefinitionSchema>;
 
 const editableFieldsSchema = z.object({
-  key: keySchema,
   label: labelSchema,
   description: descriptionSchema.nullable(),
   dataType: z.enum(fieldDataTypes),
@@ -98,7 +97,6 @@ export const createFieldDefinitionInputSchema = z
   .object({
     campaignId: z.uuid(),
     entityTypeId: z.uuid(),
-    key: keySchema,
     label: labelSchema,
     description: descriptionSchema.nullable().default(null),
     dataType: z.enum(fieldDataTypes),

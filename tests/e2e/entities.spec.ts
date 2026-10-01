@@ -32,7 +32,7 @@ test('cadastra entidade com metadados, edita, arquiva e persiste após reiniciar
 
     await window.getByRole('button', { name: 'Tipos de relação' }).click();
     await window.getByRole('button', { name: 'Novo tipo de relação' }).click();
-    await window.getByLabel('Nome').fill('Aliado de');
+    await window.getByRole('textbox', { name: 'Nome *', exact: true }).fill('Aliado de');
     await window.getByLabel('Slug').fill('aliado-de');
     await window.getByRole('button', { name: 'Criar tipo' }).click();
     await expect(window.getByTestId('relationship-type-list')).toContainText('Aliado de');
@@ -47,7 +47,9 @@ test('cadastra entidade com metadados, edita, arquiva e persiste após reiniciar
         filters: { isArchived: false },
       });
       if (!relationshipTypes.ok) throw new Error('Não foi possível localizar o tipo de relação.');
-      const relationshipType = relationshipTypes.data.items.find((item) => item.slug === 'aliado-de');
+      const relationshipType = relationshipTypes.data.items.find(
+        (item) => item.slug === 'aliado-de',
+      );
       if (relationshipType === undefined) throw new Error('Tipo de relação de teste ausente.');
       return relationshipType.id;
     });
@@ -57,12 +59,10 @@ test('cadastra entidade com metadados, edita, arquiva e persiste após reiniciar
     await window.getByRole('button', { name: 'Gerenciar campos de Personagens' }).click();
     await window.getByRole('button', { name: 'Criar primeiro campo' }).click();
     await window.getByLabel('Rótulo *').fill('Título');
-    await window.getByLabel('Chave *').fill('titulo');
     await window.getByRole('button', { name: 'Criar definição de campo' }).click();
     await expect(window.getByTestId('field-definition-list')).toContainText('Título');
     await window.getByRole('button', { name: 'Novo campo' }).click();
     await window.getByLabel('Rótulo *').fill('Aliados');
-    await window.getByLabel('Chave *').fill('aliados');
     await window.getByLabel('Tipo de dado').selectOption('entity_reference_list');
     await window.getByLabel('ID do tipo de relacionamento').fill(relationshipTypeId);
     await window.getByLabel('Direção').selectOption('outgoing');
@@ -107,14 +107,16 @@ test('cadastra entidade com metadados, edita, arquiva e persiste após reiniciar
     await window.getByLabel('Tipo *').selectOption({ label: 'Aliado de' });
     await window.getByLabel('Origem *').selectOption({ label: 'Gorel' });
     await window.getByLabel('Destino *').selectOption({ label: 'Mara' });
-    await window.getByRole('button', { name: 'Criar relação' }).click();
+    await window.getByRole('button', { name: 'Salvar relação', exact: true }).click();
     await expect(window.getByTestId('relationship-list')).toContainText('Gorel');
     await window.getByRole('button', { name: 'Ver entidades' }).click();
 
     await window.getByRole('button', { name: 'Abrir detalhes de Gorel' }).first().click();
     await window.getByRole('button', { name: 'Ver relações' }).focus();
     await window.keyboard.press('Enter');
-    await expect(window.getByLabel('Entidade central').locator('option:checked')).toHaveText('Gorel');
+    await expect(window.getByLabel('Entidade central').locator('option:checked')).toHaveText(
+      'Gorel',
+    );
     await expect(window.getByLabel('Profundidade')).toHaveValue('1');
     await expect(window.getByTestId('neighborhood-text-list')).toContainText('Gorel');
     await expect(window.getByTestId('neighborhood-text-list')).toContainText('Mara');
@@ -129,15 +131,19 @@ test('cadastra entidade com metadados, edita, arquiva e persiste após reiniciar
     await window.getByLabel('Tipo *').selectOption({ label: 'Aliado de' });
     await window.getByLabel('Origem *').selectOption({ label: 'Mara' });
     await window.getByLabel('Destino *').selectOption({ label: 'Gorel' });
-    await window.getByRole('button', { name: 'Criar relação' }).click();
-    await expect(window.getByLabel('Entidade central').locator('option:checked')).toHaveText('Gorel');
+    await window.getByRole('button', { name: 'Salvar relação', exact: true }).click();
+    await expect(window.getByLabel('Entidade central').locator('option:checked')).toHaveText(
+      'Gorel',
+    );
     await expect(window.getByLabel('Profundidade')).toHaveValue('1');
     await expect(window.getByTestId('neighborhood-text-list')).toContainText('Gorel');
     await window.getByRole('button', { name: 'Ver entidades' }).click();
 
     await window.getByRole('button', { name: 'Abrir detalhes de Nilo' }).first().click();
     await window.getByRole('button', { name: 'Ver relações' }).click();
-    await expect(window.getByLabel('Entidade central').locator('option:checked')).toHaveText('Nilo');
+    await expect(window.getByLabel('Entidade central').locator('option:checked')).toHaveText(
+      'Nilo',
+    );
     await expect(window.getByRole('status')).toContainText(
       'Nenhuma conexão corresponde aos filtros.',
     );
@@ -187,19 +193,27 @@ test('cadastra entidade com metadados, edita, arquiva e persiste após reiniciar
       .getByRole('dialog', { name: 'Descartar alterações?' })
       .getByRole('button', { name: 'Descartar alterações' })
       .click();
-    await expect(window.getByTestId('entity-list')).toContainText('Chefe respeitado dos mineradores');
+    await expect(window.getByTestId('entity-list')).toContainText(
+      'Chefe respeitado dos mineradores',
+    );
     await expect(window.getByTestId('entity-list')).not.toContainText('Alteração descartada');
-    await expect(window.getByRole('button', { name: 'Abrir detalhes de Gorel' }).first()).toBeFocused();
+    await expect(
+      window.getByRole('button', { name: 'Abrir detalhes de Gorel' }).first(),
+    ).toBeFocused();
 
     await window.getByRole('button', { name: 'Abrir detalhes de Gorel' }).nth(1).click();
     await expect(window.getByRole('heading', { name: 'Gorel', exact: true })).toBeFocused();
     await window.getByRole('button', { name: 'Voltar para entidades' }).click();
-    await expect(window.getByRole('button', { name: 'Abrir detalhes de Gorel' }).nth(1)).toBeFocused();
+    await expect(
+      window.getByRole('button', { name: 'Abrir detalhes de Gorel' }).nth(1),
+    ).toBeFocused();
 
     await window.getByRole('button', { name: 'Abrir detalhes de Gorel' }).first().click();
     await window.getByRole('button', { name: 'Editar', exact: true }).click();
     await window.getByRole('button', { name: 'Cancelar', exact: true }).click();
-    await expect(window.getByRole('button', { name: 'Abrir detalhes de Gorel' }).first()).toBeFocused();
+    await expect(
+      window.getByRole('button', { name: 'Abrir detalhes de Gorel' }).first(),
+    ).toBeFocused();
 
     await window.getByRole('button', { name: 'Arquivar Gorel' }).click();
     await window.getByRole('button', { name: 'Confirmar arquivamento' }).click();

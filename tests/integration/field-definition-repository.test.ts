@@ -65,6 +65,36 @@ describe('FieldDefinitionRepository', () => {
     context.close();
   });
 
+  it('aloca colisões atomicamente incluindo campos arquivados e isolando o tipo pai', async () => {
+    const { context, fields } = await createRepositories();
+    const first = withoutKey(
+      createField('20000000-0000-4000-8000-000000000001', entityTypeId, 'temporaria'),
+    );
+    const archived = withoutKey(
+      createField('20000000-0000-4000-8000-000000000002', entityTypeId, 'temporaria', {
+        isArchived: true,
+      }),
+    );
+    const third = withoutKey(
+      createField('20000000-0000-4000-8000-000000000003', entityTypeId, 'temporaria'),
+    );
+    const otherCampaign = withoutKey(
+      createField('20000000-0000-4000-8000-000000000004', otherEntityTypeId, 'temporaria'),
+    );
+
+    expect(fields.insertWithGeneratedKey(first, 'vilao-habilidades').key).toBe('vilao-habilidades');
+    expect(fields.insertWithGeneratedKey(archived, 'vilao-habilidades').key).toBe(
+      'vilao-habilidades-2',
+    );
+    expect(fields.insertWithGeneratedKey(third, 'vilao-habilidades').key).toBe(
+      'vilao-habilidades-3',
+    );
+    expect(fields.insertWithGeneratedKey(otherCampaign, 'vilao-habilidades').key).toBe(
+      'vilao-habilidades',
+    );
+    context.close();
+  });
+
   it('pagina com cursor estável e separa campos arquivados', async () => {
     const { context, fields } = await createRepositories();
     fields.insert(
@@ -144,11 +174,11 @@ describe('FieldDefinitionRepository', () => {
         entityTypeId,
         id: name.id,
         revision: 1,
-        patch: { label: 'Nome completo', key: 'nome-completo' },
+        patch: { label: 'Nome completo' },
       },
       '2026-08-28T13:00:00.000Z',
     );
-    expect(updated).toMatchObject({ label: 'Nome completo', key: 'nome-completo', revision: 2 });
+    expect(updated).toMatchObject({ label: 'Nome completo', key: 'nome', revision: 2 });
     expect(
       captureAppError(() =>
         fields.update(
@@ -308,6 +338,12 @@ function createField(
     revision: 1,
     ...overrides,
   });
+}
+
+function withoutKey(field: FieldDefinition): Omit<FieldDefinition, 'key'> {
+  const { key: _key, ...fieldWithoutKey } = field;
+  void _key;
+  return fieldWithoutKey;
 }
 
 function captureAppError(operation: () => unknown): AppError {

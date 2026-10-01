@@ -26,7 +26,6 @@ type FormProps = {
 );
 
 interface FormValues {
-  key: string;
   label: string;
   description: string;
   dataType: FieldDefinition['dataType'];
@@ -44,8 +43,6 @@ interface FormValues {
   sortOrder: string;
 }
 
-const stableKeyPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-
 export function FieldDefinitionForm(props: FormProps): React.JSX.Element {
   const [values, setValues] = useState<FormValues>(() =>
     props.mode === 'create' ? emptyValues : toFormValues(props.field),
@@ -61,12 +58,6 @@ export function FieldDefinitionForm(props: FormProps): React.JSX.Element {
     event.preventDefault();
     try {
       const normalized = normalize(values);
-      if (!stableKeyPattern.test(normalized.key)) {
-        setValidationError(
-          'A chave deve usar apenas letras minúsculas sem acentos, números e hífens simples.',
-        );
-        return;
-      }
       if (props.mode === 'create') {
         void props.onSubmit(normalized);
         return;
@@ -114,24 +105,20 @@ export function FieldDefinitionForm(props: FormProps): React.JSX.Element {
           </h1>
         </header>
         <form className="space-y-7 px-8 py-8" onSubmit={submit}>
-          <div className="grid gap-6 md:grid-cols-2">
-            <TextInput
-              label="Rótulo"
-              value={values.label}
-              onChange={(v) => update('label', v)}
-              required
-            />
-            <TextInput
-              label="Chave"
-              value={values.key}
-              onChange={(v) => update('key', v)}
-              required
-            />
-          </div>
-          <p className="-mt-5 text-xs text-slate-500">
-            A chave aceita letras minúsculas sem acentos, números e hífens simples. Exemplo:
-            objetivo-principal.
-          </p>
+          <TextInput
+            autoFocus
+            describedBy={props.mode === 'create' ? 'field-key-generation-help' : undefined}
+            id="field-label"
+            label="Rótulo"
+            value={values.label}
+            onChange={(v) => update('label', v)}
+            required
+          />
+          {props.mode === 'create' ? (
+            <p className="-mt-5 text-sm text-slate-600" id="field-key-generation-help">
+              A chave técnica será gerada automaticamente ao criar o campo.
+            </p>
+          ) : null}
           <div>
             <label className={labelClass} htmlFor="field-description">
               Descrição
@@ -269,7 +256,6 @@ export function FieldDefinitionForm(props: FormProps): React.JSX.Element {
 
 function normalize(values: FormValues): FieldDefinitionCreateValues {
   return {
-    key: values.key.trim(),
     label: values.label.trim(),
     description: nullable(values.description),
     dataType: values.dataType,
@@ -312,7 +298,6 @@ function createPatch(
 
 function toFormValues(field: FieldDefinition): FormValues {
   return {
-    key: field.key,
     label: field.label,
     description: field.description ?? '',
     dataType: field.dataType,
@@ -332,7 +317,6 @@ function toFormValues(field: FieldDefinition): FormValues {
 }
 
 const emptyValues: FormValues = {
-  key: '',
   label: '',
   description: '',
   dataType: 'short_text',
@@ -369,12 +353,18 @@ function dataTypeLabel(value: string): string {
 }
 
 function TextInput({
+  autoFocus = false,
+  describedBy,
+  id,
   label,
   value,
   onChange,
   required = false,
   type = 'text',
 }: {
+  autoFocus?: boolean;
+  describedBy?: string | undefined;
+  id?: string;
   label: string;
   value: string;
   onChange: (value: string) => void;
@@ -386,7 +376,10 @@ function TextInput({
       {label}
       {required ? ' *' : ''}
       <input
+        aria-describedby={describedBy}
+        autoFocus={autoFocus}
         className={inputClass}
+        id={id}
         min={type === 'number' ? 0 : undefined}
         onChange={(e) => onChange(e.target.value)}
         required={required}

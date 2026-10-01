@@ -11,10 +11,13 @@ import type {
   UpdateFieldDefinitionInput,
 } from '../../core/contracts/field-definitions';
 import { AppError } from '../../core/errors/app-error';
+import { createTechnicalKeyBase } from '../../core/identifiers/technical-key';
 import type { FieldDefinitionRepositoryUpdate } from '../../db/repositories/field-definition-repository';
 
+type NewFieldDefinition = Omit<FieldDefinition, 'key'>;
+
 export interface FieldDefinitionRepositoryPort {
-  insert(fieldDefinition: FieldDefinition): FieldDefinition;
+  insertWithGeneratedKey(fieldDefinition: NewFieldDefinition, baseKey: string): FieldDefinition;
   findById(campaignId: string, entityTypeId: string, id: string): FieldDefinition | null;
   list(request: FieldDefinitionPageRequest): FieldDefinitionPageResult;
   update(input: FieldDefinitionRepositoryUpdate, updatedAt: string): FieldDefinition;
@@ -42,33 +45,35 @@ export class FieldDefinitionService {
   }
 
   public create(input: CreateFieldDefinitionInput): FieldDefinition {
-    this.requireEntityType(input.campaignId, input.entityTypeId);
+    const entityType = this.requireEntityType(input.campaignId, input.entityTypeId);
     this.validateReferenceConfiguration(input.campaignId, input.entityTypeId, input);
     const timestamp = this.now();
-    return this.dependencies.repository.insert({
-      id: this.createId(),
-      entityTypeId: input.entityTypeId,
-      key: input.key,
-      label: input.label,
-      description: input.description,
-      dataType: input.dataType,
-      semanticRole: input.semanticRole,
-      required: input.required,
-      searchable: input.searchable,
-      secretByDefault: input.secretByDefault,
-      defaultValue: input.defaultValue,
-      options: input.options,
-      validation: input.validation,
-      referenceRelationshipTypeId: input.referenceRelationshipTypeId,
-      referenceDirection: input.referenceDirection,
-      allowedTargetTypeIds: input.allowedTargetTypeIds,
-      onDeleteBehavior: input.onDeleteBehavior,
-      sortOrder: input.sortOrder,
-      isArchived: false,
-      createdAt: timestamp,
-      updatedAt: timestamp,
-      revision: 1,
-    });
+    return this.dependencies.repository.insertWithGeneratedKey(
+      {
+        id: this.createId(),
+        entityTypeId: input.entityTypeId,
+        label: input.label,
+        description: input.description,
+        dataType: input.dataType,
+        semanticRole: input.semanticRole,
+        required: input.required,
+        searchable: input.searchable,
+        secretByDefault: input.secretByDefault,
+        defaultValue: input.defaultValue,
+        options: input.options,
+        validation: input.validation,
+        referenceRelationshipTypeId: input.referenceRelationshipTypeId,
+        referenceDirection: input.referenceDirection,
+        allowedTargetTypeIds: input.allowedTargetTypeIds,
+        onDeleteBehavior: input.onDeleteBehavior,
+        sortOrder: input.sortOrder,
+        isArchived: false,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        revision: 1,
+      },
+      createTechnicalKeyBase(entityType.singularName, input.label),
+    );
   }
 
   public get(input: GetFieldDefinitionInput): FieldDefinition {
