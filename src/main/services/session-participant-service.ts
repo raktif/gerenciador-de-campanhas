@@ -42,7 +42,16 @@ export class SessionParticipantService {
     const session = this.requireSession(input.campaignId, input.sessionId);
     this.requireRevision(session, input.revision);
     this.validateParticipants(input.campaignId, input.participants);
-    return this.dependencies.repository.replaceParticipants(input, this.now());
+    return this.dependencies.repository.replaceParticipants(
+      {
+        ...input,
+        participants: input.participants.map((participant, sortOrder) => ({
+          ...participant,
+          sortOrder,
+        })),
+      },
+      this.now(),
+    );
   }
 
   public list(campaignId: string, sessionId: string): SessionParticipant[] {

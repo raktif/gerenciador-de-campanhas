@@ -5,6 +5,7 @@ import {
   createRelationshipTypeInputSchema,
   relationshipTypePageRequestSchema,
   relationshipTypeSchema,
+  type MoveRelationshipTypeInput,
   type RelationshipType,
   type RelationshipTypePageRequest,
   type RelationshipTypePageResult,
@@ -107,7 +108,7 @@ class MemoryRepository implements RelationshipTypeRepositoryPort {
   public constructor(records: RelationshipType[] = []) {
     for (const record of records) this.records.set(record.id, record);
   }
-  public insert(value: RelationshipType): RelationshipType {
+  public insertAtEnd(value: RelationshipType): RelationshipType {
     this.records.set(value.id, value);
     return value;
   }
@@ -134,6 +135,15 @@ class MemoryRepository implements RelationshipTypeRepositoryPort {
     });
     this.records.set(updated.id, updated);
     return updated;
+  }
+  public restoreAtEnd(
+    input: Omit<RelationshipTypeRepositoryUpdate, 'patch'>,
+    updatedAt: string,
+  ): RelationshipType {
+    return this.update({ ...input, patch: { isArchived: false } }, updatedAt);
+  }
+  public move(_input: MoveRelationshipTypeInput): RelationshipType[] {
+    return [...this.records.values()];
   }
 }
 

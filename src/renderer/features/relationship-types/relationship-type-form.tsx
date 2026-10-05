@@ -6,7 +6,10 @@ import type {
   RelationshipTypePatch,
 } from '../../../core/contracts/relationship-types';
 
-export type RelationshipTypeCreateValues = Omit<CreateRelationshipTypeInput, 'campaignId'>;
+export type RelationshipTypeCreateValues = Omit<
+  CreateRelationshipTypeInput,
+  'campaignId' | 'sortOrder'
+>;
 
 interface FormValues {
   name: string;
@@ -19,7 +22,6 @@ interface FormValues {
   allowedTargetTypeIds: string[];
   icon: string;
   color: string;
-  sortOrder: string;
 }
 
 type Props = {
@@ -49,10 +51,6 @@ export function RelationshipTypeForm(props: Props): React.JSX.Element {
 
   function submit(event: React.SyntheticEvent<HTMLFormElement, SubmitEvent>): void {
     event.preventDefault();
-    if (!Number.isInteger(Number(values.sortOrder)) || Number(values.sortOrder) < 0) {
-      setValidationError('A ordem deve ser um número inteiro maior ou igual a zero.');
-      return;
-    }
     if (props.mode === 'create') {
       void props.onSubmit(toCreateValues(values));
       return;
@@ -137,13 +135,6 @@ export function RelationshipTypeForm(props: Props): React.JSX.Element {
               onChange={(value) => update('color', value)}
               placeholder="#92400e"
               value={values.color}
-            />
-            <TextField
-              disabled={props.busy}
-              label="Ordem"
-              onChange={(value) => update('sortOrder', value)}
-              type="number"
-              value={values.sortOrder}
             />
           </div>
 
@@ -307,7 +298,6 @@ function emptyValues(): FormValues {
     allowedTargetTypeIds: [],
     icon: '',
     color: '',
-    sortOrder: '0',
   };
 }
 function toFormValues(type: RelationshipType): FormValues {
@@ -322,7 +312,6 @@ function toFormValues(type: RelationshipType): FormValues {
     allowedTargetTypeIds: type.allowedTargetTypeIds ?? [],
     icon: type.icon ?? '',
     color: type.color ?? '',
-    sortOrder: String(type.sortOrder),
   };
 }
 export function toCreateValues(values: FormValues): RelationshipTypeCreateValues {
@@ -337,7 +326,6 @@ export function toCreateValues(values: FormValues): RelationshipTypeCreateValues
     allowedTargetTypeIds: nullableIds(values.allowedTargetTypeIds),
     icon: nullable(values.icon),
     color: nullable(values.color),
-    sortOrder: Number(values.sortOrder),
   };
 }
 export function toPatch(
@@ -355,7 +343,6 @@ export function toPatch(
     'isSymmetric',
     'icon',
     'color',
-    'sortOrder',
   ] as const)
     if (next[field] !== current[field]) Object.assign(patch, { [field]: next[field] });
   if (!sameIds(next.allowedSourceTypeIds, current.allowedSourceTypeIds))

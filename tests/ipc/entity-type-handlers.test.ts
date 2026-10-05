@@ -77,8 +77,16 @@ describe('handlers IPC de tipos de entidade', () => {
     });
     await requireHandler(handlers, entityTypeChannels.archive)(createEvent(42), lifecycle);
     await requireHandler(handlers, entityTypeChannels.restore)(createEvent(42), lifecycle);
+    await requireHandler(handlers, entityTypeChannels.move)(createEvent(42), {
+      campaignId,
+      sourceId: entityTypeId,
+      sourceRevision: 1,
+      targetId: '10000000-0000-4000-8000-000000000002',
+      targetRevision: 2,
+      placement: 'before',
+    });
 
-    expect(service.calledOperations).toEqual(['get', 'update', 'archive', 'restore']);
+    expect(service.calledOperations).toEqual(['get', 'update', 'archive', 'restore', 'move']);
   });
 
   it('rejeita entrada inválida e renderer não autorizado', async () => {
@@ -149,6 +157,11 @@ class FakeEntityTypeService {
   public restore(): EntityType {
     this.calledOperations.push('restore');
     return createEntityType({ revision: 2 });
+  }
+
+  public move(): EntityType[] {
+    this.calledOperations.push('move');
+    return [createEntityType()];
   }
 }
 

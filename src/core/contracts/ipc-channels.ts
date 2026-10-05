@@ -26,6 +26,7 @@ export const entityTypeChannels = {
   update: 'entity-types:update',
   archive: 'entity-types:archive',
   restore: 'entity-types:restore',
+  move: 'entity-types:move',
 } as const;
 
 export const relationshipTypeChannels = {
@@ -35,6 +36,7 @@ export const relationshipTypeChannels = {
   update: 'relationship-types:update',
   archive: 'relationship-types:archive',
   restore: 'relationship-types:restore',
+  move: 'relationship-types:move',
 } as const;
 
 export const relationshipChannels = {
@@ -54,6 +56,7 @@ export const fieldDefinitionChannels = {
   update: 'field-definitions:update',
   archive: 'field-definitions:archive',
   restore: 'field-definitions:restore',
+  move: 'field-definitions:move',
 } as const;
 
 export const entityChannels = {

@@ -3,10 +3,13 @@ import {
   createFieldDefinitionInputSchema,
   fieldDefinitionPageRequestSchema,
   fieldDefinitionPatchSchema,
+  moveFieldDefinitionInputSchema,
 } from '../../src/core/contracts/field-definitions';
 
 const campaignId = '00000000-0000-4000-8000-000000000001';
 const entityTypeId = '10000000-0000-4000-8000-000000000001';
+const sourceId = '20000000-0000-4000-8000-000000000001';
+const targetId = '20000000-0000-4000-8000-000000000002';
 
 describe('contratos de definições de campo', () => {
   it('normaliza a criação e aplica valores padrão', () => {
@@ -50,6 +53,34 @@ describe('contratos de definições de campo', () => {
     ).toThrow();
     expect(() => fieldDefinitionPatchSchema.parse({ key: 'outra-chave' })).toThrow();
     expect(() => fieldDefinitionPatchSchema.parse({})).toThrow();
+  });
+
+  it('mantém a ordem fora dos inputs públicos de criação e edição', () => {
+    expect(() =>
+      createFieldDefinitionInputSchema.parse({
+        campaignId,
+        entityTypeId,
+        label: 'Nome',
+        dataType: 'short_text',
+        sortOrder: 2,
+      }),
+    ).toThrow();
+    expect(() => fieldDefinitionPatchSchema.parse({ sortOrder: 2 })).toThrow();
+  });
+
+  it('prende o movimento ao tipo de entidade e valida as duas revisões', () => {
+    const input = {
+      campaignId,
+      entityTypeId,
+      sourceId,
+      sourceRevision: 2,
+      targetId,
+      targetRevision: 3,
+      placement: 'after' as const,
+    };
+    expect(moveFieldDefinitionInputSchema.parse(input)).toEqual(input);
+    expect(() => moveFieldDefinitionInputSchema.parse({ ...input, sourceRevision: 0 })).toThrow();
+    expect(() => moveFieldDefinitionInputSchema.parse({ ...input, placement: 'middle' })).toThrow();
   });
 
   it('configura paginação ativa e ordenação manual por padrão', () => {

@@ -7,6 +7,7 @@ import {
   type FieldDefinition,
   type FieldDefinitionPageRequest,
   type FieldDefinitionPageResult,
+  type MoveFieldDefinitionInput,
 } from '../../src/core/contracts/field-definitions';
 import { AppError } from '../../src/core/errors/app-error';
 import type { FieldDefinitionRepositoryUpdate } from '../../src/db/repositories/field-definition-repository';
@@ -208,6 +209,17 @@ class MemoryFieldDefinitionRepository implements FieldDefinitionRepositoryPort {
     });
     this.records.set(updated.id, updated);
     return updated;
+  }
+
+  public restoreAtEnd(
+    input: Omit<FieldDefinitionRepositoryUpdate, 'patch'>,
+    updatedAt: string,
+  ): FieldDefinition {
+    return this.update({ ...input, patch: { isArchived: false } }, updatedAt);
+  }
+
+  public move(_input: MoveFieldDefinitionInput): FieldDefinition[] {
+    return [...this.records.values()];
   }
 }
 

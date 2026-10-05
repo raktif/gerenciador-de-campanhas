@@ -15,6 +15,8 @@ import {
   type UserFacingErrorOperation,
 } from '../../../core/errors/user-facing-error';
 import { UserFacingErrorNotice } from '../../components/user-facing-error-notice';
+import { ReorderableList } from '../../components/reorderable-list';
+import { moveRelative } from '../../../core/ordering/move-relative';
 
 type View = 'list' | 'create' | 'edit';
 type SessionStatus = Session['status'];
@@ -23,7 +25,7 @@ interface PendingTransition {
   status: Extract<SessionStatus, 'in_progress' | 'completed' | 'cancelled'>;
 }
 interface ParticipantDraft extends SessionParticipantInput {
-  key: number;
+  id: string;
 }
 type SessionOperation = Extract<UserFacingErrorOperation, 'sessions.list' | 'sessions.mutate'>;
 interface SessionOperationFailure {
@@ -349,7 +351,14 @@ function SessionEditor({
         sessionId: session.id,
       });
       if (result.ok) {
-        setParticipants(result.data.map((item, index) => ({ ...item, key: index })));
+        setParticipants(
+          result.data.map(({ entityId, role, attended }, index) => ({
+            entityId,
+            role,
+            attended,
+            id: `participant-${String(index)}-${entityId}`,
+          })),
+        );
         setParticipantError(null);
       } else
         setParticipantError({
@@ -441,7 +450,6 @@ function SessionEditor({
           entityId: item.entityId,
           role: item.role,
           attended: item.attended,
-          sortOrder: item.sortOrder,
         })),
       });
       if (result.ok) onReplace({ ...session, revision: session.revision + 1 });
@@ -720,16 +728,15 @@ function ParticipantEditor({
     setParticipants((current) => [
       ...current,
       {
-        key: Date.now(),
+        id: crypto.randomUUID(),
         entityId: '',
         role: 'player_character',
         attended: true,
-        sortOrder: current.length,
       },
     ]);
-  const update = (key: number, patch: Partial<ParticipantDraft>) =>
+  const update = (id: string, patch: Partial<ParticipantDraft>) =>
     setParticipants((current) =>
-      current.map((item) => (item.key === key ? { ...item, ...patch } : item)),
+      current.map((item) => (item.id === id ? { ...item, ...patch } : item)),
     );
   return (
     <section
@@ -754,12 +761,19 @@ function ParticipantEditor({
       <p className="mt-1 text-sm text-slate-600">
         Salvar substitui integralmente a lista de participantes desta sessão.
       </p>
-      <div aria-busy={loading} className="mt-4 grid gap-3">
-        {loading ? <p className="text-sm text-slate-600">Carregando participantes…</p> : null}
-        {participants.map((item) => (
+      {loading ? <p className="mt-4 text-sm text-slate-600">Carregando participantes…</p> : null}
+      <ReorderableList
+        ariaLabel="Ordenar participantes"
+        busy={busy || loading}
+        className="mt-4 grid gap-3"
+        getLabel={(item) =>
+          entities.find((entity) => entity.id === item.entityId)?.name ?? 'Participante sem entidade'
+        }
+        items={participants}
+        onMove={(move) => setParticipants((current) => moveRelative(current, move))}
+        renderItem={(item) => (
           <div
-            className="grid gap-3 rounded-xl bg-stone-50 p-3 md:grid-cols-[1fr_11rem_8rem_6rem_auto]"
-            key={item.key}
+            className="grid gap-3 rounded-xl bg-stone-50 p-3 md:grid-cols-[1fr_11rem_8rem_auto]"
           >
             <label className="text-sm font-semibold">
               Entidade
@@ -768,7 +782,7 @@ function ParticipantEditor({
                 className={inputClass}
                 value={item.entityId}
                 required
-                onChange={(e) => update(item.key, { entityId: e.target.value })}
+                onChange={(e) => update(item.id, { entityId: e.target.value })}
                 disabled={busy}
               >
                 <option value="">Selecione…</option>
@@ -785,7 +799,7 @@ function ParticipantEditor({
                 className={inputClass}
                 value={item.role}
                 onChange={(e) =>
-                  update(item.key, { role: e.target.value as SessionParticipantInput['role'] })
+                  update(item.id, { role: e.target.value as SessionParticipantInput['role'] })
                 }
                 disabled={busy}
               >
@@ -801,37 +815,26 @@ function ParticipantEditor({
               <select
                 className={inputClass}
                 value={String(item.attended)}
-                onChange={(e) => update(item.key, { attended: e.target.value === 'true' })}
+                onChange={(e) => update(item.id, { attended: e.target.value === 'true' })}
                 disabled={busy}
               >
                 <option value="true">Presente</option>
                 <option value="false">Ausente</option>
               </select>
             </label>
-            <label className="text-sm font-semibold">
-              Ordem
-              <input
-                className={inputClass}
-                type="number"
-                min="0"
-                value={item.sortOrder}
-                onChange={(e) => update(item.key, { sortOrder: Number(e.target.value) })}
-                disabled={busy}
-              />
-            </label>
             <button
               className={secondaryClass}
               disabled={busy}
               onClick={() =>
-                setParticipants((current) => current.filter((entry) => entry.key !== item.key))
+                setParticipants((current) => current.filter((entry) => entry.id !== item.id))
               }
               type="button"
             >
               Remover
             </button>
           </div>
-        ))}
-      </div>
+        )}
+      />
       {!loading && participants.length === 0 ? (
         <p className="mt-4 text-sm text-slate-600">Nenhum participante registrado.</p>
       ) : null}

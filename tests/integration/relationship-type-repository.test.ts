@@ -128,6 +128,105 @@ describe('RelationshipTypeRepository', () => {
     expect(repository.findById(campaignId, type.id)).toBeNull();
     context.close();
   });
+  it('anexa, move e restaura atomicamente sem atravessar campanhas', async () => {
+    const { campaigns, context, repository } = await createRepositories();
+    campaigns.insert(createCampaign(campaignId, 'Etheria'));
+    campaigns.insert(createCampaign(otherCampaignId, 'Orbita'));
+    const first = repository.insertAtEnd(
+      createType('20000000-0000-4000-8000-000000000011', campaignId, 'primeiro', {
+        sortOrder: 99,
+      }),
+    );
+    const second = repository.insertAtEnd(
+      createType('20000000-0000-4000-8000-000000000012', campaignId, 'segundo'),
+    );
+    const archived = repository.insert(
+      createType('20000000-0000-4000-8000-000000000013', campaignId, 'arquivado', {
+        isArchived: true,
+      }),
+    );
+    const external = repository.insertAtEnd(
+      createType('20000000-0000-4000-8000-000000000014', otherCampaignId, 'externo'),
+    );
+
+    expect([first.sortOrder, second.sortOrder, external.sortOrder]).toEqual([0, 1, 0]);
+    context.native.exec(`CREATE TRIGGER reject_relationship_type_move BEFORE UPDATE OF sort_order
+      ON relationship_types WHEN OLD.id = '${first.id}' BEGIN SELECT RAISE(IGNORE); END`);
+    expect(
+      capture(() =>
+        repository.move(
+          {
+            campaignId,
+            sourceId: second.id,
+            sourceRevision: second.revision,
+            targetId: first.id,
+            targetRevision: first.revision,
+            placement: 'before',
+          },
+          '2026-08-31T12:30:00.000Z',
+        ),
+      ).code,
+    ).toBe('REVISION_CONFLICT');
+    expect(repository.findById(campaignId, second.id)?.sortOrder).toBe(1);
+    expect(repository.findById(campaignId, first.id)?.sortOrder).toBe(0);
+    context.native.exec('DROP TRIGGER reject_relationship_type_move');
+    const moved = repository.move(
+      {
+        campaignId,
+        sourceId: second.id,
+        sourceRevision: second.revision,
+        targetId: first.id,
+        targetRevision: first.revision,
+        placement: 'before',
+      },
+      '2026-08-31T13:00:00.000Z',
+    );
+    expect(moved.map(({ slug, sortOrder }) => [slug, sortOrder])).toEqual([
+      ['segundo', 0],
+      ['primeiro', 1],
+    ]);
+    expect(repository.findById(otherCampaignId, external.id)).toEqual(external);
+
+    expect(
+      capture(() =>
+        repository.move(
+          {
+            campaignId,
+            sourceId: second.id,
+            sourceRevision: second.revision,
+            targetId: first.id,
+            targetRevision: first.revision,
+            placement: 'after',
+          },
+          '2026-08-31T14:00:00.000Z',
+        ),
+      ).code,
+    ).toBe('REVISION_CONFLICT');
+    expect(
+      repository
+        .list(relationshipTypePageRequestSchema.parse({ campaignId }))
+        .items.map(({ slug }) => slug),
+    ).toEqual(['segundo', 'primeiro']);
+
+    context.native.exec(`CREATE TRIGGER reject_relationship_type_restore BEFORE UPDATE OF is_archived
+      ON relationship_types WHEN OLD.id = '${archived.id}' BEGIN SELECT RAISE(IGNORE); END`);
+    expect(
+      capture(() =>
+        repository.restoreAtEnd(
+          { campaignId, id: archived.id, revision: archived.revision },
+          '2026-08-31T14:30:00.000Z',
+        ),
+      ).code,
+    ).toBe('REVISION_CONFLICT');
+    expect(repository.findById(campaignId, archived.id)).toMatchObject({ isArchived: true, revision: 1 });
+    context.native.exec('DROP TRIGGER reject_relationship_type_restore');
+    const restored = repository.restoreAtEnd(
+      { campaignId, id: archived.id, revision: archived.revision },
+      '2026-08-31T15:00:00.000Z',
+    );
+    expect(restored).toMatchObject({ isArchived: false, sortOrder: 2, revision: 2 });
+    context.close();
+  });
 });
 
 async function createRepositories(): Promise<{

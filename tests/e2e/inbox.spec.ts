@@ -220,6 +220,7 @@ test('converte captura em relacao com endpoint existente e endpoint criado', asy
     await expect(eventDialog.getByLabel('Título')).toBeFocused();
     await eventDialog.getByLabel('Título').fill('O sino toca');
     await eventDialog.getByLabel('Ordem narrativa').fill('3');
+    await expect(eventDialog.getByText('Ordem do vínculo', { exact: true })).toHaveCount(0);
     await eventDialog.getByLabel('Estado canônico').selectOption('draft');
     await eventDialog.getByLabel('Natureza do conhecimento').selectOption('rumor');
     await eventDialog.getByLabel('Visibilidade').selectOption('players');

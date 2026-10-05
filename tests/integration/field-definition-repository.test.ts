@@ -248,6 +248,112 @@ describe('FieldDefinitionRepository', () => {
     expect(fields.listActive(otherCampaignId, entityTypeId)).toEqual([]);
     context.close();
   });
+  it('anexa, move e restaura atomicamente no tipo pai correto', async () => {
+    const { context, fields } = await createRepositories();
+    const first = fields.insertWithGeneratedKey(
+      withoutKey(
+        createField('20000000-0000-4000-8000-000000000011', entityTypeId, 'primeiro', {
+          sortOrder: 99,
+        }),
+      ),
+      'primeiro',
+    );
+    const second = fields.insertWithGeneratedKey(
+      withoutKey(createField('20000000-0000-4000-8000-000000000012', entityTypeId, 'segundo')),
+      'segundo',
+    );
+    const archived = fields.insert(
+      createField('20000000-0000-4000-8000-000000000013', entityTypeId, 'arquivado', {
+        isArchived: true,
+      }),
+    );
+    const external = fields.insertWithGeneratedKey(
+      withoutKey(
+        createField('20000000-0000-4000-8000-000000000014', otherEntityTypeId, 'externo'),
+      ),
+      'externo',
+    );
+
+    expect([first.sortOrder, second.sortOrder, external.sortOrder]).toEqual([0, 1, 0]);
+    context.native.exec(`CREATE TRIGGER reject_field_move BEFORE UPDATE OF sort_order
+      ON field_definitions WHEN OLD.id = '${first.id}' BEGIN SELECT RAISE(IGNORE); END`);
+    expect(
+      captureAppError(() =>
+        fields.move(
+          {
+            campaignId,
+            entityTypeId,
+            sourceId: second.id,
+            sourceRevision: second.revision,
+            targetId: first.id,
+            targetRevision: first.revision,
+            placement: 'before',
+          },
+          '2026-08-28T12:30:00.000Z',
+        ),
+      ).code,
+    ).toBe('REVISION_CONFLICT');
+    expect(fields.findById(campaignId, entityTypeId, second.id)?.sortOrder).toBe(1);
+    expect(fields.findById(campaignId, entityTypeId, first.id)?.sortOrder).toBe(0);
+    context.native.exec('DROP TRIGGER reject_field_move');
+    const moved = fields.move(
+      {
+        campaignId,
+        entityTypeId,
+        sourceId: second.id,
+        sourceRevision: second.revision,
+        targetId: first.id,
+        targetRevision: first.revision,
+        placement: 'before',
+      },
+      '2026-08-28T13:00:00.000Z',
+    );
+    expect(moved.map(({ key, sortOrder }) => [key, sortOrder])).toEqual([
+      ['segundo', 0],
+      ['primeiro', 1],
+    ]);
+    expect(fields.findById(otherCampaignId, otherEntityTypeId, external.id)).toEqual(external);
+
+    expect(
+      captureAppError(() =>
+        fields.move(
+          {
+            campaignId,
+            entityTypeId,
+            sourceId: second.id,
+            sourceRevision: second.revision,
+            targetId: first.id,
+            targetRevision: first.revision,
+            placement: 'after',
+          },
+          '2026-08-28T14:00:00.000Z',
+        ),
+      ).code,
+    ).toBe('REVISION_CONFLICT');
+    expect(fields.listActive(campaignId, entityTypeId).map(({ key }) => key)).toEqual([
+      'segundo',
+      'primeiro',
+    ]);
+
+    context.native.exec(`CREATE TRIGGER reject_field_restore BEFORE UPDATE OF is_archived
+      ON field_definitions WHEN OLD.id = '${archived.id}' BEGIN SELECT RAISE(IGNORE); END`);
+    expect(
+      captureAppError(() =>
+        fields.restoreAtEnd(
+          { campaignId, entityTypeId, id: archived.id, revision: archived.revision },
+          '2026-08-28T14:30:00.000Z',
+        ),
+      ).code,
+    ).toBe('REVISION_CONFLICT');
+    expect(fields.findById(campaignId, entityTypeId, archived.id)).toMatchObject({ isArchived: true, revision: 1 });
+    context.native.exec('DROP TRIGGER reject_field_restore');
+    const restored = fields.restoreAtEnd(
+      { campaignId, entityTypeId, id: archived.id, revision: archived.revision },
+      '2026-08-28T15:00:00.000Z',
+    );
+    expect(restored).toMatchObject({ isArchived: false, sortOrder: 2, revision: 2 });
+    context.close();
+  });
 });
 
 async function createRepositories(): Promise<{

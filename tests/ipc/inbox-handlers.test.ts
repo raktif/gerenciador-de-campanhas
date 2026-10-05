@@ -236,12 +236,10 @@ describe('canais de triagem da Caixa de Entrada', () => {
             {
               entityId: '30000000-0000-4000-8000-000000000001',
               role: 'related',
-              ...(index === 1 ? { sortOrder: 0 } : {}),
             },
             {
               entityId: '30000000-0000-4000-8000-000000000001',
               role: 'related',
-              ...(index === 1 ? { sortOrder: 1 } : {}),
             },
           ],
         },
@@ -258,6 +256,26 @@ describe('canais de triagem da Caixa de Entrada', () => {
       });
       service.failure = null;
     }
+    expect(service.eventConvertInput?.destination.links).toEqual([
+      { entityId: '30000000-0000-4000-8000-000000000001', role: 'witness' },
+    ]);
+    const convertEvent = handlers.get(inboxChannels.convertToEvent);
+    if (convertEvent === undefined) throw new Error('Canal de evento ausente.');
+    expect(
+      await convertEvent(event(42), {
+        ...eventConversionInput(),
+        destination: {
+          ...eventConversionInput().destination,
+          links: [
+            {
+              entityId: '30000000-0000-4000-8000-000000000001',
+              role: 'witness',
+              sortOrder: 0,
+            },
+          ],
+        },
+      }),
+    ).toMatchObject({ ok: false, error: { code: 'VALIDATION_ERROR' } });
   });
 });
 
@@ -537,7 +555,9 @@ function noteConversionInput(): ConvertInboxItemToNoteInput {
       title: 'Nota',
       bodyMarkdown: 'Corpo',
       noteType: 'general',
-      links: [],
+      links: [
+        { entityId: '30000000-0000-4000-8000-000000000001', role: 'witness' },
+      ],
       canonState: 'accepted',
       knowledgeState: 'fact',
       visibility: 'gm',

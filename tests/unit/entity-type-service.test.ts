@@ -7,6 +7,7 @@ import {
   type EntityType,
   type EntityTypePageRequest,
   type EntityTypePageResult,
+  type MoveEntityTypeInput,
 } from '../../src/core/contracts/entity-types';
 import { AppError } from '../../src/core/errors/app-error';
 import type { EntityTypeRepositoryUpdate } from '../../src/db/repositories/entity-type-repository';
@@ -105,7 +106,7 @@ class MemoryEntityTypeRepository implements EntityTypeRepositoryPort {
     for (const entityType of entityTypes) this.records.set(entityType.id, entityType);
   }
 
-  public insert(entityType: EntityType): EntityType {
+  public insertAtEnd(entityType: EntityType): EntityType {
     this.records.set(entityType.id, entityType);
     return entityType;
   }
@@ -139,6 +140,17 @@ class MemoryEntityTypeRepository implements EntityTypeRepositoryPort {
     });
     this.records.set(updated.id, updated);
     return updated;
+  }
+
+  public restoreAtEnd(
+    input: Omit<EntityTypeRepositoryUpdate, 'patch'>,
+    updatedAt: string,
+  ): EntityType {
+    return this.update({ ...input, patch: { isArchived: false } }, updatedAt);
+  }
+
+  public move(_input: MoveEntityTypeInput): EntityType[] {
+    return [...this.records.values()];
   }
 }
 

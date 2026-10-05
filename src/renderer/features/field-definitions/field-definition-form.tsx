@@ -40,7 +40,6 @@ interface FormValues {
   referenceDirection: string;
   allowedTargetTypeIds: string;
   onDeleteBehavior: string;
-  sortOrder: string;
 }
 
 export function FieldDefinitionForm(props: FormProps): React.JSX.Element {
@@ -145,13 +144,6 @@ export function FieldDefinitionForm(props: FormProps): React.JSX.Element {
                 ['', 'Nenhum'],
                 ...fieldSemanticRoles.map((value) => [value, value] as const),
               ]}
-            />
-            <TextInput
-              label="Ordem"
-              value={values.sortOrder}
-              onChange={(v) => update('sortOrder', v)}
-              type="number"
-              required
             />
           </div>
           <div className="flex flex-wrap gap-6 rounded-2xl bg-stone-50 p-5">
@@ -280,7 +272,6 @@ function normalize(values: FormValues): FieldDefinitionCreateValues {
       values.onDeleteBehavior === ''
         ? null
         : (values.onDeleteBehavior as FieldDefinition['onDeleteBehavior']),
-    sortOrder: Number(values.sortOrder),
   };
 }
 
@@ -312,7 +303,6 @@ function toFormValues(field: FieldDefinition): FormValues {
     referenceDirection: field.referenceDirection ?? '',
     allowedTargetTypeIds: field.allowedTargetTypeIds?.join(', ') ?? '',
     onDeleteBehavior: field.onDeleteBehavior ?? '',
-    sortOrder: String(field.sortOrder),
   };
 }
 
@@ -331,7 +321,6 @@ const emptyValues: FormValues = {
   referenceDirection: '',
   allowedTargetTypeIds: '',
   onDeleteBehavior: '',
-  sortOrder: '0',
 };
 function nullable(value: string): string | null {
   const trimmed = value.trim();

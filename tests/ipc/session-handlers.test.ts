@@ -94,7 +94,7 @@ describe('handlers IPC de sessões', () => {
       order: 'desc',
     });
     expect(services.participantInput).toMatchObject({
-      participants: [{ entityId, role: 'npc', attended: true, sortOrder: 0 }],
+      participants: [{ entityId, role: 'npc', attended: true }],
     });
     expect(services.intentionCreateInput).toMatchObject({
       text: 'Encontrar a chave.',

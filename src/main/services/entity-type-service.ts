@@ -7,16 +7,22 @@ import type {
   EntityTypePageRequest,
   EntityTypePageResult,
   GetEntityTypeInput,
+  MoveEntityTypeInput,
   UpdateEntityTypeInput,
 } from '../../core/contracts/entity-types';
 import { AppError } from '../../core/errors/app-error';
 import type { EntityTypeRepositoryUpdate } from '../../db/repositories/entity-type-repository';
 
 export interface EntityTypeRepositoryPort {
-  insert(entityType: EntityType): EntityType;
+  insertAtEnd(entityType: EntityType): EntityType;
   findById(campaignId: string, id: string): EntityType | null;
   list(request: EntityTypePageRequest): EntityTypePageResult;
   update(input: EntityTypeRepositoryUpdate, updatedAt: string): EntityType;
+  restoreAtEnd(
+    input: Omit<EntityTypeRepositoryUpdate, 'patch'>,
+    updatedAt: string,
+  ): EntityType;
+  move(input: MoveEntityTypeInput, updatedAt: string): EntityType[];
 }
 
 export interface CampaignLookupPort {
@@ -42,7 +48,7 @@ export class EntityTypeService {
   public create(input: CreateEntityTypeInput): EntityType {
     this.requireCampaign(input.campaignId);
     const timestamp = this.now();
-    return this.dependencies.repository.insert({
+    return this.dependencies.repository.insertAtEnd({
       id: this.createId(),
       campaignId: input.campaignId,
       packId: null,
@@ -74,6 +80,11 @@ export class EntityTypeService {
     return this.dependencies.repository.update(input, this.now());
   }
 
+  public move(input: MoveEntityTypeInput): EntityType[] {
+    this.requireCampaign(input.campaignId);
+    return this.dependencies.repository.move(input, this.now());
+  }
+
   public archive(input: EntityTypeLifecycleInput): EntityType {
     const current = this.requireEntityType(input.campaignId, input.id);
     this.requireRevision(current, input.revision);
@@ -98,10 +109,7 @@ export class EntityTypeService {
         id: current.id,
       });
     }
-    return this.dependencies.repository.update(
-      { ...input, patch: { isArchived: false } },
-      this.now(),
-    );
+    return this.dependencies.repository.restoreAtEnd(input, this.now());
   }
 
   private requireCampaign(campaignId: string): Campaign {

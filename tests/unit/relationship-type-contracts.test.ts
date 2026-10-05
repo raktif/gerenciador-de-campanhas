@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
   createRelationshipTypeInputSchema,
+  moveRelationshipTypeInputSchema,
   relationshipTypePageRequestSchema,
   relationshipTypePatchSchema,
 } from '../../src/core/contracts/relationship-types';
 
 const campaignId = '00000000-0000-4000-8000-000000000001';
+const sourceId = '30000000-0000-4000-8000-000000000001';
+const targetId = '30000000-0000-4000-8000-000000000002';
 
 describe('contratos de tipos de relação', () => {
   it('normaliza a criação e aplica valores padrão', () => {
@@ -53,6 +56,32 @@ describe('contratos de tipos de relação', () => {
       }),
     ).toThrow();
     expect(() => relationshipTypePatchSchema.parse({})).toThrow();
+  });
+
+  it('mantém a ordem fora dos inputs públicos de criação e edição', () => {
+    expect(() =>
+      createRelationshipTypeInputSchema.parse({
+        campaignId,
+        name: 'Conhece',
+        slug: 'conhece',
+        sortOrder: 2,
+      }),
+    ).toThrow();
+    expect(() => relationshipTypePatchSchema.parse({ sortOrder: 2 })).toThrow();
+  });
+
+  it('valida movimento relativo estrito com revisões da origem e do destino', () => {
+    const input = {
+      campaignId,
+      sourceId,
+      sourceRevision: 2,
+      targetId,
+      targetRevision: 3,
+      placement: 'after' as const,
+    };
+    expect(moveRelationshipTypeInputSchema.parse(input)).toEqual(input);
+    expect(() => moveRelationshipTypeInputSchema.parse({ ...input, targetRevision: -1 })).toThrow();
+    expect(() => moveRelationshipTypeInputSchema.parse({ ...input, targetId: sourceId })).toThrow();
   });
 
   it('usa paginação ativa e ordenação manual por padrão', () => {

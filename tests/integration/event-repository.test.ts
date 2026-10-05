@@ -35,7 +35,7 @@ describe('EventRepository', () => {
         sessionId,
         title: 'Primeiro',
         eventOrder: 1,
-        links: [{ entityId: entityA, role: 'participant', sortOrder: 2 }],
+        links: [{ entityId: entityA, role: 'participant' }],
       }),
     );
     service.create(
@@ -67,7 +67,7 @@ describe('EventRepository', () => {
     expect(secondPage.items).toHaveLength(1);
     expect(secondPage.items[0]?.id).not.toBe(first.event.id);
     expect(service.get({ campaignId, id: first.event.id }).links).toEqual([
-      { eventId: first.event.id, entityId: entityA, role: 'participant', sortOrder: 2 },
+      { eventId: first.event.id, entityId: entityA, role: 'participant', sortOrder: 0 },
     ]);
     context.close();
   });
@@ -103,11 +103,11 @@ describe('EventRepository', () => {
       campaignId,
       id: created.event.id,
       revision: 1,
-      links: [{ entityId: entityB, role: 'witness', sortOrder: 1 }],
+      links: [{ entityId: entityB, role: 'witness' }],
     });
     expect(updated).toMatchObject({
       event: { revision: 2 },
-      links: [{ entityId: entityB, role: 'witness', sortOrder: 1 }],
+      links: [{ entityId: entityB, role: 'witness', sortOrder: 0 }],
     });
     context.close();
   });

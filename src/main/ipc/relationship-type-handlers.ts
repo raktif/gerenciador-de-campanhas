@@ -2,9 +2,11 @@ import type { IpcMain, IpcMainInvokeEvent } from 'electron';
 import {
   createRelationshipTypeInputSchema,
   getRelationshipTypeInputSchema,
+  moveRelationshipTypeInputSchema,
   relationshipTypeLifecycleInputSchema,
   relationshipTypePageRequestSchema,
   relationshipTypePageResultSchema,
+  relationshipTypeOrderSchema,
   relationshipTypeSchema,
   updateRelationshipTypeInputSchema,
 } from '../../core/contracts/relationship-types';
@@ -96,6 +98,18 @@ export function registerRelationshipTypeIpcHandlers(
           relationshipTypeSchema,
           dependencies,
           (validated) => dependencies.service.restore(validated),
+        ),
+    },
+    {
+      channel: relationshipTypeChannels.move,
+      handler: (event, input) =>
+        executeIpcHandler(
+          event,
+          input,
+          moveRelationshipTypeInputSchema,
+          relationshipTypeOrderSchema,
+          dependencies,
+          (validated) => dependencies.service.move(validated),
         ),
     },
   ];

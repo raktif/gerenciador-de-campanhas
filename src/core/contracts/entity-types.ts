@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { relativePlacements } from '../ordering/move-relative';
 import { defaultPageLimit, maximumPageLimit, type PageResult } from './pagination';
 import type { Result } from './result';
 
@@ -43,9 +44,9 @@ export const createEntityTypeInputSchema = z
     description: z.string().trim().min(1).max(2000).optional(),
     icon: z.string().trim().min(1).max(120).optional(),
     color: z.string().trim().min(1).max(64).optional(),
-    sortOrder: z.number().int().nonnegative().default(0),
   })
-  .strict();
+  .strict()
+  .transform((input) => ({ ...input, sortOrder: 0 }));
 export type CreateEntityTypeInput = z.infer<typeof createEntityTypeInputSchema>;
 export type CreateEntityTypeInputRequest = z.input<typeof createEntityTypeInputSchema>;
 
@@ -57,7 +58,6 @@ export const entityTypePatchSchema = z
     description: nullableDescriptionSchema.optional(),
     icon: nullableIconSchema.optional(),
     color: nullableColorSchema.optional(),
-    sortOrder: z.number().int().nonnegative().optional(),
   })
   .strict()
   .refine((patch) => Object.keys(patch).length > 0, 'Informe ao menos uma alteração.');
@@ -84,6 +84,23 @@ export const entityTypeLifecycleInputSchema = z
   })
   .strict();
 export type EntityTypeLifecycleInput = z.infer<typeof entityTypeLifecycleInputSchema>;
+
+export const moveEntityTypeInputSchema = z
+  .object({
+    campaignId: z.uuid(),
+    sourceId: z.uuid(),
+    sourceRevision: z.number().int().positive(),
+    targetId: z.uuid(),
+    targetRevision: z.number().int().positive(),
+    placement: z.enum(relativePlacements),
+  })
+  .strict()
+  .refine((input) => input.sourceId !== input.targetId, {
+    message: 'A origem e o destino devem ser diferentes.',
+    path: ['targetId'],
+  });
+export type MoveEntityTypeInput = z.infer<typeof moveEntityTypeInputSchema>;
+export const entityTypeOrderSchema = z.array(entityTypeSchema);
 
 export const entityTypeSorts = ['sortOrder', 'name', 'updatedAt'] as const;
 
@@ -118,4 +135,5 @@ export interface EntityTypeGateway {
   update(input: UpdateEntityTypeInput): Promise<Result<EntityType>>;
   archive(input: EntityTypeLifecycleInput): Promise<Result<EntityType>>;
   restore(input: EntityTypeLifecycleInput): Promise<Result<EntityType>>;
+  move(input: MoveEntityTypeInput): Promise<Result<EntityType[]>>;
 }

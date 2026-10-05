@@ -8,6 +8,7 @@ import type {
   FieldDefinitionPageRequest,
   FieldDefinitionPageResult,
   GetFieldDefinitionInput,
+  MoveFieldDefinitionInput,
   UpdateFieldDefinitionInput,
 } from '../../core/contracts/field-definitions';
 import { AppError } from '../../core/errors/app-error';
@@ -21,6 +22,11 @@ export interface FieldDefinitionRepositoryPort {
   findById(campaignId: string, entityTypeId: string, id: string): FieldDefinition | null;
   list(request: FieldDefinitionPageRequest): FieldDefinitionPageResult;
   update(input: FieldDefinitionRepositoryUpdate, updatedAt: string): FieldDefinition;
+  restoreAtEnd(
+    input: Omit<FieldDefinitionRepositoryUpdate, 'patch'>,
+    updatedAt: string,
+  ): FieldDefinition;
+  move(input: MoveFieldDefinitionInput, updatedAt: string): FieldDefinition[];
 }
 
 export interface EntityTypeLookupPort {
@@ -109,6 +115,11 @@ export class FieldDefinitionService {
     return this.dependencies.repository.update(input, this.now());
   }
 
+  public move(input: MoveFieldDefinitionInput): FieldDefinition[] {
+    this.requireEntityType(input.campaignId, input.entityTypeId);
+    return this.dependencies.repository.move(input, this.now());
+  }
+
   public archive(input: FieldDefinitionLifecycleInput): FieldDefinition {
     const current = this.requireFieldDefinition(input);
     this.requireRevision(current, input.revision);
@@ -135,10 +146,7 @@ export class FieldDefinitionService {
         id: current.id,
       });
     }
-    return this.dependencies.repository.update(
-      { ...input, patch: { isArchived: false } },
-      this.now(),
-    );
+    return this.dependencies.repository.restoreAtEnd(input, this.now());
   }
 
   private requireEntityType(campaignId: string, entityTypeId: string): EntityType {

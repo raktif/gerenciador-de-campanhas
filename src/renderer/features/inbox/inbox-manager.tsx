@@ -123,7 +123,6 @@ export function InboxManager({
     | 'victim'
     | 'related'
   >('related');
-  const [eventLinkSortOrder, setEventLinkSortOrder] = useState(0);
   const [eventVisibility, setEventVisibility] = useState<'gm' | 'players' | 'public'>('gm');
   const [eventCanonState, setEventCanonState] = useState<
     'draft' | 'accepted' | 'rejected' | 'archived'
@@ -548,7 +547,6 @@ export function InboxManager({
                   {
                     entityId: eventLinkEntityId,
                     role: eventLinkRole,
-                    sortOrder: eventLinkSortOrder,
                   },
                 ],
           canonState: eventCanonState,
@@ -765,7 +763,6 @@ export function InboxManager({
                           setEventOccurredAtLabel('');
                           setEventLinkEntityId('');
                           setEventLinkRole('related');
-                          setEventLinkSortOrder(0);
                           setEventCanonState('accepted');
                           setEventKnowledgeState('fact');
                           setEventVisibility('gm');
@@ -1741,21 +1738,6 @@ export function InboxManager({
                     </option>
                   ))}
                 </select>
-                <label
-                  className="mt-4 block text-sm font-semibold"
-                  htmlFor="inbox-event-link-order"
-                >
-                  Ordem do vínculo
-                </label>
-                <input
-                  className="mt-1 w-full rounded-xl border border-stone-300 px-3 py-2"
-                  disabled={busy !== null || eventLinkEntityId === ''}
-                  id="inbox-event-link-order"
-                  min={0}
-                  onChange={(event) => setEventLinkSortOrder(Number(event.target.value))}
-                  type="number"
-                  value={eventLinkSortOrder}
-                />
                 <fieldset
                   className="mt-5 grid gap-4 rounded-xl border border-stone-200 p-4"
                   disabled={busy !== null}

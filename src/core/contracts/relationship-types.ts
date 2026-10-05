@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { relativePlacements } from '../ordering/move-relative';
 import { defaultPageLimit, maximumPageLimit, type PageResult } from './pagination';
 import type { Result } from './result';
 
@@ -64,9 +65,9 @@ export const createRelationshipTypeInputSchema = z
     allowedTargetTypeIds: allowedEntityTypeIdsSchema.default(null),
     icon: nullableIconSchema.default(null),
     color: nullableColorSchema.default(null),
-    sortOrder: z.number().int().nonnegative().default(0),
   })
-  .strict();
+  .strict()
+  .transform((input) => ({ ...input, sortOrder: 0 }));
 export type CreateRelationshipTypeInput = z.output<typeof createRelationshipTypeInputSchema>;
 export type CreateRelationshipTypeInputRequest = z.input<typeof createRelationshipTypeInputSchema>;
 
@@ -82,7 +83,6 @@ export const relationshipTypePatchSchema = z
     allowedTargetTypeIds: allowedEntityTypeIdsSchema.optional(),
     icon: nullableIconSchema.optional(),
     color: nullableColorSchema.optional(),
-    sortOrder: z.number().int().nonnegative().optional(),
   })
   .strict()
   .refine((patch) => Object.keys(patch).length > 0, 'Informe ao menos uma alteração.');
@@ -107,6 +107,23 @@ export const relationshipTypeLifecycleInputSchema = z
   .object({ campaignId: z.uuid(), id: z.uuid(), revision: z.number().int().positive() })
   .strict();
 export type RelationshipTypeLifecycleInput = z.infer<typeof relationshipTypeLifecycleInputSchema>;
+
+export const moveRelationshipTypeInputSchema = z
+  .object({
+    campaignId: z.uuid(),
+    sourceId: z.uuid(),
+    sourceRevision: z.number().int().positive(),
+    targetId: z.uuid(),
+    targetRevision: z.number().int().positive(),
+    placement: z.enum(relativePlacements),
+  })
+  .strict()
+  .refine((input) => input.sourceId !== input.targetId, {
+    message: 'A origem e o destino devem ser diferentes.',
+    path: ['targetId'],
+  });
+export type MoveRelationshipTypeInput = z.infer<typeof moveRelationshipTypeInputSchema>;
+export const relationshipTypeOrderSchema = z.array(relationshipTypeSchema);
 
 export const relationshipTypeSorts = ['sortOrder', 'name', 'updatedAt'] as const;
 export const relationshipTypePageRequestSchema = z
@@ -140,4 +157,5 @@ export interface RelationshipTypeGateway {
   update(input: UpdateRelationshipTypeInput): Promise<Result<RelationshipType>>;
   archive(input: RelationshipTypeLifecycleInput): Promise<Result<RelationshipType>>;
   restore(input: RelationshipTypeLifecycleInput): Promise<Result<RelationshipType>>;
+  move(input: MoveRelationshipTypeInput): Promise<Result<RelationshipType[]>>;
 }

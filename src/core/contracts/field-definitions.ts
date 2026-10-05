@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { relativePlacements } from '../ordering/move-relative';
 import { defaultPageLimit, maximumPageLimit, type PageResult } from './pagination';
 import type { Result } from './result';
 
@@ -90,7 +91,6 @@ const editableFieldsSchema = z.object({
   referenceDirection: z.enum(referenceDirections).nullable(),
   allowedTargetTypeIds: z.array(z.uuid()).nullable(),
   onDeleteBehavior: z.enum(referenceDeleteBehaviors).nullable(),
-  sortOrder: z.number().int().nonnegative(),
 });
 
 export const createFieldDefinitionInputSchema = z
@@ -111,9 +111,9 @@ export const createFieldDefinitionInputSchema = z
     referenceDirection: z.enum(referenceDirections).nullable().default(null),
     allowedTargetTypeIds: z.array(z.uuid()).nullable().default(null),
     onDeleteBehavior: z.enum(referenceDeleteBehaviors).nullable().default(null),
-    sortOrder: z.number().int().nonnegative().default(0),
   })
-  .strict();
+  .strict()
+  .transform((input) => ({ ...input, sortOrder: 0 }));
 export type CreateFieldDefinitionInput = z.output<typeof createFieldDefinitionInputSchema>;
 export type CreateFieldDefinitionInputRequest = z.input<typeof createFieldDefinitionInputSchema>;
 
@@ -149,6 +149,24 @@ export const fieldDefinitionLifecycleInputSchema = z
   .strict();
 export type FieldDefinitionLifecycleInput = z.infer<typeof fieldDefinitionLifecycleInputSchema>;
 
+export const moveFieldDefinitionInputSchema = z
+  .object({
+    campaignId: z.uuid(),
+    entityTypeId: z.uuid(),
+    sourceId: z.uuid(),
+    sourceRevision: z.number().int().positive(),
+    targetId: z.uuid(),
+    targetRevision: z.number().int().positive(),
+    placement: z.enum(relativePlacements),
+  })
+  .strict()
+  .refine((input) => input.sourceId !== input.targetId, {
+    message: 'A origem e o destino devem ser diferentes.',
+    path: ['targetId'],
+  });
+export type MoveFieldDefinitionInput = z.infer<typeof moveFieldDefinitionInputSchema>;
+export const fieldDefinitionOrderSchema = z.array(fieldDefinitionSchema);
+
 export const fieldDefinitionPageRequestSchema = z
   .object({
     campaignId: z.uuid(),
@@ -181,4 +199,5 @@ export interface FieldDefinitionGateway {
   update(input: UpdateFieldDefinitionInput): Promise<Result<FieldDefinition>>;
   archive(input: FieldDefinitionLifecycleInput): Promise<Result<FieldDefinition>>;
   restore(input: FieldDefinitionLifecycleInput): Promise<Result<FieldDefinition>>;
+  move(input: MoveFieldDefinitionInput): Promise<Result<FieldDefinition[]>>;
 }

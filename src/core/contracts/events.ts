@@ -51,11 +51,17 @@ export const eventEntityLinkInputSchema = z
   .object({
     entityId: z.uuid(),
     role: z.enum(eventEntityRoles),
-    sortOrder: z.number().int().nonnegative().default(0),
   })
   .strict();
 export type EventEntityLinkInput = z.output<typeof eventEntityLinkInputSchema>;
 export type EventEntityLinkInputRequest = z.input<typeof eventEntityLinkInputSchema>;
+
+export const eventEntityLinkPersistenceInputSchema = eventEntityLinkInputSchema
+  .extend({ sortOrder: z.number().int().nonnegative() })
+  .strict();
+export type EventEntityLinkPersistenceInput = z.output<
+  typeof eventEntityLinkPersistenceInputSchema
+>;
 
 function duplicateLinkIndexes(links: readonly { entityId: string; role: string }[]): number[] {
   const seen = new Set<string>();

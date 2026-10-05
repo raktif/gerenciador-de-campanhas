@@ -26,9 +26,7 @@ export function rolesForEntity(entry: TimelineEntry, entityId: string): string[]
 
 export function linkSummary(entry: TimelineEntry): string {
   if (entry.links.length === 0) return 'Nenhuma entidade vinculada.';
-  return entry.links
-    .map((link) => `${roleLabels[link.role]} (ordem ${String(link.sortOrder + 1)})`)
-    .join(' · ');
+  return entry.links.map((link) => roleLabels[link.role]).join(' · ');
 }
 
 export function originLabel(value: TimelineEntry['event']['originKind']): string {

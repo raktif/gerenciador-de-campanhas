@@ -50,6 +50,14 @@ describe('handlers IPC de tipos de relação', () => {
     });
     await requireHandler(handlers, relationshipTypeChannels.archive)(event(42), lifecycle);
     await requireHandler(handlers, relationshipTypeChannels.restore)(event(42), lifecycle);
+    await requireHandler(handlers, relationshipTypeChannels.move)(event(42), {
+      campaignId,
+      sourceId: relationshipTypeId,
+      sourceRevision: 1,
+      targetId: '20000000-0000-4000-8000-000000000002',
+      targetRevision: 2,
+      placement: 'after',
+    });
 
     expect(service.lastCreate).toMatchObject({
       name: 'Trabalha em',
@@ -64,7 +72,7 @@ describe('handlers IPC de tipos de relação', () => {
       sort: 'sortOrder',
       order: 'asc',
     });
-    expect(service.calls).toEqual(['get', 'update', 'archive', 'restore']);
+    expect(service.calls).toEqual(['get', 'update', 'archive', 'restore', 'move']);
   });
 
   it('rejeita dados inválidos e remetente não autorizado', async () => {
@@ -118,6 +126,10 @@ class FakeService {
   public restore(): RelationshipType {
     this.calls.push('restore');
     return createType({ revision: 2 });
+  }
+  public move(): RelationshipType[] {
+    this.calls.push('move');
+    return [createType()];
   }
 }
 function createType(overrides: Partial<RelationshipType> = {}): RelationshipType {

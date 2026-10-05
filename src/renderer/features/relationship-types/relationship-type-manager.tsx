@@ -11,6 +11,8 @@ import {
   type UserFacingError,
 } from '../../../core/errors/user-facing-error';
 import { UserFacingErrorNotice } from '../../components/user-facing-error-notice';
+import { ReorderableList } from '../../components/reorderable-list';
+import type { RelativeMove } from '../../../core/ordering/move-relative';
 
 type View = 'list' | 'create' | 'edit';
 
@@ -100,6 +102,40 @@ export function RelationshipTypeManager({
       }
     } catch {
       setError(presentUserFacingError({ code: 'VALIDATION_ERROR' }, 'relationship-types.mutate'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function moveRelationshipType(move: RelativeMove): Promise<void> {
+    const source = types.find(({ id }) => id === move.sourceId);
+    const target = types.find(({ id }) => id === move.targetId);
+    if (source === undefined || target === undefined) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await window.campaignManager.relationshipTypes.move({
+        campaignId: campaign.id,
+        sourceId: source.id,
+        sourceRevision: source.revision,
+        targetId: target.id,
+        targetRevision: target.revision,
+        placement: move.placement,
+      });
+      if (result.ok) {
+        setTypes(result.data);
+        setAnnouncement(`Tipo de relação “${source.name}” reposicionado.`);
+        return;
+      }
+      const presented = presentUserFacingError(result.error, 'relationship-types.mutate');
+      const refreshed = await window.campaignManager.relationshipTypes.list({
+        campaignId: campaign.id,
+        limit: 100,
+        filters: { isArchived: false },
+      });
+      if (refreshed.ok) setTypes(refreshed.data.items);
+      setError(presented);
+      throw new Error(presented.message);
     } finally {
       setBusy(false);
     }
@@ -279,11 +315,17 @@ export function RelationshipTypeManager({
           </p>
         </div>
       ) : (
-        <div className="mt-8 grid gap-4" data-testid="relationship-type-list">
-          {types.map((type) => (
+        <ReorderableList
+          ariaLabel={showArchived ? 'Tipos de relação arquivados' : 'Ordenar tipos de relação'}
+          busy={busy}
+          className="mt-8 grid gap-4"
+          getLabel={(type) => type.name}
+          items={types}
+          onMove={moveRelationshipType}
+          reorderable={!showArchived}
+          renderItem={(type) => (
             <RelationshipTypeCard
               entityTypes={entityTypes}
-              key={type.id}
               onEdit={() => {
                 setEditing(type);
                 setView('edit');
@@ -291,8 +333,8 @@ export function RelationshipTypeManager({
               onLifecycle={() => setPending(type)}
               relationshipType={type}
             />
-          ))}
-        </div>
+          )}
+        />
       )}
     </section>
   );
@@ -329,9 +371,6 @@ function RelationshipTypeCard({
             Destino: {allowedLabel(relationshipType.allowedTargetTypeIds, entityTypeNames)}
           </p>
         </div>
-        <span className="rounded-full bg-stone-100 px-3 py-1 text-xs font-semibold text-slate-500">
-          Ordem {relationshipType.sortOrder}
-        </span>
       </div>
       <div className="mt-5 flex justify-end gap-3 border-t border-stone-100 pt-4">
         <button className={secondaryClass} onClick={onEdit} type="button">

@@ -44,7 +44,7 @@ describe('gateway do preload de eventos', () => {
     expect(invocations[0]?.input).toMatchObject({
       title: 'A ponte desaba',
       eventOrder: 0,
-      links: [{ entityId, role: 'location', sortOrder: 0 }],
+      links: [{ entityId, role: 'location' }],
     });
     expect(invocations[2]?.input).toEqual({
       campaignId,
@@ -68,9 +68,16 @@ describe('gateway do preload de eventos', () => {
         title: 'Evento',
         links: [
           { entityId, role: 'participant' },
-          { entityId, role: 'participant', sortOrder: 1 },
+          { entityId, role: 'participant' },
         ],
       }),
+    ).toThrow();
+    expect(() =>
+      gateway.events.create({
+        campaignId,
+        title: 'Evento',
+        links: [{ entityId, role: 'participant', sortOrder: 0 }],
+      } as never),
     ).toThrow();
     expect(invocations).toHaveLength(0);
   });

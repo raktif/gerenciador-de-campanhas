@@ -6,6 +6,7 @@ import type {
   Event,
   EventDetails,
   EventEntityLinkInput,
+  EventEntityLinkPersistenceInput,
   EventLifecycleInput,
   EventPageRequest,
   EventPageResult,
@@ -20,7 +21,7 @@ import type {
 } from '../../db/repositories/event-repository';
 
 export interface EventRepositoryPort {
-  insert(event: Event, links: EventEntityLinkInput[]): EventDetails;
+  insert(event: Event, links: EventEntityLinkPersistenceInput[]): EventDetails;
   findById(campaignId: string, id: string): EventDetails | null;
   findSourceContext(id: string): EventSourceContext | null;
   list(request: EventPageRequest): EventPageResult;
@@ -80,7 +81,7 @@ export class EventService {
         archivedAt: null,
         revision: 1,
       },
-      links,
+      this.withVisualOrder(links),
     );
   }
 
@@ -123,7 +124,7 @@ export class EventService {
         id: input.id,
         revision: input.revision,
         patch: { ...patch, sourceId },
-        ...(input.links === undefined ? {} : { links: input.links }),
+        ...(input.links === undefined ? {} : { links: this.withVisualOrder(input.links) }),
       },
       this.now(),
     );
@@ -149,7 +150,7 @@ export class EventService {
     this.validateSession(input.campaignId, current.event.sessionId);
     this.validateLinks(
       input.campaignId,
-      current.links.map(({ entityId, role, sortOrder }) => ({ entityId, role, sortOrder })),
+      current.links.map(({ entityId, role }) => ({ entityId, role })),
       true,
     );
     this.validateSource(input.campaignId, current.event.originKind, current.event.sourceId);
@@ -180,6 +181,10 @@ export class EventService {
           },
         );
     }
+  }
+
+  private withVisualOrder(links: EventEntityLinkInput[]): EventEntityLinkPersistenceInput[] {
+    return links.map((link, sortOrder) => ({ ...link, sortOrder }));
   }
 
   private validateSource(

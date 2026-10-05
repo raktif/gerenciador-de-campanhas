@@ -51,6 +51,7 @@ describe('gateway do preload', () => {
       'create',
       'get',
       'list',
+      'move',
       'restore',
       'update',
     ]);
@@ -59,6 +60,7 @@ describe('gateway do preload', () => {
       'create',
       'get',
       'list',
+      'move',
       'restore',
       'update',
     ]);
@@ -67,6 +69,7 @@ describe('gateway do preload', () => {
       'create',
       'get',
       'list',
+      'move',
       'restore',
       'update',
     ]);
@@ -124,6 +127,15 @@ describe('gateway do preload', () => {
     });
     await gateway.entityTypes.archive(entityTypeLifecycle);
     await gateway.entityTypes.restore(entityTypeLifecycle);
+    const entityTypeMove = {
+      campaignId: identity.id,
+      sourceId: entityTypeIdentity.id,
+      sourceRevision: 1,
+      targetId: '10000000-0000-4000-8000-000000000002',
+      targetRevision: 2,
+      placement: 'before' as const,
+    };
+    await gateway.entityTypes.move(entityTypeMove);
     const relationshipTypeIdentity = {
       campaignId: identity.id,
       id: '15000000-0000-4000-8000-000000000001',
@@ -142,6 +154,15 @@ describe('gateway do preload', () => {
     });
     await gateway.relationshipTypes.archive(relationshipTypeLifecycle);
     await gateway.relationshipTypes.restore(relationshipTypeLifecycle);
+    const relationshipTypeMove = {
+      campaignId: identity.id,
+      sourceId: relationshipTypeIdentity.id,
+      sourceRevision: 1,
+      targetId: '15000000-0000-4000-8000-000000000002',
+      targetRevision: 2,
+      placement: 'after' as const,
+    };
+    await gateway.relationshipTypes.move(relationshipTypeMove);
     const fieldIdentity = {
       campaignId: identity.id,
       entityTypeId: entityTypeIdentity.id,
@@ -165,6 +186,16 @@ describe('gateway do preload', () => {
     });
     await gateway.fieldDefinitions.archive(fieldLifecycle);
     await gateway.fieldDefinitions.restore(fieldLifecycle);
+    const fieldMove = {
+      campaignId: identity.id,
+      entityTypeId: entityTypeIdentity.id,
+      sourceId: fieldIdentity.id,
+      sourceRevision: 1,
+      targetId: '20000000-0000-4000-8000-000000000002',
+      targetRevision: 2,
+      placement: 'before' as const,
+    };
+    await gateway.fieldDefinitions.move(fieldMove);
     const entityIdentity = { campaignId: identity.id, id: '30000000-0000-4000-8000-000000000001' };
     const entityLifecycle = { ...entityIdentity, revision: 1 };
     await gateway.entities.create({
@@ -227,6 +258,7 @@ describe('gateway do preload', () => {
       },
       { channel: entityTypeChannels.archive, input: entityTypeLifecycle },
       { channel: entityTypeChannels.restore, input: entityTypeLifecycle },
+      { channel: entityTypeChannels.move, input: entityTypeMove },
       {
         channel: relationshipTypeChannels.create,
         input: {
@@ -261,6 +293,7 @@ describe('gateway do preload', () => {
       },
       { channel: relationshipTypeChannels.archive, input: relationshipTypeLifecycle },
       { channel: relationshipTypeChannels.restore, input: relationshipTypeLifecycle },
+      { channel: relationshipTypeChannels.move, input: relationshipTypeMove },
       {
         channel: fieldDefinitionChannels.create,
         input: {
@@ -301,6 +334,7 @@ describe('gateway do preload', () => {
       },
       { channel: fieldDefinitionChannels.archive, input: fieldLifecycle },
       { channel: fieldDefinitionChannels.restore, input: fieldLifecycle },
+      { channel: fieldDefinitionChannels.move, input: fieldMove },
       {
         channel: entityChannels.create,
         input: {

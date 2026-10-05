@@ -30,7 +30,6 @@ interface FormValues {
   description: string;
   icon: string;
   color: string;
-  sortOrder: string;
 }
 
 const emptyValues: FormValues = {
@@ -40,7 +39,6 @@ const emptyValues: FormValues = {
   description: '',
   icon: '',
   color: '',
-  sortOrder: '0',
 };
 
 const stableKeyPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -125,7 +123,7 @@ export function EntityTypeForm(props: EntityTypeFormProps): React.JSX.Element {
             />
           </div>
 
-          <div className="grid gap-6 md:grid-cols-[1fr_10rem]">
+          <div>
             <TextField
               disabled={props.busy}
               id="entity-type-slug"
@@ -134,17 +132,6 @@ export function EntityTypeForm(props: EntityTypeFormProps): React.JSX.Element {
               placeholder="personagens"
               required
               value={values.slug}
-            />
-            <TextField
-              disabled={props.busy}
-              id="entity-type-sort-order"
-              inputMode="numeric"
-              label="Ordem"
-              min="0"
-              onChange={(value) => update('sortOrder', value)}
-              required
-              type="number"
-              value={values.sortOrder}
             />
           </div>
           <p className="-mt-5 text-xs text-slate-500">
@@ -273,7 +260,6 @@ export function toCreateEntityTypeValues(values: FormValues): EntityTypeCreateVa
     name: values.name.trim(),
     singularName: values.singularName.trim(),
     slug: values.slug.trim(),
-    sortOrder: Number(values.sortOrder),
     ...optionalValue('description', values.description),
     ...optionalValue('icon', values.icon),
     ...optionalValue('color', values.color),
@@ -291,8 +277,6 @@ export function toEntityTypePatch(
   assignNullableChange(patch, 'description', values.description, entityType.description);
   assignNullableChange(patch, 'icon', values.icon, entityType.icon);
   assignNullableChange(patch, 'color', values.color, entityType.color);
-  const sortOrder = Number(values.sortOrder);
-  if (sortOrder !== entityType.sortOrder) patch.sortOrder = sortOrder;
   return Object.keys(patch).length === 0 ? null : patch;
 }
 
@@ -304,7 +288,6 @@ function toFormValues(entityType: EntityType): FormValues {
     description: entityType.description ?? '',
     icon: entityType.icon ?? '',
     color: entityType.color ?? '',
-    sortOrder: String(entityType.sortOrder),
   };
 }
 

@@ -32,7 +32,7 @@ describe('contratos de eventos', () => {
       visibility: 'gm',
       originKind: 'manual',
       sourceId: null,
-      links: [{ entityId, role: 'location', sortOrder: 0 }],
+      links: [{ entityId, role: 'location' }],
     });
     expect(eventPageRequestSchema.parse({ campaignId })).toEqual({
       campaignId,
@@ -51,8 +51,15 @@ describe('contratos de eventos', () => {
         title: 'Evento',
         links: [
           { entityId, role: 'participant' },
-          { entityId, role: 'participant', sortOrder: 1 },
+          { entityId, role: 'participant' },
         ],
+      }),
+    ).toThrow();
+    expect(() =>
+      createEventInputSchema.parse({
+        campaignId,
+        title: 'Evento',
+        links: [{ entityId, role: 'participant', sortOrder: 0 }],
       }),
     ).toThrow();
     expect(() => updateEventInputSchema.parse({ campaignId, id: eventId, revision: 1 })).toThrow();

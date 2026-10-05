@@ -5,8 +5,10 @@ import type {
   EntityType,
   EntityTypePageRequest,
   EntityTypePageResult,
+  MoveEntityTypeInput,
 } from '../../core/contracts/entity-types';
 import { AppError } from '../../core/errors/app-error';
+import { moveRelative } from '../../core/ordering/move-relative';
 import { entityTypes } from '../schema';
 import type * as schema from '../schema';
 
@@ -47,6 +49,29 @@ export class EntityTypeRepository {
     } catch (error) {
       throw translateConstraintError(error, entityType.campaignId, entityType.slug);
     }
+  }
+
+  public insertAtEnd(entityType: EntityType): EntityType {
+    return this.database.transaction((transaction) => {
+      const last = transaction
+        .select({ sortOrder: entityTypes.sortOrder })
+        .from(entityTypes)
+        .where(
+          and(
+            eq(entityTypes.campaignId, entityType.campaignId),
+            eq(entityTypes.isArchived, false),
+          ),
+        )
+        .orderBy(desc(entityTypes.sortOrder))
+        .get();
+      const positioned = { ...entityType, sortOrder: (last?.sortOrder ?? -1) + 1 };
+      try {
+        transaction.insert(entityTypes).values(positioned).run();
+      } catch (error) {
+        throw translateConstraintError(error, positioned.campaignId, positioned.slug);
+      }
+      return positioned;
+    });
   }
 
   public findById(campaignId: string, id: string): EntityType | null {
@@ -135,6 +160,102 @@ export class EntityTypeRepository {
     return updated;
   }
 
+  public restoreAtEnd(
+    input: Omit<EntityTypeRepositoryUpdate, 'patch'>,
+    updatedAt: string,
+  ): EntityType {
+    return this.database.transaction((transaction) => {
+      const current = transaction
+        .select()
+        .from(entityTypes)
+        .where(and(eq(entityTypes.campaignId, input.campaignId), eq(entityTypes.id, input.id)))
+        .get();
+      if (current === undefined) throw entityTypeNotFound(input.campaignId, input.id);
+      if (current.revision !== input.revision) throw revisionConflict(current, input.revision);
+      if (!current.isArchived)
+        throw new AppError('INVALID_ENTITY_TYPE_STATE', 'O tipo de entidade j\u00e1 est\u00e1 ativo.');
+
+      const last = transaction
+        .select({ sortOrder: entityTypes.sortOrder })
+        .from(entityTypes)
+        .where(
+          and(eq(entityTypes.campaignId, input.campaignId), eq(entityTypes.isArchived, false)),
+        )
+        .orderBy(desc(entityTypes.sortOrder))
+        .get();
+      const restoredResult = transaction
+        .update(entityTypes)
+        .set({
+          isArchived: false,
+          sortOrder: (last?.sortOrder ?? -1) + 1,
+          updatedAt,
+          revision: sql`${entityTypes.revision} + 1`,
+        })
+        .where(
+          and(
+            eq(entityTypes.campaignId, input.campaignId),
+            eq(entityTypes.id, input.id),
+            eq(entityTypes.revision, input.revision),
+          ),
+        )
+        .run();
+      if (restoredResult.changes !== 1) throw revisionConflict(current, input.revision);
+      const restored = transaction
+        .select()
+        .from(entityTypes)
+        .where(and(eq(entityTypes.campaignId, input.campaignId), eq(entityTypes.id, input.id)))
+        .get();
+      if (restored === undefined) throw entityTypeNotFound(input.campaignId, input.id);
+      return restored;
+    });
+  }
+
+  public move(input: MoveEntityTypeInput, updatedAt: string): EntityType[] {
+    return this.database.transaction((transaction) => {
+      const current = transaction
+        .select()
+        .from(entityTypes)
+        .where(
+          and(eq(entityTypes.campaignId, input.campaignId), eq(entityTypes.isArchived, false)),
+        )
+        .orderBy(asc(entityTypes.sortOrder), asc(entityTypes.name), asc(entityTypes.id))
+        .all();
+      const source = current.find(({ id }) => id === input.sourceId);
+      const target = current.find(({ id }) => id === input.targetId);
+      if (source === undefined) throw entityTypeNotFound(input.campaignId, input.sourceId);
+      if (target === undefined) throw entityTypeNotFound(input.campaignId, input.targetId);
+      if (source.revision !== input.sourceRevision)
+        throw revisionConflict(source, input.sourceRevision);
+      if (target.revision !== input.targetRevision)
+        throw revisionConflict(target, input.targetRevision);
+
+      const ordered = moveRelative(current, input);
+      ordered.forEach((item, sortOrder) => {
+        if (item.sortOrder === sortOrder) return;
+        const result = transaction
+          .update(entityTypes)
+          .set({ sortOrder, updatedAt, revision: sql`${entityTypes.revision} + 1` })
+          .where(
+            and(
+              eq(entityTypes.campaignId, input.campaignId),
+              eq(entityTypes.id, item.id),
+              eq(entityTypes.revision, item.revision),
+            ),
+          )
+          .run();
+        if (result.changes !== 1) throw revisionConflict(item, item.revision);
+      });
+      return transaction
+        .select()
+        .from(entityTypes)
+        .where(
+          and(eq(entityTypes.campaignId, input.campaignId), eq(entityTypes.isArchived, false)),
+        )
+        .orderBy(asc(entityTypes.sortOrder), asc(entityTypes.name), asc(entityTypes.id))
+        .all();
+    });
+  }
+
   private throwUpdateFailure(input: EntityTypeRepositoryUpdate): never {
     const current = this.findById(input.campaignId, input.id);
     if (current === null) throw entityTypeNotFound(input.campaignId, input.id);
@@ -214,5 +335,13 @@ function entityTypeNotFound(campaignId: string, id: string): AppError {
   return new AppError('ENTITY_TYPE_NOT_FOUND', 'O tipo de entidade não foi encontrado.', {
     campaignId,
     id,
+  });
+}
+
+function revisionConflict(current: EntityType, expectedRevision: number): AppError {
+  return new AppError('REVISION_CONFLICT', 'O tipo de entidade foi alterado em outra opera\u00e7\u00e3o.', {
+    expectedRevision,
+    currentRevision: current.revision,
+    current,
   });
 }

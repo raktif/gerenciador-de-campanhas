@@ -8,6 +8,8 @@ import {
   type UserFacingError,
 } from '../../../core/errors/user-facing-error';
 import { UserFacingErrorNotice } from '../../components/user-facing-error-notice';
+import { ReorderableList } from '../../components/reorderable-list';
+import type { RelativeMove } from '../../../core/ordering/move-relative';
 
 type ManagerView = 'list' | 'create' | 'edit' | 'fields';
 type LifecycleAction = 'archive' | 'restore';
@@ -122,6 +124,39 @@ export function EntityTypeManager({
       }
     } catch {
       setError(presentUserFacingError({ code: 'VALIDATION_ERROR' }, 'entity-types.mutate'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function moveEntityType(move: RelativeMove): Promise<void> {
+    const source = entityTypes.find(({ id }) => id === move.sourceId);
+    const target = entityTypes.find(({ id }) => id === move.targetId);
+    if (source === undefined || target === undefined) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await window.campaignManager.entityTypes.move({
+        campaignId: campaign.id,
+        sourceId: source.id,
+        sourceRevision: source.revision,
+        targetId: target.id,
+        targetRevision: target.revision,
+        placement: move.placement,
+      });
+      if (result.ok) {
+        setEntityTypes(result.data);
+        setAnnouncement(`Tipo “${source.name}” reposicionado.`);
+        return;
+      }
+      const presented = presentUserFacingError(result.error, 'entity-types.mutate');
+      const refreshed = await window.campaignManager.entityTypes.list({
+        campaignId: campaign.id,
+        filters: { isArchived: false },
+      });
+      if (refreshed.ok) setEntityTypes(refreshed.data.items);
+      setError(presented);
+      throw new Error(presented.message);
     } finally {
       setBusy(false);
     }
@@ -322,11 +357,17 @@ export function EntityTypeManager({
           ) : null}
         </div>
       ) : (
-        <div className="mt-8 grid gap-4" data-testid="entity-type-list">
-          {entityTypes.map((entityType) => (
+        <ReorderableList
+          ariaLabel={showArchived ? 'Tipos de entidade arquivados' : 'Ordenar tipos de entidade'}
+          busy={busy}
+          className="mt-8 grid gap-4"
+          getLabel={(entityType) => entityType.name}
+          items={entityTypes}
+          onMove={moveEntityType}
+          reorderable={!showArchived}
+          renderItem={(entityType) => (
             <EntityTypeCard
               entityType={entityType}
-              key={entityType.id}
               onEdit={() => beginEdit(entityType)}
               onFields={() => {
                 setFieldOwner(entityType);
@@ -339,8 +380,8 @@ export function EntityTypeManager({
                 })
               }
             />
-          ))}
-        </div>
+          )}
+        />
       )}
     </section>
   );
@@ -378,9 +419,6 @@ function EntityTypeCard({
             )}
           </div>
         </div>
-        <span className="shrink-0 rounded-full bg-stone-100 px-3 py-1 text-xs font-semibold text-slate-500">
-          Ordem {String(entityType.sortOrder)}
-        </span>
       </div>
       <div className="mt-5 flex flex-wrap justify-end gap-3 border-t border-stone-100 pt-4">
         <button

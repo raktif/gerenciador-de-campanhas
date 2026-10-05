@@ -11,6 +11,8 @@ import {
   type UserFacingError,
 } from '../../../core/errors/user-facing-error';
 import { UserFacingErrorNotice } from '../../components/user-facing-error-notice';
+import { ReorderableList } from '../../components/reorderable-list';
+import type { RelativeMove } from '../../../core/ordering/move-relative';
 
 type View = 'list' | 'create' | 'edit';
 
@@ -103,6 +105,40 @@ export function FieldDefinitionManager({
       } else setError(presentUserFacingError(result.error, 'field-definitions.mutate'));
     } catch {
       setError(presentUserFacingError({ code: 'VALIDATION_ERROR' }, 'field-definitions.mutate'));
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function moveField(move: RelativeMove): Promise<void> {
+    const source = fields.find(({ id }) => id === move.sourceId);
+    const target = fields.find(({ id }) => id === move.targetId);
+    if (source === undefined || target === undefined) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await window.campaignManager.fieldDefinitions.move({
+        campaignId: campaign.id,
+        entityTypeId: entityType.id,
+        sourceId: source.id,
+        sourceRevision: source.revision,
+        targetId: target.id,
+        targetRevision: target.revision,
+        placement: move.placement,
+      });
+      if (result.ok) {
+        setFields(result.data);
+        setAnnouncement(`Campo “${source.label}” reposicionado.`);
+        return;
+      }
+      const presented = presentUserFacingError(result.error, 'field-definitions.mutate');
+      const refreshed = await window.campaignManager.fieldDefinitions.list({
+        campaignId: campaign.id,
+        entityTypeId: entityType.id,
+        filters: { isArchived: false },
+      });
+      if (refreshed.ok) setFields(refreshed.data.items);
+      setError(presented);
+      throw new Error(presented.message);
     } finally {
       setBusy(false);
     }
@@ -296,12 +332,16 @@ export function FieldDefinitionManager({
           ) : null}
         </div>
       ) : (
-        <div className="mt-8 grid gap-4" data-testid="field-definition-list">
-          {fields.map((field) => (
-            <article
-              className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm"
-              key={field.id}
-            >
+        <ReorderableList
+          ariaLabel={showArchived ? 'Definições de campo arquivadas' : 'Ordenar definições de campo'}
+          busy={busy}
+          className="mt-8 grid gap-4"
+          getLabel={(field) => field.label}
+          items={fields}
+          onMove={moveField}
+          reorderable={!showArchived}
+          renderItem={(field) => (
+            <article className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
               <div className="flex justify-between gap-5">
                 <div>
                   <h2 className="text-xl font-semibold">{field.label}</h2>
@@ -315,7 +355,6 @@ export function FieldDefinitionManager({
                     {field.secretByDefault ? <Badge>Secreto</Badge> : null}
                   </div>
                 </div>
-                <span className="text-xs text-slate-500">Ordem {field.sortOrder}</span>
               </div>
               <div className="mt-5 flex justify-end gap-3 border-t border-stone-100 pt-4">
                 <button
@@ -340,8 +379,8 @@ export function FieldDefinitionManager({
                 </button>
               </div>
             </article>
-          ))}
-        </div>
+          )}
+        />
       )}
     </section>
   );

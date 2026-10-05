@@ -75,7 +75,7 @@ describe('gateway do preload de sessões', () => {
     });
     expect(invocations[4]?.input).toEqual({ campaignId, sessionId });
     expect(invocations[5]?.input).toMatchObject({
-      participants: [{ entityId, role: 'npc', attended: true, sortOrder: 0 }],
+      participants: [{ entityId, role: 'npc', attended: true }],
     });
     expect(invocations[6]?.input).toMatchObject({ text: 'Encontrar a chave.', entityId: null });
     expect(invocations[8]?.input).toEqual({
@@ -99,9 +99,17 @@ describe('gateway do preload de sessões', () => {
         revision: 1,
         participants: [
           { entityId, role: 'npc' },
-          { entityId, role: 'observer', sortOrder: 1 },
+          { entityId, role: 'observer' },
         ],
       }),
+    ).toThrow();
+    expect(() =>
+      gateway.sessionParticipants.replace({
+        campaignId,
+        sessionId,
+        revision: 1,
+        participants: [{ entityId, role: 'npc', sortOrder: 0 }],
+      } as never),
     ).toThrow();
     expect(() => gateway.sessionIntentions.create({ campaignId, sessionId, text: ' ' })).toThrow();
     expect(() =>

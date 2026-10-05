@@ -35,13 +35,16 @@ describe('SessionParticipantService', () => {
         sessionId,
         revision: 1,
         participants: [
-          { entityId: entityB, role: 'ally', attended: false, sortOrder: 2 },
-          { entityId: entityA, role: 'player_character', sortOrder: 1 },
+          { entityId: entityB, role: 'ally', attended: false },
+          { entityId: entityA, role: 'player_character' },
         ],
       }),
     );
-    expect(participants.map((participant) => participant.entityId)).toEqual([entityA, entityB]);
-    expect(participants[1]).toMatchObject({ attended: false, role: 'ally' });
+    expect(participants.map((participant) => participant.entityId)).toEqual([entityB, entityA]);
+    expect(participants).toMatchObject([
+      { entityId: entityB, attended: false, role: 'ally', sortOrder: 0 },
+      { entityId: entityA, attended: true, role: 'player_character', sortOrder: 1 },
+    ]);
     expect(repository.findById(campaignId, sessionId)?.revision).toBe(2);
   });
 

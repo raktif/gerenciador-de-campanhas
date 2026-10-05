@@ -8,7 +8,7 @@ import {
   updateEventInputSchema,
   type Event,
   type EventDetails,
-  type EventEntityLinkInput,
+  type EventEntityLinkPersistenceInput,
   type EventPageResult,
 } from '../../src/core/contracts/events';
 import type { Session } from '../../src/core/contracts/sessions';
@@ -60,12 +60,18 @@ describe('EventService', () => {
         sessionId,
         title: 'A ponte desaba',
         eventOrder: 2,
-        links: [{ entityId, role: 'location', sortOrder: 1 }],
+        links: [
+          { entityId, role: 'location' },
+          { entityId, role: 'witness' },
+        ],
       }),
     );
     expect(created).toMatchObject({
       event: { campaignId, sessionId, eventOrder: 2, revision: 1 },
-      links: [{ entityId, role: 'location', sortOrder: 1 }],
+      links: [
+        { entityId, role: 'location', sortOrder: 0 },
+        { entityId, role: 'witness', sortOrder: 1 },
+      ],
     });
   });
 
@@ -97,12 +103,12 @@ describe('EventService', () => {
         id: created.event.id,
         revision: 1,
         patch: { title: 'Alarme confirmado' },
-        links: [{ entityId, role: 'witness', sortOrder: 3 }],
+        links: [{ entityId, role: 'witness' }],
       }),
     );
     expect(updated).toMatchObject({
       event: { title: 'Alarme confirmado', revision: 2 },
-      links: [{ entityId, role: 'witness', sortOrder: 3 }],
+      links: [{ entityId, role: 'witness', sortOrder: 0 }],
     });
     expect(
       capture(() =>
@@ -178,7 +184,7 @@ describe('EventService', () => {
 class MemoryRepository implements EventRepositoryPort {
   private records: EventDetails[] = [];
 
-  public insert(event: Event, links: EventEntityLinkInput[]): EventDetails {
+  public insert(event: Event, links: EventEntityLinkPersistenceInput[]): EventDetails {
     const details = eventDetailsSchema.parse({
       event,
       links: links.map((link) => ({ eventId: event.id, ...link })),

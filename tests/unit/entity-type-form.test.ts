@@ -15,14 +15,12 @@ describe('formulário de tipo de entidade', () => {
         description: '   ',
         icon: '',
         color: '  #92400e  ',
-        sortOrder: '10',
       }),
     ).toEqual({
       name: 'Personagens',
       singularName: 'Personagem',
       slug: 'personagens',
       color: '#92400e',
-      sortOrder: 10,
     });
   });
 
@@ -36,11 +34,10 @@ describe('formulário de tipo de entidade', () => {
           description: '   ',
           icon: entityType.icon ?? '',
           color: entityType.color ?? '',
-          sortOrder: '20',
         },
         entityType,
       ),
-    ).toEqual({ singularName: 'Protagonista', description: null, sortOrder: 20 });
+    ).toEqual({ singularName: 'Protagonista', description: null });
   });
 
   it('não cria atualização quando nada mudou', () => {
@@ -53,7 +50,6 @@ describe('formulário de tipo de entidade', () => {
           description: entityType.description ?? '',
           icon: entityType.icon ?? '',
           color: entityType.color ?? '',
-          sortOrder: String(entityType.sortOrder),
         },
         entityType,
       ),

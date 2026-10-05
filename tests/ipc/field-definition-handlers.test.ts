@@ -44,9 +44,18 @@ describe('handlers IPC de definições de campo', () => {
     });
     await required(handlers, fieldDefinitionChannels.archive)(event(42), lifecycle);
     await required(handlers, fieldDefinitionChannels.restore)(event(42), lifecycle);
+    await required(handlers, fieldDefinitionChannels.move)(event(42), {
+      campaignId,
+      entityTypeId,
+      sourceId: fieldId,
+      sourceRevision: 1,
+      targetId: '20000000-0000-4000-8000-000000000002',
+      targetRevision: 2,
+      placement: 'after',
+    });
     expect(service.createInput).toMatchObject({ label: 'Nome', required: false, sortOrder: 0 });
     expect(service.listInput).toMatchObject({ limit: 50, filters: { isArchived: false } });
-    expect(service.operations).toEqual(['get', 'update', 'archive', 'restore']);
+    expect(service.operations).toEqual(['get', 'update', 'archive', 'restore', 'move']);
   });
 
   it('rejeita entrada inválida e renderer não autorizado', async () => {
@@ -100,6 +109,10 @@ class FakeService {
   public restore(): FieldDefinition {
     this.operations.push('restore');
     return field({ revision: 2 });
+  }
+  public move(): FieldDefinition[] {
+    this.operations.push('move');
+    return [field()];
   }
 }
 

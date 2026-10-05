@@ -144,7 +144,7 @@ export function TimelineManager({
           {items.map((entry) => (
             <li className="rounded-2xl border border-stone-200 bg-white p-6" key={entry.event.id}>
               <p className="text-sm font-semibold text-amber-800">
-                {timelineGroupLabel(entry)} · Ordem {entry.event.eventOrder}
+                {timelineGroupLabel(entry)} · Ordem narrativa {entry.event.eventOrder}
               </p>
               <h2 className="mt-1 text-xl font-semibold">{entry.event.title}</h2>
               {entry.event.occurredAtLabel === null ? null : (

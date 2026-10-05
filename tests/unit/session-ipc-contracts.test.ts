@@ -67,8 +67,16 @@ describe('contratos IPC de sessões', () => {
         revision: 1,
         participants: [
           { entityId, role: 'npc' },
-          { entityId, role: 'observer', sortOrder: 1 },
+          { entityId, role: 'observer' },
         ],
+      }),
+    ).toThrow();
+    expect(() =>
+      replaceSessionParticipantsInputSchema.parse({
+        campaignId,
+        sessionId,
+        revision: 1,
+        participants: [{ entityId, role: 'npc', sortOrder: 0 }],
       }),
     ).toThrow();
     expect(

@@ -4,6 +4,7 @@ import type { EntityType } from '../../core/contracts/entity-types';
 import type {
   CreateRelationshipTypeInput,
   GetRelationshipTypeInput,
+  MoveRelationshipTypeInput,
   RelationshipType,
   RelationshipTypeLifecycleInput,
   RelationshipTypePageRequest,
@@ -14,10 +15,15 @@ import { AppError } from '../../core/errors/app-error';
 import type { RelationshipTypeRepositoryUpdate } from '../../db/repositories/relationship-type-repository';
 
 export interface RelationshipTypeRepositoryPort {
-  insert(relationshipType: RelationshipType): RelationshipType;
+  insertAtEnd(relationshipType: RelationshipType): RelationshipType;
   findById(campaignId: string, id: string): RelationshipType | null;
   list(request: RelationshipTypePageRequest): RelationshipTypePageResult;
   update(input: RelationshipTypeRepositoryUpdate, updatedAt: string): RelationshipType;
+  restoreAtEnd(
+    input: Omit<RelationshipTypeRepositoryUpdate, 'patch'>,
+    updatedAt: string,
+  ): RelationshipType;
+  move(input: MoveRelationshipTypeInput, updatedAt: string): RelationshipType[];
 }
 export interface RelationshipTypeCampaignLookupPort {
   findById(id: string): Campaign | null;
@@ -48,7 +54,7 @@ export class RelationshipTypeService {
     this.validateAllowedTypes(input.campaignId, input.allowedSourceTypeIds);
     this.validateAllowedTypes(input.campaignId, input.allowedTargetTypeIds);
     const timestamp = this.now();
-    return this.dependencies.repository.insert({
+    return this.dependencies.repository.insertAtEnd({
       id: this.createId(),
       campaignId: input.campaignId,
       packId: null,
@@ -88,6 +94,11 @@ export class RelationshipTypeService {
     return this.dependencies.repository.update(input, this.now());
   }
 
+  public move(input: MoveRelationshipTypeInput): RelationshipType[] {
+    this.requireCampaign(input.campaignId);
+    return this.dependencies.repository.move(input, this.now());
+  }
+
   public archive(input: RelationshipTypeLifecycleInput): RelationshipType {
     const current = this.requireRelationshipType(input.campaignId, input.id);
     this.requireRevision(current, input.revision);
@@ -104,10 +115,7 @@ export class RelationshipTypeService {
     this.requireRevision(current, input.revision);
     if (!current.isArchived)
       throw new AppError('INVALID_RELATIONSHIP_TYPE_STATE', 'O tipo de relação já está ativo.');
-    return this.dependencies.repository.update(
-      { ...input, patch: { isArchived: false } },
-      this.now(),
-    );
+    return this.dependencies.repository.restoreAtEnd(input, this.now());
   }
 
   private requireCampaign(campaignId: string): Campaign {

@@ -82,6 +82,7 @@ import {
 import {
   createRelationshipTypeInputSchema,
   getRelationshipTypeInputSchema,
+  moveRelationshipTypeInputSchema,
   relationshipTypeLifecycleInputSchema,
   relationshipTypePageRequestSchema,
   updateRelationshipTypeInputSchema,
@@ -93,6 +94,7 @@ import {
   entityTypeLifecycleInputSchema,
   entityTypePageRequestSchema,
   getEntityTypeInputSchema,
+  moveEntityTypeInputSchema,
   updateEntityTypeInputSchema,
   type EntityType,
   type EntityTypePageResult,
@@ -102,6 +104,7 @@ import {
   fieldDefinitionLifecycleInputSchema,
   fieldDefinitionPageRequestSchema,
   getFieldDefinitionInputSchema,
+  moveFieldDefinitionInputSchema,
   updateFieldDefinitionInputSchema,
   type FieldDefinition,
   type FieldDefinitionPageResult,
@@ -218,6 +221,8 @@ export function createCampaignManagerGateway(invokeIpc: IpcInvoker): CampaignMan
         invoke<EntityType>(entityTypeChannels.archive, input, entityTypeLifecycleInputSchema),
       restore: (input) =>
         invoke<EntityType>(entityTypeChannels.restore, input, entityTypeLifecycleInputSchema),
+      move: (input) =>
+        invoke<EntityType[]>(entityTypeChannels.move, input, moveEntityTypeInputSchema),
     },
     relationshipTypes: {
       create: (input) =>
@@ -255,6 +260,12 @@ export function createCampaignManagerGateway(invokeIpc: IpcInvoker): CampaignMan
           relationshipTypeChannels.restore,
           input,
           relationshipTypeLifecycleInputSchema,
+        ),
+      move: (input) =>
+        invoke<RelationshipType[]>(
+          relationshipTypeChannels.move,
+          input,
+          moveRelationshipTypeInputSchema,
         ),
     },
     relationships: {
@@ -321,6 +332,12 @@ export function createCampaignManagerGateway(invokeIpc: IpcInvoker): CampaignMan
           fieldDefinitionChannels.restore,
           input,
           fieldDefinitionLifecycleInputSchema,
+        ),
+      move: (input) =>
+        invoke<FieldDefinition[]>(
+          fieldDefinitionChannels.move,
+          input,
+          moveFieldDefinitionInputSchema,
         ),
     },
     entities: {

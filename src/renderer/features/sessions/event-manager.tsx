@@ -30,8 +30,13 @@ import {
   type UserFacingError as UserFacingErrorPresentation,
 } from '../../../core/errors/user-facing-error';
 import { UserFacingErrorNotice } from '../../components/user-facing-error-notice';
+import { ReorderableList } from '../../components/reorderable-list';
+import { moveRelative } from '../../../core/ordering/move-relative';
 
 type View = 'list' | 'create' | 'edit';
+interface EventLinkDraft extends EventEntityLinkInput {
+  id: string;
+}
 interface PendingLifecycle {
   event: Event;
   restore: boolean;
@@ -388,7 +393,7 @@ export function EventManager({
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <p className="text-sm font-semibold text-amber-800">
-                    {sessionLabel(item.sessionId, sessions)} · Ordem {item.eventOrder}
+                    {sessionLabel(item.sessionId, sessions)} · Ordem narrativa {item.eventOrder}
                   </p>
                   <h2 className="mt-1 text-xl font-semibold">{item.title}</h2>
                   {item.occurredAtLabel === null ? null : (
@@ -462,10 +467,14 @@ function EventEditor({
   const [sessionId, setSessionId] = useState(details?.event.sessionId ?? '');
   const [eventOrder, setEventOrder] = useState(String(details?.event.eventOrder ?? 0));
   const [occurredAtLabel, setOccurredAtLabel] = useState(details?.event.occurredAtLabel ?? '');
-  const [links, setLinks] = useState<EventEntityLinkInput[]>(() =>
+  const [links, setLinks] = useState<EventLinkDraft[]>(() =>
     details === null
       ? []
-      : details.links.map(({ entityId, role, sortOrder }) => ({ entityId, role, sortOrder })),
+      : details.links.map(({ entityId, role }, index) => ({
+          id: `event-link-${String(index)}-${entityId}-${role}`,
+          entityId,
+          role,
+        })),
   );
   const [metadata, setMetadata] = useState<NarrativeMetadataValues>({
     canonState: details?.event.canonState ?? 'accepted',
@@ -493,7 +502,7 @@ function EventEditor({
       descriptionMarkdown: description === '' ? null : description,
       eventOrder: Number(eventOrder),
       occurredAtLabel: occurredAtLabel.trim() === '' ? null : occurredAtLabel.trim(),
-      links,
+      links: links.map(({ entityId, role }) => ({ entityId, role })),
       ...metadata,
       ...(metadata.originKind === 'session' && sourceSessionId !== '' ? { sourceSessionId } : {}),
     };
@@ -506,9 +515,9 @@ function EventEditor({
     void onSubmit(input);
   }
 
-  function updateLink(index: number, patch: Partial<EventEntityLinkInput>): void {
+  function updateLink(id: string, patch: Partial<EventEntityLinkInput>): void {
     setLinks((current) =>
-      current.map((link, position) => (position === index ? { ...link, ...patch } : link)),
+      current.map((link) => (link.id === id ? { ...link, ...patch } : link)),
     );
   }
 
@@ -559,12 +568,12 @@ function EventEditor({
               </select>
             </label>
             <label className="block font-semibold" htmlFor="event-order">
-              Ordem *
+              Ordem narrativa *
               <input
                 className={inputClass}
                 disabled={busy}
                 id="event-order"
-                aria-label="Ordem do evento"
+                aria-label="Ordem narrativa"
                 min="0"
                 required
                 type="number"
@@ -630,14 +639,23 @@ function EventEditor({
             <p className="mt-1 text-sm text-slate-600">
               Somente entidades ativas desta campanha podem ser vinculadas.
             </p>
-            <div className="mt-4 grid gap-4">
-              {links.map((link, index) => {
+            <ReorderableList
+              ariaLabel="Ordenar vínculos com entidades"
+              busy={busy}
+              className="mt-4 grid gap-4"
+              getLabel={(link) =>
+                availableEntities.find((entity) => entity.id === link.entityId)?.name ??
+                'Vínculo sem entidade'
+              }
+              items={links}
+              onMove={(move) => setLinks((current) => moveRelative(current, move))}
+              renderItem={(link) => {
+                const index = links.findIndex(({ id }) => id === link.id);
                 const isActiveEntity =
                   link.entityId === '' || availableEntityIds.has(link.entityId);
                 return (
                   <div
-                    className="grid gap-3 rounded-xl bg-stone-50 p-4 md:grid-cols-[1fr_12rem_7rem_auto]"
-                    key={`${String(index)}:${link.entityId}:${link.role}`}
+                    className="grid gap-3 rounded-xl bg-stone-50 p-4 md:grid-cols-[1fr_12rem_auto]"
                   >
                     {isActiveEntity ? (
                       <label
@@ -652,7 +670,7 @@ function EventEditor({
                           aria-label="Entidade vinculada"
                           required
                           value={link.entityId}
-                          onChange={(event) => updateLink(index, { entityId: event.target.value })}
+                          onChange={(event) => updateLink(link.id, { entityId: event.target.value })}
                         >
                           <option value="">Selecione…</option>
                           {availableEntities.map((entity) => (
@@ -682,7 +700,7 @@ function EventEditor({
                         aria-label="Papel da entidade vinculada"
                         value={link.role}
                         onChange={(event) =>
-                          updateLink(index, {
+                          updateLink(link.id, {
                             role: event.target.value as EventEntityLinkInput['role'],
                           })
                         }
@@ -694,29 +712,11 @@ function EventEditor({
                         ))}
                       </select>
                     </label>
-                    <label
-                      className="text-sm font-semibold"
-                      htmlFor={`event-link-${String(index)}-order`}
-                    >
-                      Ordem
-                      <input
-                        className={inputClass}
-                        disabled={busy}
-                        id={`event-link-${String(index)}-order`}
-                        aria-label="Ordem do vínculo da entidade"
-                        min="0"
-                        type="number"
-                        value={link.sortOrder}
-                        onChange={(event) =>
-                          updateLink(index, { sortOrder: Number(event.target.value) })
-                        }
-                      />
-                    </label>
                     <button
                       className={secondaryClass}
                       disabled={busy}
                       onClick={() =>
-                        setLinks((current) => current.filter((_, position) => position !== index))
+                        setLinks((current) => current.filter((item) => item.id !== link.id))
                       }
                       type="button"
                     >
@@ -724,8 +724,8 @@ function EventEditor({
                     </button>
                   </div>
                 );
-              })}
-            </div>
+              }}
+            />
             {links.length === 0 ? (
               <p className="mt-4 text-sm text-slate-600">Nenhuma entidade vinculada.</p>
             ) : null}
@@ -736,7 +736,7 @@ function EventEditor({
               onClick={() =>
                 setLinks((current) => [
                   ...current,
-                  { entityId: '', role: 'related', sortOrder: current.length },
+                  { id: crypto.randomUUID(), entityId: '', role: 'related' },
                 ])
               }
               type="button"
