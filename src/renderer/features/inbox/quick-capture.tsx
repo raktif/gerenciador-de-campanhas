@@ -12,6 +12,7 @@ import {
 import type { UserFacingError } from '../../../core/errors/user-facing-error';
 import { presentUserFacingError } from '../../../core/errors/user-facing-error';
 import { UserFacingErrorNotice } from '../../components/user-facing-error-notice';
+import { Button, DialogActions, IconButton } from '../../components/actions';
 
 export function QuickCapture({
   campaign,
@@ -190,36 +191,34 @@ export function QuickCapture({
           >
             <div className="flex items-start justify-between gap-3">
               <p>{feedback.message}</p>
-              <button
+              <IconButton
                 aria-label="Fechar aviso de captura"
-                className="-mt-1 rounded px-1 font-semibold text-emerald-800 hover:bg-emerald-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-800"
+                className="-mt-1 text-emerald-800 hover:bg-emerald-100"
                 onClick={dismissFeedback}
-                type="button"
+                size="small"
+                variant="ghost"
               >
                 <span aria-hidden="true">×</span>
-              </button>
+              </IconButton>
             </div>
-            <button
-              className="mt-2 font-semibold underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-800"
-              onClick={openInboxFromFeedback}
-              type="button"
-            >
+            <Button className="mt-2" onClick={openInboxFromFeedback} size="small" variant="link">
               Abrir Caixa de Entrada
-            </button>
+            </Button>
           </section>
         )}
-        <button
+        <Button
           aria-haspopup="dialog"
           aria-keyshortcuts={ariaShortcut}
           aria-controls="quick-capture-dialog"
           aria-expanded={open}
-          className="rounded-xl bg-amber-700 px-5 py-3 font-semibold text-white shadow-lg shadow-amber-900/20 hover:bg-amber-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700"
+          className="shadow-lg shadow-amber-900/20"
           onClick={openCapture}
           ref={triggerRef}
-          type="button"
+          size="large"
+          variant="primary"
         >
           Captura rápida <span aria-hidden="true">({shortcutLabel})</span>
-        </button>
+        </Button>
       </div>
       {open ? (
         <div
@@ -251,15 +250,15 @@ export function QuickCapture({
                   Registre agora; a classificação fica para depois.
                 </p>
               </div>
-              <button
+              <Button
                 aria-label="Fechar captura rápida"
-                className="rounded-lg px-3 py-2 font-semibold text-slate-600 hover:bg-stone-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700"
                 disabled={busy}
                 onClick={closeCapture}
-                type="button"
+                size="small"
+                variant="ghost"
               >
                 Fechar
-              </button>
+              </Button>
             </header>
             <form className="mt-6 grid gap-5" onSubmit={(event) => void submit(event)}>
               <div>
@@ -325,23 +324,19 @@ export function QuickCapture({
               {captureError === null ? null : (
                 <UserFacingErrorNotice compact error={captureError} operation="inbox.capture" />
               )}
-              <div className="flex flex-wrap justify-end gap-3 border-t border-stone-200 pt-5">
-                <button
-                  className="rounded-xl border border-stone-300 bg-white px-5 py-3 font-semibold text-slate-700 hover:bg-stone-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 disabled:opacity-60"
-                  disabled={busy}
-                  onClick={closeCapture}
-                  type="button"
-                >
+              <DialogActions className="border-t border-stone-200 pt-5">
+                <Button disabled={busy} onClick={closeCapture}>
                   Cancelar
-                </button>
-                <button
-                  className="rounded-xl bg-amber-700 px-5 py-3 font-semibold text-white hover:bg-amber-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 disabled:cursor-wait disabled:opacity-60"
-                  disabled={busy || rawText.trim().length === 0}
+                </Button>
+                <Button
+                  busy={busy}
+                  disabled={rawText.trim().length === 0}
                   type="submit"
+                  variant="primary"
                 >
                   {busy ? 'Salvando captura…' : 'Salvar captura'}
-                </button>
-              </div>
+                </Button>
+              </DialogActions>
             </form>
           </section>
         </div>

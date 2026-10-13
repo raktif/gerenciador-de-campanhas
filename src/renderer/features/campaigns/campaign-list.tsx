@@ -1,4 +1,5 @@
 import type { Campaign } from '../../../core/contracts/campaigns';
+import { Button } from '../../components/actions';
 
 export function CampaignList({
   campaigns,
@@ -58,14 +59,14 @@ export function CampaignList({
               <dd className="text-slate-400">Atualizada {formatDate(campaign.updatedAt)}</dd>
             </div>
           </dl>
-          <button
+          <Button
             aria-label={`Abrir campanha ${campaign.name}`}
-            className="mt-5 w-full rounded-xl border border-stone-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:border-amber-700 hover:text-amber-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700"
+            className="mt-5"
+            fullWidth
             onClick={() => onOpen(campaign)}
-            type="button"
           >
             Abrir campanha
-          </button>
+          </Button>
         </article>
       ))}
     </div>

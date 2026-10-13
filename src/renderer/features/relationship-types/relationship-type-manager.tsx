@@ -13,6 +13,7 @@ import {
 import { UserFacingErrorNotice } from '../../components/user-facing-error-notice';
 import { ReorderableList } from '../../components/reorderable-list';
 import type { RelativeMove } from '../../../core/ordering/move-relative';
+import { Button, ButtonGroup, ToolbarActions } from '../../components/actions';
 
 type View = 'list' | 'create' | 'edit';
 
@@ -203,9 +204,9 @@ export function RelationshipTypeManager({
 
   return (
     <section aria-labelledby="relationship-types-title">
-      <button className={backClass} onClick={onBack} type="button">
+      <Button className="mb-6" onClick={onBack} size="small" variant="ghost">
         ← Voltar para detalhes da campanha
-      </button>
+      </Button>
       <header className="flex items-end justify-between gap-6 border-b border-stone-200 pb-7">
         <div>
           <p className="text-xs font-bold tracking-[0.18em] text-amber-800 uppercase">
@@ -219,19 +220,19 @@ export function RelationshipTypeManager({
           </p>
         </div>
         {!showArchived ? (
-          <button
-            className={primaryClass}
+          <Button
             onClick={() => {
               setError(null);
               setView('create');
             }}
-            type="button"
+            size="large"
+            variant="primary"
           >
             Novo tipo de relação
-          </button>
+          </Button>
         ) : null}
       </header>
-      <div className="mt-6 flex gap-2" role="group" aria-label="Estado dos tipos de relação">
+      <ToolbarActions aria-label="Estado dos tipos de relação" className="mt-6 gap-2">
         <Filter
           active={!showArchived}
           onClick={() => {
@@ -250,7 +251,7 @@ export function RelationshipTypeManager({
         >
           Arquivados
         </Filter>
-      </div>
+      </ToolbarActions>
       {announcement === null ? null : (
         <p
           aria-live="polite"
@@ -268,24 +269,14 @@ export function RelationshipTypeManager({
           <p className="mt-2 text-sm text-slate-700">
             O tipo permanecerá preservado e poderá ser restaurado.
           </p>
-          <div className="mt-4 flex gap-3">
-            <button
-              className={secondaryClass}
-              disabled={busy}
-              onClick={() => setPending(null)}
-              type="button"
-            >
+          <ButtonGroup aria-label="Ações de confirmação" className="mt-4">
+            <Button disabled={busy} onClick={() => setPending(null)}>
               Cancelar
-            </button>
-            <button
-              className={primaryClass}
-              disabled={busy}
-              onClick={() => void changeLifecycle()}
-              type="button"
-            >
+            </Button>
+            <Button busy={busy} onClick={() => void changeLifecycle()} variant="primary">
               Confirmar
-            </button>
-          </div>
+            </Button>
+          </ButtonGroup>
         </div>
       )}
       {error === null ? null : (
@@ -372,14 +363,15 @@ function RelationshipTypeCard({
           </p>
         </div>
       </div>
-      <div className="mt-5 flex justify-end gap-3 border-t border-stone-100 pt-4">
-        <button className={secondaryClass} onClick={onEdit} type="button">
-          Editar
-        </button>
-        <button className={secondaryClass} onClick={onLifecycle} type="button">
+      <ToolbarActions
+        aria-label={`Ações de ${relationshipType.name}`}
+        className="mt-5 justify-end border-t border-stone-100 pt-4"
+      >
+        <Button onClick={onEdit}>Editar</Button>
+        <Button onClick={onLifecycle}>
           {relationshipType.isArchived ? 'Restaurar' : 'Arquivar'}
-        </button>
-      </div>
+        </Button>
+      </ToolbarActions>
     </article>
   );
 }
@@ -393,14 +385,14 @@ function Filter({
   onClick: () => void;
 }): React.JSX.Element {
   return (
-    <button
+    <Button
       aria-pressed={active}
-      className={`rounded-full px-4 py-2 text-sm font-semibold ${active ? 'bg-slate-900 text-white' : 'border border-stone-300 bg-white text-slate-600'}`}
+      className={`rounded-full ${active ? 'bg-slate-900 text-white' : ''}`}
       onClick={onClick}
-      type="button"
+      size="small"
     >
       {children}
-    </button>
+    </Button>
   );
 }
 function allowedLabel(ids: string[] | null, names: Map<string, string>): string {
@@ -410,9 +402,3 @@ function allowedLabel(ids: string[] | null, names: Map<string, string>): string 
 function compare(left: RelationshipType, right: RelationshipType): number {
   return left.sortOrder - right.sortOrder || left.name.localeCompare(right.name, 'pt-BR');
 }
-const primaryClass =
-  'rounded-xl bg-amber-700 px-5 py-3 font-semibold text-white hover:bg-amber-800 disabled:opacity-60';
-const secondaryClass =
-  'rounded-xl border border-stone-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-stone-50 disabled:opacity-60';
-const backClass =
-  'mb-6 inline-flex rounded-lg px-2 py-1 text-sm font-semibold text-slate-600 hover:text-slate-950';

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Button, DialogActions, FormActions } from '../../components/actions';
 import type {
   Entity,
   EntityReferenceValueInput,
@@ -186,9 +187,8 @@ export function EntityForm(props: EntityFormProps): React.JSX.Element {
       return;
     }
     if (event.key !== 'Tab') return;
-    const focusable = discardDialogRef.current?.querySelectorAll<HTMLButtonElement>(
-      'button:not([disabled])',
-    );
+    const focusable =
+      discardDialogRef.current?.querySelectorAll<HTMLButtonElement>('button:not([disabled])');
     if (focusable === undefined || focusable.length === 0) return;
     const first = focusable[0];
     const last = focusable[focusable.length - 1];
@@ -239,9 +239,15 @@ export function EntityForm(props: EntityFormProps): React.JSX.Element {
 
   return (
     <section aria-labelledby="entity-form-title" className="mx-auto w-full max-w-4xl">
-      <button className={backClass} disabled={props.busy} onClick={requestCancel} type="button">
+      <Button
+        className="mb-6"
+        disabled={props.busy}
+        onClick={requestCancel}
+        size="small"
+        variant="ghost"
+      >
         ← Voltar para entidades
-      </button>
+      </Button>
       <div className="overflow-hidden rounded-3xl border border-stone-200 bg-white shadow-sm">
         <header className="border-b border-stone-200 bg-stone-50 px-8 py-7">
           <p className="text-xs font-bold tracking-[0.2em] text-amber-800 uppercase">
@@ -434,27 +440,25 @@ export function EntityForm(props: EntityFormProps): React.JSX.Element {
             </p>
           )}
 
-          <div className="flex justify-end gap-3 border-t border-stone-200 pt-7">
-            <button
-              className={secondaryClass}
-              disabled={props.busy}
-              onClick={requestCancel}
-              type="button"
-            >
+          <FormActions>
+            <Button disabled={props.busy} onClick={requestCancel}>
               Cancelar
-            </button>
-            <button className={primaryClass} disabled={props.busy} type="submit">
+            </Button>
+            <Button busy={props.busy} type="submit" variant="primary">
               {props.busy
                 ? 'Salvando…'
                 : props.mode === 'create'
                   ? 'Criar entidade'
                   : 'Salvar entidade'}
-            </button>
-          </div>
+            </Button>
+          </FormActions>
         </form>
       </div>
       {confirmDiscard ? (
-        <div className="fixed inset-0 z-30 grid place-items-center bg-slate-950/40 p-6" role="presentation">
+        <div
+          className="fixed inset-0 z-30 grid place-items-center bg-slate-950/40 p-6"
+          role="presentation"
+        >
           <section
             aria-describedby="entity-discard-description"
             aria-labelledby="entity-discard-title"
@@ -470,19 +474,14 @@ export function EntityForm(props: EntityFormProps): React.JSX.Element {
             <p className="mt-3 text-slate-600" id="entity-discard-description">
               Você possui alterações que ainda não foram salvas.
             </p>
-            <div className="mt-6 flex flex-wrap justify-end gap-3">
-              <button
-                className={secondaryClass}
-                onClick={continueEditing}
-                ref={continueEditingRef}
-                type="button"
-              >
+            <DialogActions className="mt-6">
+              <Button onClick={continueEditing} ref={continueEditingRef}>
                 Continuar editando
-              </button>
-              <button className={primaryClass} onClick={discardChanges} type="button">
+              </Button>
+              <Button onClick={discardChanges} variant="danger">
                 Descartar alterações
-              </button>
-            </div>
+              </Button>
+            </DialogActions>
           </section>
         </div>
       ) : null}
@@ -711,8 +710,3 @@ function entityTypeLabel(entityTypes: EntityType[], id: string): string {
 const labelClass = 'block text-sm font-semibold text-slate-800';
 const inputClass =
   'mt-2 w-full rounded-xl border border-stone-300 px-4 py-2.5 text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700';
-const primaryClass =
-  'rounded-xl bg-amber-700 px-6 py-3 font-semibold text-white hover:bg-amber-800 disabled:opacity-60';
-const secondaryClass =
-  'rounded-xl border border-stone-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 disabled:opacity-60';
-const backClass = 'mb-6 rounded-lg px-2 py-1 text-sm font-semibold text-slate-600';

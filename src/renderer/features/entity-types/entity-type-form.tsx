@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Button, FormActions } from '../../components/actions';
 import type {
   CreateEntityTypeInputRequest,
   EntityType,
@@ -77,15 +78,16 @@ export function EntityTypeForm(props: EntityTypeFormProps): React.JSX.Element {
 
   return (
     <section aria-labelledby="entity-type-form-title" className="mx-auto w-full max-w-4xl">
-      <button
-        className={backButtonClassName}
+      <Button
+        className="mb-6"
         disabled={props.busy}
         onClick={props.onCancel}
-        type="button"
+        size="small"
+        variant="ghost"
       >
         <span aria-hidden="true">←</span>
         Voltar para tipos de entidade
-      </button>
+      </Button>
 
       <div className="overflow-hidden rounded-3xl border border-stone-200 bg-white shadow-[0_20px_60px_-35px_rgba(15,23,42,0.35)]">
         <header className="border-b border-stone-200 bg-stone-50 px-8 py-7 sm:px-10">
@@ -181,27 +183,18 @@ export function EntityTypeForm(props: EntityTypeFormProps): React.JSX.Element {
             </p>
           )}
 
-          <div className="flex flex-wrap justify-end gap-3 border-t border-stone-200 pt-7">
-            <button
-              className={secondaryButtonClassName}
-              disabled={props.busy}
-              onClick={props.onCancel}
-              type="button"
-            >
+          <FormActions>
+            <Button disabled={props.busy} onClick={props.onCancel}>
               Cancelar
-            </button>
-            <button
-              className="rounded-xl bg-amber-700 px-6 py-3 font-semibold text-white hover:bg-amber-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 disabled:opacity-60"
-              disabled={props.busy}
-              type="submit"
-            >
+            </Button>
+            <Button busy={props.busy} type="submit" variant="primary">
               {props.busy
                 ? 'Salvando tipo…'
                 : props.mode === 'create'
                   ? 'Criar tipo de entidade'
                   : 'Salvar tipo de entidade'}
-            </button>
-          </div>
+            </Button>
+          </FormActions>
         </form>
       </div>
     </section>
@@ -323,7 +316,3 @@ function optionalValue(
 const labelClassName = 'block text-sm font-semibold text-slate-800';
 const inputClassName =
   'mt-2 w-full rounded-xl border border-stone-300 bg-white px-4 py-3 text-slate-950 shadow-sm outline-none placeholder:text-slate-400 focus:border-amber-700 focus:ring-3 focus:ring-amber-700/15 disabled:bg-stone-100 disabled:text-slate-500';
-const backButtonClassName =
-  'mb-6 inline-flex items-center gap-2 rounded-lg px-2 py-1 text-sm font-semibold text-slate-600 hover:text-slate-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700';
-const secondaryButtonClassName =
-  'rounded-xl border border-stone-300 bg-white px-5 py-3 font-semibold text-slate-700 hover:bg-stone-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 disabled:opacity-60';

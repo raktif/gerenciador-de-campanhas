@@ -4,6 +4,7 @@ import type {
   CampaignPatch,
   CreateCampaignInput,
 } from '../../../core/contracts/campaigns';
+import { Button, ButtonGroup, FormActions } from '../../components/actions';
 
 interface CommonCampaignFormProps {
   busy: boolean;
@@ -80,15 +81,10 @@ export function CampaignForm(props: CampaignFormProps): React.JSX.Element {
 
   return (
     <section aria-labelledby="campaign-form-title" className="mx-auto w-full max-w-4xl">
-      <button
-        className="mb-6 inline-flex items-center gap-2 rounded-lg px-2 py-1 text-sm font-semibold text-slate-600 hover:text-slate-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700"
-        disabled={busy}
-        onClick={onCancel}
-        type="button"
-      >
+      <Button className="mb-6" disabled={busy} onClick={onCancel} size="small" variant="ghost">
         <span aria-hidden="true">←</span>
         Voltar para campanhas
-      </button>
+      </Button>
 
       <div className="overflow-hidden rounded-3xl border border-stone-200 bg-white shadow-[0_20px_60px_-35px_rgba(15,23,42,0.35)]">
         <header className="border-b border-stone-200 bg-stone-50 px-8 py-7 sm:px-10">
@@ -220,47 +216,36 @@ export function CampaignForm(props: CampaignFormProps): React.JSX.Element {
               <p className="mt-2 text-sm leading-6 text-slate-700">
                 {confirmationDescription(pendingAction)}
               </p>
-              <div className="mt-4 flex flex-wrap gap-3">
-                <button
-                  className="rounded-lg border border-stone-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700"
-                  disabled={busy}
-                  onClick={() => setPendingAction(null)}
-                  type="button"
-                >
+              <ButtonGroup
+                align="end"
+                aria-label="Ações de confirmação da campanha"
+                className="mt-4"
+              >
+                <Button disabled={busy} onClick={() => setPendingAction(null)}>
                   Cancelar ação
-                </button>
-                <button
-                  className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
-                  disabled={busy}
+                </Button>
+                <Button
+                  busy={busy}
                   onClick={() => void props.onLifecycle(pendingAction)}
-                  type="button"
+                  variant={pendingAction === 'moveToTrash' ? 'danger' : 'primary'}
                 >
                   {confirmationButtonLabel(pendingAction)}
-                </button>
-              </div>
+                </Button>
+              </ButtonGroup>
             </div>
           ) : null}
 
-          <div className="flex flex-wrap items-center justify-between gap-4 border-t border-stone-200 pt-7">
+          <FormActions layout="between">
             {props.mode === 'edit' ? (
               <LifecycleButtons busy={busy} campaign={props.campaign} onSelect={setPendingAction} />
             ) : (
               <span />
             )}
-            <div className="flex flex-wrap justify-end gap-3">
-              <button
-                className="rounded-xl border border-stone-300 bg-white px-5 py-3 font-semibold text-slate-700 hover:bg-stone-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 disabled:opacity-60"
-                disabled={busy}
-                onClick={onCancel}
-                type="button"
-              >
+            <ButtonGroup align="end" aria-label="Ações principais da campanha">
+              <Button disabled={busy} onClick={onCancel}>
                 Cancelar
-              </button>
-              <button
-                className="rounded-xl bg-amber-700 px-6 py-3 font-semibold text-white shadow-sm hover:bg-amber-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 disabled:cursor-wait disabled:opacity-60"
-                disabled={busy}
-                type="submit"
-              >
+              </Button>
+              <Button busy={busy} type="submit" variant="primary">
                 {busy
                   ? editing
                     ? 'Salvando alterações…'
@@ -268,9 +253,9 @@ export function CampaignForm(props: CampaignFormProps): React.JSX.Element {
                   : editing
                     ? 'Salvar alterações'
                     : 'Criar campanha'}
-              </button>
-            </div>
-          </div>
+              </Button>
+            </ButtonGroup>
+          </FormActions>
         </form>
       </div>
     </section>
@@ -287,37 +272,22 @@ function LifecycleButtons({
   onSelect: (action: LifecycleAction) => void;
 }): React.JSX.Element {
   return (
-    <div className="flex flex-wrap gap-3">
+    <ButtonGroup aria-label="Ações de ciclo de vida da campanha">
       {campaign.status === 'active' ? (
-        <button
-          className={secondaryActionClassName}
-          disabled={busy}
-          onClick={() => onSelect('archive')}
-          type="button"
-        >
+        <Button disabled={busy} onClick={() => onSelect('archive')}>
           Arquivar
-        </button>
+        </Button>
       ) : (
-        <button
-          className={secondaryActionClassName}
-          disabled={busy}
-          onClick={() => onSelect('restore')}
-          type="button"
-        >
+        <Button disabled={busy} onClick={() => onSelect('restore')}>
           Restaurar
-        </button>
+        </Button>
       )}
       {campaign.status === 'deleted' ? null : (
-        <button
-          className="rounded-xl border border-red-300 bg-white px-5 py-3 font-semibold text-red-700 hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700 disabled:opacity-60"
-          disabled={busy}
-          onClick={() => onSelect('moveToTrash')}
-          type="button"
-        >
+        <Button disabled={busy} onClick={() => onSelect('moveToTrash')} variant="danger">
           Mover para lixeira
-        </button>
+        </Button>
       )}
-    </div>
+    </ButtonGroup>
   );
 }
 
@@ -437,6 +407,3 @@ function optionalValue<Field extends Exclude<keyof CreateCampaignInput, 'name'>>
 
 const inputClassName =
   'mt-2 w-full rounded-xl border border-stone-300 bg-white px-4 py-3 text-slate-950 shadow-sm outline-none placeholder:text-slate-400 focus:border-amber-700 focus:ring-3 focus:ring-amber-700/15 disabled:bg-stone-100 disabled:text-slate-500';
-
-const secondaryActionClassName =
-  'rounded-xl border border-stone-300 bg-white px-5 py-3 font-semibold text-slate-700 hover:bg-stone-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 disabled:opacity-60';

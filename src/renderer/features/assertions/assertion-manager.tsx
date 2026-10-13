@@ -9,8 +9,6 @@ import {
   inputClass,
   knowledgeLabel,
   knowledgeOptions,
-  primaryClass,
-  secondaryClass,
   visibilityLabel,
   visibilityOptions,
   type NarrativeMetadataValues,
@@ -22,6 +20,7 @@ import {
   type UserFacingError,
 } from '../../../core/errors/user-facing-error';
 import { UserFacingErrorNotice } from '../../components/user-facing-error-notice';
+import { Button, ButtonGroup, FormActions, ToolbarActions } from '../../components/actions';
 
 type View = 'list' | 'create' | 'edit';
 export interface NarrativeContext {
@@ -200,9 +199,9 @@ export function AssertionManager({
     );
   return (
     <section aria-labelledby="assertions-title">
-      <button className={secondaryClass} onClick={onBack} type="button">
+      <Button onClick={onBack} size="small" variant="ghost">
         ← {context === undefined ? 'Voltar para detalhes da campanha' : `Voltar para entidades`}
-      </button>
+      </Button>
       <header className="mt-6 flex flex-wrap items-end justify-between gap-5 border-b border-stone-200 pb-6">
         <div>
           <p className="text-xs font-bold tracking-[0.18em] text-amber-800 uppercase">
@@ -217,19 +216,19 @@ export function AssertionManager({
               : `Contexto: ${context.entityName}`}
           </p>
         </div>
-        <button
-          className={primaryClass}
+        <Button
           disabled={busy || entities.length === 0}
           onClick={() => {
             setEditing(null);
             setView('create');
           }}
-          type="button"
+          size="large"
+          variant="primary"
         >
           Nova afirmação
-        </button>
+        </Button>
       </header>
-      <div className="mt-5 flex flex-wrap gap-3">
+      <ToolbarActions aria-label="Filtros de afirmações" className="mt-5">
         <Filter
           label="Natureza"
           value={knowledge}
@@ -243,23 +242,13 @@ export function AssertionManager({
           options={visibilityOptions}
           onChange={setVisibility}
         />
-        <button
-          aria-pressed={!archived}
-          className={secondaryClass}
-          onClick={() => setArchived(false)}
-          type="button"
-        >
+        <Button aria-pressed={!archived} onClick={() => setArchived(false)}>
           Ativas
-        </button>
-        <button
-          aria-pressed={archived}
-          className={secondaryClass}
-          onClick={() => setArchived(true)}
-          type="button"
-        >
+        </Button>
+        <Button aria-pressed={archived} onClick={() => setArchived(true)}>
           Arquivadas
-        </button>
-      </div>
+        </Button>
+      </ToolbarActions>
       {announcement === null ? null : (
         <p
           aria-live="polite"
@@ -281,24 +270,14 @@ export function AssertionManager({
       {pending === null ? null : (
         <div className="mt-5 rounded-xl border border-amber-300 bg-amber-50 p-5" role="alert">
           <p className="font-semibold">Arquivar esta afirmação?</p>
-          <div className="mt-3 flex gap-3">
-            <button
-              className={secondaryClass}
-              disabled={busy}
-              onClick={() => setPending(null)}
-              type="button"
-            >
+          <ButtonGroup aria-label="Ações de confirmação" className="mt-3">
+            <Button disabled={busy} onClick={() => setPending(null)}>
               Cancelar ação
-            </button>
-            <button
-              className={primaryClass}
-              disabled={busy}
-              onClick={() => void lifecycle(pending, false)}
-              type="button"
-            >
+            </Button>
+            <Button busy={busy} onClick={() => void lifecycle(pending, false)} variant="primary">
               Confirmar arquivamento da afirmação
-            </button>
-          </div>
+            </Button>
+          </ButtonGroup>
         </div>
       )}
       {loading && items.length === 0 ? (
@@ -324,48 +303,28 @@ export function AssertionManager({
                   Possibilidade — não confirmada como fato
                 </p>
               ) : null}
-              <div className="mt-5 flex justify-end gap-3">
-                <button
-                  className={secondaryClass}
-                  disabled={busy}
-                  onClick={() => void beginEdit(item)}
-                  type="button"
-                >
+              <ToolbarActions aria-label="Ações da afirmação" className="mt-5 justify-end">
+                <Button disabled={busy} onClick={() => void beginEdit(item)}>
                   Editar afirmação
-                </button>
+                </Button>
                 {item.archivedAt === null ? (
-                  <button
-                    className={secondaryClass}
-                    disabled={busy}
-                    onClick={() => setPending(item)}
-                    type="button"
-                  >
+                  <Button disabled={busy} onClick={() => setPending(item)}>
                     Arquivar afirmação
-                  </button>
+                  </Button>
                 ) : (
-                  <button
-                    className={secondaryClass}
-                    disabled={busy}
-                    onClick={() => void lifecycle(item, true)}
-                    type="button"
-                  >
+                  <Button disabled={busy} onClick={() => void lifecycle(item, true)}>
                     Restaurar afirmação
-                  </button>
+                  </Button>
                 )}
-              </div>
+              </ToolbarActions>
             </article>
           ))}
         </div>
       )}
       {cursor === null ? null : (
-        <button
-          className={`${secondaryClass} mt-6`}
-          disabled={loading}
-          onClick={() => void load(true)}
-          type="button"
-        >
+        <Button busy={loading} className="mt-6" onClick={() => void load(true)}>
           {loading ? 'Carregando…' : 'Carregar mais afirmações'}
-        </button>
+        </Button>
       )}
     </section>
   );
@@ -457,9 +416,9 @@ function AssertionForm({
   }
   return (
     <section className="mx-auto max-w-4xl">
-      <button className={secondaryClass} disabled={busy} onClick={onCancel} type="button">
+      <Button disabled={busy} onClick={onCancel} size="small" variant="ghost">
         ← Voltar para afirmações
-      </button>
+      </Button>
       <div className="mt-6 rounded-3xl border border-stone-200 bg-white p-8">
         <h1 className="text-3xl font-semibold">
           {assertion === null ? 'Nova afirmação' : 'Editar afirmação'}
@@ -485,24 +444,14 @@ function AssertionForm({
           </label>
           <fieldset>
             <legend className="font-semibold">Formato</legend>
-            <div className="mt-2 flex gap-3">
-              <button
-                aria-pressed={!structured}
-                className={secondaryClass}
-                onClick={() => setStructured(false)}
-                type="button"
-              >
+            <ButtonGroup aria-label="Formato da afirmação" className="mt-2">
+              <Button aria-pressed={!structured} onClick={() => setStructured(false)}>
                 Textual
-              </button>
-              <button
-                aria-pressed={structured}
-                className={secondaryClass}
-                onClick={() => setStructured(true)}
-                type="button"
-              >
+              </Button>
+              <Button aria-pressed={structured} onClick={() => setStructured(true)}>
                 Estruturada
-              </button>
-            </div>
+              </Button>
+            </ButtonGroup>
           </fieldset>
           {structured ? (
             <div className="grid gap-5 md:grid-cols-2">
@@ -568,14 +517,14 @@ function AssertionForm({
               {error ?? validation}
             </p>
           )}
-          <div className="flex justify-end gap-3">
-            <button className={secondaryClass} disabled={busy} onClick={onCancel} type="button">
+          <FormActions>
+            <Button disabled={busy} onClick={onCancel}>
               Cancelar
-            </button>
-            <button className={primaryClass} disabled={busy || sessionUnavailable} type="submit">
+            </Button>
+            <Button busy={busy} disabled={sessionUnavailable} type="submit" variant="primary">
               {busy ? 'Salvando…' : assertion === null ? 'Criar afirmação' : 'Salvar afirmação'}
-            </button>
-          </div>
+            </Button>
+          </FormActions>
         </form>
       </div>
     </section>

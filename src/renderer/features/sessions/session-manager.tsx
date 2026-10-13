@@ -7,7 +7,7 @@ import type {
   SessionIntention,
   SessionParticipantInput,
 } from '../../../core/contracts/sessions';
-import { inputClass, primaryClass, secondaryClass } from '../narrative/narrative-metadata-fields';
+import { inputClass } from '../narrative/narrative-metadata-fields';
 import { EventManager } from './event-manager';
 import {
   presentUserFacingError,
@@ -16,6 +16,13 @@ import {
 } from '../../../core/errors/user-facing-error';
 import { UserFacingErrorNotice } from '../../components/user-facing-error-notice';
 import { ReorderableList } from '../../components/reorderable-list';
+import {
+  Button,
+  ButtonGroup,
+  DialogActions,
+  FormActions,
+  ToolbarActions,
+} from '../../components/actions';
 import { moveRelative } from '../../../core/ordering/move-relative';
 
 type View = 'list' | 'create' | 'edit';
@@ -190,9 +197,9 @@ export function SessionManager({
     );
   return (
     <section aria-labelledby="sessions-title">
-      <button className={secondaryClass} onClick={onBack} type="button">
+      <Button onClick={onBack} size="small" variant="ghost">
         ← Voltar para detalhes da campanha
-      </button>
+      </Button>
       <header className="mt-6 flex flex-wrap items-end justify-between gap-5 border-b border-stone-200 pb-6">
         <div>
           <p className="text-xs font-bold tracking-[0.18em] text-amber-800 uppercase">
@@ -203,25 +210,22 @@ export function SessionManager({
           </h1>
           <p className="mt-2 text-slate-600">Planeje e acompanhe o ciclo de vida de cada sessão.</p>
         </div>
-        <button
-          className={primaryClass}
-          disabled={busy}
-          onClick={() => {
-            setEditing(null);
-            setView('create');
-          }}
-          type="button"
-        >
-          Planejar sessão
-        </button>
-        <button
-          className={secondaryClass}
-          disabled={busy}
-          onClick={() => setSection('events')}
-          type="button"
-        >
-          Gerenciar eventos
-        </button>
+        <ToolbarActions aria-label="Ações de sessões">
+          <Button
+            disabled={busy}
+            onClick={() => {
+              setEditing(null);
+              setView('create');
+            }}
+            size="large"
+            variant="primary"
+          >
+            Planejar sessão
+          </Button>
+          <Button disabled={busy} onClick={() => setSection('events')} size="large">
+            Gerenciar eventos
+          </Button>
+        </ToolbarActions>
       </header>
       <div
         className="mt-5 flex flex-wrap gap-2"
@@ -272,24 +276,22 @@ export function SessionManager({
                   <h2 className="mt-1 text-xl font-semibold">{item.title}</h2>
                   <p className="mt-2 text-sm text-slate-600">{formatDate(item.playedAt)}</p>
                 </div>
-                <button
-                  className={secondaryClass}
+                <Button
                   disabled={busy}
                   onClick={() => void beginEdit(item)}
-                  type="button"
                   aria-label={`Editar ${item.title}`}
                 >
                   Abrir sessão
-                </button>
+                </Button>
               </div>
             </li>
           ))}
         </ul>
       )}
       {cursor === null || loading ? null : (
-        <button className={`${secondaryClass} mt-5`} onClick={() => void load(true)} type="button">
+        <Button className="mt-5" onClick={() => void load(true)}>
           Carregar mais sessões
-        </button>
+        </Button>
       )}
     </section>
   );
@@ -541,9 +543,9 @@ function SessionEditor({
   }
   return (
     <section aria-labelledby="session-form-title" className="mx-auto max-w-5xl">
-      <button className={secondaryClass} disabled={busy} onClick={onBack} type="button">
+      <Button disabled={busy} onClick={onBack} size="small" variant="ghost">
         ← Voltar para sessões
-      </button>
+      </Button>
       <header className="mt-6 border-b border-stone-200 pb-6">
         <p className="text-xs font-bold tracking-[0.18em] text-amber-800 uppercase">
           {campaign.name}
@@ -608,36 +610,26 @@ function SessionEditor({
         {pending === null ? null : (
           <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4">
             <p>Confirmar: {transitionLabel(pending.status)} esta sessão?</p>
-            <div className="mt-3 flex gap-3">
-              <button
-                className={secondaryClass}
-                disabled={busy}
-                onClick={onCancelTransition}
-                type="button"
-              >
+            <DialogActions className="mt-3">
+              <Button disabled={busy} onClick={onCancelTransition}>
                 Cancelar
-              </button>
-              <button
-                className={primaryClass}
-                disabled={busy}
-                onClick={() => void onConfirmTransition()}
-                type="button"
-              >
+              </Button>
+              <Button busy={busy} onClick={() => void onConfirmTransition()} variant="primary">
                 Confirmar {transitionLabel(pending.status).toLowerCase()}
-              </button>
-            </div>
+              </Button>
+            </DialogActions>
           </div>
         )}
-        <div className="flex flex-wrap justify-between gap-3">
-          <div className="flex gap-2">
-            {session === null ? null : (
+        <FormActions layout="between">
+          {session === null ? null : (
+            <ButtonGroup aria-label="Ações de ciclo de vida da sessão">
               <LifecycleButtons session={session} busy={busy} onTransition={onTransition} />
-            )}
-          </div>
-          <button className={primaryClass} disabled={busy} type="submit">
+            </ButtonGroup>
+          )}
+          <Button busy={busy} type="submit" variant="primary">
             {busy ? 'Salvando…' : session === null ? 'Planejar sessão' : 'Salvar sessão'}
-          </button>
-        </div>
+          </Button>
+        </FormActions>
       </form>
       {session === null ? null : (
         <>
@@ -767,14 +759,13 @@ function ParticipantEditor({
         busy={busy || loading}
         className="mt-4 grid gap-3"
         getLabel={(item) =>
-          entities.find((entity) => entity.id === item.entityId)?.name ?? 'Participante sem entidade'
+          entities.find((entity) => entity.id === item.entityId)?.name ??
+          'Participante sem entidade'
         }
         items={participants}
         onMove={(move) => setParticipants((current) => moveRelative(current, move))}
         renderItem={(item) => (
-          <div
-            className="grid gap-3 rounded-xl bg-stone-50 p-3 md:grid-cols-[1fr_11rem_8rem_auto]"
-          >
+          <div className="grid gap-3 rounded-xl bg-stone-50 p-3 md:grid-cols-[1fr_11rem_8rem_auto]">
             <label className="text-sm font-semibold">
               Entidade
               <select
@@ -822,43 +813,36 @@ function ParticipantEditor({
                 <option value="false">Ausente</option>
               </select>
             </label>
-            <button
-              className={secondaryClass}
+            <Button
               disabled={busy}
               onClick={() =>
                 setParticipants((current) => current.filter((entry) => entry.id !== item.id))
               }
-              type="button"
             >
               Remover
-            </button>
+            </Button>
           </div>
         )}
       />
       {!loading && participants.length === 0 ? (
         <p className="mt-4 text-sm text-slate-600">Nenhum participante registrado.</p>
       ) : null}
-      <div className="mt-4 flex gap-3">
-        <button
-          className={secondaryClass}
-          disabled={busy || entities.length === 0}
-          onClick={add}
-          type="button"
-        >
+      <ButtonGroup aria-label="Ações dos participantes" className="mt-4">
+        <Button disabled={busy || entities.length === 0} onClick={add}>
           Adicionar participante
-        </button>
-        <button
-          className={primaryClass}
+        </Button>
+        <Button
+          busy={busy}
           disabled={busy || participants.some((item) => item.entityId === '')}
           onClick={onSave}
-          type="button"
+          variant="primary"
         >
           Salvar participantes
-        </button>
-        <button className={secondaryClass} disabled={busy || loading} onClick={retry} type="button">
+        </Button>
+        <Button disabled={busy || loading} onClick={retry}>
           Atualizar participantes
-        </button>
-      </div>
+        </Button>
+      </ButtonGroup>
     </section>
   );
 }
@@ -952,21 +936,16 @@ function IntentionEditor({
             ))}
           </select>
         </label>
-        <div className="flex self-end gap-2">
+        <ButtonGroup aria-label="Ações da intenção" className="self-end">
           {editing === null ? null : (
-            <button className={secondaryClass} disabled={busy} onClick={onCancelEdit} type="button">
+            <Button disabled={busy} onClick={onCancelEdit}>
               Cancelar edição
-            </button>
+            </Button>
           )}
-          <button
-            className={primaryClass}
-            disabled={busy || text.trim() === ''}
-            onClick={onSave}
-            type="button"
-          >
+          <Button busy={busy} disabled={text.trim() === ''} onClick={onSave} variant="primary">
             {editing === null ? 'Registrar intenção' : 'Salvar intenção'}
-          </button>
-        </div>
+          </Button>
+        </ButtonGroup>
       </div>
       {error === null ? null : (
         <div className="mt-4">
@@ -990,42 +969,26 @@ function IntentionEditor({
                   <p className="font-semibold">{item.text}</p>
                   <p className="mt-1 text-sm text-slate-600">{intentionStatusLabel(item.status)}</p>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    className={secondaryClass}
-                    disabled={busy}
-                    onClick={() => onEdit(item)}
-                    type="button"
-                  >
+                <ToolbarActions aria-label={`Ações da intenção ${item.text}`} className="gap-2">
+                  <Button disabled={busy} onClick={() => onEdit(item)}>
                     Editar intenção
-                  </button>
+                  </Button>
                   {item.status === 'open'
                     ? (['completed', 'abandoned', 'transformed'] as const).map((status) => (
-                        <button
-                          className={secondaryClass}
-                          disabled={busy}
-                          key={status}
-                          onClick={() => onStatus(item, status)}
-                          type="button"
-                        >
+                        <Button disabled={busy} key={status} onClick={() => onStatus(item, status)}>
                           {intentionActionLabel(status)}
-                        </button>
+                        </Button>
                       ))
                     : null}
-                </div>
+                </ToolbarActions>
               </div>
             </li>
           ))}
         </ul>
         {cursor === null || loading ? null : (
-          <button
-            className={`${secondaryClass} mt-4`}
-            disabled={busy || loading}
-            onClick={onLoadMore}
-            type="button"
-          >
+          <Button busy={loading} className="mt-4" disabled={busy} onClick={onLoadMore}>
             Carregar mais intenções
-          </button>
+          </Button>
         )}
         {!loading && items.length === 0 ? (
           <p className="mt-4 text-sm text-slate-600">Nenhuma intenção registrada.</p>
@@ -1047,43 +1010,23 @@ function LifecycleButtons({
   if (session.status === 'planned')
     return (
       <>
-        <button
-          className={secondaryClass}
-          disabled={busy}
-          onClick={() => onTransition({ session, status: 'in_progress' })}
-          type="button"
-        >
+        <Button disabled={busy} onClick={() => onTransition({ session, status: 'in_progress' })}>
           Iniciar sessão
-        </button>
-        <button
-          className={secondaryClass}
-          disabled={busy}
-          onClick={() => onTransition({ session, status: 'cancelled' })}
-          type="button"
-        >
+        </Button>
+        <Button disabled={busy} onClick={() => onTransition({ session, status: 'cancelled' })}>
           Cancelar sessão
-        </button>
+        </Button>
       </>
     );
   if (session.status === 'in_progress')
     return (
       <>
-        <button
-          className={secondaryClass}
-          disabled={busy}
-          onClick={() => onTransition({ session, status: 'completed' })}
-          type="button"
-        >
+        <Button disabled={busy} onClick={() => onTransition({ session, status: 'completed' })}>
           Concluir sessão
-        </button>
-        <button
-          className={secondaryClass}
-          disabled={busy}
-          onClick={() => onTransition({ session, status: 'cancelled' })}
-          type="button"
-        >
+        </Button>
+        <Button disabled={busy} onClick={() => onTransition({ session, status: 'cancelled' })}>
           Cancelar sessão
-        </button>
+        </Button>
       </>
     );
   return (
@@ -1110,15 +1053,13 @@ function StatusFilter({
           { value: 'cancelled', label: 'Canceladas' },
         ] as const
       ).map((option) => (
-        <button
-          className={secondaryClass}
+        <Button
           aria-pressed={value === option.value}
           key={option.value || 'all'}
           onClick={() => onChange(option.value)}
-          type="button"
         >
           {option.label}
-        </button>
+        </Button>
       ))}
     </>
   );

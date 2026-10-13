@@ -13,8 +13,6 @@ import {
   canonLabel,
   inputClass,
   knowledgeLabel,
-  primaryClass,
-  secondaryClass,
   visibilityLabel,
   type NarrativeMetadataValues,
 } from '../narrative/narrative-metadata-fields';
@@ -31,6 +29,7 @@ import {
 } from '../../../core/errors/user-facing-error';
 import { UserFacingErrorNotice } from '../../components/user-facing-error-notice';
 import { ReorderableList } from '../../components/reorderable-list';
+import { Button, ButtonGroup, FormActions, ToolbarActions } from '../../components/actions';
 import { moveRelative } from '../../../core/ordering/move-relative';
 
 type View = 'list' | 'create' | 'edit';
@@ -266,15 +265,15 @@ export function EventManager({
 
   return (
     <section aria-labelledby="events-title">
-      <button
+      <Button
         aria-label={'Voltar para sess\u00f5es'}
-        className={secondaryClass}
         disabled={busy}
         onClick={onBack}
-        type="button"
+        size="small"
+        variant="ghost"
       >
         ← Voltar para sessões
-      </button>
+      </Button>
       <header className="mt-6 flex flex-wrap items-end justify-between gap-5 border-b border-stone-200 pb-6">
         <div>
           <p className="text-xs font-bold tracking-[0.18em] text-amber-800 uppercase">
@@ -287,43 +286,31 @@ export function EventManager({
             Registre acontecimentos, a sessão associada e as entidades envolvidas.
           </p>
         </div>
-        <button
-          className={primaryClass}
+        <Button
           disabled={busy || referencesLoading}
           onClick={() => {
             setEditing(null);
             setView('create');
           }}
-          type="button"
+          size="large"
+          variant="primary"
         >
           Registrar evento
-        </button>
+        </Button>
       </header>
       {referencesLoading ? (
         <p aria-live="polite" className="mt-4 text-sm text-slate-600" role="status">
           Carregando sessões e entidades para o evento…
         </p>
       ) : null}
-      <div className="mt-5 flex gap-2" role="group" aria-label="Filtrar eventos por estado">
-        <button
-          aria-pressed={!archived}
-          className={secondaryClass}
-          disabled={busy}
-          onClick={() => setArchived(false)}
-          type="button"
-        >
+      <ToolbarActions aria-label="Filtrar eventos por estado" className="mt-5 gap-2">
+        <Button aria-pressed={!archived} disabled={busy} onClick={() => setArchived(false)}>
           Ativos
-        </button>
-        <button
-          aria-pressed={archived}
-          className={secondaryClass}
-          disabled={busy}
-          onClick={() => setArchived(true)}
-          type="button"
-        >
+        </Button>
+        <Button aria-pressed={archived} disabled={busy} onClick={() => setArchived(true)}>
           Arquivados
-        </button>
-      </div>
+        </Button>
+      </ToolbarActions>
       {announcement === null ? null : (
         <p
           aria-live="polite"
@@ -355,24 +342,14 @@ export function EventManager({
               ? 'Os vínculos serão validados novamente antes da restauração.'
               : 'O evento e seus vínculos permanecerão preservados.'}
           </p>
-          <div className="mt-3 flex gap-3">
-            <button
-              className={secondaryClass}
-              disabled={busy}
-              onClick={() => setPending(null)}
-              type="button"
-            >
+          <ButtonGroup aria-label="Ações de confirmação" className="mt-3">
+            <Button disabled={busy} onClick={() => setPending(null)}>
               Cancelar ação
-            </button>
-            <button
-              className={primaryClass}
-              disabled={busy}
-              onClick={() => void lifecycle()}
-              type="button"
-            >
+            </Button>
+            <Button busy={busy} onClick={() => void lifecycle()} variant="primary">
               Confirmar {pending.restore ? 'restauração' : 'arquivamento'}
-            </button>
-          </div>
+            </Button>
+          </ButtonGroup>
         </div>
       )}
       {loading && items.length === 0 ? (
@@ -405,39 +382,30 @@ export function EventManager({
                     <Badge>{visibilityLabel(item.visibility)}</Badge>
                   </div>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  <button
+                <ToolbarActions aria-label={`Ações de ${item.title}`} className="gap-2">
+                  <Button
                     aria-label={`Editar ${item.title}`}
-                    className={secondaryClass}
                     disabled={busy}
                     onClick={() => void beginEdit(item)}
-                    type="button"
                   >
                     Editar
-                  </button>
-                  <button
-                    className={secondaryClass}
+                  </Button>
+                  <Button
                     disabled={busy}
                     onClick={() => setPending({ event: item, restore: item.archivedAt !== null })}
-                    type="button"
                   >
                     {item.archivedAt === null ? 'Arquivar' : 'Restaurar'}
-                  </button>
-                </div>
+                  </Button>
+                </ToolbarActions>
               </div>
             </li>
           ))}
         </ul>
       )}
       {cursor === null ? null : (
-        <button
-          className={`${secondaryClass} mt-6`}
-          disabled={busy || loading}
-          onClick={() => void load(true)}
-          type="button"
-        >
+        <Button busy={loading} className="mt-6" disabled={busy} onClick={() => void load(true)}>
           {loading ? 'Carregando…' : 'Carregar mais eventos'}
-        </button>
+        </Button>
       )}
     </section>
   );
@@ -516,16 +484,14 @@ function EventEditor({
   }
 
   function updateLink(id: string, patch: Partial<EventEntityLinkInput>): void {
-    setLinks((current) =>
-      current.map((link) => (link.id === id ? { ...link, ...patch } : link)),
-    );
+    setLinks((current) => current.map((link) => (link.id === id ? { ...link, ...patch } : link)));
   }
 
   return (
     <section className="mx-auto max-w-5xl" aria-labelledby="event-form-title">
-      <button className={secondaryClass} disabled={busy} onClick={onCancel} type="button">
+      <Button disabled={busy} onClick={onCancel} size="small" variant="ghost">
         ← Voltar para eventos
-      </button>
+      </Button>
       <div className="mt-6 rounded-3xl border border-stone-200 bg-white p-8">
         <p className="text-xs font-bold tracking-[0.18em] text-amber-800 uppercase">
           {campaign.name}
@@ -654,9 +620,7 @@ function EventEditor({
                 const isActiveEntity =
                   link.entityId === '' || availableEntityIds.has(link.entityId);
                 return (
-                  <div
-                    className="grid gap-3 rounded-xl bg-stone-50 p-4 md:grid-cols-[1fr_12rem_auto]"
-                  >
+                  <div className="grid gap-3 rounded-xl bg-stone-50 p-4 md:grid-cols-[1fr_12rem_auto]">
                     {isActiveEntity ? (
                       <label
                         className="text-sm font-semibold"
@@ -670,7 +634,9 @@ function EventEditor({
                           aria-label="Entidade vinculada"
                           required
                           value={link.entityId}
-                          onChange={(event) => updateLink(link.id, { entityId: event.target.value })}
+                          onChange={(event) =>
+                            updateLink(link.id, { entityId: event.target.value })
+                          }
                         >
                           <option value="">Selecione…</option>
                           {availableEntities.map((entity) => (
@@ -712,16 +678,14 @@ function EventEditor({
                         ))}
                       </select>
                     </label>
-                    <button
-                      className={secondaryClass}
+                    <Button
                       disabled={busy}
                       onClick={() =>
                         setLinks((current) => current.filter((item) => item.id !== link.id))
                       }
-                      type="button"
                     >
                       Remover
-                    </button>
+                    </Button>
                   </div>
                 );
               }}
@@ -729,9 +693,9 @@ function EventEditor({
             {links.length === 0 ? (
               <p className="mt-4 text-sm text-slate-600">Nenhuma entidade vinculada.</p>
             ) : null}
-            <button
+            <Button
               aria-label="Adicionar vínculo"
-              className={`${secondaryClass} mt-4`}
+              className="mt-4"
               disabled={busy || availableEntities.length === 0}
               onClick={() =>
                 setLinks((current) => [
@@ -739,10 +703,9 @@ function EventEditor({
                   { id: crypto.randomUUID(), entityId: '', role: 'related' },
                 ])
               }
-              type="button"
             >
               Adicionar vínculo
-            </button>
+            </Button>
           </fieldset>
           {error === null ? null : (
             <UserFacingErrorNotice error={error} operation="events.mutate" />
@@ -752,14 +715,14 @@ function EventEditor({
               {validation}
             </p>
           )}
-          <div className="flex justify-end gap-3">
-            <button className={secondaryClass} disabled={busy} onClick={onCancel} type="button">
+          <FormActions>
+            <Button disabled={busy} onClick={onCancel}>
               Cancelar
-            </button>
-            <button className={primaryClass} disabled={busy} type="submit">
+            </Button>
+            <Button busy={busy} type="submit" variant="primary">
               {busy ? 'Salvando…' : details === null ? 'Registrar evento' : 'Salvar evento'}
-            </button>
-          </div>
+            </Button>
+          </FormActions>
         </form>
       </div>
     </section>

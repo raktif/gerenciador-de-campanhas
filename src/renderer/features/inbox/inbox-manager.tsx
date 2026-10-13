@@ -6,12 +6,12 @@ import type { Session } from '../../../core/contracts/sessions';
 import type { EntityType } from '../../../core/contracts/entity-types';
 import type { Entity } from '../../../core/contracts/entities';
 import type { RelationshipType } from '../../../core/contracts/relationship-types';
-import { primaryClass, secondaryClass } from '../narrative/narrative-metadata-fields';
 import {
   presentUserFacingError,
   type UserFacingError,
 } from '../../../core/errors/user-facing-error';
 import { UserFacingErrorNotice } from '../../components/user-facing-error-notice';
+import { Button, DialogActions, ToolbarActions } from '../../components/actions';
 
 type Filter = 'pending' | 'dismissed' | 'archived';
 type Action = 'beginReview' | 'dismiss' | 'archive' | 'restore';
@@ -571,9 +571,9 @@ export function InboxManager({
 
   return (
     <section aria-labelledby="inbox-title">
-      <button className={secondaryClass} disabled={busy !== null} onClick={onBack} type="button">
+      <Button disabled={busy !== null} onClick={onBack} size="small" variant="ghost">
         ← Voltar para detalhes da campanha
-      </button>
+      </Button>
       <header className="mt-6 flex flex-wrap items-end justify-between gap-5 border-b border-stone-200 pb-6">
         <div>
           <p className="text-xs font-bold tracking-[0.18em] text-amber-800 uppercase">
@@ -585,7 +585,7 @@ export function InboxManager({
           <p className="mt-2 text-slate-600">Revise capturas sem alterar seu texto original.</p>
         </div>
       </header>
-      <div aria-label="Filtrar capturas" className="mt-5 flex flex-wrap gap-2" role="group">
+      <ToolbarActions aria-label="Filtrar capturas" className="mt-5 gap-2">
         {(
           [
             ['pending', 'Pendentes'],
@@ -593,21 +593,20 @@ export function InboxManager({
             ['archived', 'Arquivadas'],
           ] as const
         ).map(([value, label]) => (
-          <button
+          <Button
             aria-pressed={filter === value}
-            className={filter === value ? primaryClass : secondaryClass}
+            className={filter === value ? 'bg-slate-900 text-white' : undefined}
             disabled={busy !== null || loading}
             key={value}
             onClick={() => {
               setAnnouncement(null);
               setFilter(value);
             }}
-            type="button"
           >
             {label}
-          </button>
+          </Button>
         ))}
-      </div>
+      </ToolbarActions>
       {announcement === null ? null : (
         <p
           aria-live="polite"
@@ -659,42 +658,38 @@ export function InboxManager({
                     Sessão: {sessionLabel(sessions.get(item.sessionId))}
                   </p>
                 )}
-                <div className="mt-4 flex flex-wrap gap-2">
+                <ToolbarActions aria-label="Ações da captura" className="mt-4 gap-2">
                   {item.status === 'new' || item.status === 'dismissed' ? (
-                    <button
-                      className={primaryClass}
+                    <Button
                       disabled={busy !== null}
                       onClick={(event) => {
                         triggerRef.current = event.currentTarget;
                         void execute(item, 'beginReview');
                       }}
-                      type="button"
+                      variant="primary"
                     >
                       Marcar como em revisão
-                    </button>
+                    </Button>
                   ) : null}
                   {item.status === 'new' || item.status === 'reviewing' ? (
-                    <button
-                      className={secondaryClass}
+                    <Button
                       disabled={busy !== null}
                       onClick={(event) => {
                         triggerRef.current = event.currentTarget;
                         setConfirming({ item, action: 'dismiss' });
                       }}
-                      type="button"
                     >
                       Descartar
-                    </button>
+                    </Button>
                   ) : null}
                   {item.status === 'reviewing' ? (
                     <>
-                      <button
+                      <Button
                         aria-describedby={
                           entityTypes.length === 0
                             ? `inbox-conversion-reason-${item.id}`
                             : undefined
                         }
-                        className={primaryClass}
                         disabled={busy !== null || entityTypes.length === 0}
                         onClick={(event) => {
                           triggerRef.current = event.currentTarget;
@@ -706,32 +701,31 @@ export function InboxManager({
                           setConversionKnowledgeState('fact');
                           setConversionVisibility('gm');
                         }}
-                        type="button"
+                        variant="primary"
                       >
                         Converter em entidade
-                      </button>
+                      </Button>
                       {entityTypes.length === 0 ? (
                         <span
                           className="text-sm text-amber-900"
                           id={`inbox-conversion-reason-${item.id}`}
                         >
                           Crie um tipo de entidade ativo para converter esta captura.
-                          <button
-                            className="ml-2 font-semibold underline"
+                          <Button
+                            className="ml-2 min-h-0 p-0"
                             disabled={busy !== null}
                             onClick={onManageEntityTypes}
-                            type="button"
+                            variant="link"
                           >
                             Gerenciar tipos de entidade
-                          </button>
+                          </Button>
                         </span>
                       ) : null}
                     </>
                   ) : null}
                   {item.status === 'reviewing' ? (
                     <>
-                      <button
-                        className={secondaryClass}
+                      <Button
                         disabled={busy !== null}
                         onClick={(event) => {
                           triggerRef.current = event.currentTarget;
@@ -746,12 +740,10 @@ export function InboxManager({
                           setNoteVisibility('gm');
                           setNoteError(null);
                         }}
-                        type="button"
                       >
                         Converter em nota
-                      </button>
-                      <button
-                        className={secondaryClass}
+                      </Button>
+                      <Button
                         disabled={busy !== null}
                         onClick={(event) => {
                           triggerRef.current = event.currentTarget;
@@ -768,19 +760,17 @@ export function InboxManager({
                           setEventVisibility('gm');
                           setEventError(null);
                         }}
-                        type="button"
                       >
                         Converter em evento
-                      </button>
+                      </Button>
                     </>
                   ) : null}
                   {item.status === 'reviewing' ? (
                     <>
-                      <button
+                      <Button
                         aria-describedby={
                           entities.length === 0 ? `inbox-assertion-reason-${item.id}` : undefined
                         }
-                        className={secondaryClass}
                         disabled={busy !== null || entities.length === 0}
                         onClick={(event) => {
                           triggerRef.current = event.currentTarget;
@@ -795,32 +785,30 @@ export function InboxManager({
                           setAssertionVisibility('gm');
                           setAssertionError(null);
                         }}
-                        type="button"
                       >
                         Converter em afirmação
-                      </button>
+                      </Button>
                       {entities.length === 0 ? (
                         <span
                           className="text-sm text-amber-900"
                           id={`inbox-assertion-reason-${item.id}`}
                         >
                           Crie uma entidade ativa na campanha para definir o sujeito da afirmação.
-                          <button
-                            className="ml-2 font-semibold underline"
+                          <Button
+                            className="ml-2 min-h-0 p-0"
                             disabled={busy !== null}
                             onClick={onManageEntities}
-                            type="button"
+                            variant="link"
                           >
                             Gerenciar entidades
-                          </button>
+                          </Button>
                         </span>
                       ) : null}
                     </>
                   ) : null}
                   {item.status === 'reviewing' ? (
                     <>
-                      <button
-                        className={secondaryClass}
+                      <Button
                         disabled={busy !== null || relationshipTypes.length === 0}
                         aria-describedby={
                           relationshipTypes.length === 0
@@ -866,69 +854,65 @@ export function InboxManager({
                           setRelationshipVisibility('gm');
                           setRelationshipError(null);
                         }}
-                        type="button"
                       >
                         Converter em relação
-                      </button>
+                      </Button>
                       {relationshipTypes.length === 0 ? (
                         <span
                           className="text-sm text-amber-900"
                           id={`inbox-relationship-reason-${item.id}`}
                         >
                           Crie um tipo de relação ativo para converter esta captura.
-                          <button
-                            className="ml-2 font-semibold underline"
+                          <Button
+                            className="ml-2 min-h-0 p-0"
                             disabled={busy !== null}
                             onClick={onManageRelationshipTypes}
-                            type="button"
+                            variant="link"
                           >
                             Gerenciar tipos de relação
-                          </button>
+                          </Button>
                         </span>
                       ) : null}
                     </>
                   ) : null}
                   {item.status !== 'archived' && item.status !== 'converted' ? (
-                    <button
-                      className={secondaryClass}
+                    <Button
                       disabled={busy !== null}
                       onClick={(event) => {
                         triggerRef.current = event.currentTarget;
                         setConfirming({ item, action: 'archive' });
                       }}
-                      type="button"
                     >
                       Arquivar
-                    </button>
+                    </Button>
                   ) : null}
                   {item.status === 'archived' ? (
-                    <button
-                      className={primaryClass}
+                    <Button
                       disabled={busy !== null}
                       onClick={(event) => {
                         triggerRef.current = event.currentTarget;
                         void execute(item, 'restore');
                       }}
-                      type="button"
+                      variant="primary"
                     >
                       Restaurar
-                    </button>
+                    </Button>
                   ) : null}
-                </div>
+                </ToolbarActions>
               </article>
             </li>
           ))}
         </ul>
       )}
       {cursor === null || loading ? null : (
-        <button
-          className={`${secondaryClass} mt-5`}
-          disabled={busy !== null || loadingMore}
+        <Button
+          busy={loadingMore}
+          className="mt-5"
+          disabled={busy !== null}
           onClick={() => void load(true)}
-          type="button"
         >
           {loadingMore ? 'Carregando mais…' : 'Carregar mais'}
-        </button>
+        </Button>
       )}
       {confirming === null
         ? null
@@ -975,30 +959,27 @@ export function InboxManager({
                     ? 'A captura será marcada como descartada, mas seu texto continuará preservado.'
                     : 'A captura será removida das pendências, mas continuará preservada.'}
                 </p>
-                <div className="mt-6 flex justify-end gap-3">
-                  <button
-                    className={secondaryClass}
+                <DialogActions className="mt-6">
+                  <Button
                     disabled={busy !== null}
                     onClick={() => {
                       setConfirming(null);
                       requestAnimationFrame(() => triggerRef.current?.focus());
                     }}
                     ref={cancelRef}
-                    type="button"
                   >
                     Cancelar
-                  </button>
-                  <button
-                    className={primaryClass}
-                    disabled={busy !== null}
+                  </Button>
+                  <Button
+                    busy={busy !== null}
                     onClick={() => void execute(confirming.item, confirming.action)}
-                    type="button"
+                    variant="primary"
                   >
                     {confirming.action === 'dismiss'
                       ? 'Confirmar descarte'
                       : 'Confirmar arquivamento'}
-                  </button>
-                </div>
+                  </Button>
+                </DialogActions>
               </div>
             </div>,
             document.body,
@@ -1048,16 +1029,17 @@ export function InboxManager({
                 {entityTypes.length === 0 ? (
                   <div className="mt-4 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">
                     <p>Crie um tipo de entidade ativo antes de converter.</p>
-                    <button
-                      className="mt-2 font-semibold underline"
+                    <Button
+                      className="mt-2"
                       onClick={() => {
                         setConversion(null);
                         onManageEntityTypes();
                       }}
-                      type="button"
+                      size="small"
+                      variant="link"
                     >
                       Gerenciar tipos de entidade
-                    </button>
+                    </Button>
                   </div>
                 ) : null}
                 {conversionError === null ? null : (
@@ -1159,26 +1141,25 @@ export function InboxManager({
                     ]}
                   />
                 </fieldset>
-                <div className="mt-6 flex justify-end gap-3">
-                  <button
-                    className={secondaryClass}
+                <DialogActions className="mt-6">
+                  <Button
                     disabled={busy !== null}
                     onClick={() => {
                       setConversion(null);
                       requestAnimationFrame(() => triggerRef.current?.focus());
                     }}
-                    type="button"
                   >
                     Cancelar
-                  </button>
-                  <button
-                    className={primaryClass}
+                  </Button>
+                  <Button
+                    busy={busy === conversion.id}
                     disabled={busy !== null || entityTypes.length === 0}
                     type="submit"
+                    variant="primary"
                   >
                     {busy === conversion.id ? 'Convertendo…' : 'Confirmar conversão'}
-                  </button>
-                </div>
+                  </Button>
+                </DialogActions>
               </form>
             </div>,
             document.body,
@@ -1370,28 +1351,27 @@ export function InboxManager({
                     value={assertionVisibility}
                   />
                 </fieldset>
-                <div className="mt-6 flex justify-end gap-3">
-                  <button
-                    className={secondaryClass}
+                <DialogActions className="mt-6">
+                  <Button
                     disabled={busy !== null}
                     onClick={() => {
                       setAssertionConversion(null);
                       requestAnimationFrame(() => triggerRef.current?.focus());
                     }}
-                    type="button"
                   >
                     Cancelar
-                  </button>
-                  <button
-                    className={primaryClass}
+                  </Button>
+                  <Button
+                    busy={busy === assertionConversion.id}
                     disabled={
                       busy !== null || entities.length === 0 || assertionSubjectEntityId === ''
                     }
                     type="submit"
+                    variant="primary"
                   >
                     {busy === assertionConversion.id ? 'Convertendo…' : 'Confirmar conversão'}
-                  </button>
-                </div>
+                  </Button>
+                </DialogActions>
               </form>
             </div>,
             document.body,
@@ -1559,22 +1539,25 @@ export function InboxManager({
                     ]}
                   />
                 </fieldset>
-                <div className="mt-6 flex justify-end gap-3">
-                  <button
-                    className={secondaryClass}
+                <DialogActions className="mt-6">
+                  <Button
                     disabled={busy !== null}
                     onClick={() => {
                       setNoteConversion(null);
                       requestAnimationFrame(() => triggerRef.current?.focus());
                     }}
-                    type="button"
                   >
                     Cancelar
-                  </button>
-                  <button className={primaryClass} disabled={busy !== null} type="submit">
+                  </Button>
+                  <Button
+                    busy={busy === noteConversion.id}
+                    disabled={busy !== null}
+                    type="submit"
+                    variant="primary"
+                  >
                     {busy === noteConversion.id ? 'Convertendo…' : 'Confirmar conversão'}
-                  </button>
-                </div>
+                  </Button>
+                </DialogActions>
               </form>
             </div>,
             document.body,
@@ -1783,22 +1766,25 @@ export function InboxManager({
                     ]}
                   />
                 </fieldset>
-                <div className="mt-6 flex justify-end gap-3">
-                  <button
-                    className={secondaryClass}
+                <DialogActions className="mt-6">
+                  <Button
                     disabled={busy !== null}
                     onClick={() => {
                       setEventConversion(null);
                       requestAnimationFrame(() => triggerRef.current?.focus());
                     }}
-                    type="button"
                   >
                     Cancelar
-                  </button>
-                  <button className={primaryClass} disabled={busy !== null} type="submit">
+                  </Button>
+                  <Button
+                    busy={busy === eventConversion.id}
+                    disabled={busy !== null}
+                    type="submit"
+                    variant="primary"
+                  >
                     {busy === eventConversion.id ? 'Convertendo…' : 'Confirmar conversão'}
-                  </button>
-                </div>
+                  </Button>
+                </DialogActions>
               </form>
             </div>,
             document.body,
@@ -1860,14 +1846,15 @@ export function InboxManager({
                       O tipo selecionado não possui entidades ou tipos de entidade compatíveis para
                       todos os extremos.
                     </p>
-                    <button
-                      className="mt-2 font-semibold underline"
+                    <Button
+                      className="mt-2"
                       disabled={busy !== null}
                       onClick={onManageEntityTypes}
-                      type="button"
+                      size="small"
+                      variant="link"
                     >
                       Gerenciar tipos de entidade
-                    </button>
+                    </Button>
                   </div>
                 ) : null}
                 <label
@@ -1987,20 +1974,18 @@ export function InboxManager({
                     ]}
                   />
                 </fieldset>
-                <div className="mt-6 flex justify-end gap-3">
-                  <button
-                    className={secondaryClass}
+                <DialogActions className="mt-6">
+                  <Button
                     disabled={busy !== null}
                     onClick={() => {
                       setRelationshipConversion(null);
                       requestAnimationFrame(() => triggerRef.current?.focus());
                     }}
-                    type="button"
                   >
                     Cancelar
-                  </button>
-                  <button
-                    className={primaryClass}
+                  </Button>
+                  <Button
+                    busy={busy === relationshipConversion.id}
                     disabled={
                       busy !== null ||
                       relationshipTypes.length === 0 ||
@@ -2010,10 +1995,11 @@ export function InboxManager({
                       (relationshipTargetMode === 'new' && compatibleTargetTypes.length === 0)
                     }
                     type="submit"
+                    variant="primary"
                   >
                     {busy === relationshipConversion.id ? 'Convertendo…' : 'Confirmar conversão'}
-                  </button>
-                </div>
+                  </Button>
+                </DialogActions>
               </form>
             </div>,
             document.body,

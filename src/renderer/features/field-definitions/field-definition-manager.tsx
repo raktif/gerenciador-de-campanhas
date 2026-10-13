@@ -13,6 +13,7 @@ import {
 import { UserFacingErrorNotice } from '../../components/user-facing-error-notice';
 import { ReorderableList } from '../../components/reorderable-list';
 import type { RelativeMove } from '../../../core/ordering/move-relative';
+import { Button, ButtonGroup, ToolbarActions } from '../../components/actions';
 
 type View = 'list' | 'create' | 'edit';
 
@@ -221,9 +222,9 @@ export function FieldDefinitionManager({
 
   return (
     <section aria-labelledby="fields-title">
-      <button className={backClass} onClick={onBack} type="button">
+      <Button className="mb-6" onClick={onBack} size="small" variant="ghost">
         ← Voltar para tipos de entidade
-      </button>
+      </Button>
       <header className="flex items-end justify-between gap-6 border-b border-stone-200 pb-7">
         <div>
           <p className="text-xs font-bold tracking-[0.18em] text-amber-800 uppercase">
@@ -238,12 +239,12 @@ export function FieldDefinitionManager({
           </p>
         </div>
         {!showArchived ? (
-          <button className={primaryClass} onClick={openCreate} ref={createButtonRef} type="button">
+          <Button onClick={openCreate} ref={createButtonRef} size="large" variant="primary">
             Novo campo
-          </button>
+          </Button>
         ) : null}
       </header>
-      <div className="mt-6 flex gap-2" role="group" aria-label="Estado das definições de campo">
+      <ToolbarActions aria-label="Estado das definições de campo" className="mt-6 gap-2">
         <Filter
           active={!showArchived}
           onClick={() => {
@@ -264,7 +265,7 @@ export function FieldDefinitionManager({
         >
           Arquivadas
         </Filter>
-      </div>
+      </ToolbarActions>
       {announcement === null ? null : (
         <p
           className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800"
@@ -281,24 +282,14 @@ export function FieldDefinitionManager({
           <p className="mt-2 text-sm text-slate-700">
             A definição e os valores associados permanecerão preservados.
           </p>
-          <div className="mt-4 flex gap-3">
-            <button
-              className={secondaryClass}
-              disabled={busy}
-              onClick={() => setPending(null)}
-              type="button"
-            >
+          <ButtonGroup aria-label="Ações de confirmação" className="mt-4">
+            <Button disabled={busy} onClick={() => setPending(null)}>
               Cancelar ação
-            </button>
-            <button
-              className="rounded-xl bg-slate-900 px-5 py-3 font-semibold text-white disabled:opacity-60"
-              disabled={busy}
-              onClick={() => void lifecycle()}
-              type="button"
-            >
+            </Button>
+            <Button busy={busy} onClick={() => void lifecycle()} variant="primary">
               Confirmar {pending.isArchived ? 'restauração' : 'arquivamento'} do campo
-            </button>
-          </div>
+            </Button>
+          </ButtonGroup>
         </div>
       )}
       {error === null ? null : (
@@ -321,19 +312,22 @@ export function FieldDefinitionManager({
             {showArchived ? 'Nenhum campo arquivado' : 'Nenhuma definição de campo criada'}
           </h2>
           {!showArchived ? (
-            <button
-              className={`${primaryClass} mt-6`}
+            <Button
+              className="mt-6"
               onClick={openCreate}
               ref={createButtonRef}
-              type="button"
+              size="large"
+              variant="primary"
             >
               Criar primeiro campo
-            </button>
+            </Button>
           ) : null}
         </div>
       ) : (
         <ReorderableList
-          ariaLabel={showArchived ? 'Definições de campo arquivadas' : 'Ordenar definições de campo'}
+          ariaLabel={
+            showArchived ? 'Definições de campo arquivadas' : 'Ordenar definições de campo'
+          }
           busy={busy}
           className="mt-8 grid gap-4"
           getLabel={(field) => field.label}
@@ -356,28 +350,27 @@ export function FieldDefinitionManager({
                   </div>
                 </div>
               </div>
-              <div className="mt-5 flex justify-end gap-3 border-t border-stone-100 pt-4">
-                <button
-                  className={secondaryClass}
+              <ToolbarActions
+                aria-label={`Ações do campo ${field.label}`}
+                className="mt-5 justify-end border-t border-stone-100 pt-4"
+              >
+                <Button
                   aria-label={`Editar campo ${field.label}`}
                   onClick={() => openEdit(field)}
                   ref={(node) => {
                     if (node === null) editButtonRefs.current.delete(field.id);
                     else editButtonRefs.current.set(field.id, node);
                   }}
-                  type="button"
                 >
                   Editar
-                </button>
-                <button
-                  className={secondaryClass}
+                </Button>
+                <Button
                   aria-label={`${field.isArchived ? 'Restaurar' : 'Arquivar'} campo ${field.label}`}
                   onClick={() => setPending(field)}
-                  type="button"
                 >
                   {field.isArchived ? 'Restaurar' : 'Arquivar'}
-                </button>
-              </div>
+                </Button>
+              </ToolbarActions>
             </article>
           )}
         />
@@ -396,14 +389,14 @@ function Filter({
   children: React.ReactNode;
 }): React.JSX.Element {
   return (
-    <button
+    <Button
       aria-pressed={active}
-      className={`rounded-full px-4 py-2 text-sm font-semibold ${active ? 'bg-slate-900 text-white' : 'border border-stone-300 bg-white text-slate-600'}`}
+      className={`rounded-full ${active ? 'bg-slate-900 text-white' : ''}`}
       onClick={onClick}
-      type="button"
+      size="small"
     >
       {children}
-    </button>
+    </Button>
   );
 }
 function Badge({ children }: { children: React.ReactNode }): React.JSX.Element {
@@ -419,8 +412,3 @@ function compare(left: FieldDefinition, right: FieldDefinition): number {
 function dataTypeLabel(value: string): string {
   return value.replaceAll('_', ' ');
 }
-const primaryClass =
-  'rounded-xl bg-amber-700 px-5 py-3 font-semibold text-white disabled:opacity-60';
-const secondaryClass =
-  'rounded-xl border border-stone-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 disabled:opacity-60';
-const backClass = 'mb-6 rounded-lg px-2 py-1 text-sm font-semibold text-slate-600';

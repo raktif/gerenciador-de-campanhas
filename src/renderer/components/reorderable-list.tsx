@@ -6,6 +6,7 @@ import {
   relativeMoveForDirection,
   type MoveDirection,
 } from './reorderable-list-model';
+import { IconButton, ButtonGroup } from './actions';
 
 export interface ReorderableListProps<Item extends { id: string }> {
   ariaLabel: string;
@@ -80,8 +81,8 @@ export function ReorderableList<Item extends { id: string }>({
     <div>
       {canReorder ? (
         <p className="sr-only" id={instructionsId}>
-        Reordene arrastando os itens, usando os bot\u00f5es de mover ou pressionando Alt com seta
-        para cima ou para baixo.
+          Reordene arrastando os itens, usando os bot\u00f5es de mover ou pressionando Alt com seta
+          para cima ou para baixo.
         </p>
       ) : null}
       <ol
@@ -150,30 +151,24 @@ export function ReorderableList<Item extends { id: string }>({
                 ) : null}
                 <div className="min-w-0 flex-1">{renderItem(item)}</div>
                 {canReorder ? (
-                  <div
-                    aria-label={`Reordenar ${label}`}
-                    className="flex shrink-0 gap-2"
-                    role="group"
-                  >
-                    <button
+                  <ButtonGroup aria-label={`Reordenar ${label}`} className="shrink-0 gap-2">
+                    <IconButton
                       aria-label={`Mover ${label} para cima`}
-                      className={moveButtonClassName}
                       disabled={occupied || index === 0}
                       onClick={() => moveInDirection(item, 'up')}
-                      type="button"
+                      size="small"
                     >
                       <span aria-hidden="true">↑</span>
-                    </button>
-                    <button
+                    </IconButton>
+                    <IconButton
                       aria-label={`Mover ${label} para baixo`}
-                      className={moveButtonClassName}
                       disabled={occupied || index === items.length - 1}
                       onClick={() => moveInDirection(item, 'down')}
-                      type="button"
+                      size="small"
                     >
                       <span aria-hidden="true">↓</span>
-                    </button>
-                  </div>
+                    </IconButton>
+                  </ButtonGroup>
                 ) : null}
               </div>
             </li>
@@ -195,6 +190,3 @@ export function ReorderableList<Item extends { id: string }>({
     </div>
   );
 }
-
-const moveButtonClassName =
-  'grid size-10 place-items-center rounded-lg border border-stone-300 bg-white font-bold text-slate-700 hover:bg-stone-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 disabled:cursor-not-allowed disabled:opacity-45';

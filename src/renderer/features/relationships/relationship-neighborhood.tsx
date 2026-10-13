@@ -11,6 +11,7 @@ import {
   type UserFacingError,
 } from '../../../core/errors/user-facing-error';
 import { UserFacingErrorNotice } from '../../components/user-facing-error-notice';
+import { Button } from '../../components/actions';
 
 interface NeighborhoodFilters {
   relationshipTypeId: string;
@@ -340,13 +341,13 @@ export function RelationshipNeighborhood({
                       className="rounded-xl border border-stone-200 bg-white px-4 py-3 text-sm"
                       key={relationship.id}
                     >
-                      <button
-                        className="font-semibold text-amber-800 underline"
+                      <Button
+                        className="min-h-0 p-0 align-baseline"
                         onClick={() => setEntityId(fromId)}
-                        type="button"
+                        variant="link"
                       >
                         {entityNames.get(fromId) ?? 'Entidade'}
-                      </button>{' '}
+                      </Button>{' '}
                       <span>
                         {directionLabel(
                           relationship,
@@ -354,13 +355,13 @@ export function RelationshipNeighborhood({
                           typeById.get(relationship.relationshipTypeId),
                         )}
                       </span>{' '}
-                      <button
-                        className="font-semibold text-amber-800 underline"
+                      <Button
+                        className="min-h-0 p-0 align-baseline"
                         onClick={() => setEntityId(toId)}
-                        type="button"
+                        variant="link"
                       >
                         {entityNames.get(toId) ?? 'Entidade'}
-                      </button>
+                      </Button>
                       <span className="ml-2 text-xs text-slate-500">
                         {relationship.canonState} · {relationship.knowledgeState} ·{' '}
                         {relationship.visibility}
@@ -383,7 +384,9 @@ export function resolveCentralEntityId(
   entities: Entity[],
 ): string {
   if (centralEntityId === undefined) return '';
-  return entities.some((entity) => entity.id === centralEntityId && entity.campaignId === campaignId)
+  return entities.some(
+    (entity) => entity.id === centralEntityId && entity.campaignId === campaignId,
+  )
     ? centralEntityId
     : '';
 }

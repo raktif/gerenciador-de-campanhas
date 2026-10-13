@@ -5,6 +5,7 @@ import type { EntityType } from '../../../core/contracts/entity-types';
 import type { FieldDefinition } from '../../../core/contracts/field-definitions';
 import type { RelationshipType } from '../../../core/contracts/relationship-types';
 import type { Relationship } from '../../../core/contracts/relationships';
+import { Button, ButtonGroup } from '../../components/actions';
 
 export function EntityDetailsView({
   campaign,
@@ -65,13 +66,13 @@ export function EntityDetailsView({
         filters: { archived: false },
       }),
     ]).then(([fieldResult, relationshipResult, typeResult, entityResult]) => {
-        if (cancelled) return;
-        if (fieldResult.ok) setFields(fieldResult.data.items);
-        if (relationshipResult.ok) setRelationships(relationshipResult.data.items);
-        if (typeResult.ok) setRelationshipTypes(typeResult.data.items);
-        if (entityResult.ok) setRelatedEntities(entityResult.data.items);
-        setFieldsLoading(false);
-      });
+      if (cancelled) return;
+      if (fieldResult.ok) setFields(fieldResult.data.items);
+      if (relationshipResult.ok) setRelationships(relationshipResult.data.items);
+      if (typeResult.ok) setRelationshipTypes(typeResult.data.items);
+      if (entityResult.ok) setRelatedEntities(entityResult.data.items);
+      setFieldsLoading(false);
+    });
     return () => {
       cancelled = true;
     };
@@ -88,17 +89,21 @@ export function EntityDetailsView({
   );
   const referenceFields = fields
     .filter(
-      (field) => field.dataType === 'entity_reference' || field.dataType === 'entity_reference_list',
+      (field) =>
+        field.dataType === 'entity_reference' || field.dataType === 'entity_reference_list',
     )
-    .map((field) => ({ field, entityIds: referencedEntityIds(field, details.entity.id, relationships, relationshipTypes) }))
+    .map((field) => ({
+      field,
+      entityIds: referencedEntityIds(field, details.entity.id, relationships, relationshipTypes),
+    }))
     .filter(({ entityIds }) => entityIds.length > 0);
   const entityType = entityTypes.find((type) => type.id === details.entity.entityTypeId);
 
   return (
     <section aria-labelledby="entity-details-title" className="mx-auto w-full max-w-4xl">
-      <button className={backClass} onClick={onBack} type="button">
+      <Button className="mb-6" onClick={onBack} size="small" variant="ghost">
         ← Voltar para entidades
-      </button>
+      </Button>
       <article className="overflow-hidden rounded-3xl border border-stone-200 bg-white shadow-sm">
         <header className="flex flex-wrap items-start justify-between gap-5 border-b border-stone-200 bg-stone-50 px-8 py-7">
           <div>
@@ -117,9 +122,9 @@ export function EntityDetailsView({
               {entityType?.singularName ?? 'Tipo de entidade não encontrado'}
             </p>
           </div>
-          <button className={primaryClass} onClick={onEdit} type="button">
+          <Button onClick={onEdit} size="large" variant="primary">
             Editar
-          </button>
+          </Button>
         </header>
 
         <div className="space-y-8 px-8 py-8">
@@ -184,22 +189,30 @@ export function EntityDetailsView({
               <h2 className={sectionTitleClass} id="entity-relationships-title">
                 Relações
               </h2>
-              <button
-                className={secondaryClass}
+              <Button
                 onClick={() => onOpenRelationships(details.entity)}
                 ref={relationshipsButtonRef}
-                type="button"
               >
                 Ver relações
-              </button>
+              </Button>
             </div>
             {fieldsLoading ? null : relationships.length === 0 ? (
-              <p className="mt-3 text-slate-600">Nenhuma relação ativa foi registrada para esta entidade.</p>
+              <p className="mt-3 text-slate-600">
+                Nenhuma relação ativa foi registrada para esta entidade.
+              </p>
             ) : (
               <ul className="mt-3 grid gap-3" aria-label="Relações da entidade">
                 {relationships.map((relationship) => (
-                  <li className="rounded-xl border border-stone-200 px-4 py-3 text-slate-700" key={relationship.id}>
-                    {relationshipDescription(relationship, details.entity.id, relationshipTypes, relatedEntities)}
+                  <li
+                    className="rounded-xl border border-stone-200 px-4 py-3 text-slate-700"
+                    key={relationship.id}
+                  >
+                    {relationshipDescription(
+                      relationship,
+                      details.entity.id,
+                      relationshipTypes,
+                      relatedEntities,
+                    )}
                   </li>
                 ))}
               </ul>
@@ -230,17 +243,11 @@ export function EntityDetailsView({
             <h2 className={sectionTitleClass} id="entity-related-title">
               Informações relacionadas
             </h2>
-            <div className="mt-3 flex flex-wrap gap-3">
-              <button className={secondaryClass} onClick={onOpenAssertions} type="button">
-                Afirmações
-              </button>
-              <button className={secondaryClass} onClick={onOpenNotes} type="button">
-                Notas
-              </button>
-              <button className={secondaryClass} onClick={onOpenTimeline} type="button">
-                Linha do tempo
-              </button>
-            </div>
+            <ButtonGroup aria-label="Ações de informações relacionadas" className="mt-3">
+              <Button onClick={onOpenAssertions}>Afirmações</Button>
+              <Button onClick={onOpenNotes}>Notas</Button>
+              <Button onClick={onOpenTimeline}>Linha do tempo</Button>
+            </ButtonGroup>
           </section>
         </div>
       </article>
@@ -282,15 +289,9 @@ export function referencedEntityIds(
         if (relationship.targetEntityId === entityId) return [relationship.sourceEntityId];
         return [];
       }
-      if (
-        field.referenceDirection === 'outgoing' &&
-        relationship.sourceEntityId === entityId
-      )
+      if (field.referenceDirection === 'outgoing' && relationship.sourceEntityId === entityId)
         return [relationship.targetEntityId];
-      if (
-        field.referenceDirection === 'incoming' &&
-        relationship.targetEntityId === entityId
-      )
+      if (field.referenceDirection === 'incoming' && relationship.targetEntityId === entityId)
         return [relationship.sourceEntityId];
       return [];
     });
@@ -305,8 +306,14 @@ function relationshipDescription(
   const type = relationshipTypes.find((item) => item.id === relationship.relationshipTypeId);
   const isSource = relationship.sourceEntityId === entityId;
   const relatedEntityId = isSource ? relationship.targetEntityId : relationship.sourceEntityId;
-  const relatedName = entities.find((entity) => entity.id === relatedEntityId)?.name ?? 'Entidade indisponível';
-  const label = type === undefined ? 'Relação' : isSource || type.isSymmetric ? type.name : (type.inverseName ?? type.name);
+  const relatedName =
+    entities.find((entity) => entity.id === relatedEntityId)?.name ?? 'Entidade indisponível';
+  const label =
+    type === undefined
+      ? 'Relação'
+      : isSource || type.isSymmetric
+        ? type.name
+        : (type.inverseName ?? type.name);
   return `${label}: ${relatedName}${relationship.description === null ? '' : ` — ${relationship.description}`}`;
 }
 
@@ -344,9 +351,3 @@ function originKindLabel(value: EntityDetails['entity']['originKind']): string {
 }
 
 const sectionTitleClass = 'text-lg font-semibold text-slate-900';
-const primaryClass =
-  'rounded-xl bg-amber-700 px-5 py-3 font-semibold text-white hover:bg-amber-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700';
-const secondaryClass =
-  'rounded-xl border border-stone-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-stone-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700';
-const backClass =
-  'mb-6 rounded-lg px-2 py-1 text-sm font-semibold text-slate-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700';

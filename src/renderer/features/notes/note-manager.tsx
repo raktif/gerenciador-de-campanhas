@@ -15,8 +15,6 @@ import {
   inputClass,
   knowledgeLabel,
   knowledgeOptions,
-  primaryClass,
-  secondaryClass,
   visibilityLabel,
   visibilityOptions,
   type NarrativeMetadataValues,
@@ -28,6 +26,7 @@ import {
   type UserFacingError,
 } from '../../../core/errors/user-facing-error';
 import { UserFacingErrorNotice } from '../../components/user-facing-error-notice';
+import { Button, ButtonGroup, FormActions, ToolbarActions } from '../../components/actions';
 
 type View = 'list' | 'create' | 'edit';
 const noteTypeOptions = [
@@ -208,9 +207,9 @@ export function NoteManager({
     );
   return (
     <section aria-labelledby="notes-title">
-      <button className={secondaryClass} onClick={onBack} type="button">
+      <Button onClick={onBack} size="small" variant="ghost">
         ← {context === undefined ? 'Voltar para detalhes da campanha' : 'Voltar para entidades'}
-      </button>
+      </Button>
       <header className="mt-6 flex flex-wrap items-end justify-between gap-5 border-b border-stone-200 pb-6">
         <div>
           <p className="text-xs font-bold tracking-[0.18em] text-amber-800 uppercase">
@@ -225,19 +224,19 @@ export function NoteManager({
               : `Contexto: ${context.entityName}`}
           </p>
         </div>
-        <button
-          className={primaryClass}
+        <Button
           disabled={busy}
           onClick={() => {
             setEditing(null);
             setView('create');
           }}
-          type="button"
+          size="large"
+          variant="primary"
         >
           Nova nota
-        </button>
+        </Button>
       </header>
-      <div className="mt-5 flex flex-wrap gap-3">
+      <ToolbarActions aria-label="Filtros de notas" className="mt-5">
         <Filter label="Tipo" value={type} options={noteTypeOptions} onChange={setType} />
         <Filter
           label="Natureza"
@@ -252,23 +251,13 @@ export function NoteManager({
           options={visibilityOptions}
           onChange={setVisibility}
         />
-        <button
-          aria-pressed={!archived}
-          className={secondaryClass}
-          onClick={() => setArchived(false)}
-          type="button"
-        >
+        <Button aria-pressed={!archived} onClick={() => setArchived(false)}>
           Ativas
-        </button>
-        <button
-          aria-pressed={archived}
-          className={secondaryClass}
-          onClick={() => setArchived(true)}
-          type="button"
-        >
+        </Button>
+        <Button aria-pressed={archived} onClick={() => setArchived(true)}>
           Arquivadas
-        </button>
-      </div>
+        </Button>
+      </ToolbarActions>
       {announcement === null ? null : (
         <p
           aria-live="polite"
@@ -291,24 +280,14 @@ export function NoteManager({
         <div className="mt-5 rounded-xl border border-amber-300 bg-amber-50 p-5" role="alert">
           <p className="font-semibold">Arquivar “{pending.title}”?</p>
           <p className="mt-1 text-sm">O corpo e todos os vínculos serão preservados.</p>
-          <div className="mt-3 flex gap-3">
-            <button
-              className={secondaryClass}
-              disabled={busy}
-              onClick={() => setPending(null)}
-              type="button"
-            >
+          <ButtonGroup aria-label="Ações de confirmação" className="mt-3">
+            <Button disabled={busy} onClick={() => setPending(null)}>
               Cancelar ação
-            </button>
-            <button
-              className={primaryClass}
-              disabled={busy}
-              onClick={() => void lifecycle(pending, false)}
-              type="button"
-            >
+            </Button>
+            <Button busy={busy} onClick={() => void lifecycle(pending, false)} variant="primary">
               Confirmar arquivamento da nota
-            </button>
-          </div>
+            </Button>
+          </ButtonGroup>
         </div>
       )}
       {loading && items.length === 0 ? (
@@ -331,48 +310,28 @@ export function NoteManager({
               </div>
               <h2 className="mt-4 text-xl font-semibold">{item.title}</h2>
               <p className="mt-3 whitespace-pre-wrap text-slate-700">{item.bodyMarkdown}</p>
-              <div className="mt-5 flex justify-end gap-3">
-                <button
-                  className={secondaryClass}
-                  disabled={busy}
-                  onClick={() => void beginEdit(item)}
-                  type="button"
-                >
+              <ToolbarActions aria-label={`Ações de ${item.title}`} className="mt-5 justify-end">
+                <Button disabled={busy} onClick={() => void beginEdit(item)}>
                   Editar {item.title}
-                </button>
+                </Button>
                 {item.archivedAt === null ? (
-                  <button
-                    className={secondaryClass}
-                    disabled={busy}
-                    onClick={() => setPending(item)}
-                    type="button"
-                  >
+                  <Button disabled={busy} onClick={() => setPending(item)}>
                     Arquivar {item.title}
-                  </button>
+                  </Button>
                 ) : (
-                  <button
-                    className={secondaryClass}
-                    disabled={busy}
-                    onClick={() => void lifecycle(item, true)}
-                    type="button"
-                  >
+                  <Button disabled={busy} onClick={() => void lifecycle(item, true)}>
                     Restaurar {item.title}
-                  </button>
+                  </Button>
                 )}
-              </div>
+              </ToolbarActions>
             </article>
           ))}
         </div>
       )}
       {cursor === null ? null : (
-        <button
-          className={`${secondaryClass} mt-6`}
-          disabled={loading}
-          onClick={() => void load(true)}
-          type="button"
-        >
+        <Button busy={loading} className="mt-6" onClick={() => void load(true)}>
           {loading ? 'Carregando…' : 'Carregar mais notas'}
-        </button>
+        </Button>
       )}
     </section>
   );
@@ -478,9 +437,9 @@ function NoteForm({
   }
   return (
     <section className="mx-auto max-w-4xl">
-      <button className={secondaryClass} disabled={busy} onClick={onCancel} type="button">
+      <Button disabled={busy} onClick={onCancel} size="small" variant="ghost">
         ← Voltar para notas
-      </button>
+      </Button>
       <div className="mt-6 rounded-3xl border border-stone-200 bg-white p-8">
         <h1 className="text-3xl font-semibold">
           {details === null ? 'Nova nota' : `Editar ${details.note.title}`}
@@ -567,41 +526,38 @@ function NoteForm({
                       onChange={(event) => updateLink(index, { role: event.target.value })}
                     />
                   </label>
-                  <button
-                    className={secondaryClass}
+                  <Button
                     disabled={busy || link.entityId === context?.entityId}
                     onClick={() =>
                       setLinks((current) => current.filter((_, position) => position !== index))
                     }
-                    type="button"
                   >
                     Remover vínculo
-                  </button>
+                  </Button>
                 </div>
               ))}
             </div>
-            <button
-              className={`${secondaryClass} mt-4`}
+            <Button
+              className="mt-4"
               disabled={busy || entities.length === 0}
               onClick={() => setLinks((current) => [...current, { entityId: '', role: 'related' }])}
-              type="button"
             >
               Adicionar vínculo
-            </button>
+            </Button>
           </fieldset>
           {error === null && validation === null ? null : (
             <p className="rounded-xl bg-red-50 p-4 text-red-800" role="alert">
               {error ?? validation}
             </p>
           )}
-          <div className="flex justify-end gap-3">
-            <button className={secondaryClass} disabled={busy} onClick={onCancel} type="button">
+          <FormActions>
+            <Button disabled={busy} onClick={onCancel}>
               Cancelar
-            </button>
-            <button className={primaryClass} disabled={busy || sessionUnavailable} type="submit">
+            </Button>
+            <Button busy={busy} disabled={sessionUnavailable} type="submit" variant="primary">
               {busy ? 'Salvando…' : details === null ? 'Criar nota' : 'Salvar nota'}
-            </button>
-          </div>
+            </Button>
+          </FormActions>
         </form>
       </div>
     </section>

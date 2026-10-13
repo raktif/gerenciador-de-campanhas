@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Button, FormActions } from '../../components/actions';
 import type { EntityType } from '../../../core/contracts/entity-types';
 import type {
   CreateRelationshipTypeInput,
@@ -65,9 +66,15 @@ export function RelationshipTypeForm(props: Props): React.JSX.Element {
 
   return (
     <section aria-labelledby="relationship-type-form-title" className="mx-auto w-full max-w-5xl">
-      <button className={backClass} disabled={props.busy} onClick={props.onCancel} type="button">
+      <Button
+        className="mb-6"
+        disabled={props.busy}
+        onClick={props.onCancel}
+        size="small"
+        variant="ghost"
+      >
         ← Voltar para tipos de relação
-      </button>
+      </Button>
       <div className="overflow-hidden rounded-3xl border border-stone-200 bg-white shadow-sm">
         <header className="border-b border-stone-200 bg-stone-50 px-8 py-7">
           <p className="text-xs font-bold tracking-[0.2em] text-amber-800 uppercase">
@@ -182,23 +189,18 @@ export function RelationshipTypeForm(props: Props): React.JSX.Element {
             />
           </div>
 
-          <div className="flex justify-end gap-3 border-t border-stone-200 pt-6">
-            <button
-              className={secondaryClass}
-              disabled={props.busy}
-              onClick={props.onCancel}
-              type="button"
-            >
+          <FormActions>
+            <Button disabled={props.busy} onClick={props.onCancel}>
               Cancelar
-            </button>
-            <button className={primaryClass} disabled={props.busy} type="submit">
+            </Button>
+            <Button busy={props.busy} type="submit" variant="primary">
               {props.busy
                 ? 'Salvando…'
                 : props.mode === 'create'
                   ? 'Criar tipo'
                   : 'Salvar alterações'}
-            </button>
-          </div>
+            </Button>
+          </FormActions>
         </form>
       </div>
     </section>
@@ -367,9 +369,3 @@ function sameIds(left: string[] | null, right: string[] | null): boolean {
 
 const inputClass =
   'mt-2 w-full rounded-xl border border-stone-300 bg-white px-4 py-3 text-slate-950 shadow-sm outline-none focus:border-amber-700 focus:ring-3 focus:ring-amber-700/15 disabled:bg-stone-100';
-const primaryClass =
-  'rounded-xl bg-amber-700 px-6 py-3 font-semibold text-white hover:bg-amber-800 disabled:opacity-60';
-const secondaryClass =
-  'rounded-xl border border-stone-300 bg-white px-5 py-3 font-semibold text-slate-700 hover:bg-stone-50 disabled:opacity-60';
-const backClass =
-  'mb-6 inline-flex rounded-lg px-2 py-1 text-sm font-semibold text-slate-600 hover:text-slate-950';

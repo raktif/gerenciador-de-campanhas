@@ -2,6 +2,7 @@ import { useEffect, useRef, type Ref } from 'react';
 import type { NarrativeMetadata } from '../../../core/contracts/narrative';
 import type { UserFacingError } from '../../../core/errors/user-facing-error';
 import { UserFacingErrorNotice } from '../../components/user-facing-error-notice';
+import { Button } from '../../components/actions';
 
 export interface NarrativeMetadataValues extends Omit<NarrativeMetadata, 'sourceId'> {
   sourceId: string | null;
@@ -163,14 +164,14 @@ export function NarrativeMetadataFields({
               {typeof sessionSource.error === 'string' ? (
                 <>
                   <span id="narrative-source-session-error">{sessionSource.error}</span>
-                  <button
-                    className={`${secondaryClass} mt-2`}
+                  <Button
+                    className="mt-2"
                     onClick={retrySessions}
                     ref={retryButtonRef}
-                    type="button"
+                    size="small"
                   >
                     Tentar carregar sessões novamente
-                  </button>
+                  </Button>
                 </>
               ) : (
                 <>

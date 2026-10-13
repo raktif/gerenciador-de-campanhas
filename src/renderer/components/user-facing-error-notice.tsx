@@ -4,6 +4,7 @@ import type {
   UserFacingErrorOperation,
 } from '../../core/errors/user-facing-error';
 import { createUserFacingDiagnostic } from '../../core/errors/user-facing-error';
+import { Button, ButtonGroup } from './actions';
 
 export function UserFacingErrorNotice({
   error,
@@ -56,32 +57,28 @@ export function UserFacingErrorNotice({
           </p>
         </details>
       )}
-      <div className="mt-3 flex flex-wrap items-center gap-3">
+      <ButtonGroup aria-label="Ações do erro" className="mt-3">
         {error.canRetry && onRetry !== undefined ? (
-          <button
-            className="font-semibold underline"
+          <Button
             disabled={retryDisabled}
             onClick={onRetry}
             ref={retryButtonRef}
-            type="button"
+            size="small"
+            variant="link"
           >
             {retryLabel}
-          </button>
+          </Button>
         ) : null}
         {error.canCopyDiagnostics ? (
-          <button
-            className="font-semibold underline"
-            onClick={() => void copyDiagnostic()}
-            type="button"
-          >
+          <Button onClick={() => void copyDiagnostic()} size="small" variant="link">
             Copiar diagnóstico
-          </button>
+          </Button>
         ) : null}
         <details className="text-sm">
           <summary className="cursor-pointer font-semibold">Ver detalhes técnicos</summary>
           <p className="mt-1">Código: {error.code}</p>
         </details>
-      </div>
+      </ButtonGroup>
       {copyFeedback === undefined ? null : (
         <p aria-live="polite" className="mt-2 text-sm" role="status">
           {copyFeedback}

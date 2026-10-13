@@ -79,6 +79,10 @@ test('exibe um único feedback descartável da captura sem roubar foco', async (
     await expect(feedback).toHaveCount(1);
     await expect(feedback).toContainText('Captura salva na Caixa de Entrada.');
     await expect(trigger).toBeFocused();
+    const dismissFeedback = feedback.getByRole('button', { name: 'Fechar aviso de captura' });
+    const dismissBounds = await dismissFeedback.boundingBox();
+    expect(dismissBounds?.width ?? 0).toBeGreaterThanOrEqual(44);
+    expect(dismissBounds?.height ?? 0).toBeGreaterThanOrEqual(44);
 
     await window.keyboard.press('Escape');
     await expect(feedback).toHaveCount(0);

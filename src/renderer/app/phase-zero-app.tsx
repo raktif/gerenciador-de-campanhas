@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import type { ApplicationStatus, PhaseZeroTestRecord } from '../../core/contracts/phase-zero';
 import type { Result } from '../../core/contracts/result';
 import { userFacingErrorMessage } from '../../core/errors/user-facing-error';
+import { Button, ToolbarActions } from '../components/actions';
 
 type Feedback =
   | { tone: 'neutral'; message: string }
@@ -23,7 +24,10 @@ export function PhaseZeroApp(): React.JSX.Element {
       setStatus(result.data);
       setFeedback({ tone: 'success', message: 'A fundação local está pronta.' });
     } else {
-      setFeedback({ tone: 'error', message: userFacingErrorMessage(result.error, 'phase-zero.operation') });
+      setFeedback({
+        tone: 'error',
+        message: userFacingErrorMessage(result.error, 'phase-zero.operation'),
+      });
     }
     setBusyAction(null);
   }, []);
@@ -42,7 +46,10 @@ export function PhaseZeroApp(): React.JSX.Element {
     setBusyAction('read');
     const result = await window.campaignManager.phaseZero.readTest();
     if (!result.ok) {
-      setFeedback({ tone: 'error', message: userFacingErrorMessage(result.error, 'phase-zero.operation') });
+      setFeedback({
+        tone: 'error',
+        message: userFacingErrorMessage(result.error, 'phase-zero.operation'),
+      });
     } else if (result.data === null) {
       setFeedback({ tone: 'neutral', message: 'Nenhum valor de teste foi gravado ainda.' });
     } else {
@@ -136,14 +143,15 @@ export function PhaseZeroApp(): React.JSX.Element {
             >
               {status?.dataDirectory ?? 'Localizando…'}
             </code>
-            <button
-              className="mt-6 w-full rounded-lg border border-slate-600 px-4 py-3 font-medium transition hover:border-slate-300 hover:bg-slate-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-400 disabled:cursor-wait disabled:opacity-60"
+            <Button
+              className="mt-6 border-slate-600 bg-transparent text-white hover:border-slate-300 hover:bg-slate-800 hover:text-white"
               disabled={busyAction !== null}
+              fullWidth
               onClick={() => void openDataDirectory()}
-              type="button"
+              size="large"
             >
               Abrir pasta de dados
-            </button>
+            </Button>
           </aside>
         </section>
 
@@ -158,7 +166,7 @@ export function PhaseZeroApp(): React.JSX.Element {
             Grave um identificador no SQLite, feche completamente o aplicativo, abra novamente e
             recupere o mesmo valor.
           </p>
-          <div className="mt-6 flex flex-wrap gap-3">
+          <ToolbarActions aria-label="Ações do teste de persistência" className="mt-6">
             <ActionButton disabled={busyAction !== null} onClick={() => void writeTest()} primary>
               Gravar teste
             </ActionButton>
@@ -168,7 +176,7 @@ export function PhaseZeroApp(): React.JSX.Element {
             <ActionButton disabled={busyAction !== null} onClick={() => void loadStatus()}>
               Atualizar status
             </ActionButton>
-          </div>
+          </ToolbarActions>
           <p
             aria-live="polite"
             className={`mt-6 rounded-lg border p-4 text-sm ${feedbackClassName(feedback.tone)}`}
@@ -228,14 +236,14 @@ function ActionButton({
   primary?: boolean;
 }): React.JSX.Element {
   return (
-    <button
-      className={`rounded-lg border px-5 py-3 font-semibold transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 disabled:cursor-wait disabled:opacity-60 ${primary ? 'border-amber-700 bg-amber-700 text-white hover:bg-amber-800' : 'border-stone-300 bg-stone-50 text-slate-800 hover:bg-stone-100'}`}
+    <Button
       disabled={disabled}
       onClick={onClick}
-      type="button"
+      size="large"
+      variant={primary ? 'primary' : 'secondary'}
     >
       {children}
-    </button>
+    </Button>
   );
 }
 

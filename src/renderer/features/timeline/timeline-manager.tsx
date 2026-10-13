@@ -5,7 +5,6 @@ import type { TimelineEntry } from '../../../core/contracts/timeline';
 import {
   canonLabel,
   knowledgeLabel,
-  secondaryClass,
   visibilityLabel,
 } from '../narrative/narrative-metadata-fields';
 import { linkSummary, originLabel, rolesForEntity, timelineGroupLabel } from './timeline-model';
@@ -14,6 +13,7 @@ import {
   type UserFacingError,
 } from '../../../core/errors/user-facing-error';
 import { UserFacingErrorNotice } from '../../components/user-facing-error-notice';
+import { Button, ToolbarActions } from '../../components/actions';
 
 export function TimelineManager({
   campaign,
@@ -81,9 +81,9 @@ export function TimelineManager({
       : 'Nenhum evento vinculado a esta entidade.';
   return (
     <section aria-labelledby="timeline-title">
-      <button className={secondaryClass} onClick={onBack} type="button">
+      <Button onClick={onBack} size="small" variant="ghost">
         ← {entity === undefined ? 'Voltar para detalhes da campanha' : 'Voltar para entidades'}
-      </button>
+      </Button>
       <header className="mt-6 border-b border-stone-200 pb-6">
         <p className="text-xs font-bold tracking-[0.18em] text-amber-800 uppercase">
           {campaign.name}
@@ -97,26 +97,14 @@ export function TimelineManager({
             : 'Consulta histórica dos eventos vinculados a esta entidade.'}
         </p>
       </header>
-      <div className="mt-5 flex flex-wrap gap-2" role="group" aria-label="Filtrar cronologia">
-        <button
-          aria-pressed={!archived}
-          className={secondaryClass}
-          disabled={loading}
-          onClick={() => setArchived(false)}
-          type="button"
-        >
+      <ToolbarActions aria-label="Filtrar cronologia" className="mt-5 gap-2">
+        <Button aria-pressed={!archived} disabled={loading} onClick={() => setArchived(false)}>
           Eventos ativos
-        </button>
-        <button
-          aria-pressed={archived}
-          className={secondaryClass}
-          disabled={loading}
-          onClick={() => setArchived(true)}
-          type="button"
-        >
+        </Button>
+        <Button aria-pressed={archived} disabled={loading} onClick={() => setArchived(true)}>
           Eventos arquivados
-        </button>
-      </div>
+        </Button>
+      </ToolbarActions>
       {announcement === null ? null : (
         <p aria-live="polite" className="mt-5 text-sm text-emerald-800" role="status">
           {announcement}
@@ -176,14 +164,9 @@ export function TimelineManager({
         </ol>
       )}
       {cursor === null ? null : (
-        <button
-          className={`${secondaryClass} mt-6`}
-          disabled={loading}
-          onClick={() => void load(true)}
-          type="button"
-        >
+        <Button busy={loading} className="mt-6" onClick={() => void load(true)}>
           {loading ? 'Carregando…' : 'Carregar mais eventos'}
-        </button>
+        </Button>
       )}
     </section>
   );

@@ -10,6 +10,7 @@ import {
 import { UserFacingErrorNotice } from '../../components/user-facing-error-notice';
 import { ReorderableList } from '../../components/reorderable-list';
 import type { RelativeMove } from '../../../core/ordering/move-relative';
+import { Button, ButtonGroup, ToolbarActions } from '../../components/actions';
 
 type ManagerView = 'list' | 'create' | 'edit' | 'fields';
 type LifecycleAction = 'archive' | 'restore';
@@ -244,10 +245,10 @@ export function EntityTypeManager({
 
   return (
     <section aria-labelledby="entity-types-title">
-      <button className={backButtonClassName} onClick={onBack} type="button">
+      <Button className="mb-6" onClick={onBack} size="small" variant="ghost">
         <span aria-hidden="true">←</span>
         Voltar para detalhes da campanha
-      </button>
+      </Button>
 
       <header className="flex items-end justify-between gap-6 border-b border-stone-200 pb-7">
         <div>
@@ -262,20 +263,20 @@ export function EntityTypeManager({
           </p>
         </div>
         {!showArchived ? (
-          <button className={primaryButtonClassName} onClick={beginCreate} type="button">
+          <Button onClick={beginCreate} size="large" variant="primary">
             Novo tipo
-          </button>
+          </Button>
         ) : null}
       </header>
 
-      <div aria-label="Estado dos tipos de entidade" className="mt-6 flex gap-2" role="group">
+      <ToolbarActions aria-label="Estado dos tipos de entidade" className="mt-6 gap-2">
         <FilterButton active={!showArchived} onClick={() => selectArchived(false)}>
           Ativos
         </FilterButton>
         <FilterButton active={showArchived} onClick={() => selectArchived(true)}>
           Arquivados
         </FilterButton>
-      </div>
+      </ToolbarActions>
 
       {announcement === null ? null : (
         <p
@@ -297,26 +298,16 @@ export function EntityTypeManager({
           <p className="mt-2 text-sm text-slate-700">
             O tipo e todos os seus dados permanecerão preservados.
           </p>
-          <div className="mt-4 flex gap-3">
-            <button
-              className={secondaryButtonClassName}
-              disabled={busy}
-              onClick={() => setPendingLifecycle(null)}
-              type="button"
-            >
+          <ButtonGroup aria-label="Ações de confirmação" className="mt-4">
+            <Button disabled={busy} onClick={() => setPendingLifecycle(null)}>
               Cancelar ação
-            </button>
-            <button
-              className="rounded-xl bg-slate-900 px-5 py-3 font-semibold text-white disabled:opacity-60"
-              disabled={busy}
-              onClick={() => void applyLifecycle()}
-              type="button"
-            >
+            </Button>
+            <Button busy={busy} onClick={() => void applyLifecycle()} variant="primary">
               {pendingLifecycle.action === 'archive'
                 ? 'Confirmar arquivamento do tipo'
                 : 'Confirmar restauração do tipo'}
-            </button>
-          </div>
+            </Button>
+          </ButtonGroup>
         </div>
       )}
 
@@ -347,13 +338,9 @@ export function EntityTypeManager({
               : 'Crie a primeira categoria para começar a estruturar este mundo.'}
           </p>
           {!showArchived ? (
-            <button
-              className={`${primaryButtonClassName} mt-6`}
-              onClick={beginCreate}
-              type="button"
-            >
+            <Button className="mt-6" onClick={beginCreate} size="large" variant="primary">
               Criar primeiro tipo
-            </button>
+            </Button>
           ) : null}
         </div>
       ) : (
@@ -420,32 +407,23 @@ function EntityTypeCard({
           </div>
         </div>
       </div>
-      <div className="mt-5 flex flex-wrap justify-end gap-3 border-t border-stone-100 pt-4">
-        <button
-          aria-label={`Gerenciar campos de ${entityType.name}`}
-          className={secondaryButtonClassName}
-          onClick={onFields}
-          type="button"
-        >
+      <ToolbarActions
+        aria-label={`Ações de ${entityType.name}`}
+        className="mt-5 justify-end border-t border-stone-100 pt-4"
+      >
+        <Button aria-label={`Gerenciar campos de ${entityType.name}`} onClick={onFields}>
           Gerenciar campos
-        </button>
-        <button
-          aria-label={`Editar tipo ${entityType.name}`}
-          className={secondaryButtonClassName}
-          onClick={onEdit}
-          type="button"
-        >
+        </Button>
+        <Button aria-label={`Editar tipo ${entityType.name}`} onClick={onEdit}>
           Editar
-        </button>
-        <button
+        </Button>
+        <Button
           aria-label={`${entityType.isArchived ? 'Restaurar' : 'Arquivar'} tipo ${entityType.name}`}
-          className={secondaryButtonClassName}
           onClick={onLifecycle}
-          type="button"
         >
           {entityType.isArchived ? 'Restaurar' : 'Arquivar'}
-        </button>
-      </div>
+        </Button>
+      </ToolbarActions>
     </article>
   );
 }
@@ -460,28 +438,17 @@ function FilterButton({
   onClick: () => void;
 }): React.JSX.Element {
   return (
-    <button
+    <Button
       aria-pressed={active}
-      className={`rounded-full px-4 py-2 text-sm font-semibold ${
-        active
-          ? 'bg-slate-900 text-white'
-          : 'border border-stone-300 bg-white text-slate-600 hover:border-amber-700'
-      }`}
+      className={`rounded-full ${active ? 'bg-slate-900 text-white' : ''}`}
       onClick={onClick}
-      type="button"
+      size="small"
     >
       {children}
-    </button>
+    </Button>
   );
 }
 
 function compareEntityTypes(left: EntityType, right: EntityType): number {
   return left.sortOrder - right.sortOrder || left.name.localeCompare(right.name, 'pt-BR');
 }
-
-const primaryButtonClassName =
-  'rounded-xl bg-amber-700 px-5 py-3 font-semibold text-white hover:bg-amber-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700';
-const secondaryButtonClassName =
-  'rounded-xl border border-stone-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-stone-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 disabled:opacity-60';
-const backButtonClassName =
-  'mb-6 inline-flex items-center gap-2 rounded-lg px-2 py-1 text-sm font-semibold text-slate-600 hover:text-slate-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700';

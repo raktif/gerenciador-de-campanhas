@@ -25,6 +25,7 @@ import { TimelineManager } from '../features/timeline/timeline-manager';
 import { InboxManager } from '../features/inbox/inbox-manager';
 import { presentUserFacingError, type UserFacingError } from '../../core/errors/user-facing-error';
 import { UserFacingErrorNotice } from '../components/user-facing-error-notice';
+import { Button, ButtonGroup } from '../components/actions';
 
 type Screen =
   | 'campaigns'
@@ -422,10 +423,10 @@ function CampaignNavigation({
 }): React.JSX.Element {
   return (
     <nav aria-label={`Navegação da campanha ${campaign.name}`} className="mt-8">
-      <button className={navigationItemClass(false)} onClick={onExit} type="button">
+      <Button className={navigationItemClass} fullWidth onClick={onExit} variant="dark-navigation">
         <span aria-hidden="true">←</span>
         Campanhas
-      </button>
+      </Button>
 
       <div className="mt-6 border-y border-slate-800 px-3 py-4">
         <p className="text-[0.68rem] font-bold tracking-[0.18em] text-slate-500 uppercase">
@@ -532,24 +533,19 @@ function CampaignNavigationItem({
   onClick: () => void;
 }): React.JSX.Element {
   return (
-    <button
+    <Button
       aria-current={active ? 'page' : undefined}
-      className={navigationItemClass(active)}
+      className={navigationItemClass}
+      fullWidth
       onClick={onClick}
-      type="button"
+      variant="dark-navigation"
     >
       {label}
-    </button>
+    </Button>
   );
 }
 
-function navigationItemClass(active: boolean): string {
-  return `flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-400 ${
-    active
-      ? 'bg-slate-800 text-white shadow-inner'
-      : 'text-slate-300 hover:bg-slate-900 hover:text-white'
-  }`;
-}
+const navigationItemClass = 'justify-start text-left';
 
 function CampaignsScreen({
   announcement,
@@ -644,13 +640,14 @@ function CampaignsScreen({
               Organize seu mundo, acompanhe acontecimentos e transforme anotações em uma campanha
               viva.
             </p>
-            <button
-              className="relative mt-8 rounded-xl bg-amber-700 px-6 py-3.5 font-semibold text-white shadow-lg shadow-amber-900/15 hover:bg-amber-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700"
+            <Button
+              className="relative mt-8 shadow-lg shadow-amber-900/15"
               onClick={onCreate}
-              type="button"
+              size="large"
+              variant="primary"
             >
               Criar primeira campanha
-            </button>
+            </Button>
           </div>
         </div>
       </section>
@@ -745,32 +742,28 @@ function StartupFailureScreen({
           </summary>
           <p className="mt-2">Código: {failure.code}</p>
         </details>
-        <div className="mt-6 flex flex-wrap justify-center gap-3">
-          <button
-            className="rounded-xl bg-slate-900 px-5 py-3 font-semibold text-white hover:bg-slate-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700"
+        <ButtonGroup align="center" aria-label="Ações de recuperação" className="mt-6">
+          <Button
+            className="bg-slate-900 text-white hover:bg-slate-800"
             onClick={onRetry}
-            type="button"
+            size="large"
+            variant="primary"
           >
             Tentar novamente
-          </button>
-          <button
+          </Button>
+          <Button
             aria-controls="startup-recovery-help"
             aria-expanded={helpOpen}
-            className="rounded-xl border border-stone-300 bg-white px-5 py-3 font-semibold text-slate-700 hover:bg-stone-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700"
             onClick={() => setHelpOpen((current) => !current)}
             ref={helpTriggerRef}
-            type="button"
+            size="large"
           >
             Abrir Ajuda
-          </button>
-          <button
-            className="rounded-xl border border-stone-300 bg-white px-5 py-3 font-semibold text-slate-700 hover:bg-stone-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700"
-            onClick={() => void copyDiagnostic()}
-            type="button"
-          >
+          </Button>
+          <Button onClick={() => void copyDiagnostic()} size="large">
             Copiar diagnóstico
-          </button>
-        </div>
+          </Button>
+        </ButtonGroup>
         {copyFeedback === null ? null : (
           <p className="mt-4 text-sm text-slate-600" role="status">
             {copyFeedback}
@@ -817,13 +810,9 @@ function CampaignsHeader({
           <p className="mt-3 text-slate-600">{campaignCountLabel(campaignCount, status)}</p>
         </div>
         {status === 'active' ? (
-          <button
-            className="shrink-0 rounded-xl bg-amber-700 px-5 py-3 font-semibold text-white shadow-sm hover:bg-amber-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700"
-            onClick={onCreate}
-            type="button"
-          >
+          <Button className="shrink-0 shadow-sm" onClick={onCreate} size="large" variant="primary">
             Nova campanha
-          </button>
+          </Button>
         ) : null}
       </header>
       <CampaignStatusTabs onChange={onStatusChange} status={status} />
@@ -844,23 +833,19 @@ function CampaignStatusTabs({
     { label: 'Lixeira', status: 'deleted' },
   ];
   return (
-    <div aria-label="Status das campanhas" className="mt-6 flex gap-2" role="group">
+    <ButtonGroup aria-label="Status das campanhas" className="mt-6 gap-2">
       {tabs.map((tab) => (
-        <button
+        <Button
           aria-pressed={status === tab.status}
-          className={`rounded-full px-4 py-2 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 ${
-            status === tab.status
-              ? 'bg-slate-900 text-white'
-              : 'border border-stone-300 bg-white text-slate-600 hover:border-amber-700 hover:text-amber-800'
-          }`}
+          className={`rounded-full ${status === tab.status ? 'bg-slate-900 text-white' : ''}`}
           key={tab.status}
           onClick={() => onChange(tab.status)}
-          type="button"
+          size="small"
         >
           {tab.label}
-        </button>
+        </Button>
       ))}
-    </div>
+    </ButtonGroup>
   );
 }
 

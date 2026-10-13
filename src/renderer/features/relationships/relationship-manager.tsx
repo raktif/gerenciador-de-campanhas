@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { Button, FormActions, ToolbarActions } from '../../components/actions';
 import type { Campaign } from '../../../core/contracts/campaigns';
 import type { Entity } from '../../../core/contracts/entities';
 import type { RelationshipType } from '../../../core/contracts/relationship-types';
@@ -196,15 +197,14 @@ export function RelationshipManager({
   };
   const activeTypes = types.filter((item) => !item.isArchived);
   const activeEntities = entities.filter((item) => item.archivedAt === null);
-  const contextualEntity =
-    centralEntity?.campaignId === campaign.id ? centralEntity : undefined;
+  const contextualEntity = centralEntity?.campaignId === campaign.id ? centralEntity : undefined;
   return (
     <section aria-busy={loading || busy} aria-labelledby="relationships-title">
-      <button className={backClass} onClick={onBack} type="button">
+      <Button className="mb-6" onClick={onBack} size="small" variant="ghost">
         {contextualEntity === undefined
           ? '← Voltar para detalhes da campanha'
           : `← Voltar para detalhes de ${contextualEntity.name}`}
-      </button>
+      </Button>
       <header className="border-b border-stone-200 pb-7">
         <p className="text-xs font-bold tracking-[0.18em] text-amber-800 uppercase">
           {campaign.name}
@@ -280,26 +280,24 @@ export function RelationshipManager({
               onChange={(event) => setForm({ ...form, strength: event.target.value })}
             />
           </label>
-          <div className="flex justify-end gap-3 md:col-span-2">
+          <FormActions className="md:col-span-2">
             {editing === null ? null : (
-              <button
-                className={secondaryClass}
-                type="button"
+              <Button
                 onClick={() => {
                   setEditing(null);
                   setForm(emptyForm);
                 }}
               >
                 Cancelar
-              </button>
+              </Button>
             )}
-            <button className={primaryClass} disabled={busy} type="submit">
+            <Button busy={busy} type="submit" variant="primary">
               Salvar relação
-            </button>
-          </div>
+            </Button>
+          </FormActions>
         </form>
       ) : null}
-      <div className="mt-6 flex gap-2">
+      <ToolbarActions aria-label="Estado das relações" className="mt-6 gap-2">
         <Filter
           active={!showArchived}
           disabled={busy || loading}
@@ -314,7 +312,7 @@ export function RelationshipManager({
         >
           Arquivadas
         </Filter>
-      </div>
+      </ToolbarActions>
       {announcement === null ? null : (
         <p
           className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800"
@@ -349,26 +347,19 @@ export function RelationshipManager({
               {item.description === null ? null : (
                 <p className="mt-2 text-slate-600">{item.description}</p>
               )}
-              <div className="mt-4 flex justify-end gap-3">
+              <ToolbarActions
+                aria-label={`Ações da relação ${relationshipLabel(item)}`}
+                className="mt-4 justify-end"
+              >
                 {item.archivedAt === null ? (
-                  <button
-                    className={secondaryClass}
-                    disabled={busy}
-                    onClick={() => beginEdit(item)}
-                    type="button"
-                  >
+                  <Button disabled={busy} onClick={() => beginEdit(item)}>
                     Editar
-                  </button>
+                  </Button>
                 ) : null}
-                <button
-                  className={secondaryClass}
-                  disabled={busy}
-                  onClick={() => void lifecycle(item)}
-                  type="button"
-                >
+                <Button disabled={busy} onClick={() => void lifecycle(item)}>
                   {item.archivedAt === null ? 'Arquivar' : 'Restaurar'}
-                </button>
-              </div>
+                </Button>
+              </ToolbarActions>
             </article>
           ))}
         </div>
@@ -436,21 +427,16 @@ function Filter({
   children: React.ReactNode;
 }): React.JSX.Element {
   return (
-    <button
+    <Button
       aria-pressed={active}
-      className={`rounded-full px-4 py-2 text-sm font-semibold ${active ? 'bg-slate-900 text-white' : 'border border-stone-300 bg-white text-slate-600'}`}
+      className={`rounded-full ${active ? 'bg-slate-900 text-white' : ''}`}
       disabled={disabled}
       onClick={onClick}
-      type="button"
+      size="small"
     >
       {children}
-    </button>
+    </Button>
   );
 }
 const labelClass = 'block text-sm font-semibold text-slate-800';
 const inputClass = 'mt-2 w-full rounded-xl border border-stone-300 px-4 py-2.5';
-const primaryClass =
-  'rounded-xl bg-amber-700 px-5 py-3 font-semibold text-white disabled:opacity-60';
-const secondaryClass =
-  'rounded-xl border border-stone-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700';
-const backClass = 'mb-6 rounded-lg px-2 py-1 text-sm font-semibold text-slate-600';

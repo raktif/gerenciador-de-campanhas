@@ -9,6 +9,7 @@ import {
   type UserFacingError,
 } from '../../../core/errors/user-facing-error';
 import { UserFacingErrorNotice } from '../../components/user-facing-error-notice';
+import { Button, ButtonGroup, ToolbarActions } from '../../components/actions';
 
 type View = 'list' | 'create' | 'details' | 'edit';
 type LifecycleAction = 'archive' | 'restore';
@@ -291,9 +292,9 @@ export function EntityManager({
   }
   return (
     <section aria-labelledby="entities-title">
-      <button className={backClass} onClick={onBack} type="button">
+      <Button className="mb-6" onClick={onBack} size="small" variant="ghost">
         ← Voltar para detalhes da campanha
-      </button>
+      </Button>
       <header className="flex flex-wrap items-end justify-between gap-6 border-b border-stone-200 pb-7">
         <div>
           <p className="text-xs font-bold tracking-[0.18em] text-amber-800 uppercase">
@@ -306,20 +307,20 @@ export function EntityManager({
             Personagens, locais e outros elementos cadastrados nesta campanha.
           </p>
         </div>
-        <div className="flex gap-3">
-          <button
-            className={primaryClass}
+        <ToolbarActions aria-label="Ações de entidades">
+          <Button
             disabled={entityTypes.length === 0}
             onClick={() => {
               listFocusTargetRef.current = null;
               setError(null);
               setView('create');
             }}
-            type="button"
+            size="large"
+            variant="primary"
           >
             Nova entidade
-          </button>
-        </div>
+          </Button>
+        </ToolbarActions>
       </header>
 
       {entityTypes.length === 0 ? (
@@ -328,7 +329,7 @@ export function EntityManager({
         </p>
       ) : null}
 
-      <div className="mt-6 flex flex-wrap items-center gap-3">
+      <ToolbarActions aria-label="Filtros de entidades" className="mt-6">
         <select
           aria-label="Filtrar por tipo"
           className={inputClass}
@@ -348,7 +349,7 @@ export function EntityManager({
         <FilterButton active={showArchived} onClick={() => setShowArchived(true)}>
           Arquivadas
         </FilterButton>
-      </div>
+      </ToolbarActions>
 
       {announcement === null ? null : (
         <p
@@ -365,24 +366,14 @@ export function EntityManager({
           <h2 className="font-semibold">
             {pending.action === 'archive' ? 'Arquivar' : 'Restaurar'} “{pending.entity.name}”?
           </h2>
-          <div className="mt-4 flex gap-3">
-            <button
-              className={secondaryClass}
-              disabled={busy}
-              onClick={() => setPending(null)}
-              type="button"
-            >
+          <ButtonGroup aria-label="Ações de confirmação" className="mt-4">
+            <Button disabled={busy} onClick={() => setPending(null)}>
               Cancelar ação
-            </button>
-            <button
-              className="rounded-xl bg-slate-900 px-5 py-3 font-semibold text-white disabled:opacity-60"
-              disabled={busy}
-              onClick={() => void applyLifecycle()}
-              type="button"
-            >
+            </Button>
+            <Button busy={busy} onClick={() => void applyLifecycle()} variant="primary">
               Confirmar {pending.action === 'archive' ? 'arquivamento' : 'restauração'}
-            </button>
-          </div>
+            </Button>
+          </ButtonGroup>
         </div>
       )}
 
@@ -417,15 +408,15 @@ export function EntityManager({
               <div className="flex justify-between gap-5">
                 <div>
                   <h2 className="text-xl font-semibold">
-                    <button
+                    <Button
                       aria-label={`Abrir detalhes de ${entity.name}`}
-                      className="rounded text-left hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700"
+                      className="min-h-0 justify-start p-0 text-left"
                       data-entity-focus-id={`${entity.id}:title`}
                       onClick={() => openDetails(entity, `${entity.id}:title`)}
-                      type="button"
+                      variant="link"
                     >
                       {entity.name}
-                    </button>
+                    </Button>
                   </h2>
                   <div className="mt-2 flex flex-wrap gap-2 text-xs font-semibold text-slate-600">
                     <span className="rounded-full bg-stone-100 px-3 py-1">
@@ -447,54 +438,47 @@ export function EntityManager({
                   )}
                 </div>
               </div>
-              <div className="mt-5 flex justify-end gap-3 border-t border-stone-100 pt-4">
-                <button
+              <ToolbarActions
+                aria-label={`Ações de ${entity.name}`}
+                className="mt-5 justify-end border-t border-stone-100 pt-4"
+              >
+                <Button
                   aria-label={`Ver afirmações de ${entity.name}`}
-                  className={secondaryClass}
                   onClick={() => onOpenAssertions(entity)}
-                  type="button"
                 >
                   Afirmações
-                </button>
-                <button
+                </Button>
+                <Button
                   aria-label={`Ver notas de ${entity.name}`}
-                  className={secondaryClass}
                   onClick={() => onOpenNotes(entity)}
-                  type="button"
                 >
                   Notas
-                </button>
-                <button
+                </Button>
+                <Button
                   aria-label={`Ver cronologia de ${entity.name}`}
-                  className={secondaryClass}
                   onClick={() => onOpenTimeline(entity)}
-                  type="button"
                 >
                   Cronologia
-                </button>
-                <button
+                </Button>
+                <Button
                   aria-label={`Abrir detalhes de ${entity.name}`}
-                  className={secondaryClass}
                   data-entity-focus-id={`${entity.id}:details`}
                   onClick={() => openDetails(entity, `${entity.id}:details`)}
-                  type="button"
                 >
                   Ver detalhes
-                </button>
-                <button
+                </Button>
+                <Button
                   aria-label={`${entity.archivedAt !== null ? 'Restaurar' : 'Arquivar'} ${entity.name}`}
-                  className={secondaryClass}
                   onClick={() =>
                     setPending({
                       action: entity.archivedAt !== null ? 'restore' : 'archive',
                       entity,
                     })
                   }
-                  type="button"
                 >
                   {entity.archivedAt !== null ? 'Restaurar' : 'Arquivar'}
-                </button>
-              </div>
+                </Button>
+              </ToolbarActions>
             </article>
           ))}
         </div>
@@ -534,21 +518,16 @@ function FilterButton({
   children: React.ReactNode;
 }): React.JSX.Element {
   return (
-    <button
+    <Button
       aria-pressed={active}
-      className={`rounded-full px-4 py-2 text-sm font-semibold ${active ? 'bg-slate-900 text-white' : 'border border-stone-300 bg-white text-slate-600'}`}
+      className={`rounded-full ${active ? 'bg-slate-900 text-white' : ''}`}
       onClick={onClick}
-      type="button"
+      size="small"
     >
       {children}
-    </button>
+    </Button>
   );
 }
 
 const inputClass =
   'mt-2 w-full rounded-xl border border-stone-300 px-4 py-2.5 text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700';
-const primaryClass =
-  'rounded-xl bg-amber-700 px-5 py-3 font-semibold text-white disabled:opacity-60';
-const secondaryClass =
-  'rounded-xl border border-stone-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 disabled:opacity-60';
-const backClass = 'mb-6 rounded-lg px-2 py-1 text-sm font-semibold text-slate-600';
