@@ -284,10 +284,6 @@ export const originOptions = [
 export const inputClass =
   'mt-2 w-full rounded-xl border border-stone-300 bg-white px-4 py-2.5 text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 disabled:bg-stone-100';
 export const labelClass = 'block text-sm font-semibold text-slate-800';
-export const primaryClass =
-  'rounded-xl bg-amber-700 px-5 py-2.5 font-semibold text-white hover:bg-amber-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 disabled:cursor-wait disabled:opacity-60';
-export const secondaryClass =
-  'rounded-xl border border-stone-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-stone-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 disabled:opacity-60';
 
 export function sessionSourceDescription({
   available,

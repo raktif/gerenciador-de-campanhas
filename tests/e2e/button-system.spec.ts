@@ -108,11 +108,31 @@ test('padroniza formulários e diálogos nos tamanhos mínimo e amplo', async ()
     const entityCardActions = window.getByRole('group', { name: 'Ações de Aris' });
     await expect(entityCardActions.getByRole('button')).toHaveCount(5);
     await expectMinimumButtonHeight(entityCardActions, 44);
+    const entityTitleLink = window.getByRole('button', { name: 'Abrir detalhes de Aris' }).first();
+    expect(
+      await entityTitleLink.evaluate((element) => {
+        const style = getComputedStyle(element);
+        const parentStyle = getComputedStyle(element.parentElement ?? element);
+        return {
+          borderWidth: style.borderWidth,
+          fontSize: style.fontSize,
+          inheritedFontSize: parentStyle.fontSize,
+          minHeight: style.minHeight,
+          padding: style.padding,
+        };
+      }),
+    ).toEqual({
+      borderWidth: '0px',
+      fontSize: '20px',
+      inheritedFontSize: '20px',
+      minHeight: '0px',
+      padding: '0px',
+    });
     await setWindowBounds(application, 1024, 700);
     await expectWithinViewport(window.getByTestId('entity-list'), window);
     await expectWithinViewport(entityCardActions, window);
     await setWindowBounds(application, 1440, 900);
-    await window.getByRole('button', { name: 'Abrir detalhes de Aris' }).first().click();
+    await entityTitleLink.click();
     await window.getByRole('button', { name: 'Editar', exact: true }).click();
     await window.getByLabel('Resumo').fill('Alteração que será descartada');
     const entityCancel = window.getByRole('button', { name: 'Cancelar', exact: true });

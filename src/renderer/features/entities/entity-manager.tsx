@@ -410,9 +410,10 @@ export function EntityManager({
                   <h2 className="text-xl font-semibold">
                     <Button
                       aria-label={`Abrir detalhes de ${entity.name}`}
-                      className="min-h-0 justify-start p-0 text-left"
+                      className="justify-start text-left"
                       data-entity-focus-id={`${entity.id}:title`}
                       onClick={() => openDetails(entity, `${entity.id}:title`)}
+                      size="inline"
                       variant="link"
                     >
                       {entity.name}

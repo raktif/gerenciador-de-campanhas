@@ -342,8 +342,9 @@ export function RelationshipNeighborhood({
                       key={relationship.id}
                     >
                       <Button
-                        className="min-h-0 p-0 align-baseline"
+                        className="align-baseline"
                         onClick={() => setEntityId(fromId)}
+                        size="inline"
                         variant="link"
                       >
                         {entityNames.get(fromId) ?? 'Entidade'}
@@ -356,8 +357,9 @@ export function RelationshipNeighborhood({
                         )}
                       </span>{' '}
                       <Button
-                        className="min-h-0 p-0 align-baseline"
+                        className="align-baseline"
                         onClick={() => setEntityId(toId)}
+                        size="inline"
                         variant="link"
                       >
                         {entityNames.get(toId) ?? 'Entidade'}

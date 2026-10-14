@@ -91,6 +91,26 @@ describe('sistema compartilhado de ações', () => {
     expect(markup).not.toContain('text-slate-600');
   });
 
+  it('mantém links inline sem alvo, padding, borda ou tipografia de botão', () => {
+    const markup = renderToStaticMarkup(
+      createElement(Button, {
+        children: 'Abrir entidade',
+        size: 'inline',
+        variant: 'link',
+      }),
+    );
+
+    expect(markup).toContain('min-h-0');
+    expect(markup).toContain('p-0');
+    expect(markup).toContain('text-[inherit]');
+    expect(markup).toContain('leading-[inherit]');
+    expect(markup).not.toContain('min-h-11');
+    expect(markup).not.toContain('px-4');
+    expect(markup).not.toContain('py-2.5');
+    expect(markup).not.toContain('font-semibold');
+    expect(markup).not.toContain('border-transparent');
+  });
+
   it('nomeia o botão de ícone e mantém seu alvo quadrado', () => {
     const markup = renderToStaticMarkup(
       createElement(IconButton, {

@@ -712,9 +712,10 @@ export function InboxManager({
                         >
                           Crie um tipo de entidade ativo para converter esta captura.
                           <Button
-                            className="ml-2 min-h-0 p-0"
+                            className="ml-2"
                             disabled={busy !== null}
                             onClick={onManageEntityTypes}
+                            size="inline"
                             variant="link"
                           >
                             Gerenciar tipos de entidade
@@ -795,9 +796,10 @@ export function InboxManager({
                         >
                           Crie uma entidade ativa na campanha para definir o sujeito da afirmação.
                           <Button
-                            className="ml-2 min-h-0 p-0"
+                            className="ml-2"
                             disabled={busy !== null}
                             onClick={onManageEntities}
+                            size="inline"
                             variant="link"
                           >
                             Gerenciar entidades
@@ -864,9 +866,10 @@ export function InboxManager({
                         >
                           Crie um tipo de relação ativo para converter esta captura.
                           <Button
-                            className="ml-2 min-h-0 p-0"
+                            className="ml-2"
                             disabled={busy !== null}
                             onClick={onManageRelationshipTypes}
+                            size="inline"
                             variant="link"
                           >
                             Gerenciar tipos de relação

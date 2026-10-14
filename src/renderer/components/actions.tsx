@@ -2,7 +2,8 @@ import { forwardRef, type ButtonHTMLAttributes, type HTMLAttributes, type ReactN
 
 export type ButtonVariant =
   'primary' | 'secondary' | 'danger' | 'ghost' | 'link' | 'dark-navigation';
-export type ButtonSize = 'small' | 'medium' | 'large';
+export type ButtonSize = 'inline' | 'small' | 'medium' | 'large';
+export type IconButtonSize = Exclude<ButtonSize, 'inline'>;
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   busy?: boolean;
@@ -38,10 +39,11 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
 
 export interface IconButtonProps extends Omit<
   ButtonProps,
-  'aria-label' | 'children' | 'fullWidth'
+  'aria-label' | 'children' | 'fullWidth' | 'size'
 > {
   'aria-label': string;
   children: ReactNode;
+  size?: IconButtonSize;
 }
 
 export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(function IconButton(
@@ -206,7 +208,7 @@ function iconButtonClassName({
   variant,
 }: {
   className?: string | undefined;
-  size: ButtonSize;
+  size: IconButtonSize;
   variant: ButtonVariant;
 }): string {
   return joinClassNames(
@@ -223,32 +225,33 @@ function joinClassNames(...classNames: (string | undefined)[]): string {
 }
 
 const buttonBaseClassName =
-  'inline-flex max-w-full items-center justify-center gap-2 border text-center font-semibold leading-5 whitespace-normal transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-60';
+  'inline-flex max-w-full items-center justify-center gap-2 text-center whitespace-normal transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-60';
 
 const buttonSizeClassNames: Record<ButtonSize, string> = {
-  small: 'min-h-9 rounded-lg px-3 py-1.5 text-sm',
-  medium: 'min-h-11 rounded-xl px-4 py-2.5 text-sm',
-  large: 'min-h-12 rounded-xl px-5 py-3 text-base',
+  inline: 'min-h-0 rounded-none p-0 text-[inherit] leading-[inherit]',
+  small: 'min-h-9 rounded-lg px-3 py-1.5 text-sm font-semibold leading-5',
+  medium: 'min-h-11 rounded-xl px-4 py-2.5 text-sm font-semibold leading-5',
+  large: 'min-h-12 rounded-xl px-5 py-3 text-base font-semibold leading-5',
 };
 
-const iconButtonSizeClassNames: Record<ButtonSize, string> = {
-  small: 'size-11 rounded-lg text-sm',
-  medium: 'size-11 rounded-xl text-sm',
-  large: 'size-12 rounded-xl text-base',
+const iconButtonSizeClassNames: Record<IconButtonSize, string> = {
+  small: 'size-11 rounded-lg text-sm font-semibold',
+  medium: 'size-11 rounded-xl text-sm font-semibold',
+  large: 'size-12 rounded-xl text-base font-semibold',
 };
 
 const buttonVariantClassNames: Record<ButtonVariant, string> = {
   primary:
-    'border-transparent bg-amber-700 text-white hover:bg-amber-800 focus-visible:outline-amber-700',
+    'border border-transparent bg-amber-700 text-white hover:bg-amber-800 focus-visible:outline-amber-700',
   secondary:
-    'border-stone-300 bg-white text-slate-700 hover:border-amber-700 hover:bg-stone-50 hover:text-slate-950 focus-visible:outline-amber-700 aria-pressed:border-slate-900 aria-pressed:bg-slate-900 aria-pressed:text-white',
+    'border border-stone-300 bg-white text-slate-700 hover:border-amber-700 hover:bg-stone-50 hover:text-slate-950 focus-visible:outline-amber-700 aria-pressed:border-slate-900 aria-pressed:bg-slate-900 aria-pressed:text-white',
   danger:
-    'border-red-300 bg-white text-red-700 hover:border-red-700 hover:bg-red-50 focus-visible:outline-amber-700',
+    'border border-red-300 bg-white text-red-700 hover:border-red-700 hover:bg-red-50 focus-visible:outline-amber-700',
   ghost:
-    'border-transparent bg-transparent text-slate-600 hover:bg-stone-100 hover:text-slate-950 focus-visible:outline-amber-700',
-  link: 'border-transparent bg-transparent text-amber-800 underline-offset-4 hover:underline focus-visible:outline-amber-700',
+    'border border-transparent bg-transparent text-slate-600 hover:bg-stone-100 hover:text-slate-950 focus-visible:outline-amber-700',
+  link: 'bg-transparent text-amber-800 underline-offset-4 hover:underline focus-visible:outline-amber-700',
   'dark-navigation':
-    'border-transparent bg-transparent text-slate-300 hover:bg-slate-900 hover:text-white focus-visible:outline-amber-400 aria-[current=page]:bg-slate-800 aria-[current=page]:text-white aria-[current=page]:shadow-inner',
+    'border border-transparent bg-transparent text-slate-300 hover:bg-slate-900 hover:text-white focus-visible:outline-amber-400 aria-[current=page]:bg-slate-800 aria-[current=page]:text-white aria-[current=page]:shadow-inner',
 };
 
 const groupAlignmentClassNames: Record<NonNullable<ButtonGroupProps['align']>, string> = {
