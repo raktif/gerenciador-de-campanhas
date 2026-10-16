@@ -8,6 +8,7 @@ import type {
 import { fieldDefinitionChannels } from '../../src/core/contracts/ipc-channels';
 import { registerFieldDefinitionIpcHandlers } from '../../src/main/ipc/field-definition-handlers';
 import type { FieldDefinitionService } from '../../src/main/services/field-definition-service';
+import { createCampaignManagerGateway } from '../../src/preload/gateways/campaign-manager-gateway';
 import { TestLogger } from '../helpers/test-logger';
 
 type Handler = (event: IpcMainInvokeEvent, input: unknown) => Promise<unknown>;
@@ -56,6 +57,34 @@ describe('handlers IPC de definições de campo', () => {
     expect(service.createInput).toMatchObject({ label: 'Nome', required: false, sortOrder: 0 });
     expect(service.listInput).toMatchObject({ limit: 50, filters: { isArchived: false } });
     expect(service.operations).toEqual(['get', 'update', 'archive', 'restore', 'move']);
+  });
+
+  it('valida no preload e aplica transforms e defaults somente no handler', async () => {
+    const handlers = new Map<string, Handler>();
+    const service = new FakeService();
+    registerFieldDefinitionIpcHandlers(ipc(handlers), dependencies(service));
+    const gateway = createCampaignManagerGateway((channel, input) =>
+      required(handlers, channel)(event(42), input),
+    );
+
+    const result = await gateway.fieldDefinitions.create({
+      campaignId,
+      entityTypeId,
+      label: '  Aliados  ',
+      helpText: '  Escolha aliados relevantes.  ',
+      exampleText: '  Mara e Nilo  ',
+      dataType: 'entity_reference_list',
+    });
+
+    expect(result).toMatchObject({ ok: true });
+    expect(service.createInput).toMatchObject({
+      label: 'Aliados',
+      helpText: 'Escolha aliados relevantes.',
+      exampleText: 'Mara e Nilo',
+      helpArticleId: null,
+      required: false,
+      sortOrder: 0,
+    });
   });
 
   it('rejeita entrada inválida e renderer não autorizado', async () => {
@@ -123,6 +152,9 @@ function field(overrides: Partial<FieldDefinition> = {}): FieldDefinition {
     key: 'nome',
     label: 'Nome',
     description: null,
+    helpText: null,
+    exampleText: null,
+    helpArticleId: null,
     dataType: 'short_text',
     semanticRole: null,
     required: false,

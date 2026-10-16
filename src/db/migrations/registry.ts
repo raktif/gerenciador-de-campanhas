@@ -15,6 +15,7 @@ import inboxRelationshipProvenanceMigration from './0012_inbox_relationship_prov
 import inboxNarrativeProvenanceMigration from './0013_inbox_narrative_provenance.sql?raw';
 import assertionInboxSourceUpdateGuardMigration from './0014_assertion_inbox_source_update_guard.sql?raw';
 import noteEventInboxSourceUpdateGuardsMigration from './0015_note_event_inbox_source_update_guards.sql?raw';
+import fieldDefinitionContextualHelpMigration from './0016_field_definition_contextual_help.sql?raw';
 
 export interface MigrationDefinition {
   version: number;
@@ -124,6 +125,12 @@ export const migrations: readonly MigrationDefinition[] = [
     name: 'phase-two-note-event-inbox-source-update-guards',
     checksum: '6b0a1cefbc4ef60b8344e295262fc5895eb8a1253fa0cc91026d9af4de4b5894',
     sql: noteEventInboxSourceUpdateGuardsMigration,
+  },
+  {
+    version: 16,
+    name: 'phase-two-field-definition-contextual-help',
+    checksum: checksum(fieldDefinitionContextualHelpMigration),
+    sql: fieldDefinitionContextualHelpMigration,
   },
 ];
 

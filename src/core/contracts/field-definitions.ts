@@ -46,6 +46,13 @@ const keySchema = z
   .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Use letras minúsculas, números e hífens simples.');
 const labelSchema = z.string().trim().min(1).max(120);
 const descriptionSchema = z.string().trim().min(1).max(2000);
+const contextualHelpTextSchema = z.string().trim().min(1).max(2000);
+const helpArticleIdSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(120)
+  .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Use letras minúsculas, números e hífens simples.');
 const jsonValueSchema = z.json();
 
 export const fieldDefinitionSchema = z
@@ -55,6 +62,9 @@ export const fieldDefinitionSchema = z
     key: keySchema,
     label: labelSchema,
     description: z.string().max(2000).nullable(),
+    helpText: contextualHelpTextSchema.nullable(),
+    exampleText: contextualHelpTextSchema.nullable(),
+    helpArticleId: helpArticleIdSchema.nullable(),
     dataType: z.enum(fieldDataTypes),
     semanticRole: z.enum(fieldSemanticRoles).nullable(),
     required: z.boolean(),
@@ -79,6 +89,9 @@ export type FieldDefinition = z.infer<typeof fieldDefinitionSchema>;
 const editableFieldsSchema = z.object({
   label: labelSchema,
   description: descriptionSchema.nullable(),
+  helpText: contextualHelpTextSchema.nullable(),
+  exampleText: contextualHelpTextSchema.nullable(),
+  helpArticleId: helpArticleIdSchema.nullable(),
   dataType: z.enum(fieldDataTypes),
   semanticRole: z.enum(fieldSemanticRoles).nullable(),
   required: z.boolean(),
@@ -99,6 +112,9 @@ export const createFieldDefinitionInputSchema = z
     entityTypeId: z.uuid(),
     label: labelSchema,
     description: descriptionSchema.nullable().default(null),
+    helpText: contextualHelpTextSchema.nullable().default(null),
+    exampleText: contextualHelpTextSchema.nullable().default(null),
+    helpArticleId: helpArticleIdSchema.nullable().default(null),
     dataType: z.enum(fieldDataTypes),
     semanticRole: z.enum(fieldSemanticRoles).nullable().default(null),
     required: z.boolean().default(false),

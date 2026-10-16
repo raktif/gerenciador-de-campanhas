@@ -151,7 +151,7 @@ describe('SQLite embutido', () => {
     expect(
       context.native
         .prepare(
-          'SELECT version, checksum FROM schema_migrations WHERE version BETWEEN 10 AND 15 ORDER BY version',
+          'SELECT version, checksum FROM schema_migrations WHERE version >= 10 ORDER BY version',
         )
         .all(),
     ).toEqual(
@@ -163,6 +163,68 @@ describe('SQLite embutido', () => {
     expect(
       (await readdir(directories.automaticBackups)).filter((name) => name.endsWith('.db')),
     ).toHaveLength(1);
+  });
+
+  it('adiciona ajuda contextual a um banco na versão 15 preservando campos existentes', async () => {
+    const root = await createTemporaryRoot();
+    const directories = getDataDirectories(root);
+    await ensureDataDirectories(directories);
+    const databasePath = path.join(directories.database, 'app.db');
+    const legacyDatabase = new Database(databasePath);
+    legacyDatabase.exec(`
+      CREATE TABLE schema_migrations (
+        version INTEGER PRIMARY KEY NOT NULL,
+        name TEXT NOT NULL,
+        checksum TEXT NOT NULL,
+        applied_at TEXT NOT NULL
+      );
+    `);
+    const insertMigration = legacyDatabase.prepare(
+      'INSERT INTO schema_migrations (version, name, checksum, applied_at) VALUES (?, ?, ?, ?)',
+    );
+    for (const migration of migrations.filter(({ version }) => version <= 15)) {
+      legacyDatabase.exec(migration.sql);
+      insertMigration.run(migration.version, migration.name, migration.checksum, timestamp());
+    }
+    const campaignId = randomUUID();
+    const entityTypeId = randomUUID();
+    const fieldId = randomUUID();
+    const now = timestamp();
+    legacyDatabase
+      .prepare('INSERT INTO campaigns (id, name, created_at, updated_at) VALUES (?, ?, ?, ?)')
+      .run(campaignId, 'Campanha preservada', now, now);
+    legacyDatabase
+      .prepare(
+        `INSERT INTO entity_types (
+          id, campaign_id, name, singular_name, slug, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(entityTypeId, campaignId, 'Personagens', 'Personagem', 'personagens', now, now);
+    legacyDatabase
+      .prepare(
+        `INSERT INTO field_definitions (
+          id, entity_type_id, key, label, data_type, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(fieldId, entityTypeId, 'personagem-nome', 'Nome', 'short_text', now, now);
+    legacyDatabase.close();
+
+    const context = await openTestDatabase(directories);
+    expect(context.schemaVersion).toBe(16);
+    expect(
+      context.native
+        .prepare(
+          `SELECT label, help_text, example_text, help_article_id
+           FROM field_definitions WHERE id = ?`,
+        )
+        .get(fieldId),
+    ).toEqual({
+      label: 'Nome',
+      help_text: null,
+      example_text: null,
+      help_article_id: null,
+    });
+    context.close();
   });
 
   it('continua rejeitando um checksum desconhecido de migração aplicada', async () => {

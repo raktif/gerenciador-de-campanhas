@@ -43,6 +43,9 @@ describe('FieldDefinitionRepository', () => {
       defaultValue: { prefixo: 'Capitão' },
       options: ['A', 'B'],
       validation: { minLength: 2 },
+      helpText: 'Nome usado para identificar a personagem.',
+      exampleText: 'Capitã Aris',
+      helpArticleId: 'campos-de-entidade',
     });
     const otherName = createField(
       '20000000-0000-4000-8000-000000000002',
@@ -174,11 +177,23 @@ describe('FieldDefinitionRepository', () => {
         entityTypeId,
         id: name.id,
         revision: 1,
-        patch: { label: 'Nome completo' },
+        patch: {
+          label: 'Nome completo',
+          helpText: 'Nome completo usado em registros oficiais.',
+          exampleText: 'Aris Valedouro',
+          helpArticleId: 'nomes-de-personagem',
+        },
       },
       '2026-08-28T13:00:00.000Z',
     );
-    expect(updated).toMatchObject({ label: 'Nome completo', key: 'nome', revision: 2 });
+    expect(updated).toMatchObject({
+      label: 'Nome completo',
+      key: 'nome',
+      helpText: 'Nome completo usado em registros oficiais.',
+      exampleText: 'Aris Valedouro',
+      helpArticleId: 'nomes-de-personagem',
+      revision: 2,
+    });
     expect(
       captureAppError(() =>
         fields.update(
@@ -187,7 +202,7 @@ describe('FieldDefinitionRepository', () => {
             entityTypeId,
             id: name.id,
             revision: 1,
-            patch: { label: 'Sobrescrito' },
+            patch: { helpText: 'Ajuda sobrescrita por revisão obsoleta.' },
           },
           '2026-08-28T14:00:00.000Z',
         ),
@@ -201,7 +216,7 @@ describe('FieldDefinitionRepository', () => {
             entityTypeId,
             id: name.id,
             revision: 2,
-            patch: { label: 'Vazamento' },
+            patch: { helpText: 'Ajuda vazada para outra campanha.' },
           },
           '2026-08-28T14:00:00.000Z',
         ),
@@ -268,9 +283,7 @@ describe('FieldDefinitionRepository', () => {
       }),
     );
     const external = fields.insertWithGeneratedKey(
-      withoutKey(
-        createField('20000000-0000-4000-8000-000000000014', otherEntityTypeId, 'externo'),
-      ),
+      withoutKey(createField('20000000-0000-4000-8000-000000000014', otherEntityTypeId, 'externo')),
       'externo',
     );
 
@@ -345,7 +358,10 @@ describe('FieldDefinitionRepository', () => {
         ),
       ).code,
     ).toBe('REVISION_CONFLICT');
-    expect(fields.findById(campaignId, entityTypeId, archived.id)).toMatchObject({ isArchived: true, revision: 1 });
+    expect(fields.findById(campaignId, entityTypeId, archived.id)).toMatchObject({
+      isArchived: true,
+      revision: 1,
+    });
     context.native.exec('DROP TRIGGER reject_field_restore');
     const restored = fields.restoreAtEnd(
       { campaignId, entityTypeId, id: archived.id, revision: archived.revision },
@@ -425,6 +441,9 @@ function createField(
     key,
     label: key,
     description: null,
+    helpText: null,
+    exampleText: null,
+    helpArticleId: null,
     dataType: 'short_text',
     semanticRole: null,
     required: false,

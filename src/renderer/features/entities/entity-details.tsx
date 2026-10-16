@@ -6,6 +6,8 @@ import type { FieldDefinition } from '../../../core/contracts/field-definitions'
 import type { RelationshipType } from '../../../core/contracts/relationship-types';
 import type { Relationship } from '../../../core/contracts/relationships';
 import { Button, ButtonGroup } from '../../components/actions';
+import { ContextualHelp } from '../../components/contextual-help';
+import { fieldDefinitionHelpContent } from '../../content/contextual-help';
 
 export function EntityDetailsView({
   campaign,
@@ -162,15 +164,15 @@ export function EntityDetailsView({
               <dl className="mt-3 grid gap-4 rounded-2xl border border-stone-200 p-5 sm:grid-cols-2">
                 {filledFields.map((field) => (
                   <Detail
+                    field={field}
                     key={field.id}
-                    label={field.label}
                     value={formatFieldValue(valuesByField.get(field.id))}
                   />
                 ))}
                 {referenceFields.map(({ field, entityIds }) => (
                   <Detail
+                    field={field}
                     key={field.id}
-                    label={field.label}
                     value={entityIds
                       .map(
                         (entityId) =>
@@ -255,10 +257,24 @@ export function EntityDetailsView({
   );
 }
 
-function Detail({ label, value }: { label: string; value: string }): React.JSX.Element {
+function Detail({
+  field,
+  label,
+  value,
+}: {
+  field?: FieldDefinition;
+  label?: string;
+  value: string;
+}): React.JSX.Element {
+  const resolvedLabel = field?.label ?? label;
+  if (resolvedLabel === undefined) throw new Error('Detalhe sem rótulo.');
+  const help = field === undefined ? null : fieldDefinitionHelpContent(field);
   return (
     <div>
-      <dt className="text-sm font-semibold text-slate-800">{label}</dt>
+      <dt className="flex items-center gap-1 text-sm font-semibold text-slate-800">
+        {resolvedLabel}
+        {help === null ? null : <ContextualHelp content={help} label={resolvedLabel} />}
+      </dt>
       <dd className="mt-1 whitespace-pre-wrap text-slate-600">{value}</dd>
     </div>
   );

@@ -35,6 +35,9 @@ describe('FieldDefinitionService', () => {
         entityTypeId,
         label: 'Nome',
         dataType: 'short_text',
+        helpText: 'Nome usado nas cenas.',
+        exampleText: 'Capitã Aris',
+        helpArticleId: 'campos-de-entidade',
       }),
     );
 
@@ -43,6 +46,9 @@ describe('FieldDefinitionService', () => {
       entityTypeId,
       key: 'vilao-nome',
       required: false,
+      helpText: 'Nome usado nas cenas.',
+      exampleText: 'Capitã Aris',
+      helpArticleId: 'campos-de-entidade',
       isArchived: false,
       createdAt: secondTimestamp,
       revision: 1,
@@ -83,10 +89,33 @@ describe('FieldDefinitionService', () => {
       entityTypeId,
       id: fieldId,
       revision: 1,
-      patch: { label: 'Nome completo' },
+      patch: {
+        label: 'Nome completo',
+        helpText: 'Nome usado em documentos oficiais.',
+        exampleText: 'Aris Valedouro',
+        helpArticleId: 'nomes-de-personagem',
+      },
     });
 
-    expect(updated).toMatchObject({ key: 'nome', label: 'Nome completo', revision: 2 });
+    expect(updated).toMatchObject({
+      key: 'nome',
+      label: 'Nome completo',
+      helpText: 'Nome usado em documentos oficiais.',
+      exampleText: 'Aris Valedouro',
+      helpArticleId: 'nomes-de-personagem',
+      revision: 2,
+    });
+    expect(
+      captureAppError(() =>
+        service.update({
+          campaignId,
+          entityTypeId,
+          id: fieldId,
+          revision: 1,
+          patch: { helpText: 'Ajuda obsoleta.' },
+        }),
+      ).code,
+    ).toBe('REVISION_CONFLICT');
   });
 
   it('valida configurações e destinos de campos de referência', () => {
@@ -219,6 +248,7 @@ class MemoryFieldDefinitionRepository implements FieldDefinitionRepositoryPort {
   }
 
   public move(_input: MoveFieldDefinitionInput): FieldDefinition[] {
+    void _input;
     return [...this.records.values()];
   }
 }
@@ -246,6 +276,9 @@ function createField(overrides: Partial<FieldDefinition> = {}): FieldDefinition 
     key: 'nome',
     label: 'Nome',
     description: null,
+    helpText: null,
+    exampleText: null,
+    helpArticleId: null,
     dataType: 'short_text',
     semanticRole: 'name',
     required: true,

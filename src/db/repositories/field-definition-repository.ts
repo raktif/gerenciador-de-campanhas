@@ -44,6 +44,9 @@ type FieldDefinitionCursor = z.infer<typeof cursorSchema>;
 type MutableField =
   | 'label'
   | 'description'
+  | 'helpText'
+  | 'exampleText'
+  | 'helpArticleId'
   | 'dataType'
   | 'semanticRole'
   | 'required'

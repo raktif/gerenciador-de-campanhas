@@ -1,5 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { Button, FormActions } from '../../components/actions';
+import { ContextualHelp, type ContextualHelpContent } from '../../components/contextual-help';
+import { contextualHelpCatalog } from '../../content/contextual-help';
 import {
   fieldDataTypes,
   fieldSemanticRoles,
@@ -7,6 +9,8 @@ import {
   type FieldDefinition,
   type FieldDefinitionPatch,
 } from '../../../core/contracts/field-definitions';
+import type { EntityType } from '../../../core/contracts/entity-types';
+import type { RelationshipType } from '../../../core/contracts/relationship-types';
 
 export type FieldDefinitionCreateValues = Omit<
   CreateFieldDefinitionInputRequest,
@@ -14,6 +18,7 @@ export type FieldDefinitionCreateValues = Omit<
 >;
 
 type FormProps = {
+  campaignId: string;
   busy: boolean;
   error: string | null;
   onCancel: () => void;
@@ -29,6 +34,8 @@ type FormProps = {
 interface FormValues {
   label: string;
   description: string;
+  helpText: string;
+  exampleText: string;
   dataType: FieldDefinition['dataType'];
   semanticRole: string;
   required: boolean;
@@ -39,7 +46,7 @@ interface FormValues {
   validation: string;
   referenceRelationshipTypeId: string;
   referenceDirection: string;
-  allowedTargetTypeIds: string;
+  allowedTargetTypeIds: string[];
   onDeleteBehavior: string;
 }
 
@@ -48,6 +55,15 @@ export function FieldDefinitionForm(props: FormProps): React.JSX.Element {
     props.mode === 'create' ? emptyValues : toFormValues(props.field),
   );
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [referenceOptions, setReferenceOptions] = useState<{
+    entityTypes: EntityType[];
+    relationshipTypes: RelationshipType[];
+  }>({ entityTypes: [], relationshipTypes: [] });
+  const [referenceOptionsState, setReferenceOptionsState] = useState<
+    'idle' | 'loading' | 'ready' | 'error'
+  >('idle');
+  const [referenceOptionsAttempt, setReferenceOptionsAttempt] = useState(0);
+  const referenceOptionsRequest = useRef(0);
 
   function update<Field extends keyof FormValues>(field: Field, value: FormValues[Field]): void {
     setValidationError(null);
@@ -83,13 +99,69 @@ export function FieldDefinitionForm(props: FormProps): React.JSX.Element {
         : {
             referenceRelationshipTypeId: '',
             referenceDirection: '',
-            allowedTargetTypeIds: '',
+            allowedTargetTypeIds: [],
             onDeleteBehavior: '',
           }),
     }));
   }
 
   const isReference = values.dataType.startsWith('entity_reference');
+  useEffect(() => {
+    if (!isReference) {
+      setReferenceOptionsState('idle');
+      return;
+    }
+    const requestId = referenceOptionsRequest.current + 1;
+    referenceOptionsRequest.current = requestId;
+    setReferenceOptions({ entityTypes: [], relationshipTypes: [] });
+    setReferenceOptionsState('loading');
+    void (async () => {
+      try {
+        const [relationshipResult, entityResult] = await Promise.all([
+          window.campaignManager.relationshipTypes.list({
+            campaignId: props.campaignId,
+            limit: 100,
+            filters: { isArchived: false },
+          }),
+          window.campaignManager.entityTypes.list({
+            campaignId: props.campaignId,
+            limit: 100,
+            filters: { isArchived: false },
+          }),
+        ]);
+        if (requestId !== referenceOptionsRequest.current) return;
+        if (!relationshipResult.ok || !entityResult.ok) {
+          setReferenceOptionsState('error');
+          return;
+        }
+        setReferenceOptions({
+          relationshipTypes: relationshipResult.data.items,
+          entityTypes: entityResult.data.items,
+        });
+        setReferenceOptionsState('ready');
+      } catch {
+        if (requestId !== referenceOptionsRequest.current) return;
+        setReferenceOptionsState('error');
+      }
+    })();
+    return () => {
+      referenceOptionsRequest.current += 1;
+    };
+  }, [isReference, props.campaignId, referenceOptionsAttempt]);
+
+  const selectedRelationshipType = referenceOptions.relationshipTypes.find(
+    ({ id }) => id === values.referenceRelationshipTypeId,
+  );
+  const allowedEntityTypes = referenceOptions.entityTypes.filter((entityType) => {
+    if (selectedRelationshipType === undefined || values.referenceDirection === '') return true;
+    const allowedIds =
+      values.referenceDirection === 'outgoing'
+        ? selectedRelationshipType.allowedTargetTypeIds
+        : selectedRelationshipType.allowedSourceTypeIds;
+    return allowedIds === null || allowedIds.includes(entityType.id);
+  });
+  const referenceOptionsBusy = props.busy || referenceOptionsState === 'loading';
+  const referenceOptionsUnavailable = isReference && referenceOptionsState !== 'ready';
   return (
     <section className="mx-auto w-full max-w-5xl" aria-labelledby="field-form-title">
       <Button
@@ -136,8 +208,23 @@ export function FieldDefinitionForm(props: FormProps): React.JSX.Element {
               onChange={(e) => update('description', e.target.value)}
             />
           </div>
+          <div className="grid gap-6 md:grid-cols-2">
+            <TextArea
+              label="Texto de ajuda"
+              maxLength={2000}
+              value={values.helpText}
+              onChange={(v) => update('helpText', v)}
+            />
+            <TextArea
+              label="Exemplo"
+              maxLength={2000}
+              value={values.exampleText}
+              onChange={(v) => update('exampleText', v)}
+            />
+          </div>
           <div className="grid gap-6 md:grid-cols-3">
             <Select
+              help={contextualHelpCatalog['fieldDefinition.dataType']}
               label="Tipo de dado"
               value={values.dataType}
               onChange={(v) => updateDataType(v as FieldDefinition['dataType'])}
@@ -190,27 +277,42 @@ export function FieldDefinitionForm(props: FormProps): React.JSX.Element {
           {isReference ? (
             <fieldset className="grid gap-6 rounded-2xl border border-stone-200 p-5 md:grid-cols-2">
               <legend className="px-2 font-semibold">Configuração da referência</legend>
-              <TextInput
-                label="ID do tipo de relacionamento"
+              <Select
+                disabled={referenceOptionsBusy || referenceOptionsState === 'error'}
+                label="Tipo de relacionamento"
                 value={values.referenceRelationshipTypeId}
-                onChange={(v) => update('referenceRelationshipTypeId', v)}
+                onChange={(v) => {
+                  update('referenceRelationshipTypeId', v);
+                  update('allowedTargetTypeIds', []);
+                }}
+                options={[
+                  ['', 'Selecione'],
+                  ...relationshipOptions(referenceOptions.relationshipTypes, values),
+                ]}
               />
               <Select
+                disabled={referenceOptionsBusy}
                 label="Direção"
                 value={values.referenceDirection}
-                onChange={(v) => update('referenceDirection', v)}
+                onChange={(v) => {
+                  update('referenceDirection', v);
+                  update('allowedTargetTypeIds', []);
+                }}
                 options={[
                   ['', 'Nenhuma'],
                   ['outgoing', 'Saída'],
                   ['incoming', 'Entrada'],
                 ]}
               />
-              <TextInput
-                label="IDs dos tipos permitidos (separados por vírgula)"
-                value={values.allowedTargetTypeIds}
+              <EntityTypeChoices
+                disabled={referenceOptionsBusy || referenceOptionsState === 'error'}
+                entityTypes={allowedEntityTypes}
+                label="Tipos de entidade permitidos"
                 onChange={(v) => update('allowedTargetTypeIds', v)}
+                selected={values.allowedTargetTypeIds}
               />
               <Select
+                disabled={props.busy}
                 label="Ao excluir"
                 value={values.onDeleteBehavior}
                 onChange={(v) => update('onDeleteBehavior', v)}
@@ -220,6 +322,26 @@ export function FieldDefinitionForm(props: FormProps): React.JSX.Element {
                   ['unlink', 'Desvincular'],
                 ]}
               />
+              {referenceOptionsState === 'loading' ? (
+                <p className="text-sm text-slate-600 md:col-span-2" role="status">
+                  Carregando opções de referência…
+                </p>
+              ) : referenceOptionsState === 'error' ? (
+                <div
+                  className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 md:col-span-2"
+                  role="alert"
+                >
+                  <p>Não foi possível carregar as opções de referência.</p>
+                  <Button
+                    className="mt-3"
+                    disabled={props.busy}
+                    onClick={() => setReferenceOptionsAttempt((attempt) => attempt + 1)}
+                    size="small"
+                  >
+                    Tentar novamente
+                  </Button>
+                </div>
+              ) : null}
             </fieldset>
           ) : null}
           {props.error === null && validationError === null ? null : (
@@ -234,7 +356,12 @@ export function FieldDefinitionForm(props: FormProps): React.JSX.Element {
             <Button disabled={props.busy} onClick={props.onCancel}>
               Cancelar
             </Button>
-            <Button busy={props.busy} type="submit" variant="primary">
+            <Button
+              busy={props.busy}
+              disabled={props.busy || referenceOptionsUnavailable}
+              type="submit"
+              variant="primary"
+            >
               {props.busy
                 ? 'Salvando…'
                 : props.mode === 'create'
@@ -252,6 +379,8 @@ function normalize(values: FormValues): FieldDefinitionCreateValues {
   return {
     label: values.label.trim(),
     description: nullable(values.description),
+    helpText: nullable(values.helpText),
+    exampleText: nullable(values.exampleText),
     dataType: values.dataType,
     semanticRole:
       values.semanticRole === '' ? null : (values.semanticRole as FieldDefinition['semanticRole']),
@@ -267,9 +396,7 @@ function normalize(values: FormValues): FieldDefinitionCreateValues {
         ? null
         : (values.referenceDirection as FieldDefinition['referenceDirection']),
     allowedTargetTypeIds:
-      values.allowedTargetTypeIds.trim() === ''
-        ? null
-        : values.allowedTargetTypeIds.split(',').map((id) => id.trim()),
+      values.allowedTargetTypeIds.length === 0 ? null : values.allowedTargetTypeIds,
     onDeleteBehavior:
       values.onDeleteBehavior === ''
         ? null
@@ -293,6 +420,8 @@ function toFormValues(field: FieldDefinition): FormValues {
   return {
     label: field.label,
     description: field.description ?? '',
+    helpText: field.helpText ?? '',
+    exampleText: field.exampleText ?? '',
     dataType: field.dataType,
     semanticRole: field.semanticRole ?? '',
     required: field.required,
@@ -303,7 +432,7 @@ function toFormValues(field: FieldDefinition): FormValues {
     validation: displayJson(field.validation),
     referenceRelationshipTypeId: field.referenceRelationshipTypeId ?? '',
     referenceDirection: field.referenceDirection ?? '',
-    allowedTargetTypeIds: field.allowedTargetTypeIds?.join(', ') ?? '',
+    allowedTargetTypeIds: field.allowedTargetTypeIds ?? [],
     onDeleteBehavior: field.onDeleteBehavior ?? '',
   };
 }
@@ -311,6 +440,8 @@ function toFormValues(field: FieldDefinition): FormValues {
 const emptyValues: FormValues = {
   label: '',
   description: '',
+  helpText: '',
+  exampleText: '',
   dataType: 'short_text',
   semanticRole: '',
   required: false,
@@ -321,7 +452,7 @@ const emptyValues: FormValues = {
   validation: '',
   referenceRelationshipTypeId: '',
   referenceDirection: '',
-  allowedTargetTypeIds: '',
+  allowedTargetTypeIds: [],
   onDeleteBehavior: '',
 };
 function nullable(value: string): string | null {
@@ -380,6 +511,29 @@ function TextInput({
     </label>
   );
 }
+function TextArea({
+  label,
+  maxLength,
+  value,
+  onChange,
+}: {
+  label: string;
+  maxLength: number;
+  value: string;
+  onChange: (value: string) => void;
+}): React.JSX.Element {
+  return (
+    <label className={labelClass}>
+      {label}
+      <textarea
+        className={`${inputClass} min-h-24`}
+        maxLength={maxLength}
+        onChange={(event) => onChange(event.target.value)}
+        value={value}
+      />
+    </label>
+  );
+}
 function JsonInput(props: {
   label: string;
   value: string;
@@ -398,27 +552,92 @@ function JsonInput(props: {
   );
 }
 function Select({
+  disabled = false,
+  help,
   label,
   value,
   onChange,
   options,
 }: {
+  disabled?: boolean;
+  help?: ContextualHelpContent;
   label: string;
   value: string;
   onChange: (value: string) => void;
   options: (readonly [string, string])[];
 }): React.JSX.Element {
+  const generatedId = useId();
+  const selectId = `field-select-${generatedId.replaceAll(':', '')}`;
   return (
-    <label className={labelClass}>
-      {label}
-      <select className={inputClass} onChange={(e) => onChange(e.target.value)} value={value}>
+    <div>
+      <div className="flex items-center gap-1">
+        <label className={labelClass} htmlFor={selectId}>
+          {label}
+        </label>
+        {help === undefined ? null : <ContextualHelp content={help} label={label} />}
+      </div>
+      <select
+        className={inputClass}
+        disabled={disabled}
+        id={selectId}
+        onChange={(e) => onChange(e.target.value)}
+        value={value}
+      >
         {options.map(([id, text]) => (
           <option key={id} value={id}>
             {text}
           </option>
         ))}
       </select>
-    </label>
+    </div>
+  );
+}
+function EntityTypeChoices({
+  disabled,
+  entityTypes,
+  label,
+  onChange,
+  selected,
+}: {
+  disabled: boolean;
+  entityTypes: EntityType[];
+  label: string;
+  onChange: (value: string[]) => void;
+  selected: string[];
+}): React.JSX.Element {
+  const generatedId = useId();
+  const labelId = `field-entity-types-${generatedId.replaceAll(':', '')}`;
+  const options = entityTypeOptions(entityTypes, selected);
+  return (
+    <div aria-labelledby={labelId} className="rounded-xl border border-stone-200 p-4" role="group">
+      <p className="font-semibold text-slate-800" id={labelId}>
+        {label}
+      </p>
+      <p className="mt-1 text-xs text-slate-600">Nenhuma seleção permite todos os tipos.</p>
+      {options.length === 0 ? (
+        <p className="mt-3 text-sm text-slate-500">Nenhum tipo de entidade ativo.</p>
+      ) : (
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          {options.map(([id, text]) => (
+            <label className="flex items-center gap-3 text-sm" key={id}>
+              <input
+                checked={selected.includes(id)}
+                disabled={disabled}
+                onChange={(event) =>
+                  onChange(
+                    event.target.checked
+                      ? [...selected, id]
+                      : selected.filter((selectedId) => selectedId !== id),
+                  )
+                }
+                type="checkbox"
+              />
+              {text}
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 function Check({
@@ -436,6 +655,35 @@ function Check({
       {label}
     </label>
   );
+}
+function relationshipOptions(
+  relationshipTypes: RelationshipType[],
+  values: FormValues,
+): (readonly [string, string])[] {
+  const options: (readonly [string, string])[] = relationshipTypes.map(({ id, name }) => [
+    id,
+    name,
+  ]);
+  if (
+    values.referenceRelationshipTypeId !== '' &&
+    !relationshipTypes.some(({ id }) => id === values.referenceRelationshipTypeId)
+  )
+    options.push([
+      values.referenceRelationshipTypeId,
+      'Tipo anteriormente selecionado (indisponível)',
+    ]);
+  return options;
+}
+function entityTypeOptions(
+  entityTypes: EntityType[],
+  selectedIds: string[],
+): (readonly [string, string])[] {
+  const options: (readonly [string, string])[] = entityTypes.map(({ id, name }) => [id, name]);
+  for (const id of selectedIds) {
+    if (!entityTypes.some((entityType) => entityType.id === id))
+      options.push([id, 'Tipo anteriormente selecionado (indisponível)']);
+  }
+  return options;
 }
 const labelClass = 'block text-sm font-semibold text-slate-800';
 const inputClass =

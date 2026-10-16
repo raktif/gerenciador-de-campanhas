@@ -168,6 +168,9 @@ export const fieldDefinitions = sqliteTable(
     key: text('key').notNull(),
     label: text('label').notNull(),
     description: text('description'),
+    helpText: text('help_text'),
+    exampleText: text('example_text'),
+    helpArticleId: text('help_article_id'),
     dataType: text('data_type', { enum: fieldDataTypes }).notNull(),
     semanticRole: text('semantic_role', { enum: fieldSemanticRoles }),
     required: integer('required', { mode: 'boolean' }).notNull().default(false),
@@ -210,6 +213,25 @@ export const fieldDefinitions = sqliteTable(
     check(
       'field_definitions_description_length',
       sql`${table.description} IS NULL OR length(${table.description}) <= 2000`,
+    ),
+    check(
+      'field_definitions_help_text_valid',
+      sql`${table.helpText} IS NULL OR length(trim(${table.helpText})) BETWEEN 1 AND 2000`,
+    ),
+    check(
+      'field_definitions_example_text_valid',
+      sql`${table.exampleText} IS NULL OR length(trim(${table.exampleText})) BETWEEN 1 AND 2000`,
+    ),
+    check(
+      'field_definitions_help_article_id_valid',
+      sql`${table.helpArticleId} IS NULL OR (
+        length(${table.helpArticleId}) BETWEEN 1 AND 120
+        AND ${table.helpArticleId} = lower(${table.helpArticleId})
+        AND ${table.helpArticleId} NOT GLOB '*[^a-z0-9-]*'
+        AND substr(${table.helpArticleId}, 1, 1) <> '-'
+        AND substr(${table.helpArticleId}, -1, 1) <> '-'
+        AND instr(${table.helpArticleId}, '--') = 0
+      )`,
     ),
     check(
       'field_definitions_data_type_valid',

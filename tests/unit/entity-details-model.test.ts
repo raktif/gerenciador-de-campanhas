@@ -26,7 +26,12 @@ describe('referencedEntityIds', () => {
     const relation = relationship({ sourceEntityId: relatedEntityId, targetEntityId: entityId });
 
     expect(
-      referencedEntityIds(referenceField('outgoing'), entityId, [relation], [relationshipType(true)]),
+      referencedEntityIds(
+        referenceField('outgoing'),
+        entityId,
+        [relation],
+        [relationshipType(true)],
+      ),
     ).toEqual([relatedEntityId]);
   });
 });
@@ -68,6 +73,9 @@ function referenceField(direction: 'outgoing' | 'incoming'): FieldDefinition {
     key: 'aliados',
     label: 'Aliados',
     description: null,
+    helpText: null,
+    exampleText: null,
+    helpArticleId: null,
     dataType: 'entity_reference_list',
     semanticRole: null,
     required: false,

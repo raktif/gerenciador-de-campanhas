@@ -167,8 +167,9 @@ export function createCampaignManagerGateway(invokeIpc: IpcInvoker): CampaignMan
     input: unknown,
     schema: z.ZodType,
   ): Promise<Result<TResult>> => {
-    const validatedInput = schema.parse(input ?? {});
-    return invokeIpc(channel, validatedInput) as Promise<Result<TResult>>;
+    const publicInput = input ?? {};
+    schema.parse(publicInput);
+    return invokeIpc(channel, publicInput) as Promise<Result<TResult>>;
   };
 
   return {

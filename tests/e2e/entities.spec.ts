@@ -3,7 +3,6 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { _electron as electron, expect, test, type ElectronApplication } from '@playwright/test';
-import type { CampaignManagerGateway } from '../../src/core/contracts/gateway';
 
 const repositoryRoot = process.cwd();
 const requireFromRepository = createRequire(path.join(repositoryRoot, 'package.json'));
@@ -35,40 +34,45 @@ test('cadastra entidade com metadados, edita, arquiva e persiste após reiniciar
     await window.getByRole('textbox', { name: 'Nome *', exact: true }).fill('Aliado de');
     await window.getByLabel('Slug').fill('aliado-de');
     await window.getByRole('button', { name: 'Criar tipo' }).click();
-    await expect(window.getByTestId('relationship-type-list')).toContainText('Aliado de');
-    const relationshipTypeId = await window.evaluate(async () => {
-      const campaignManager = (globalThis as unknown as TestGatewayWindow).campaignManager;
-      const campaigns = await campaignManager.campaigns.list({});
-      if (!campaigns.ok) throw new Error('Não foi possível localizar a campanha de teste.');
-      const campaignId = campaigns.data.items[0]?.id;
-      if (campaignId === undefined) throw new Error('Campanha de teste ausente.');
-      const relationshipTypes = await campaignManager.relationshipTypes.list({
-        campaignId,
-        filters: { isArchived: false },
-      });
-      if (!relationshipTypes.ok) throw new Error('Não foi possível localizar o tipo de relação.');
-      const relationshipType = relationshipTypes.data.items.find(
-        (item) => item.slug === 'aliado-de',
-      );
-      if (relationshipType === undefined) throw new Error('Tipo de relação de teste ausente.');
-      return relationshipType.id;
-    });
-
+    await expect(window.getByRole('list', { name: 'Ordenar tipos de relação' })).toContainText(
+      'Aliado de',
+    );
     await window.getByRole('button', { name: 'Gerenciar tipos de entidade' }).click();
 
     await window.getByRole('button', { name: 'Gerenciar campos de Personagens' }).click();
     await window.getByRole('button', { name: 'Criar primeiro campo' }).click();
     await window.getByLabel('Rótulo *').fill('Título');
+    await window.getByLabel('Texto de ajuda').fill('Informe o título usado pelo personagem.');
+    await window.getByLabel('Exemplo').fill('Capataz de Kabotya');
     await window.getByRole('button', { name: 'Criar definição de campo' }).click();
-    await expect(window.getByTestId('field-definition-list')).toContainText('Título');
+    await expect(window.getByRole('list', { name: 'Ordenar definições de campo' })).toContainText(
+      'Título',
+    );
     await window.getByRole('button', { name: 'Novo campo' }).click();
     await window.getByLabel('Rótulo *').fill('Aliados');
-    await window.getByLabel('Tipo de dado').selectOption('entity_reference_list');
-    await window.getByLabel('ID do tipo de relacionamento').fill(relationshipTypeId);
+    await window.getByLabel('Texto de ajuda').fill('Escolha as pessoas aliadas deste personagem.');
+    await window.getByLabel('Exemplo').fill('Mara, Nilo');
+    await window
+      .getByRole('combobox', { name: 'Tipo de dado' })
+      .selectOption('entity_reference_list');
+    const relationshipType = window.getByLabel('Tipo de relacionamento');
+    await expect(relationshipType).toBeEnabled();
+    await relationshipType.selectOption({ label: 'Aliado de' });
     await window.getByLabel('Direção').selectOption('outgoing');
+    await window.getByRole('checkbox', { name: 'Personagens' }).check();
     await window.getByLabel('Ao excluir').selectOption('unlink');
     await window.getByRole('button', { name: 'Criar definição de campo' }).click();
-    await expect(window.getByTestId('field-definition-list')).toContainText('Aliados');
+    await expect(window.getByRole('list', { name: 'Ordenar definições de campo' })).toContainText(
+      'Aliados',
+    );
+    await window.getByRole('button', { name: 'Editar campo Aliados' }).click();
+    await expect(window.getByLabel('Texto de ajuda')).toHaveValue(
+      'Escolha as pessoas aliadas deste personagem.',
+    );
+    await expect(window.getByLabel('Exemplo')).toHaveValue('Mara, Nilo');
+    await expect(window.getByLabel('Tipo de relacionamento')).toHaveValue(/.+/);
+    await expect(window.getByRole('checkbox', { name: 'Personagens' })).toBeChecked();
+    await window.getByRole('button', { name: 'Cancelar' }).click();
     await window.getByRole('button', { name: 'Voltar para tipos de entidade' }).click();
 
     await window.getByRole('button', { name: 'Voltar para detalhes da campanha' }).click();
@@ -83,7 +87,15 @@ test('cadastra entidade com metadados, edita, arquiva e persiste após reiniciar
     await window.getByLabel('Natureza do conhecimento').selectOption('rumor');
     await window.getByLabel('Visibilidade').selectOption('players');
     await window.getByLabel('Origem').selectOption('document');
-    await window.getByLabel('Título').fill('Capataz de Kabotya');
+    await expect(window.getByRole('button', { name: 'Ajuda sobre Título' })).toBeVisible();
+    await expect(window.getByRole('button', { name: 'Ajuda sobre Aliados' })).toBeVisible();
+    await window.getByRole('button', { name: 'Ajuda sobre Título' }).click();
+    await expect(window.getByRole('tooltip')).toContainText(
+      'Informe o título usado pelo personagem.',
+    );
+    await expect(window.getByRole('tooltip')).toContainText('Exemplo: Capataz de Kabotya');
+    await window.getByRole('button', { name: 'Ajuda sobre Título' }).press('Escape');
+    await window.getByRole('textbox', { name: 'Título' }).fill('Capataz de Kabotya');
     await window.getByRole('button', { name: 'Criar entidade' }).click();
 
     await expect(window.getByRole('status')).toContainText('Entidade “Gorel” criada.');
@@ -112,6 +124,14 @@ test('cadastra entidade com metadados, edita, arquiva e persiste após reiniciar
     await window.getByRole('button', { name: 'Ver entidades' }).click();
 
     await window.getByRole('button', { name: 'Abrir detalhes de Gorel' }).first().click();
+    await expect(window.getByRole('button', { name: 'Ajuda sobre Título' })).toBeVisible();
+    await expect(window.getByRole('button', { name: 'Ajuda sobre Aliados' })).toBeVisible();
+    await window.getByRole('button', { name: 'Ajuda sobre Título' }).click();
+    await expect(window.getByRole('tooltip')).toContainText(
+      'Informe o título usado pelo personagem.',
+    );
+    await expect(window.getByRole('tooltip')).toContainText('Exemplo: Capataz de Kabotya');
+    await window.getByRole('button', { name: 'Ajuda sobre Título' }).press('Escape');
     await window.getByRole('button', { name: 'Ver relações' }).focus();
     await window.keyboard.press('Enter');
     await expect(window.getByLabel('Entidade central').locator('option:checked')).toHaveText(
@@ -240,10 +260,6 @@ test('cadastra entidade com metadados, edita, arquiva e persiste após reiniciar
     await rm(dataDirectory, { recursive: true, force: true });
   }
 });
-
-interface TestGatewayWindow {
-  campaignManager: CampaignManagerGateway;
-}
 
 async function launch(dataDirectory: string): Promise<ElectronApplication> {
   const inheritedEnvironment = Object.fromEntries(

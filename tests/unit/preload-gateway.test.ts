@@ -92,7 +92,7 @@ describe('gateway do preload', () => {
     ]);
   });
 
-  it('normaliza entradas e mapeia cada operação ao canal permitido', async () => {
+  it('valida entradas públicas e as encaminha sem aplicar transforms do main', async () => {
     const invocations: Invocation[] = [];
     const gateway = createCampaignManagerGateway(createInvoker(invocations));
     const identity = { id: '00000000-0000-4000-8000-000000000001' };
@@ -213,20 +213,15 @@ describe('gateway do preload', () => {
     await gateway.entities.restore(entityLifecycle);
 
     expect(invocations).toEqual([
-      { channel: campaignChannels.create, input: { name: 'Ethéria' } },
+      { channel: campaignChannels.create, input: { name: '  Ethéria  ' } },
       { channel: campaignChannels.get, input: identity },
       {
         channel: campaignChannels.list,
-        input: {
-          limit: 50,
-          filters: { statuses: ['active'] },
-          sort: 'updatedAt',
-          order: 'desc',
-        },
+        input: {},
       },
       {
         channel: campaignChannels.update,
-        input: { ...lifecycle, patch: { name: 'Nova Ethéria' } },
+        input: { ...lifecycle, patch: { name: '  Nova Ethéria  ' } },
       },
       { channel: campaignChannels.archive, input: lifecycle },
       { channel: campaignChannels.restore, input: lifecycle },
@@ -235,26 +230,19 @@ describe('gateway do preload', () => {
         channel: entityTypeChannels.create,
         input: {
           campaignId: identity.id,
-          name: 'Personagens',
-          singularName: 'Personagem',
+          name: '  Personagens  ',
+          singularName: '  Personagem  ',
           slug: 'personagens',
-          sortOrder: 0,
         },
       },
       { channel: entityTypeChannels.get, input: entityTypeIdentity },
       {
         channel: entityTypeChannels.list,
-        input: {
-          campaignId: identity.id,
-          limit: 50,
-          filters: { isArchived: false },
-          sort: 'sortOrder',
-          order: 'asc',
-        },
+        input: { campaignId: identity.id },
       },
       {
         channel: entityTypeChannels.update,
-        input: { ...entityTypeLifecycle, patch: { name: 'Protagonistas' } },
+        input: { ...entityTypeLifecycle, patch: { name: '  Protagonistas  ' } },
       },
       { channel: entityTypeChannels.archive, input: entityTypeLifecycle },
       { channel: entityTypeChannels.restore, input: entityTypeLifecycle },
@@ -263,33 +251,18 @@ describe('gateway do preload', () => {
         channel: relationshipTypeChannels.create,
         input: {
           campaignId: identity.id,
-          name: 'Trabalha em',
+          name: '  Trabalha em  ',
           slug: 'trabalha-em',
-          inverseName: null,
-          description: null,
-          semanticRole: null,
-          isSymmetric: false,
-          allowedSourceTypeIds: null,
-          allowedTargetTypeIds: null,
-          icon: null,
-          color: null,
-          sortOrder: 0,
         },
       },
       { channel: relationshipTypeChannels.get, input: relationshipTypeIdentity },
       {
         channel: relationshipTypeChannels.list,
-        input: {
-          campaignId: identity.id,
-          limit: 50,
-          filters: { isArchived: false },
-          sort: 'sortOrder',
-          order: 'asc',
-        },
+        input: { campaignId: identity.id },
       },
       {
         channel: relationshipTypeChannels.update,
-        input: { ...relationshipTypeLifecycle, patch: { inverseName: 'Emprega' } },
+        input: { ...relationshipTypeLifecycle, patch: { inverseName: '  Emprega  ' } },
       },
       { channel: relationshipTypeChannels.archive, input: relationshipTypeLifecycle },
       { channel: relationshipTypeChannels.restore, input: relationshipTypeLifecycle },
@@ -299,38 +272,18 @@ describe('gateway do preload', () => {
         input: {
           campaignId: identity.id,
           entityTypeId: entityTypeIdentity.id,
-          label: 'Nome',
+          label: '  Nome  ',
           dataType: 'short_text',
-          description: null,
-          semanticRole: null,
-          required: false,
-          searchable: false,
-          secretByDefault: false,
-          defaultValue: null,
-          options: null,
-          validation: null,
-          referenceRelationshipTypeId: null,
-          referenceDirection: null,
-          allowedTargetTypeIds: null,
-          onDeleteBehavior: null,
-          sortOrder: 0,
         },
       },
       { channel: fieldDefinitionChannels.get, input: fieldIdentity },
       {
         channel: fieldDefinitionChannels.list,
-        input: {
-          campaignId: identity.id,
-          entityTypeId: entityTypeIdentity.id,
-          limit: 50,
-          filters: { isArchived: false },
-          sort: 'sortOrder',
-          order: 'asc',
-        },
+        input: { campaignId: identity.id, entityTypeId: entityTypeIdentity.id },
       },
       {
         channel: fieldDefinitionChannels.update,
-        input: { ...fieldLifecycle, patch: { label: 'Nome completo' } },
+        input: { ...fieldLifecycle, patch: { label: '  Nome completo  ' } },
       },
       { channel: fieldDefinitionChannels.archive, input: fieldLifecycle },
       { channel: fieldDefinitionChannels.restore, input: fieldLifecycle },
@@ -340,31 +293,17 @@ describe('gateway do preload', () => {
         input: {
           campaignId: identity.id,
           entityTypeId: entityTypeIdentity.id,
-          name: 'Aris',
-          summary: null,
-          canonState: 'accepted',
-          knowledgeState: 'fact',
-          visibility: 'gm',
-          originKind: 'manual',
-          sourceId: null,
-          fieldValues: [],
-          referenceValues: [],
+          name: '  Aris  ',
         },
       },
       { channel: entityChannels.get, input: entityIdentity },
       {
         channel: entityChannels.list,
-        input: {
-          campaignId: identity.id,
-          limit: 50,
-          filters: { archived: false },
-          sort: 'name',
-          order: 'asc',
-        },
+        input: { campaignId: identity.id },
       },
       {
         channel: entityChannels.update,
-        input: { ...entityLifecycle, patch: { name: 'Aris, a Capitã' } },
+        input: { ...entityLifecycle, patch: { name: '  Aris, a Capitã  ' } },
       },
       { channel: entityChannels.archive, input: entityLifecycle },
       { channel: entityChannels.restore, input: entityLifecycle },
@@ -378,6 +317,24 @@ describe('gateway do preload', () => {
     expect(() => gateway.campaigns.create({ name: '   ' })).toThrow();
     expect(() => gateway.entityTypes.list({ campaignId: 'campanha-inválida' })).toThrow();
     expect(invocations).toHaveLength(0);
+  });
+
+  it('não transmite defaults nem propriedades geradas pelo schema de criação', async () => {
+    const invocations: Invocation[] = [];
+    const gateway = createCampaignManagerGateway(createInvoker(invocations));
+    const input = {
+      campaignId: '00000000-0000-4000-8000-000000000001',
+      entityTypeId: '10000000-0000-4000-8000-000000000001',
+      label: '  Aliados  ',
+      helpText: '  Escolha aliados relevantes.  ',
+      dataType: 'entity_reference_list' as const,
+    };
+
+    await gateway.fieldDefinitions.create(input);
+
+    expect(invocations).toEqual([{ channel: fieldDefinitionChannels.create, input }]);
+    expect(invocations[0]?.input).not.toHaveProperty('sortOrder');
+    expect(invocations[0]?.input).not.toHaveProperty('required');
   });
 
   it('expõe somente a cópia de diagnóstico de inicialização validada', async () => {
@@ -412,7 +369,7 @@ describe('gateway do preload', () => {
     ).toThrow();
   });
 
-  it('normaliza a consulta de vizinhança antes de invocar o IPC', async () => {
+  it('deixa a normalização da consulta de vizinhança para o main', async () => {
     const invocations: Invocation[] = [];
     const gateway = createCampaignManagerGateway(createInvoker(invocations));
     await gateway.relationships.neighborhood({
@@ -425,16 +382,6 @@ describe('gateway do preload', () => {
         input: {
           campaignId: '00000000-0000-4000-8000-000000000001',
           entityId: '30000000-0000-4000-8000-000000000001',
-          depth: 1,
-          directOnly: false,
-          maxEntities: 100,
-          maxRelationships: 200,
-          filters: {
-            relationshipTypeIds: [],
-            canonStates: [],
-            knowledgeStates: [],
-            visibilities: [],
-          },
         },
       },
     ]);

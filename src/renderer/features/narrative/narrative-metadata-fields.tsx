@@ -1,8 +1,10 @@
-import { useEffect, useRef, type Ref } from 'react';
+import { useEffect, useId, useRef, type Ref } from 'react';
 import type { NarrativeMetadata } from '../../../core/contracts/narrative';
 import type { UserFacingError } from '../../../core/errors/user-facing-error';
 import { UserFacingErrorNotice } from '../../components/user-facing-error-notice';
 import { Button } from '../../components/actions';
+import { ContextualHelp } from '../../components/contextual-help';
+import { contextualHelpCatalog, type ContextualHelpKey } from '../../content/contextual-help';
 
 export interface NarrativeMetadataValues extends Omit<NarrativeMetadata, 'sourceId'> {
   sourceId: string | null;
@@ -70,6 +72,7 @@ export function NarrativeMetadataFields({
     <fieldset className="grid gap-4 rounded-2xl border border-stone-200 p-5 md:grid-cols-2">
       <legend className="px-2 font-semibold">Metadados narrativos</legend>
       <Select
+        helpKey="narrative.canonState"
         label="Estado canônico"
         value={values.canonState}
         disabled={disabled}
@@ -79,6 +82,7 @@ export function NarrativeMetadataFields({
         options={canonOptions}
       />
       <Select
+        helpKey="narrative.knowledgeState"
         label="Natureza do conhecimento"
         value={values.knowledgeState}
         disabled={disabled}
@@ -88,6 +92,7 @@ export function NarrativeMetadataFields({
         options={knowledgeOptions}
       />
       <Select
+        helpKey="narrative.visibility"
         label="Visibilidade"
         value={values.visibility}
         disabled={disabled}
@@ -97,6 +102,7 @@ export function NarrativeMetadataFields({
         options={visibilityOptions}
       />
       <Select
+        helpKey="narrative.originKind"
         id="narrative-origin-kind"
         label="Origem"
         selectRef={originSelectRef}
@@ -113,7 +119,13 @@ export function NarrativeMetadataFields({
       />
       {values.originKind === 'session' && sessionSource !== undefined ? (
         <div className={labelClass}>
-          <label htmlFor="narrative-source-session">Sessão de origem *</label>
+          <div className="flex items-center gap-1">
+            <label htmlFor="narrative-source-session">Sessão de origem *</label>
+            <ContextualHelp
+              content={contextualHelpCatalog['narrative.sourceSession']}
+              label="Sessão de origem"
+            />
+          </div>
           <select
             aria-describedby={sessionSourceDescription(sessionSource)}
             aria-invalid={sessionSource.error === undefined ? undefined : true}
@@ -216,6 +228,7 @@ export function NarrativeMetadataFields({
 }
 
 function Select({
+  helpKey,
   id,
   label,
   value,
@@ -224,6 +237,7 @@ function Select({
   options,
   selectRef,
 }: {
+  helpKey: ContextualHelpKey;
   id?: string | undefined;
   label: string;
   value: string;
@@ -232,13 +246,18 @@ function Select({
   options: readonly (readonly [string, string])[];
   selectRef?: Ref<HTMLSelectElement> | undefined;
 }): React.JSX.Element {
+  const generatedId = useId();
+  const selectId = id ?? `narrative-metadata-${generatedId.replaceAll(':', '')}`;
   return (
-    <label className={labelClass}>
-      {label}
+    <div className={labelClass}>
+      <div className="flex items-center gap-1">
+        <label htmlFor={selectId}>{label}</label>
+        <ContextualHelp content={contextualHelpCatalog[helpKey]} label={label} />
+      </div>
       <select
         className={inputClass}
         disabled={disabled}
-        id={id}
+        id={selectId}
         onChange={(event) => onChange(event.target.value)}
         ref={selectRef}
         value={value}
@@ -249,7 +268,7 @@ function Select({
           </option>
         ))}
       </select>
-    </label>
+    </div>
   );
 }
 

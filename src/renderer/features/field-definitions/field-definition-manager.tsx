@@ -188,6 +188,7 @@ export function FieldDefinitionManager({
       <>
         <FieldDefinitionForm
           busy={busy}
+          campaignId={campaign.id}
           error={null}
           mode="create"
           onCancel={closeForm}
@@ -205,6 +206,7 @@ export function FieldDefinitionManager({
       <>
         <FieldDefinitionForm
           busy={busy}
+          campaignId={campaign.id}
           error={null}
           field={editing}
           key={`${editing.id}:${String(editing.revision)}`}

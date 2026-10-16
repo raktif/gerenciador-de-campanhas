@@ -8,6 +8,8 @@ import type {
 } from '../../../core/contracts/entities';
 import type { EntityType } from '../../../core/contracts/entity-types';
 import type { FieldDefinition } from '../../../core/contracts/field-definitions';
+import { ContextualHelp } from '../../components/contextual-help';
+import { contextualHelpCatalog, fieldDefinitionHelpContent } from '../../content/contextual-help';
 
 export interface EntityFormSubmitValues {
   name: string;
@@ -313,11 +315,18 @@ export function EntityForm(props: EntityFormProps): React.JSX.Element {
 
           <fieldset className="grid gap-6 rounded-2xl border border-stone-200 p-5 md:grid-cols-2">
             <legend className="px-2 font-semibold">Metadados narrativos</legend>
-            <label className={labelClass}>
-              Estado canônico
+            <div className={labelClass}>
+              <div className="flex items-center gap-1">
+                <label htmlFor="entity-canon-state">Estado canônico</label>
+                <ContextualHelp
+                  content={contextualHelpCatalog['narrative.canonState']}
+                  label="Estado canônico"
+                />
+              </div>
               <select
                 className={inputClass}
                 disabled={props.busy}
+                id="entity-canon-state"
                 onChange={(event) => {
                   setCanonState(event.target.value as Entity['canonState']);
                   setHasUnsavedChanges(true);
@@ -329,12 +338,19 @@ export function EntityForm(props: EntityFormProps): React.JSX.Element {
                 <option value="rejected">Rejeitado</option>
                 <option value="archived">Arquivado</option>
               </select>
-            </label>
-            <label className={labelClass}>
-              Natureza do conhecimento
+            </div>
+            <div className={labelClass}>
+              <div className="flex items-center gap-1">
+                <label htmlFor="entity-knowledge-state">Natureza do conhecimento</label>
+                <ContextualHelp
+                  content={contextualHelpCatalog['narrative.knowledgeState']}
+                  label="Natureza do conhecimento"
+                />
+              </div>
               <select
                 className={inputClass}
                 disabled={props.busy}
+                id="entity-knowledge-state"
                 onChange={(event) => {
                   setKnowledgeState(event.target.value as Entity['knowledgeState']);
                   setHasUnsavedChanges(true);
@@ -348,12 +364,19 @@ export function EntityForm(props: EntityFormProps): React.JSX.Element {
                 <option value="possibility">Possibilidade</option>
                 <option value="disproved">Refutado</option>
               </select>
-            </label>
-            <label className={labelClass}>
-              Visibilidade
+            </div>
+            <div className={labelClass}>
+              <div className="flex items-center gap-1">
+                <label htmlFor="entity-visibility">Visibilidade</label>
+                <ContextualHelp
+                  content={contextualHelpCatalog['narrative.visibility']}
+                  label="Visibilidade"
+                />
+              </div>
               <select
                 className={inputClass}
                 disabled={props.busy}
+                id="entity-visibility"
                 onChange={(event) => {
                   setVisibility(event.target.value as Entity['visibility']);
                   setHasUnsavedChanges(true);
@@ -364,12 +387,19 @@ export function EntityForm(props: EntityFormProps): React.JSX.Element {
                 <option value="players">Jogadores</option>
                 <option value="public">Público</option>
               </select>
-            </label>
-            <label className={labelClass}>
-              Origem
+            </div>
+            <div className={labelClass}>
+              <div className="flex items-center gap-1">
+                <label htmlFor="entity-origin-kind">Origem</label>
+                <ContextualHelp
+                  content={contextualHelpCatalog['narrative.originKind']}
+                  label="Origem"
+                />
+              </div>
               <select
                 className={inputClass}
                 disabled={props.busy}
+                id="entity-origin-kind"
                 onChange={(event) => {
                   setOriginKind(event.target.value as Entity['originKind']);
                   setHasUnsavedChanges(true);
@@ -384,7 +414,7 @@ export function EntityForm(props: EntityFormProps): React.JSX.Element {
                 <option value="ai">IA</option>
                 <option value="generator">Gerador</option>
               </select>
-            </label>
+            </div>
           </fieldset>
 
           {fieldsLoading ? (
@@ -501,6 +531,7 @@ function FieldValueInputControl({
   disabled: boolean;
 }): React.JSX.Element {
   const label = `${field.label}${field.required ? ' (definido como obrigatório)' : ''}`;
+  const controlId = `entity-field-${field.id}`;
   if (field.dataType === 'entity_reference' || field.dataType === 'entity_reference_list') {
     return (
       <p className="text-sm text-slate-500 md:col-span-2">
@@ -511,81 +542,92 @@ function FieldValueInputControl({
   }
   if (field.dataType === 'boolean') {
     return (
-      <label className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+      <div className="flex items-center gap-2 text-sm font-semibold text-slate-800">
         <input
           checked={value === 'true'}
           disabled={disabled}
+          id={controlId}
           onChange={(event) => onChange(event.target.checked ? 'true' : 'false')}
           type="checkbox"
         />
-        {label}
-      </label>
+        <label htmlFor={controlId}>{label}</label>
+        <FieldHelp field={field} />
+      </div>
     );
   }
   if (field.dataType === 'long_text' || field.dataType === 'structured') {
     return (
-      <label className={labelClass}>
-        {label}
+      <div>
+        <FieldLabel controlId={controlId} field={field} label={label} />
         <textarea
           className={`${inputClass} min-h-24`}
           disabled={disabled}
+          id={controlId}
           onChange={(event) => onChange(event.target.value)}
           value={value}
         />
-      </label>
+      </div>
     );
   }
   if (field.dataType === 'number' || field.dataType === 'progress') {
     return (
-      <label className={labelClass}>
-        {label}
+      <div>
+        <FieldLabel controlId={controlId} field={field} label={label} />
         <input
           className={inputClass}
           disabled={disabled}
+          id={controlId}
           onChange={(event) => onChange(event.target.value)}
           type="number"
           value={value}
         />
-      </label>
+      </div>
     );
   }
   if (field.dataType === 'date') {
     return (
-      <label className={labelClass}>
-        {label}
+      <div>
+        <FieldLabel controlId={controlId} field={field} label={label} />
         <input
           className={inputClass}
           disabled={disabled}
+          id={controlId}
           onChange={(event) => onChange(event.target.value)}
           type="date"
           value={value}
         />
-      </label>
+      </div>
     );
   }
   if (field.dataType === 'multi_select') {
     return (
-      <label className={labelClass}>
-        {label} (separados por vírgula)
+      <div>
+        <FieldLabel
+          controlId={controlId}
+          field={field}
+          label={`${label} (separados por vírgula)`}
+        />
         <input
           className={inputClass}
           disabled={disabled}
+          id={controlId}
           onChange={(event) => onChange(event.target.value)}
           value={value}
         />
-      </label>
+      </div>
     );
   }
   return (
-    <label className={labelClass}>
-      {label}
+    <div>
+      <FieldLabel controlId={controlId} field={field} label={label} />
       <input
         className={inputClass}
         disabled={disabled}
+        id={controlId}
         onChange={(event) => onChange(event.target.value)}
         value={value}
       />
-    </label>
+    </div>
   );
 }
 
@@ -602,13 +644,15 @@ function ReferenceInputControl({
   onChange: (value: string[]) => void;
   disabled: boolean;
 }): React.JSX.Element {
+  const controlId = `entity-field-${field.id}`;
   if (field.dataType === 'entity_reference')
     return (
-      <label className={labelClass}>
-        {field.label}
+      <div>
+        <FieldLabel controlId={controlId} field={field} label={field.label} />
         <select
           className={inputClass}
           disabled={disabled}
+          id={controlId}
           value={value[0] ?? ''}
           onChange={(event) => onChange(event.target.value === '' ? [] : [event.target.value])}
         >
@@ -619,11 +663,16 @@ function ReferenceInputControl({
             </option>
           ))}
         </select>
-      </label>
+      </div>
     );
   return (
     <fieldset className="rounded-xl border border-stone-200 p-4">
-      <legend className="px-1 text-sm font-semibold">{field.label}</legend>
+      <legend className="px-1 text-sm font-semibold">
+        <span className="inline-flex items-center gap-1">
+          {field.label}
+          <FieldHelp field={field} />
+        </span>
+      </legend>
       <div className="mt-2 grid gap-2">
         {entities.map((entity) => (
           <label className="flex items-center gap-2 text-sm" key={entity.id}>
@@ -645,6 +694,30 @@ function ReferenceInputControl({
       </div>
     </fieldset>
   );
+}
+
+function FieldLabel({
+  controlId,
+  field,
+  label,
+}: {
+  controlId: string;
+  field: FieldDefinition;
+  label: string;
+}): React.JSX.Element {
+  return (
+    <div className="flex items-center gap-1">
+      <label className={labelClass} htmlFor={controlId}>
+        {label}
+      </label>
+      <FieldHelp field={field} />
+    </div>
+  );
+}
+
+function FieldHelp({ field }: { field: FieldDefinition }): React.JSX.Element | null {
+  const content = fieldDefinitionHelpContent(field);
+  return content === null ? null : <ContextualHelp content={content} label={field.label} />;
 }
 
 function toFieldValueTexts(fieldValues: FieldValue[]): Record<string, string> {
