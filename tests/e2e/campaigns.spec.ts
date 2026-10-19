@@ -206,7 +206,7 @@ test('configura tipos de entidade isolados na campanha e os recupera após reini
     await expect(window.getByRole('button', { name: 'Criar tipo de entidade' })).toBeEnabled();
     await window.getByLabel('Identificador (slug)').fill('personagens');
     await window.getByLabel('Descrição').fill('Pessoas que movem a história.');
-    await window.getByLabel('Ícone ou símbolo').fill('P');
+    await window.getByRole('radio', { name: 'Pessoa' }).check();
     await window.getByLabel('Cor').fill('#92400e');
     await window.getByRole('button', { name: 'Criar tipo de entidade' }).click();
 

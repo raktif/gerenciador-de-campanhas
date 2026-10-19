@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   createEntityTypeInputSchema,
+  entityTypeSchema,
   entityTypePageRequestSchema,
   entityTypePatchSchema,
   moveEntityTypeInputSchema,
@@ -51,6 +52,56 @@ describe('contratos de tipos de entidade', () => {
       }),
     ).toThrow();
     expect(() => entityTypePatchSchema.parse({ sortOrder: 2 })).toThrow();
+  });
+
+  it('aceita somente identificadores estáveis do catálogo nas novas mutações', () => {
+    expect(
+      createEntityTypeInputSchema.parse({
+        campaignId,
+        name: 'Personagens',
+        singularName: 'Personagem',
+        slug: 'personagens',
+        icon: 'person',
+      }),
+    ).toMatchObject({ icon: 'person' });
+    expect(entityTypePatchSchema.parse({ icon: 'forest' })).toEqual({ icon: 'forest' });
+    expect(entityTypePatchSchema.parse({ icon: null })).toEqual({ icon: null });
+
+    for (const icon of ['P', '🧙', '<svg />', 'unknown']) {
+      expect(() =>
+        createEntityTypeInputSchema.parse({
+          campaignId,
+          name: 'Personagens',
+          singularName: 'Personagem',
+          slug: 'personagens',
+          icon,
+        }),
+      ).toThrow();
+      expect(() => entityTypePatchSchema.parse({ icon })).toThrow();
+    }
+  });
+
+  it('preserva a leitura de ícones legados sem aceitá-los em novas mutações', () => {
+    const legacy = entityTypeSchema.parse({
+      id: sourceId,
+      campaignId,
+      packId: null,
+      name: 'Personagens',
+      singularName: 'Personagem',
+      slug: 'personagens',
+      description: null,
+      icon: 'P',
+      color: null,
+      sortOrder: 0,
+      isSystem: false,
+      isArchived: false,
+      createdAt: '2026-08-28T12:00:00.000Z',
+      updatedAt: '2026-08-28T12:00:00.000Z',
+      revision: 1,
+    });
+
+    expect(legacy.icon).toBe('P');
+    expect(entityTypePatchSchema.parse({ name: 'Heróis' })).toEqual({ name: 'Heróis' });
   });
 
   it('valida movimento relativo estrito com revisões da origem e do destino', () => {

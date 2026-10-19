@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { Button, FormActions } from '../../components/actions';
+import { IconPicker } from '../../components/icon-picker';
 import type {
   CreateEntityTypeInputRequest,
   EntityType,
   EntityTypePatch,
 } from '../../../core/contracts/entity-types';
+import { iconIdSchema, type IconId } from '../../../core/contracts/icons';
 
 export type EntityTypeCreateValues = Omit<CreateEntityTypeInputRequest, 'campaignId'>;
 
@@ -29,7 +31,7 @@ interface FormValues {
   singularName: string;
   slug: string;
   description: string;
-  icon: string;
+  icon: EntityTypeFormIconValue;
   color: string;
 }
 
@@ -38,7 +40,7 @@ const emptyValues: FormValues = {
   singularName: '',
   slug: '',
   description: '',
-  icon: '',
+  icon: null,
   color: '',
 };
 
@@ -50,7 +52,7 @@ export function EntityTypeForm(props: EntityTypeFormProps): React.JSX.Element {
   );
   const [validationError, setValidationError] = useState<string | null>(null);
 
-  function update(field: keyof FormValues, value: string): void {
+  function update<Key extends keyof FormValues>(field: Key, value: FormValues[Key]): void {
     setValidationError(null);
     setValues((current) => ({ ...current, [field]: value }));
   }
@@ -154,14 +156,12 @@ export function EntityTypeForm(props: EntityTypeFormProps): React.JSX.Element {
             />
           </div>
 
-          <div className="grid gap-6 md:grid-cols-2">
-            <TextField
+          <div className="space-y-6">
+            <IconPicker
               disabled={props.busy}
               id="entity-type-icon"
-              label="Ícone ou símbolo"
               onChange={(value) => update('icon', value)}
-              placeholder="Ex.: ◈"
-              value={values.icon}
+              value={iconPickerValue(values.icon)}
             />
             <TextField
               disabled={props.busy}
@@ -200,6 +200,8 @@ export function EntityTypeForm(props: EntityTypeFormProps): React.JSX.Element {
     </section>
   );
 }
+
+export type EntityTypeFormIconValue = IconId | null | { readonly legacy: string };
 
 function TextField({
   autoFocus = false,
@@ -254,7 +256,7 @@ export function toCreateEntityTypeValues(values: FormValues): EntityTypeCreateVa
     singularName: values.singularName.trim(),
     slug: values.slug.trim(),
     ...optionalValue('description', values.description),
-    ...optionalValue('icon', values.icon),
+    ...optionalIconValue(values.icon),
     ...optionalValue('color', values.color),
   };
 }
@@ -268,7 +270,7 @@ export function toEntityTypePatch(
   assignTextChange(patch, 'singularName', values.singularName, entityType.singularName);
   assignTextChange(patch, 'slug', values.slug, entityType.slug);
   assignNullableChange(patch, 'description', values.description, entityType.description);
-  assignNullableChange(patch, 'icon', values.icon, entityType.icon);
+  assignNullableIconChange(patch, values.icon, entityType.icon);
   assignNullableChange(patch, 'color', values.color, entityType.color);
   return Object.keys(patch).length === 0 ? null : patch;
 }
@@ -279,7 +281,7 @@ function toFormValues(entityType: EntityType): FormValues {
     singularName: entityType.singularName,
     slug: entityType.slug,
     description: entityType.description ?? '',
-    icon: entityType.icon ?? '',
+    icon: toFormIconValue(entityType.icon),
     color: entityType.color ?? '',
   };
 }
@@ -296,7 +298,7 @@ function assignTextChange(
 
 function assignNullableChange(
   patch: EntityTypePatch,
-  field: 'description' | 'icon' | 'color',
+  field: 'description' | 'color',
   value: string,
   currentValue: string | null,
 ): void {
@@ -305,12 +307,41 @@ function assignNullableChange(
   if (normalized !== currentValue) patch[field] = normalized;
 }
 
+function assignNullableIconChange(
+  patch: EntityTypePatch,
+  value: EntityTypeFormIconValue,
+  currentValue: string | null,
+): void {
+  if (typeof value === 'object' && value !== null) {
+    if (value.legacy === currentValue) return;
+    throw new Error('Um ícone legado somente pode ser preservado sem alterações.');
+  }
+  if (value !== currentValue) patch.icon = value;
+}
+
 function optionalValue(
-  field: 'description' | 'icon' | 'color',
+  field: 'description' | 'color',
   value: string,
-): Partial<Record<'description' | 'icon' | 'color', string>> {
+): Partial<Record<'description' | 'color', string>> {
   const trimmed = value.trim();
   return trimmed === '' ? {} : { [field]: trimmed };
+}
+
+function optionalIconValue(value: EntityTypeFormIconValue): { icon?: IconId } {
+  if (value === null) return {};
+  if (typeof value === 'object')
+    throw new Error('Um ícone legado não pode ser usado na criação de um tipo de entidade.');
+  return { icon: value };
+}
+
+function toFormIconValue(value: string | null): EntityTypeFormIconValue {
+  if (value === null) return null;
+  const parsed = iconIdSchema.safeParse(value);
+  return parsed.success ? parsed.data : { legacy: value };
+}
+
+function iconPickerValue(value: EntityTypeFormIconValue): string | null {
+  return typeof value === 'object' && value !== null ? value.legacy : value;
 }
 
 const labelClassName = 'block text-sm font-semibold text-slate-800';

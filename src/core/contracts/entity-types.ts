@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { relativePlacements } from '../ordering/move-relative';
 import { defaultPageLimit, maximumPageLimit, type PageResult } from './pagination';
 import type { Result } from './result';
+import { iconIdSchema } from './icons';
 
 const nameSchema = z.string().trim().min(1).max(120);
 const slugSchema = z
@@ -11,7 +12,6 @@ const slugSchema = z
   .max(100)
   .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Use letras minúsculas, números e hífens simples.');
 const nullableDescriptionSchema = z.string().trim().min(1).max(2000).nullable();
-const nullableIconSchema = z.string().trim().min(1).max(120).nullable();
 const nullableColorSchema = z.string().trim().min(1).max(64).nullable();
 
 export const entityTypeSchema = z
@@ -42,7 +42,7 @@ export const createEntityTypeInputSchema = z
     singularName: nameSchema,
     slug: slugSchema,
     description: z.string().trim().min(1).max(2000).optional(),
-    icon: z.string().trim().min(1).max(120).optional(),
+    icon: iconIdSchema.optional(),
     color: z.string().trim().min(1).max(64).optional(),
   })
   .strict()
@@ -56,7 +56,7 @@ export const entityTypePatchSchema = z
     singularName: nameSchema.optional(),
     slug: slugSchema.optional(),
     description: nullableDescriptionSchema.optional(),
-    icon: nullableIconSchema.optional(),
+    icon: iconIdSchema.nullable().optional(),
     color: nullableColorSchema.optional(),
   })
   .strict()

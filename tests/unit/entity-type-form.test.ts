@@ -1,11 +1,31 @@
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import type { EntityType } from '../../src/core/contracts/entity-types';
 import {
+  EntityTypeForm,
   toCreateEntityTypeValues,
   toEntityTypePatch,
 } from '../../src/renderer/features/entity-types/entity-type-form';
 
 describe('formulário de tipo de entidade', () => {
+  it('usa o seletor visual no lugar da entrada livre', () => {
+    const markup = renderToStaticMarkup(
+      createElement(EntityTypeForm, {
+        busy: false,
+        error: null,
+        mode: 'create',
+        onCancel: () => undefined,
+        onSubmit: async () => undefined,
+      }),
+    );
+
+    expect(markup).not.toContain('Ícone ou símbolo');
+    expect(markup.match(/type="radio"/g)).toHaveLength(21);
+    expect(markup).toContain('<legend');
+    expect(markup).toContain('Ícone');
+  });
+
   it('normaliza a criação e omite apresentação vazia', () => {
     expect(
       toCreateEntityTypeValues({
@@ -13,7 +33,7 @@ describe('formulário de tipo de entidade', () => {
         singularName: '  Personagem  ',
         slug: '  personagens  ',
         description: '   ',
-        icon: '',
+        icon: null,
         color: '  #92400e  ',
       }),
     ).toEqual({
@@ -24,7 +44,7 @@ describe('formulário de tipo de entidade', () => {
     });
   });
 
-  it('gera somente alterações e permite limpar campos opcionais', () => {
+  it('edita outro campo sem remover implicitamente um ícone legado', () => {
     expect(
       toEntityTypePatch(
         {
@@ -32,12 +52,25 @@ describe('formulário de tipo de entidade', () => {
           singularName: '  Protagonista  ',
           slug: entityType.slug,
           description: '   ',
-          icon: entityType.icon ?? '',
+          icon: { legacy: entityType.icon ?? '' },
           color: entityType.color ?? '',
         },
         entityType,
       ),
     ).toEqual({ singularName: 'Protagonista', description: null });
+  });
+
+  it('gera mutações válidas ao escolher um ícone ou Nenhum', () => {
+    const values = {
+      name: entityType.name,
+      singularName: entityType.singularName,
+      slug: entityType.slug,
+      description: entityType.description ?? '',
+      icon: 'person' as const,
+      color: entityType.color ?? '',
+    };
+    expect(toEntityTypePatch(values, entityType)).toEqual({ icon: 'person' });
+    expect(toEntityTypePatch({ ...values, icon: null }, entityType)).toEqual({ icon: null });
   });
 
   it('não cria atualização quando nada mudou', () => {
@@ -48,7 +81,7 @@ describe('formulário de tipo de entidade', () => {
           singularName: entityType.singularName,
           slug: entityType.slug,
           description: entityType.description ?? '',
-          icon: entityType.icon ?? '',
+          icon: { legacy: entityType.icon ?? '' },
           color: entityType.color ?? '',
         },
         entityType,

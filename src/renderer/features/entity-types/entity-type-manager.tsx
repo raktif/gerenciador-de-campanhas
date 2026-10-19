@@ -11,6 +11,7 @@ import { UserFacingErrorNotice } from '../../components/user-facing-error-notice
 import { ReorderableList } from '../../components/reorderable-list';
 import type { RelativeMove } from '../../../core/ordering/move-relative';
 import { Button, ButtonGroup, ToolbarActions } from '../../components/actions';
+import { Icon } from '../../components/icon';
 
 type ManagerView = 'list' | 'create' | 'edit' | 'fields';
 type LifecycleAction = 'archive' | 'restore';
@@ -392,9 +393,14 @@ function EntityTypeCard({
           <div
             aria-hidden="true"
             className="grid size-11 shrink-0 place-items-center rounded-xl bg-slate-900 text-lg font-bold text-white"
+            data-testid="entity-type-icon"
             style={entityType.color === null ? undefined : { backgroundColor: entityType.color }}
           >
-            {entityType.icon ?? entityType.singularName.slice(0, 1).toUpperCase()}
+            {entityType.icon === null ? (
+              entityType.singularName.slice(0, 1).toUpperCase()
+            ) : (
+              <Icon className="size-6" value={entityType.icon} />
+            )}
           </div>
           <div className="min-w-0">
             <h2 className="text-xl font-semibold text-slate-950">{entityType.name}</h2>
