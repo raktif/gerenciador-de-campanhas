@@ -81,6 +81,40 @@ describe('contratos de tipos de entidade', () => {
     }
   });
 
+  it('normaliza cores canônicas nas mutações e preserva leitura legada', () => {
+    expect(
+      createEntityTypeInputSchema.parse({
+        campaignId,
+        name: 'Personagens',
+        singularName: 'Personagem',
+        slug: 'personagens',
+        color: '  #a1b2c3 ',
+      }),
+    ).toMatchObject({ color: '#A1B2C3' });
+    expect(entityTypePatchSchema.parse({ color: '#abcdef' })).toEqual({ color: '#ABCDEF' });
+    expect(entityTypePatchSchema.parse({ color: null })).toEqual({ color: null });
+    expect(() => entityTypePatchSchema.parse({ color: 'amber' })).toThrow();
+
+    const legacy = entityTypeSchema.parse({
+      id: sourceId,
+      campaignId,
+      packId: null,
+      name: 'Personagens',
+      singularName: 'Personagem',
+      slug: 'personagens',
+      description: null,
+      icon: null,
+      color: 'amber',
+      sortOrder: 0,
+      isSystem: false,
+      isArchived: false,
+      createdAt: '2026-08-28T12:00:00.000Z',
+      updatedAt: '2026-08-28T12:00:00.000Z',
+      revision: 1,
+    });
+    expect(legacy.color).toBe('amber');
+  });
+
   it('preserva a leitura de ícones legados sem aceitá-los em novas mutações', () => {
     const legacy = entityTypeSchema.parse({
       id: sourceId,

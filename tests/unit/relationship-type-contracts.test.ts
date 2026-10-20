@@ -4,6 +4,7 @@ import {
   moveRelationshipTypeInputSchema,
   relationshipTypePageRequestSchema,
   relationshipTypePatchSchema,
+  relationshipTypeSchema,
 } from '../../src/core/contracts/relationship-types';
 
 const campaignId = '00000000-0000-4000-8000-000000000001';
@@ -68,6 +69,44 @@ describe('contratos de tipos de relação', () => {
       }),
     ).toThrow();
     expect(() => relationshipTypePatchSchema.parse({ sortOrder: 2 })).toThrow();
+  });
+
+  it('normaliza cores canônicas nas mutações e preserva leitura legada', () => {
+    expect(
+      createRelationshipTypeInputSchema.parse({
+        campaignId,
+        name: 'Conhece',
+        slug: 'conhece',
+        color: '  #a1b2c3 ',
+      }),
+    ).toMatchObject({ color: '#A1B2C3' });
+    expect(relationshipTypePatchSchema.parse({ color: '#abcdef' })).toEqual({
+      color: '#ABCDEF',
+    });
+    expect(relationshipTypePatchSchema.parse({ color: null })).toEqual({ color: null });
+    expect(() => relationshipTypePatchSchema.parse({ color: 'amber' })).toThrow();
+
+    const legacy = relationshipTypeSchema.parse({
+      id: sourceId,
+      campaignId,
+      packId: null,
+      name: 'Conhece',
+      slug: 'conhece',
+      inverseName: null,
+      description: null,
+      semanticRole: null,
+      isSymmetric: true,
+      allowedSourceTypeIds: null,
+      allowedTargetTypeIds: null,
+      icon: null,
+      color: 'amber',
+      sortOrder: 0,
+      isArchived: false,
+      createdAt: '2026-08-28T12:00:00.000Z',
+      updatedAt: '2026-08-28T12:00:00.000Z',
+      revision: 1,
+    });
+    expect(legacy.color).toBe('amber');
   });
 
   it('valida movimento relativo estrito com revisões da origem e do destino', () => {

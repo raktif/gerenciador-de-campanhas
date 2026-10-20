@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { Button, FormActions } from '../../components/actions';
 import { IconPicker } from '../../components/icon-picker';
+import { ColorPicker } from '../../components/color-picker';
 import type {
   CreateEntityTypeInputRequest,
   EntityType,
   EntityTypePatch,
 } from '../../../core/contracts/entity-types';
 import { iconIdSchema, type IconId } from '../../../core/contracts/icons';
+import { normalizeHexColor } from '../../../core/contracts/colors';
 
 export type EntityTypeCreateValues = Omit<CreateEntityTypeInputRequest, 'campaignId'>;
 
@@ -163,13 +165,11 @@ export function EntityTypeForm(props: EntityTypeFormProps): React.JSX.Element {
               onChange={(value) => update('icon', value)}
               value={iconPickerValue(values.icon)}
             />
-            <TextField
+            <ColorPicker
               disabled={props.busy}
               id="entity-type-color"
-              label="Cor"
-              onChange={(value) => update('color', value)}
-              placeholder="Ex.: #92400e"
-              value={values.color}
+              onChange={(value) => update('color', value ?? '')}
+              value={values.color === '' ? null : values.color}
             />
           </div>
 
@@ -257,7 +257,7 @@ export function toCreateEntityTypeValues(values: FormValues): EntityTypeCreateVa
     slug: values.slug.trim(),
     ...optionalValue('description', values.description),
     ...optionalIconValue(values.icon),
-    ...optionalValue('color', values.color),
+    ...optionalColorValue(values.color),
   };
 }
 
@@ -271,7 +271,7 @@ export function toEntityTypePatch(
   assignTextChange(patch, 'slug', values.slug, entityType.slug);
   assignNullableChange(patch, 'description', values.description, entityType.description);
   assignNullableIconChange(patch, values.icon, entityType.icon);
-  assignNullableChange(patch, 'color', values.color, entityType.color);
+  assignNullableColorChange(patch, values.color, entityType.color);
   return Object.keys(patch).length === 0 ? null : patch;
 }
 
@@ -320,11 +320,27 @@ function assignNullableIconChange(
 }
 
 function optionalValue(
-  field: 'description' | 'color',
+  field: 'description',
   value: string,
-): Partial<Record<'description' | 'color', string>> {
+): Partial<Record<'description', string>> {
   const trimmed = value.trim();
   return trimmed === '' ? {} : { [field]: trimmed };
+}
+
+function optionalColorValue(value: string): { color?: string } {
+  const trimmed = value.trim();
+  return trimmed === '' ? {} : { color: normalizeHexColor(trimmed) };
+}
+
+function assignNullableColorChange(
+  patch: EntityTypePatch,
+  value: string,
+  currentValue: string | null,
+): void {
+  if (value === currentValue) return;
+  const trimmed = value.trim();
+  const normalized = trimmed === '' ? null : trimmed;
+  patch.color = normalized === null ? null : normalizeHexColor(normalized);
 }
 
 function optionalIconValue(value: EntityTypeFormIconValue): { icon?: IconId } {

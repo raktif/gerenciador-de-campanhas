@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { Button, FormActions } from '../../components/actions';
+import { ColorPicker } from '../../components/color-picker';
+import { normalizeHexColor } from '../../../core/contracts/colors';
 import type { EntityType } from '../../../core/contracts/entity-types';
 import type {
   CreateRelationshipTypeInput,
@@ -136,12 +138,11 @@ export function RelationshipTypeForm(props: Props): React.JSX.Element {
               onChange={(value) => update('icon', value)}
               value={values.icon}
             />
-            <TextField
+            <ColorPicker
               disabled={props.busy}
-              label="Cor"
-              onChange={(value) => update('color', value)}
-              placeholder="#92400e"
-              value={values.color}
+              id="relationship-type-color"
+              onChange={(value) => update('color', value ?? '')}
+              value={values.color === '' ? null : values.color}
             />
           </div>
 
@@ -327,14 +328,14 @@ export function toCreateValues(values: FormValues): RelationshipTypeCreateValues
     allowedSourceTypeIds: nullableIds(values.allowedSourceTypeIds),
     allowedTargetTypeIds: nullableIds(values.allowedTargetTypeIds),
     icon: nullable(values.icon),
-    color: nullable(values.color),
+    color: nullableColor(values.color),
   };
 }
 export function toPatch(
   values: FormValues,
   current: RelationshipType,
 ): RelationshipTypePatch | null {
-  const next = toCreateValues(values);
+  const next = toCreateValues({ ...values, color: '' });
   const patch: RelationshipTypePatch = {};
   for (const field of [
     'name',
@@ -344,9 +345,12 @@ export function toPatch(
     'semanticRole',
     'isSymmetric',
     'icon',
-    'color',
   ] as const)
     if (next[field] !== current[field]) Object.assign(patch, { [field]: next[field] });
+  if (values.color !== current.color) {
+    const nextColor = nullable(values.color);
+    patch.color = nextColor === null ? null : normalizeHexColor(nextColor);
+  }
   if (!sameIds(next.allowedSourceTypeIds, current.allowedSourceTypeIds))
     patch.allowedSourceTypeIds = next.allowedSourceTypeIds;
   if (!sameIds(next.allowedTargetTypeIds, current.allowedTargetTypeIds))
@@ -356,6 +360,10 @@ export function toPatch(
 function nullable(value: string): string | null {
   const trimmed = value.trim();
   return trimmed === '' ? null : trimmed;
+}
+function nullableColor(value: string): string | null {
+  const normalized = nullable(value);
+  return normalized === null ? null : normalizeHexColor(normalized);
 }
 function nullableIds(ids: string[]): string[] | null {
   return ids.length === 0 ? null : [...ids].sort();

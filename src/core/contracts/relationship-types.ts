@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { relativePlacements } from '../ordering/move-relative';
 import { defaultPageLimit, maximumPageLimit, type PageResult } from './pagination';
 import type { Result } from './result';
+import { nullableHexColorSchema } from './colors';
 
 const nameSchema = z.string().trim().min(1).max(120);
 const slugSchema = z
@@ -20,7 +21,6 @@ const nullableSemanticRoleSchema = z
   .regex(/^[a-z][a-z0-9_]*$/, 'Use letras minúsculas, números e sublinhados.')
   .nullable();
 const nullableIconSchema = z.string().trim().min(1).max(120).nullable();
-const nullableColorSchema = z.string().trim().min(1).max(64).nullable();
 const allowedEntityTypeIdsSchema = z
   .array(z.uuid())
   .min(1)
@@ -64,7 +64,7 @@ export const createRelationshipTypeInputSchema = z
     allowedSourceTypeIds: allowedEntityTypeIdsSchema.default(null),
     allowedTargetTypeIds: allowedEntityTypeIdsSchema.default(null),
     icon: nullableIconSchema.default(null),
-    color: nullableColorSchema.default(null),
+    color: nullableHexColorSchema.default(null),
   })
   .strict()
   .transform((input) => ({ ...input, sortOrder: 0 }));
@@ -82,7 +82,7 @@ export const relationshipTypePatchSchema = z
     allowedSourceTypeIds: allowedEntityTypeIdsSchema.optional(),
     allowedTargetTypeIds: allowedEntityTypeIdsSchema.optional(),
     icon: nullableIconSchema.optional(),
-    color: nullableColorSchema.optional(),
+    color: nullableHexColorSchema.optional(),
   })
   .strict()
   .refine((patch) => Object.keys(patch).length > 0, 'Informe ao menos uma alteração.');

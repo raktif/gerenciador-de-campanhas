@@ -21,9 +21,12 @@ describe('formulário de tipo de entidade', () => {
     );
 
     expect(markup).not.toContain('Ícone ou símbolo');
-    expect(markup.match(/type="radio"/g)).toHaveLength(21);
+    expect(markup.match(/type="radio"/g)).toHaveLength(34);
     expect(markup).toContain('<legend');
     expect(markup).toContain('Ícone');
+    expect(markup).toContain('Paleta de cores');
+    expect(markup).toContain('Seletor visual');
+    expect(markup).toContain('Cor hexadecimal');
   });
 
   it('normaliza a criação e omite apresentação vazia', () => {
@@ -40,7 +43,7 @@ describe('formulário de tipo de entidade', () => {
       name: 'Personagens',
       singularName: 'Personagem',
       slug: 'personagens',
-      color: '#92400e',
+      color: '#92400E',
     });
   });
 
@@ -58,6 +61,56 @@ describe('formulário de tipo de entidade', () => {
         entityType,
       ),
     ).toEqual({ singularName: 'Protagonista', description: null });
+  });
+
+  it('preserva cor legada intocada e somente a substitui por valor canônico explícito', () => {
+    const legacy = { ...entityType, color: 'amber' };
+    expect(
+      toEntityTypePatch(
+        {
+          name: legacy.name,
+          singularName: 'Protagonista',
+          slug: legacy.slug,
+          description: legacy.description ?? '',
+          icon: { legacy: legacy.icon ?? '' },
+          color: legacy.color,
+        },
+        legacy,
+      ),
+    ).toEqual({ singularName: 'Protagonista' });
+
+    expect(
+      toEntityTypePatch(
+        {
+          name: legacy.name,
+          singularName: legacy.singularName,
+          slug: legacy.slug,
+          description: legacy.description ?? '',
+          icon: { legacy: legacy.icon ?? '' },
+          color: '#abcdef',
+        },
+        legacy,
+      ),
+    ).toEqual({ color: '#ABCDEF' });
+  });
+
+  it('preserva cores históricas com espaços ou string vazia ao editar outro campo', () => {
+    for (const color of [' amber ', '']) {
+      const historical = { ...entityType, color };
+      expect(
+        toEntityTypePatch(
+          {
+            name: historical.name,
+            singularName: 'Protagonista',
+            slug: historical.slug,
+            description: historical.description ?? '',
+            icon: { legacy: historical.icon ?? '' },
+            color,
+          },
+          historical,
+        ),
+      ).toEqual({ singularName: 'Protagonista' });
+    }
   });
 
   it('gera mutações válidas ao escolher um ícone ou Nenhum', () => {

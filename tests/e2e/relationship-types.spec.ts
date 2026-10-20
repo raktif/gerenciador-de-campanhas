@@ -43,6 +43,18 @@ test('configura, arquiva e persiste tipos de relação', async () => {
       .getByRole('group', { name: 'Tipos permitidos no destino' })
       .getByLabel('Locais')
       .check();
+    await window.getByText('Opções avançadas').click();
+    const hexadecimal = window.getByLabel('Cor hexadecimal');
+    await hexadecimal.fill('#12');
+    await window.getByRole('button', { name: 'Criar tipo' }).click();
+    await expect(hexadecimal).toHaveAttribute('aria-invalid', 'true');
+    await expect(window.getByRole('alert')).toContainText(
+      'Use uma cor hexadecimal no formato #RRGGBB.',
+    );
+    await window
+      .getByRole('radiogroup', { name: 'Paleta de cores' })
+      .getByLabel('Turquesa')
+      .check();
     await window.getByRole('button', { name: 'Criar tipo' }).click();
 
     await expect(window.getByRole('status')).toContainText('Tipo de relação “Trabalha em” criado.');
@@ -51,6 +63,19 @@ test('configura, arquiva e persiste tipos de relação', async () => {
     await expect(relationshipTypeList).toContainText('Origem: Personagens');
     await expect(relationshipTypeList).not.toContainText(/Ordem \d/);
     await window.getByRole('button', { name: 'Editar' }).click();
+    let palette = window.getByRole('radiogroup', { name: 'Paleta de cores' });
+    await expect(palette.getByLabel('Turquesa')).toBeChecked();
+    await palette.getByLabel('Azul').check();
+    await window.getByRole('button', { name: 'Cancelar' }).click();
+    await window.getByRole('button', { name: 'Editar' }).click();
+    palette = window.getByRole('radiogroup', { name: 'Paleta de cores' });
+    await expect(palette.getByLabel('Turquesa')).toBeChecked();
+    await palette.getByLabel('Sem cor').check();
+    await window.getByRole('button', { name: 'Salvar alterações' }).click();
+    await window.getByRole('button', { name: 'Editar' }).click();
+    await expect(
+      window.getByRole('radiogroup', { name: 'Paleta de cores' }).getByLabel('Sem cor'),
+    ).toBeChecked();
     await window.getByLabel('Relação simétrica').check();
     await window.getByRole('button', { name: 'Salvar alterações' }).click();
     await expect(relationshipTypeList).toContainText('Simétrica');
@@ -92,6 +117,13 @@ test('configura, arquiva e persiste tipos de relação', async () => {
     const persistedTypes = window.getByRole('list', { name: 'Ordenar tipos de relação' });
     await expect(persistedTypes.getByRole('heading')).toHaveText(['Conhece', 'Trabalha em']);
     await expect(persistedTypes).toContainText('Simétrica');
+    const persistedRelationship = persistedTypes
+      .getByRole('listitem')
+      .filter({ hasText: 'Trabalha em' });
+    await persistedRelationship.getByRole('button', { name: 'Editar' }).click();
+    await expect(
+      window.getByRole('radiogroup', { name: 'Paleta de cores' }).getByLabel('Sem cor'),
+    ).toBeChecked();
   } finally {
     await application?.close();
     await rm(dataDirectory, { recursive: true, force: true });

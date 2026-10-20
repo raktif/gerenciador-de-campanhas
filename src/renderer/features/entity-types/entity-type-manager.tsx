@@ -12,6 +12,7 @@ import { ReorderableList } from '../../components/reorderable-list';
 import type { RelativeMove } from '../../../core/ordering/move-relative';
 import { Button, ButtonGroup, ToolbarActions } from '../../components/actions';
 import { Icon } from '../../components/icon';
+import { entityTypeColorStyle } from './entity-type-color';
 
 type ManagerView = 'list' | 'create' | 'edit' | 'fields';
 type LifecycleAction = 'archive' | 'restore';
@@ -394,7 +395,7 @@ function EntityTypeCard({
             aria-hidden="true"
             className="grid size-11 shrink-0 place-items-center rounded-xl bg-slate-900 text-lg font-bold text-white"
             data-testid="entity-type-icon"
-            style={entityType.color === null ? undefined : { backgroundColor: entityType.color }}
+            style={entityTypeColorStyle(entityType.color)}
           >
             {entityType.icon === null ? (
               entityType.singularName.slice(0, 1).toUpperCase()
