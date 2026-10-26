@@ -1,4 +1,5 @@
 import type { AssertionGateway } from './assertions';
+import type { AppearanceGateway } from './appearance';
 import type { CampaignGateway } from './campaigns';
 import type { DiagnosticsGateway } from './diagnostics';
 import type { EntityGateway } from './entities';
@@ -18,6 +19,7 @@ import type {
 } from './sessions';
 
 export interface CampaignManagerGateway {
+  appearance: AppearanceGateway;
   diagnostics: DiagnosticsGateway;
   phaseZero: PhaseZeroGateway;
   campaigns: CampaignGateway;

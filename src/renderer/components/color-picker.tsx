@@ -15,13 +15,13 @@ import {
   type ColorPickerModel,
 } from './color-picker-model';
 
-type ColorPickerProps = {
+interface ColorPickerProps {
   disabled?: boolean;
   id: string;
   legend?: string;
   onChange: (value: HexColor | null) => void;
   value: string | null;
-};
+}
 
 const fallbackColor: HexColor = '#475569';
 
@@ -64,16 +64,20 @@ export function ColorPicker({
       className="space-y-5"
       disabled={disabled}
     >
-      <legend className="text-sm font-semibold text-slate-800">{legend}</legend>
+      <legend className="semantic-field-label text-sm font-semibold">{legend}</legend>
 
       {model.hasLegacyValue ? (
-        <p className="text-sm text-amber-800" id={legacyMessageId} role="status">
-          A cor anterior não usa o formato atual e será preservada. Escolha uma nova cor ou use
-          Sem cor para substituí-la.
+        <p className="semantic-warning-text text-sm" id={legacyMessageId} role="status">
+          A cor anterior não usa o formato atual e será preservada. Escolha uma nova cor ou use Sem
+          cor para substituí-la.
         </p>
       ) : null}
 
-      <div aria-label="Paleta de cores" className="grid grid-cols-2 gap-2 sm:grid-cols-3" role="radiogroup">
+      <div
+        aria-label="Paleta de cores"
+        className="grid grid-cols-2 gap-2 sm:grid-cols-3"
+        role="radiogroup"
+      >
         <ColorOption
           checked={model.selectedColor === null && !model.hasLegacyValue}
           disabled={disabled}
@@ -104,7 +108,7 @@ export function ColorPicker({
           </label>
           <input
             aria-describedby={sampleId}
-            className="h-12 w-full cursor-pointer rounded-xl border border-stone-300 bg-white p-1 disabled:cursor-not-allowed disabled:opacity-60"
+            className="semantic-input h-12 w-full cursor-pointer rounded-xl border p-1 disabled:cursor-not-allowed disabled:opacity-60"
             id={`${id}-visual`}
             onChange={(event) => choose(normalizeHexColor(event.target.value))}
             type="color"
@@ -140,12 +144,12 @@ export function ColorPicker({
         <div>
           <p className={labelClassName}>Amostra</p>
           <div
-            className="mt-2 rounded-xl border border-stone-300 bg-white p-3 text-center text-sm font-semibold text-slate-800"
+            className="semantic-panel semantic-field-label mt-2 rounded-xl border p-3 text-center text-sm font-semibold"
             id={sampleId}
           >
             <span
               aria-hidden="true"
-              className="mx-auto mb-3 block h-20 w-full rounded-lg border border-stone-400"
+              className="mx-auto mb-3 block h-20 w-full rounded-lg border border-[var(--border)]"
               style={{ backgroundColor: model.selectedColor ?? 'transparent' }}
             />
             {model.selectedColor ?? (model.hasLegacyValue ? 'Cor anterior preservada' : 'Sem cor')}
@@ -154,14 +158,14 @@ export function ColorPicker({
       </div>
 
       <details
-        className="rounded-xl border border-stone-200 bg-stone-50 p-4"
+        className="semantic-panel-muted rounded-xl border p-4"
         onToggle={(event) => {
           if (disabled && event.currentTarget.open) event.currentTarget.open = false;
         }}
       >
         <summary
           aria-disabled={disabled || undefined}
-          className={`flex min-h-11 items-center rounded-lg font-semibold outline-none focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-amber-700 ${disabled ? 'cursor-not-allowed text-slate-500' : 'cursor-pointer text-slate-800'}`}
+          className={`semantic-field-label flex min-h-11 items-center rounded-lg font-semibold outline-none focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus)] ${disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
           onClick={(event) => {
             if (disabled) event.preventDefault();
           }}
@@ -177,7 +181,7 @@ export function ColorPicker({
             aria-describedby={`${advancedHelpId}${model.validationMessage === null ? '' : ` ${validationId}`}`}
             aria-invalid={model.validationMessage === null ? undefined : true}
             autoComplete="off"
-            className="mt-2 w-full rounded-xl border border-stone-300 bg-white px-4 py-3 font-mono text-slate-950 shadow-sm outline-none placeholder:text-slate-400 focus:border-amber-700 focus:ring-3 focus:ring-amber-700/15 disabled:bg-stone-100"
+            className="semantic-input mt-2 w-full rounded-xl border px-4 py-3 font-mono shadow-sm outline-none placeholder:text-[var(--text-secondary)]"
             id={`${id}-hex`}
             inputMode="text"
             maxLength={7}
@@ -193,11 +197,11 @@ export function ColorPicker({
             spellCheck={false}
             value={model.hexDraft}
           />
-          <p className="mt-2 text-xs text-slate-600" id={advancedHelpId}>
+          <p className="semantic-help-text mt-2 text-xs" id={advancedHelpId}>
             Digite seis algarismos hexadecimais. O valor será normalizado ao sair do campo.
           </p>
           {model.validationMessage === null ? null : (
-            <p className="mt-2 text-sm text-red-800" id={validationId} role="alert">
+            <p className="semantic-error-text mt-2 text-sm" id={validationId} role="alert">
               {model.validationMessage}
             </p>
           )}
@@ -226,12 +230,12 @@ function ColorOption({
 }): React.JSX.Element {
   return (
     <label
-      className={`relative flex min-h-11 items-center gap-2 rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm font-medium text-slate-800 shadow-sm transition has-checked:border-slate-900 has-checked:ring-2 has-checked:ring-slate-900/20 has-focus-visible:outline-3 has-focus-visible:outline-offset-2 has-focus-visible:outline-amber-700 ${disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:border-amber-600'}`}
+      className={`semantic-choice relative flex min-h-11 items-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium shadow-sm transition has-focus-visible:outline-3 has-focus-visible:outline-offset-2 ${disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
       htmlFor={id}
     >
       <input
         checked={checked}
-        className="size-4 shrink-0 accent-amber-700"
+        className="semantic-accent-control size-4 shrink-0"
         disabled={disabled}
         id={id}
         name={name}
@@ -241,7 +245,7 @@ function ColorOption({
       />
       <span
         aria-hidden="true"
-        className="size-5 shrink-0 rounded-full border border-stone-400"
+        className="size-5 shrink-0 rounded-full border border-[var(--border)]"
         style={{ backgroundColor: value ?? 'transparent' }}
       />
       <span>{label}</span>
@@ -275,13 +279,16 @@ function RangeControl({
         <label className={labelClassName} htmlFor={id}>
           {label}
         </label>
-        <output className="min-w-14 text-right text-sm tabular-nums text-slate-700" htmlFor={id}>
+        <output
+          className="semantic-help-text min-w-14 text-right text-sm tabular-nums"
+          htmlFor={id}
+        >
           {value}
           {unit}
         </output>
       </div>
       <input
-        className="mt-2 h-11 w-full cursor-pointer accent-amber-700 disabled:cursor-not-allowed disabled:opacity-60"
+        className="semantic-accent-control mt-2 h-11 w-full cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
         id={id}
         max={maximum}
         min={0}
@@ -294,4 +301,4 @@ function RangeControl({
   );
 }
 
-const labelClassName = 'text-sm font-semibold text-slate-800';
+const labelClassName = 'semantic-field-label text-sm font-semibold';

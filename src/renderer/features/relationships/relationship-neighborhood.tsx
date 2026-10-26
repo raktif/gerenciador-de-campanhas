@@ -112,15 +112,17 @@ export function RelationshipNeighborhood({
 
   return (
     <section
-      className="mt-8 rounded-2xl border border-stone-200 bg-stone-50 p-6"
+      className="mt-8 rounded-2xl border semantic-border semantic-surface-muted p-6"
       aria-labelledby="neighborhood-title"
     >
       <div>
-        <p className="text-xs font-bold tracking-[0.16em] text-amber-800 uppercase">Exploração</p>
+        <p className="text-xs font-bold tracking-[0.16em] semantic-accent-text uppercase">
+          Exploração
+        </p>
         <h2 className="mt-1 text-2xl font-semibold" id="neighborhood-title">
           Vizinhança de uma entidade
         </h2>
-        <p className="mt-2 text-sm text-slate-600">
+        <p className="mt-2 text-sm semantic-text-secondary">
           Navegue pelas conexões sem carregar o grafo inteiro da campanha.
         </p>
       </div>
@@ -196,7 +198,7 @@ export function RelationshipNeighborhood({
         />
       </div>
       {loading ? (
-        <p className="mt-6 text-sm text-slate-500" aria-live="polite">
+        <p className="mt-6 text-sm semantic-text-secondary" aria-live="polite">
           Carregando vizinhança…
         </p>
       ) : null}
@@ -213,12 +215,12 @@ export function RelationshipNeighborhood({
       {result === null || loading ? null : (
         <>
           {result.truncated ? (
-            <p className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+            <p className="mt-6 rounded-xl border semantic-warning-border semantic-warning-surface p-4 text-sm semantic-accent-text">
               O resultado atingiu o limite seguro de entidades ou relações. Refine os filtros.
             </p>
           ) : null}
           <div
-            className="mt-6 overflow-x-auto rounded-2xl border border-stone-200 bg-white p-5"
+            className="mt-6 overflow-x-auto rounded-2xl border semantic-border semantic-surface p-5"
             aria-label="Mapa da vizinhança"
           >
             <svg
@@ -237,7 +239,7 @@ export function RelationshipNeighborhood({
                   refX="6"
                   refY="3.5"
                 >
-                  <path d="M 0 0 L 7 3.5 L 0 7 z" fill="#92400e" />
+                  <path d="M 0 0 L 7 3.5 L 0 7 z" fill="var(--accent)" />
                 </marker>
               </defs>
               {result.relationships.map((relationship) => {
@@ -257,13 +259,13 @@ export function RelationshipNeighborhood({
                         d={`M ${String(source.x - 30)} ${String(source.y - 25)} C ${String(source.x - 85)} ${String(source.y - 95)}, ${String(source.x + 85)} ${String(source.y - 95)}, ${String(source.x + 30)} ${String(source.y - 25)}`}
                         fill="none"
                         markerEnd={markerEnd}
-                        stroke="#92400e"
+                        stroke="var(--accent)"
                         strokeWidth="2"
                       />
                     ) : (
                       <line
                         markerEnd={markerEnd}
-                        stroke="#92400e"
+                        stroke="var(--accent)"
                         strokeWidth="2"
                         x1={source.x}
                         x2={target.x}
@@ -272,11 +274,11 @@ export function RelationshipNeighborhood({
                       />
                     )}
                     <text
-                      fill="#78350f"
+                      fill="var(--warning)"
                       fontSize="12"
                       fontWeight="600"
                       paintOrder="stroke"
-                      stroke="white"
+                      stroke="var(--surface)"
                       strokeWidth="4"
                       textAnchor="middle"
                       x={labelX}
@@ -294,17 +296,17 @@ export function RelationshipNeighborhood({
                 return (
                   <g key={node.entity.id}>
                     <rect
-                      fill={central ? '#fffbeb' : 'white'}
+                      fill={central ? 'var(--warning-surface)' : 'var(--surface)'}
                       height="56"
                       rx="12"
-                      stroke={central ? '#f59e0b' : '#d6d3d1'}
+                      stroke={central ? 'var(--accent)' : 'var(--border)'}
                       strokeWidth="2"
                       width="160"
                       x={point.x - 80}
                       y={point.y - 28}
                     />
                     <text
-                      fill="#1e293b"
+                      fill="var(--text-primary)"
                       fontSize="13"
                       fontWeight="600"
                       textAnchor="middle"
@@ -321,7 +323,7 @@ export function RelationshipNeighborhood({
           <div className="mt-6" data-testid="neighborhood-text-list">
             <h3 className="text-lg font-semibold">Lista textual acessível</h3>
             {result.relationships.length === 0 ? (
-              <p aria-live="polite" className="mt-3 text-sm text-slate-600" role="status">
+              <p aria-live="polite" className="mt-3 text-sm semantic-text-secondary" role="status">
                 Nenhuma conexão corresponde aos filtros.
               </p>
             ) : (
@@ -338,7 +340,7 @@ export function RelationshipNeighborhood({
                       : relationship.sourceEntityId;
                   return (
                     <li
-                      className="rounded-xl border border-stone-200 bg-white px-4 py-3 text-sm"
+                      className="rounded-xl border semantic-border semantic-surface px-4 py-3 text-sm"
                       key={relationship.id}
                     >
                       <Button
@@ -364,7 +366,7 @@ export function RelationshipNeighborhood({
                       >
                         {entityNames.get(toId) ?? 'Entidade'}
                       </Button>
-                      <span className="ml-2 text-xs text-slate-500">
+                      <span className="ml-2 text-xs semantic-text-secondary">
                         {relationship.canonState} · {relationship.knowledgeState} ·{' '}
                         {relationship.visibility}
                       </span>
@@ -482,6 +484,6 @@ function Select({
     </label>
   );
 }
-const labelClass = 'block text-sm font-semibold text-slate-800';
+const labelClass = 'block text-sm font-semibold semantic-text-primary';
 const inputClass =
-  'mt-2 w-full rounded-xl border border-stone-300 bg-white px-3 py-2.5 text-slate-900';
+  'mt-2 w-full rounded-xl border semantic-border semantic-surface px-3 py-2.5 semantic-text-primary';

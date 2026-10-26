@@ -18,10 +18,7 @@ export interface EntityTypeRepositoryPort {
   findById(campaignId: string, id: string): EntityType | null;
   list(request: EntityTypePageRequest): EntityTypePageResult;
   update(input: EntityTypeRepositoryUpdate, updatedAt: string): EntityType;
-  restoreAtEnd(
-    input: Omit<EntityTypeRepositoryUpdate, 'patch'>,
-    updatedAt: string,
-  ): EntityType;
+  restoreAtEnd(input: Omit<EntityTypeRepositoryUpdate, 'patch'>, updatedAt: string): EntityType;
   move(input: MoveEntityTypeInput, updatedAt: string): EntityType[];
 }
 

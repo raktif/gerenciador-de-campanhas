@@ -87,8 +87,7 @@ export function EntityManager({
   }, [entities, pendingListFocusTarget, view]);
   useEffect(() => {
     if (
-      initialDetailEntity === undefined ||
-      initialDetailEntity.campaignId !== campaign.id ||
+      initialDetailEntity?.campaignId !== campaign.id ||
       loadedInitialDetailEntityId.current === initialDetailEntity.id
     )
       return;
@@ -295,15 +294,15 @@ export function EntityManager({
       <Button className="mb-6" onClick={onBack} size="small" variant="ghost">
         ← Voltar para detalhes da campanha
       </Button>
-      <header className="flex flex-wrap items-end justify-between gap-6 border-b border-stone-200 pb-7">
+      <header className="flex flex-wrap items-end justify-between gap-6 border-b semantic-border pb-7">
         <div>
-          <p className="text-xs font-bold tracking-[0.18em] text-amber-800 uppercase">
+          <p className="text-xs font-bold tracking-[0.18em] semantic-accent-text uppercase">
             {campaign.name}
           </p>
           <h1 className="mt-2 text-4xl font-semibold" id="entities-title">
             Entidades
           </h1>
-          <p className="mt-3 text-slate-600">
+          <p className="mt-3 semantic-text-secondary">
             Personagens, locais e outros elementos cadastrados nesta campanha.
           </p>
         </div>
@@ -324,7 +323,7 @@ export function EntityManager({
       </header>
 
       {entityTypes.length === 0 ? (
-        <p className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+        <p className="mt-6 rounded-xl border semantic-warning-border semantic-warning-surface p-4 text-sm semantic-accent-text">
           Crie ao menos um tipo de entidade antes de cadastrar entidades.
         </p>
       ) : null}
@@ -354,7 +353,7 @@ export function EntityManager({
       {announcement === null ? null : (
         <p
           aria-live="polite"
-          className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800"
+          className="mt-6 rounded-xl border semantic-success-border semantic-success-surface px-4 py-3 text-sm semantic-success-text"
           role="status"
         >
           {announcement}
@@ -362,7 +361,10 @@ export function EntityManager({
       )}
 
       {pending === null ? null : (
-        <div className="mt-6 rounded-2xl border border-amber-300 bg-amber-50 p-5" role="alert">
+        <div
+          className="mt-6 rounded-2xl border semantic-warning-border semantic-warning-surface p-5"
+          role="alert"
+        >
           <h2 className="font-semibold">
             {pending.action === 'archive' ? 'Arquivar' : 'Restaurar'} “{pending.entity.name}”?
           </h2>
@@ -390,10 +392,10 @@ export function EntityManager({
       {loading ? (
         <div
           aria-label="Carregando entidades"
-          className="mt-8 h-32 animate-pulse rounded-2xl bg-stone-200"
+          className="mt-8 h-32 animate-pulse rounded-2xl semantic-skeleton"
         />
       ) : entities.length === 0 ? (
-        <div className="mt-8 rounded-2xl border border-dashed border-stone-300 bg-white px-8 py-14 text-center">
+        <div className="mt-8 rounded-2xl border border-dashed semantic-border semantic-surface px-8 py-14 text-center">
           <h2 className="text-xl font-semibold">
             {showArchived ? 'Nenhuma entidade arquivada' : 'Nenhuma entidade cadastrada'}
           </h2>
@@ -402,7 +404,7 @@ export function EntityManager({
         <div className="mt-8 grid gap-4" data-testid="entity-list">
           {entities.map((entity) => (
             <article
-              className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm"
+              className="rounded-2xl border semantic-border semantic-surface p-6 shadow-sm"
               key={entity.id}
             >
               <div className="flex justify-between gap-5">
@@ -419,29 +421,29 @@ export function EntityManager({
                       {entity.name}
                     </Button>
                   </h2>
-                  <div className="mt-2 flex flex-wrap gap-2 text-xs font-semibold text-slate-600">
-                    <span className="rounded-full bg-stone-100 px-3 py-1">
+                  <div className="mt-2 flex flex-wrap gap-2 text-xs font-semibold semantic-text-secondary">
+                    <span className="rounded-full semantic-surface-muted px-3 py-1">
                       {entityTypes.find((type) => type.id === entity.entityTypeId)?.singularName ??
                         'Tipo desconhecido'}
                     </span>
-                    <span className="rounded-full bg-stone-100 px-3 py-1">
+                    <span className="rounded-full semantic-surface-muted px-3 py-1">
                       {canonStateLabel(entity.canonState)}
                     </span>
-                    <span className="rounded-full bg-stone-100 px-3 py-1">
+                    <span className="rounded-full semantic-surface-muted px-3 py-1">
                       {knowledgeStateLabel(entity.knowledgeState)}
                     </span>
-                    <span className="rounded-full bg-stone-100 px-3 py-1">
+                    <span className="rounded-full semantic-surface-muted px-3 py-1">
                       {visibilityLabel(entity.visibility)}
                     </span>
                   </div>
                   {entity.summary === null ? null : (
-                    <p className="mt-2 text-slate-600">{entity.summary}</p>
+                    <p className="mt-2 semantic-text-secondary">{entity.summary}</p>
                   )}
                 </div>
               </div>
               <ToolbarActions
                 aria-label={`Ações de ${entity.name}`}
-                className="mt-5 justify-end border-t border-stone-100 pt-4"
+                className="mt-5 justify-end border-t semantic-border pt-4"
               >
                 <Button
                   aria-label={`Ver afirmações de ${entity.name}`}
@@ -521,7 +523,7 @@ function FilterButton({
   return (
     <Button
       aria-pressed={active}
-      className={`rounded-full ${active ? 'bg-slate-900 text-white' : ''}`}
+      className={`rounded-full ${active ? 'semantic-selected-surface semantic-selected-text' : ''}`}
       onClick={onClick}
       size="small"
     >
@@ -531,4 +533,4 @@ function FilterButton({
 }
 
 const inputClass =
-  'mt-2 w-full rounded-xl border border-stone-300 px-4 py-2.5 text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700';
+  'mt-2 w-full rounded-xl border semantic-border px-4 py-2.5 semantic-text-primary focus-visible:outline-2 focus-visible:outline-offset-2 semantic-focus-outline';

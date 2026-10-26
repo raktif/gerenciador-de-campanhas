@@ -202,15 +202,15 @@ export function AssertionManager({
       <Button onClick={onBack} size="small" variant="ghost">
         ← {context === undefined ? 'Voltar para detalhes da campanha' : `Voltar para entidades`}
       </Button>
-      <header className="mt-6 flex flex-wrap items-end justify-between gap-5 border-b border-stone-200 pb-6">
+      <header className="mt-6 flex flex-wrap items-end justify-between gap-5 border-b semantic-border pb-6">
         <div>
-          <p className="text-xs font-bold tracking-[0.18em] text-amber-800 uppercase">
+          <p className="text-xs font-bold tracking-[0.18em] semantic-accent-text uppercase">
             {campaign.name}
           </p>
           <h1 className="mt-2 text-4xl font-semibold" id="assertions-title">
             Afirmações
           </h1>
-          <p className="mt-2 text-slate-600">
+          <p className="mt-2 semantic-text-secondary">
             {context === undefined
               ? 'Fatos, rumores e possibilidades com proveniência explícita.'
               : `Contexto: ${context.entityName}`}
@@ -252,7 +252,7 @@ export function AssertionManager({
       {announcement === null ? null : (
         <p
           aria-live="polite"
-          className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-800"
+          className="mt-5 rounded-xl border semantic-success-border semantic-success-surface p-4 semantic-success-text"
           role="status"
         >
           {announcement}
@@ -268,7 +268,10 @@ export function AssertionManager({
         </div>
       )}
       {pending === null ? null : (
-        <div className="mt-5 rounded-xl border border-amber-300 bg-amber-50 p-5" role="alert">
+        <div
+          className="mt-5 rounded-xl border semantic-warning-border semantic-warning-surface p-5"
+          role="alert"
+        >
           <p className="font-semibold">Arquivar esta afirmação?</p>
           <ButtonGroup aria-label="Ações de confirmação" className="mt-3">
             <Button disabled={busy} onClick={() => setPending(null)}>
@@ -285,13 +288,16 @@ export function AssertionManager({
           Carregando afirmações…
         </p>
       ) : items.length === 0 ? (
-        <div className="mt-8 rounded-2xl border border-dashed border-stone-300 bg-white p-12 text-center">
+        <div className="mt-8 rounded-2xl border border-dashed semantic-border semantic-surface p-12 text-center">
           <h2 className="text-xl font-semibold">Nenhuma afirmação encontrada</h2>
         </div>
       ) : (
         <div className="mt-7 grid gap-4" data-testid="assertion-list">
           {items.map((item) => (
-            <article className="rounded-2xl border border-stone-200 bg-white p-6" key={item.id}>
+            <article
+              className="rounded-2xl border semantic-border semantic-surface p-6"
+              key={item.id}
+            >
               <div className="flex flex-wrap gap-2 text-xs font-semibold">
                 <Badge>{canonLabel(item.canonState)}</Badge>
                 <Badge>{knowledgeLabel(item.knowledgeState)}</Badge>
@@ -299,7 +305,7 @@ export function AssertionManager({
               </div>
               <p className="mt-4 text-lg font-medium">{assertionText(item, entities)}</p>
               {item.knowledgeState === 'possibility' ? (
-                <p className="mt-2 font-semibold text-amber-800">
+                <p className="mt-2 font-semibold semantic-accent-text">
                   Possibilidade — não confirmada como fato
                 </p>
               ) : null}
@@ -419,7 +425,7 @@ function AssertionForm({
       <Button disabled={busy} onClick={onCancel} size="small" variant="ghost">
         ← Voltar para afirmações
       </Button>
-      <div className="mt-6 rounded-3xl border border-stone-200 bg-white p-8">
+      <div className="mt-6 rounded-3xl border semantic-border semantic-surface p-8">
         <h1 className="text-3xl font-semibold">
           {assertion === null ? 'Nova afirmação' : 'Editar afirmação'}
         </h1>
@@ -513,7 +519,7 @@ function AssertionForm({
             onChange={setMetadata}
           />
           {error === null && validation === null ? null : (
-            <p className="rounded-xl bg-red-50 p-4 text-red-800" role="alert">
+            <p className="rounded-xl semantic-danger-surface p-4 semantic-error-text" role="alert">
               {error ?? validation}
             </p>
           )}
@@ -589,7 +595,7 @@ function Filter({
   );
 }
 function Badge({ children }: { children: React.ReactNode }): React.JSX.Element {
-  return <span className="rounded-full bg-stone-100 px-3 py-1">{children}</span>;
+  return <span className="rounded-full semantic-surface-muted px-3 py-1">{children}</span>;
 }
 function message(error: unknown): string {
   return error instanceof Error ? error.message : 'Não foi possível concluir a operação.';

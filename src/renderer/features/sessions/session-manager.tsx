@@ -200,15 +200,17 @@ export function SessionManager({
       <Button onClick={onBack} size="small" variant="ghost">
         ← Voltar para detalhes da campanha
       </Button>
-      <header className="mt-6 flex flex-wrap items-end justify-between gap-5 border-b border-stone-200 pb-6">
+      <header className="mt-6 flex flex-wrap items-end justify-between gap-5 border-b semantic-border pb-6">
         <div>
-          <p className="text-xs font-bold tracking-[0.18em] text-amber-800 uppercase">
+          <p className="text-xs font-bold tracking-[0.18em] semantic-accent-text uppercase">
             {campaign.name}
           </p>
           <h1 className="mt-2 text-4xl font-semibold" id="sessions-title">
             Sessões
           </h1>
-          <p className="mt-2 text-slate-600">Planeje e acompanhe o ciclo de vida de cada sessão.</p>
+          <p className="mt-2 semantic-text-secondary">
+            Planeje e acompanhe o ciclo de vida de cada sessão.
+          </p>
         </div>
         <ToolbarActions aria-label="Ações de sessões">
           <Button
@@ -238,7 +240,7 @@ export function SessionManager({
         <p
           role="status"
           aria-live="polite"
-          className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-800"
+          className="mt-5 rounded-xl border semantic-success-border semantic-success-surface p-4 semantic-success-text"
         >
           {announcement}
         </p>
@@ -254,27 +256,29 @@ export function SessionManager({
       )}
       {loading ? (
         <div aria-busy="true" aria-label="Carregando sessões" className="mt-8 animate-pulse">
-          <div className="h-24 rounded-2xl bg-stone-200" />
+          <div className="h-24 rounded-2xl semantic-skeleton" />
         </div>
       ) : items.length === 0 ? (
-        <div className="mt-8 rounded-2xl border border-dashed border-stone-300 bg-white p-10 text-center">
+        <div className="mt-8 rounded-2xl border border-dashed semantic-border semantic-surface p-10 text-center">
           <h2 className="text-xl font-semibold">Nenhuma sessão encontrada</h2>
-          <p className="mt-2 text-slate-600">Planeje a próxima sessão para começar.</p>
+          <p className="mt-2 semantic-text-secondary">Planeje a próxima sessão para começar.</p>
         </div>
       ) : (
         <ul className="mt-8 grid gap-4" data-testid="session-list">
           {items.map((item) => (
             <li
-              className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm"
+              className="rounded-2xl border semantic-border semantic-surface p-5 shadow-sm"
               key={item.id}
             >
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <p className="text-sm font-semibold text-amber-800">
+                  <p className="text-sm font-semibold semantic-accent-text">
                     Sessão {item.sequenceNumber} · {statusLabel(item.status)}
                   </p>
                   <h2 className="mt-1 text-xl font-semibold">{item.title}</h2>
-                  <p className="mt-2 text-sm text-slate-600">{formatDate(item.playedAt)}</p>
+                  <p className="mt-2 text-sm semantic-text-secondary">
+                    {formatDate(item.playedAt)}
+                  </p>
                 </div>
                 <Button
                   disabled={busy}
@@ -546,8 +550,8 @@ function SessionEditor({
       <Button disabled={busy} onClick={onBack} size="small" variant="ghost">
         ← Voltar para sessões
       </Button>
-      <header className="mt-6 border-b border-stone-200 pb-6">
-        <p className="text-xs font-bold tracking-[0.18em] text-amber-800 uppercase">
+      <header className="mt-6 border-b semantic-border pb-6">
+        <p className="text-xs font-bold tracking-[0.18em] semantic-accent-text uppercase">
           {campaign.name}
         </p>
         <h1 className="mt-2 text-3xl font-semibold" id="session-form-title">
@@ -555,7 +559,7 @@ function SessionEditor({
         </h1>
       </header>
       <form
-        className="mt-6 space-y-5 rounded-2xl border border-stone-200 bg-white p-6"
+        className="mt-6 space-y-5 rounded-2xl border semantic-border semantic-surface p-6"
         onSubmit={submit}
       >
         <div className="grid gap-5 md:grid-cols-[10rem_1fr_12rem]">
@@ -603,12 +607,15 @@ function SessionEditor({
           <UserFacingErrorNotice error={error} operation="sessions.mutate" />
         )}
         {intentionError === null ? null : (
-          <p role="alert" className="rounded-xl bg-red-50 p-4 text-red-800">
+          <p role="alert" className="rounded-xl semantic-danger-surface p-4 semantic-error-text">
             {intentionError}
           </p>
         )}
         {pending === null ? null : (
-          <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+          <div
+            role="alert"
+            className="rounded-xl border semantic-warning-border semantic-warning-surface p-4"
+          >
             <p>Confirmar: {transitionLabel(pending.status)} esta sessão?</p>
             <DialogActions className="mt-3">
               <Button disabled={busy} onClick={onCancelTransition}>
@@ -732,7 +739,7 @@ function ParticipantEditor({
     );
   return (
     <section
-      className="mt-6 rounded-2xl border border-stone-200 bg-white p-6"
+      className="mt-6 rounded-2xl border semantic-border semantic-surface p-6"
       aria-labelledby="participants-title"
     >
       <h2 className="text-xl font-semibold" id="participants-title" ref={titleRef} tabIndex={-1}>
@@ -750,10 +757,12 @@ function ParticipantEditor({
           />
         </div>
       )}
-      <p className="mt-1 text-sm text-slate-600">
+      <p className="mt-1 text-sm semantic-text-secondary">
         Salvar substitui integralmente a lista de participantes desta sessão.
       </p>
-      {loading ? <p className="mt-4 text-sm text-slate-600">Carregando participantes…</p> : null}
+      {loading ? (
+        <p className="mt-4 text-sm semantic-text-secondary">Carregando participantes…</p>
+      ) : null}
       <ReorderableList
         ariaLabel="Ordenar participantes"
         busy={busy || loading}
@@ -765,7 +774,7 @@ function ParticipantEditor({
         items={participants}
         onMove={(move) => setParticipants((current) => moveRelative(current, move))}
         renderItem={(item) => (
-          <div className="grid gap-3 rounded-xl bg-stone-50 p-3 md:grid-cols-[1fr_11rem_8rem_auto]">
+          <div className="grid gap-3 rounded-xl semantic-surface-muted p-3 md:grid-cols-[1fr_11rem_8rem_auto]">
             <label className="text-sm font-semibold">
               Entidade
               <select
@@ -825,7 +834,7 @@ function ParticipantEditor({
         )}
       />
       {!loading && participants.length === 0 ? (
-        <p className="mt-4 text-sm text-slate-600">Nenhum participante registrado.</p>
+        <p className="mt-4 text-sm semantic-text-secondary">Nenhum participante registrado.</p>
       ) : null}
       <ButtonGroup aria-label="Ações dos participantes" className="mt-4">
         <Button disabled={busy || entities.length === 0} onClick={add}>
@@ -903,7 +912,7 @@ function IntentionEditor({
 
   return (
     <section
-      className="mt-6 rounded-2xl border border-stone-200 bg-white p-6"
+      className="mt-6 rounded-2xl border semantic-border semantic-surface p-6"
       aria-labelledby="intentions-title"
     >
       <h2 className="text-xl font-semibold" id="intentions-title" ref={titleRef} tabIndex={-1}>
@@ -960,14 +969,18 @@ function IntentionEditor({
         </div>
       )}
       <div aria-busy={loading}>
-        {loading ? <p className="mt-5 text-sm text-slate-600">Carregando intenções…</p> : null}
+        {loading ? (
+          <p className="mt-5 text-sm semantic-text-secondary">Carregando intenções…</p>
+        ) : null}
         <ul className="mt-5 grid gap-3" aria-label="Lista de intenções">
           {items.map((item) => (
-            <li className="rounded-xl bg-stone-50 p-4" key={item.id}>
+            <li className="rounded-xl semantic-surface-muted p-4" key={item.id}>
               <div className="flex flex-wrap justify-between gap-3">
                 <div>
                   <p className="font-semibold">{item.text}</p>
-                  <p className="mt-1 text-sm text-slate-600">{intentionStatusLabel(item.status)}</p>
+                  <p className="mt-1 text-sm semantic-text-secondary">
+                    {intentionStatusLabel(item.status)}
+                  </p>
                 </div>
                 <ToolbarActions aria-label={`Ações da intenção ${item.text}`} className="gap-2">
                   <Button disabled={busy} onClick={() => onEdit(item)}>
@@ -991,7 +1004,7 @@ function IntentionEditor({
           </Button>
         )}
         {!loading && items.length === 0 ? (
-          <p className="mt-4 text-sm text-slate-600">Nenhuma intenção registrada.</p>
+          <p className="mt-4 text-sm semantic-text-secondary">Nenhuma intenção registrada.</p>
         ) : null}
       </div>
     </section>
@@ -1030,7 +1043,7 @@ function LifecycleButtons({
       </>
     );
   return (
-    <span className="text-sm font-semibold text-slate-500">
+    <span className="text-sm font-semibold semantic-text-secondary">
       Status final: {statusLabel(session.status)}
     </span>
   );
@@ -1195,7 +1208,9 @@ async function loadAllEntities(campaignId: string): Promise<Entity[]> {
       ...(cursor === undefined ? {} : { cursor }),
       filters: { archived: false },
     });
-    if (!result.ok) throw result.error;
+    if (!result.ok) {
+      throw Object.assign(new Error(result.error.message, { cause: result.error }), result.error);
+    }
     items.push(...result.data.items);
     cursor = result.data.nextCursor ?? undefined;
   } while (cursor !== undefined);

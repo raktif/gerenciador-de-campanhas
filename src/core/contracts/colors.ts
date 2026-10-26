@@ -59,9 +59,9 @@ const rgbColorSchema = z
 
 const hslColorSchema = z
   .object({
-    hue: z.number().finite().min(0).max(360),
-    saturation: z.number().finite().min(0).max(100),
-    lightness: z.number().finite().min(0).max(100),
+    hue: z.number().min(0).max(360),
+    saturation: z.number().min(0).max(100),
+    lightness: z.number().min(0).max(100),
   })
   .strict();
 
@@ -165,13 +165,15 @@ export function contrastingTextColor(background: string): HexColor {
 
 function relativeLuminance(value: RgbColor): number {
   const { red, green, blue } = rgbColorSchema.parse(value);
-  const channels = [red, green, blue].map((channel) => {
+  const channelLuminance = (channel: number): number => {
     const normalized = channel / 255;
-    return normalized <= 0.04045
-      ? normalized / 12.92
-      : Math.pow((normalized + 0.055) / 1.055, 2.4);
-  });
-  return 0.2126 * channels[0]! + 0.7152 * channels[1]! + 0.0722 * channels[2]!;
+    return normalized <= 0.04045 ? normalized / 12.92 : Math.pow((normalized + 0.055) / 1.055, 2.4);
+  };
+  return (
+    0.2126 * channelLuminance(red) +
+    0.7152 * channelLuminance(green) +
+    0.0722 * channelLuminance(blue)
+  );
 }
 
 function toHexChannel(value: number): string {

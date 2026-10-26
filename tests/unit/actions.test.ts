@@ -27,7 +27,7 @@ describe('sistema compartilhado de ações', () => {
     expect(markup).toContain('id="details-trigger"');
     expect(markup).toContain('aria-expanded="true"');
     expect(markup).toContain('disabled=""');
-    expect(markup).toContain('bg-amber-700');
+    expect(markup).toContain('action-button--primary');
     expect(markup).toContain('min-h-11');
     expect(markup).toContain('mt-4');
   });
@@ -45,7 +45,7 @@ describe('sistema compartilhado de ações', () => {
 
     expect(markup).toContain('type="submit"');
     expect(markup).toContain('min-h-12');
-    expect(markup).toContain('border-red-300');
+    expect(markup).toContain('action-button--danger');
     expect(markup).toContain('w-full');
   });
 
@@ -72,8 +72,7 @@ describe('sistema compartilhado de ações', () => {
     );
 
     expect(markup).toContain('aria-pressed="true"');
-    expect(markup).toContain('aria-pressed:bg-slate-900');
-    expect(markup).toContain('aria-pressed:text-white');
+    expect(markup).toContain('action-button--secondary');
   });
 
   it('oferece contraste e foco próprios para navegação em fundo escuro', () => {
@@ -85,10 +84,9 @@ describe('sistema compartilhado de ações', () => {
       }),
     );
 
-    expect(markup).toContain('text-slate-300');
-    expect(markup).toContain('focus-visible:outline-amber-400');
-    expect(markup).toContain('aria-[current=page]:bg-slate-800');
-    expect(markup).not.toContain('text-slate-600');
+    expect(markup).toContain('action-button--dark-navigation');
+    expect(markup).toContain('focus-visible:outline-2');
+    expect(markup).not.toContain('action-button--secondary');
   });
 
   it('mantém links inline sem alvo, padding, borda ou tipografia de botão', () => {

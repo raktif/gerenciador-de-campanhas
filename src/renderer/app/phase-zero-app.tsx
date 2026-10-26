@@ -84,22 +84,22 @@ export function PhaseZeroApp(): React.JSX.Element {
   }
 
   return (
-    <main className="min-h-screen bg-stone-100 text-slate-900">
+    <main className="min-h-screen semantic-surface-muted semantic-text-primary">
       <div className="mx-auto flex min-h-screen max-w-6xl flex-col px-8 py-10">
-        <header className="mb-10 border-b border-stone-300 pb-8">
-          <p className="mb-3 text-sm font-semibold tracking-[0.18em] text-amber-800 uppercase">
+        <header className="mb-10 border-b semantic-border pb-8">
+          <p className="mb-3 text-sm font-semibold tracking-[0.18em] semantic-accent-text uppercase">
             Fundação técnica · Fase 0
           </p>
-          <h1 className="max-w-4xl text-4xl font-semibold tracking-tight text-slate-950">
+          <h1 className="max-w-4xl text-4xl font-semibold tracking-tight semantic-text-primary">
             Gerenciador de Campanhas de RPG
           </h1>
-          <p className="mt-4 max-w-2xl text-lg leading-8 text-slate-600">
+          <p className="mt-4 max-w-2xl text-lg leading-8 semantic-text-secondary">
             Diagnóstico local da aplicação, persistência embutida e diretório de dados.
           </p>
         </header>
 
         <section aria-labelledby="status-title" className="grid gap-6 lg:grid-cols-[1.3fr_0.7fr]">
-          <div className="rounded-2xl border border-stone-300 bg-white p-7 shadow-sm">
+          <div className="rounded-2xl border semantic-border semantic-surface p-7 shadow-sm">
             <div className="mb-6 flex items-center justify-between gap-4">
               <h2 id="status-title" className="text-xl font-semibold">
                 Status da aplicação
@@ -107,7 +107,7 @@ export function PhaseZeroApp(): React.JSX.Element {
               <StatusBadge ready={status !== null} />
             </div>
 
-            <dl className="divide-y divide-stone-200">
+            <dl className="divide-y semantic-divide">
               <StatusRow
                 label="Aplicação"
                 value={status?.application ?? 'verificando'}
@@ -132,19 +132,19 @@ export function PhaseZeroApp(): React.JSX.Element {
             </dl>
           </div>
 
-          <aside className="rounded-2xl border border-slate-800 bg-slate-900 p-7 text-slate-50 shadow-sm">
+          <aside className="rounded-2xl border semantic-navigation-border semantic-navigation-surface-elevated p-7 shadow-sm">
             <h2 className="text-xl font-semibold">Dados locais</h2>
-            <p className="mt-3 text-sm leading-6 text-slate-300">
+            <p className="mt-3 text-sm leading-6 semantic-text-secondary">
               O banco e os arquivos do usuário ficam fora do diretório de instalação.
             </p>
             <code
-              className="mt-5 block break-all rounded-lg bg-slate-950 p-4 text-xs leading-5 text-emerald-300"
+              className="mt-5 block break-all rounded-lg semantic-navigation-surface p-4 text-xs leading-5"
               data-testid="data-directory"
             >
               {status?.dataDirectory ?? 'Localizando…'}
             </code>
             <Button
-              className="mt-6 border-slate-600 bg-transparent text-white hover:border-slate-300 hover:bg-slate-800 hover:text-white"
+              className="mt-6 semantic-navigation-border bg-transparent semantic-hover-accent-border semantic-navigation-current "
               disabled={busyAction !== null}
               fullWidth
               onClick={() => void openDataDirectory()}
@@ -157,12 +157,12 @@ export function PhaseZeroApp(): React.JSX.Element {
 
         <section
           aria-labelledby="persistence-title"
-          className="mt-6 rounded-2xl border border-stone-300 bg-white p-7 shadow-sm"
+          className="mt-6 rounded-2xl border semantic-border semantic-surface p-7 shadow-sm"
         >
           <h2 id="persistence-title" className="text-xl font-semibold">
             Teste de persistência
           </h2>
-          <p className="mt-2 max-w-3xl leading-7 text-slate-600">
+          <p className="mt-2 max-w-3xl leading-7 semantic-text-secondary">
             Grave um identificador no SQLite, feche completamente o aplicativo, abra novamente e
             recupere o mesmo valor.
           </p>
@@ -187,7 +187,7 @@ export function PhaseZeroApp(): React.JSX.Element {
           </p>
         </section>
 
-        <footer className="mt-auto pt-10 text-sm text-slate-500">
+        <footer className="mt-auto pt-10 text-sm semantic-text-secondary">
           Aplicativo local · nenhuma porta HTTP · nenhum dado enviado pela rede
         </footer>
       </div>
@@ -198,7 +198,7 @@ export function PhaseZeroApp(): React.JSX.Element {
 function StatusBadge({ ready }: { ready: boolean }): React.JSX.Element {
   return (
     <span
-      className={`rounded-full px-3 py-1 text-xs font-semibold ${ready ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-900'}`}
+      className={`rounded-full px-3 py-1 text-xs font-semibold ${ready ? 'semantic-success-surface semantic-success-text' : 'semantic-warning-surface semantic-accent-text'}`}
     >
       {ready ? 'Operacional' : 'Verificando'}
     </span>
@@ -216,8 +216,8 @@ function StatusRow({
 }): React.JSX.Element {
   return (
     <div className="grid grid-cols-[9rem_1fr] gap-4 py-4">
-      <dt className="font-medium text-slate-500">{label}</dt>
-      <dd className="font-mono text-sm text-slate-900" data-testid={testId}>
+      <dt className="font-medium semantic-text-secondary">{label}</dt>
+      <dd className="font-mono text-sm semantic-text-primary" data-testid={testId}>
         {value}
       </dd>
     </div>
@@ -254,7 +254,8 @@ function formatDate(value: string): string {
 }
 
 function feedbackClassName(tone: Feedback['tone']): string {
-  if (tone === 'error') return 'border-red-300 bg-red-50 text-red-800';
-  if (tone === 'success') return 'border-emerald-300 bg-emerald-50 text-emerald-800';
-  return 'border-stone-300 bg-stone-50 text-slate-700';
+  if (tone === 'error') return 'semantic-danger-border semantic-danger-surface semantic-error-text';
+  if (tone === 'success')
+    return 'semantic-success-border semantic-success-surface semantic-success-text';
+  return 'semantic-border semantic-surface-muted semantic-text-secondary';
 }

@@ -126,7 +126,7 @@ export const FormActions = forwardRef<HTMLDivElement, FormActionsProps>(function
       {...props}
       aria-label={ariaLabel}
       className={joinClassNames(
-        'flex flex-wrap items-center gap-3 border-t border-stone-200 pt-6',
+        'action-group-divider flex flex-wrap items-center gap-3 border-t pt-6',
         formActionLayoutClassNames[layout],
         className,
       )}
@@ -241,17 +241,12 @@ const iconButtonSizeClassNames: Record<IconButtonSize, string> = {
 };
 
 const buttonVariantClassNames: Record<ButtonVariant, string> = {
-  primary:
-    'border border-transparent bg-amber-700 text-white hover:bg-amber-800 focus-visible:outline-amber-700',
-  secondary:
-    'border border-stone-300 bg-white text-slate-700 hover:border-amber-700 hover:bg-stone-50 hover:text-slate-950 focus-visible:outline-amber-700 aria-pressed:border-slate-900 aria-pressed:bg-slate-900 aria-pressed:text-white',
-  danger:
-    'border border-red-300 bg-white text-red-700 hover:border-red-700 hover:bg-red-50 focus-visible:outline-amber-700',
-  ghost:
-    'border border-transparent bg-transparent text-slate-600 hover:bg-stone-100 hover:text-slate-950 focus-visible:outline-amber-700',
-  link: 'bg-transparent text-amber-800 underline-offset-4 hover:underline focus-visible:outline-amber-700',
-  'dark-navigation':
-    'border border-transparent bg-transparent text-slate-300 hover:bg-slate-900 hover:text-white focus-visible:outline-amber-400 aria-[current=page]:bg-slate-800 aria-[current=page]:text-white aria-[current=page]:shadow-inner',
+  primary: 'action-button--primary border',
+  secondary: 'action-button--secondary border',
+  danger: 'action-button--danger border',
+  ghost: 'action-button--ghost border',
+  link: 'action-button--link border underline-offset-4',
+  'dark-navigation': 'action-button--dark-navigation border',
 };
 
 const groupAlignmentClassNames: Record<NonNullable<ButtonGroupProps['align']>, string> = {

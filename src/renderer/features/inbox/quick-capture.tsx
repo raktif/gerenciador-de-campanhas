@@ -183,7 +183,7 @@ export function QuickCapture({
       <div className="fixed right-6 bottom-6 z-20 flex flex-col items-end gap-3">
         {feedback === null ? null : (
           <section
-            className="max-w-sm rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 shadow-lg"
+            className="max-w-sm rounded-xl border semantic-success-border semantic-success-surface px-4 py-3 text-sm semantic-success-text shadow-lg"
             data-testid="quick-capture-feedback"
             role="status"
             aria-atomic="true"
@@ -193,7 +193,7 @@ export function QuickCapture({
               <p>{feedback.message}</p>
               <IconButton
                 aria-label="Fechar aviso de captura"
-                className="-mt-1 text-emerald-800 hover:bg-emerald-100"
+                className="-mt-1 semantic-success-text semantic-hover-success-surface"
                 onClick={dismissFeedback}
                 size="small"
                 variant="ghost"
@@ -211,7 +211,7 @@ export function QuickCapture({
           aria-keyshortcuts={ariaShortcut}
           aria-controls="quick-capture-dialog"
           aria-expanded={open}
-          className="shadow-lg shadow-amber-900/20"
+          className="shadow-lg semantic-accent-shadow"
           onClick={openCapture}
           ref={triggerRef}
           size="large"
@@ -222,7 +222,7 @@ export function QuickCapture({
       </div>
       {open ? (
         <div
-          className="fixed inset-0 z-30 grid place-items-center bg-slate-950/40 p-6"
+          className="fixed inset-0 z-30 grid place-items-center semantic-overlay p-6"
           onMouseDown={(event) => {
             if (event.target === event.currentTarget) closeCapture();
           }}
@@ -232,7 +232,7 @@ export function QuickCapture({
             aria-describedby="quick-capture-description"
             aria-labelledby="quick-capture-title"
             aria-modal="true"
-            className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl"
+            className="w-full max-w-xl rounded-2xl semantic-surface p-6 shadow-2xl"
             id="quick-capture-dialog"
             onKeyDown={trapDialogFocus}
             ref={dialogRef}
@@ -240,13 +240,13 @@ export function QuickCapture({
           >
             <header className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-xs font-bold tracking-[0.18em] text-amber-800 uppercase">
+                <p className="text-xs font-bold tracking-[0.18em] semantic-accent-text uppercase">
                   {campaign.name}
                 </p>
                 <h2 className="mt-2 text-2xl font-semibold" id="quick-capture-title">
                   Captura rápida
                 </h2>
-                <p className="mt-2 text-slate-600" id="quick-capture-description">
+                <p className="mt-2 semantic-text-secondary" id="quick-capture-description">
                   Registre agora; a classificação fica para depois.
                 </p>
               </div>
@@ -263,14 +263,14 @@ export function QuickCapture({
             <form className="mt-6 grid gap-5" onSubmit={(event) => void submit(event)}>
               <div>
                 <label
-                  className="block text-sm font-semibold text-slate-800"
+                  className="block text-sm font-semibold semantic-text-primary"
                   htmlFor="quick-capture-text"
                 >
-                  Texto <span className="text-amber-800">*</span>
+                  Texto <span className="semantic-accent-text">*</span>
                 </label>
                 <textarea
                   aria-describedby="quick-capture-text-help"
-                  className="mt-2 min-h-32 w-full resize-y rounded-xl border border-stone-300 bg-white px-4 py-3 text-slate-950 shadow-sm outline-none placeholder:text-slate-400 focus:border-amber-700 focus:ring-3 focus:ring-amber-700/15 disabled:bg-stone-100"
+                  className="mt-2 min-h-32 w-full resize-y rounded-xl border semantic-border semantic-surface px-4 py-3 semantic-text-primary shadow-sm outline-none semantic-placeholder semantic-focus-border focus:ring-3 semantic-focus-ring semantic-disabled-surface"
                   disabled={busy}
                   id="quick-capture-text"
                   onChange={(event) => setRawText(event.target.value)}
@@ -279,19 +279,20 @@ export function QuickCapture({
                   required
                   value={rawText}
                 />
-                <p className="mt-1 text-xs text-slate-600" id="quick-capture-text-help">
+                <p className="mt-1 text-xs semantic-text-secondary" id="quick-capture-text-help">
                   O texto original será preservado para revisão posterior.
                 </p>
               </div>
               <div>
                 <label
-                  className="block text-sm font-semibold text-slate-800"
+                  className="block text-sm font-semibold semantic-text-primary"
                   htmlFor="quick-capture-session"
                 >
-                  Sessão em andamento <span className="font-normal text-slate-500">(opcional)</span>
+                  Sessão em andamento{' '}
+                  <span className="font-normal semantic-text-secondary">(opcional)</span>
                 </label>
                 <select
-                  className="mt-2 w-full rounded-xl border border-stone-300 bg-white px-4 py-3 text-slate-950 shadow-sm outline-none focus:border-amber-700 focus:ring-3 focus:ring-amber-700/15 disabled:bg-stone-100"
+                  className="mt-2 w-full rounded-xl border semantic-border semantic-surface px-4 py-3 semantic-text-primary shadow-sm outline-none semantic-focus-border focus:ring-3 semantic-focus-ring semantic-disabled-surface"
                   disabled={busy || sessionsLoading || sessions.length === 0}
                   id="quick-capture-session"
                   onChange={(event) => setSessionId(event.target.value)}
@@ -324,7 +325,7 @@ export function QuickCapture({
               {captureError === null ? null : (
                 <UserFacingErrorNotice compact error={captureError} operation="inbox.capture" />
               )}
-              <DialogActions className="border-t border-stone-200 pt-5">
+              <DialogActions className="border-t semantic-border pt-5">
                 <Button disabled={busy} onClick={closeCapture}>
                   Cancelar
                 </Button>

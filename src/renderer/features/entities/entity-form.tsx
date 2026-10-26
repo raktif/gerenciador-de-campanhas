@@ -250,9 +250,9 @@ export function EntityForm(props: EntityFormProps): React.JSX.Element {
       >
         ← Voltar para entidades
       </Button>
-      <div className="overflow-hidden rounded-3xl border border-stone-200 bg-white shadow-sm">
-        <header className="border-b border-stone-200 bg-stone-50 px-8 py-7">
-          <p className="text-xs font-bold tracking-[0.2em] text-amber-800 uppercase">
+      <div className="overflow-hidden rounded-3xl border semantic-border semantic-surface shadow-sm">
+        <header className="border-b semantic-border semantic-surface-muted px-8 py-7">
+          <p className="text-xs font-bold tracking-[0.2em] semantic-accent-text uppercase">
             {props.mode === 'create' ? 'Nova entidade' : 'Editar entidade'}
           </p>
           <h1 id="entity-form-title" className="mt-2 text-3xl font-semibold">
@@ -313,7 +313,7 @@ export function EntityForm(props: EntityFormProps): React.JSX.Element {
             />
           </label>
 
-          <fieldset className="grid gap-6 rounded-2xl border border-stone-200 p-5 md:grid-cols-2">
+          <fieldset className="grid gap-6 rounded-2xl border semantic-border p-5 md:grid-cols-2">
             <legend className="px-2 font-semibold">Metadados narrativos</legend>
             <div className={labelClass}>
               <div className="flex items-center gap-1">
@@ -418,13 +418,13 @@ export function EntityForm(props: EntityFormProps): React.JSX.Element {
           </fieldset>
 
           {fieldsLoading ? (
-            <p className="text-sm text-slate-500">Carregando campos do tipo…</p>
+            <p className="text-sm semantic-text-secondary">Carregando campos do tipo…</p>
           ) : fields.length === 0 ? null : (
-            <fieldset className="grid gap-6 rounded-2xl border border-stone-200 p-5 md:grid-cols-2">
+            <fieldset className="grid gap-6 rounded-2xl border semantic-border p-5 md:grid-cols-2">
               <legend className="px-2 font-semibold">
                 Campos de {entityTypeLabel(props.entityTypes, entityTypeId)}
               </legend>
-              <p className="text-sm text-slate-500 md:col-span-2">
+              <p className="text-sm semantic-text-secondary md:col-span-2">
                 Os campos personalizados podem ficar em branco; apenas nome e tipo são obrigatórios.
               </p>
               {fields.map((field) =>
@@ -463,7 +463,7 @@ export function EntityForm(props: EntityFormProps): React.JSX.Element {
 
           {props.error === null && validationError === null ? null : (
             <p
-              className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800"
+              className="rounded-xl border semantic-danger-border semantic-danger-surface p-4 text-sm semantic-error-text"
               role="alert"
             >
               {props.error ?? validationError}
@@ -486,14 +486,14 @@ export function EntityForm(props: EntityFormProps): React.JSX.Element {
       </div>
       {confirmDiscard ? (
         <div
-          className="fixed inset-0 z-30 grid place-items-center bg-slate-950/40 p-6"
+          className="fixed inset-0 z-30 grid place-items-center semantic-overlay p-6"
           role="presentation"
         >
           <section
             aria-describedby="entity-discard-description"
             aria-labelledby="entity-discard-title"
             aria-modal="true"
-            className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"
+            className="w-full max-w-md rounded-2xl semantic-surface p-6 shadow-2xl"
             onKeyDown={handleDiscardDialogKeyDown}
             ref={discardDialogRef}
             role="dialog"
@@ -501,7 +501,7 @@ export function EntityForm(props: EntityFormProps): React.JSX.Element {
             <h2 className="text-xl font-semibold" id="entity-discard-title">
               Descartar alterações?
             </h2>
-            <p className="mt-3 text-slate-600" id="entity-discard-description">
+            <p className="mt-3 semantic-text-secondary" id="entity-discard-description">
               Você possui alterações que ainda não foram salvas.
             </p>
             <DialogActions className="mt-6">
@@ -534,7 +534,7 @@ function FieldValueInputControl({
   const controlId = `entity-field-${field.id}`;
   if (field.dataType === 'entity_reference' || field.dataType === 'entity_reference_list') {
     return (
-      <p className="text-sm text-slate-500 md:col-span-2">
+      <p className="text-sm semantic-text-secondary md:col-span-2">
         {field.label}: campos de referência ainda não são editáveis nesta versão. Use a tela de
         relações quando disponível.
       </p>
@@ -542,7 +542,7 @@ function FieldValueInputControl({
   }
   if (field.dataType === 'boolean') {
     return (
-      <div className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+      <div className="flex items-center gap-2 text-sm font-semibold semantic-text-primary">
         <input
           checked={value === 'true'}
           disabled={disabled}
@@ -666,7 +666,7 @@ function ReferenceInputControl({
       </div>
     );
   return (
-    <fieldset className="rounded-xl border border-stone-200 p-4">
+    <fieldset className="rounded-xl border semantic-border p-4">
       <legend className="px-1 text-sm font-semibold">
         <span className="inline-flex items-center gap-1">
           {field.label}
@@ -780,6 +780,6 @@ function entityTypeLabel(entityTypes: EntityType[], id: string): string {
   return entityTypes.find((entityType) => entityType.id === id)?.singularName ?? '';
 }
 
-const labelClass = 'block text-sm font-semibold text-slate-800';
+const labelClass = 'block text-sm font-semibold semantic-text-primary';
 const inputClass =
-  'mt-2 w-full rounded-xl border border-stone-300 px-4 py-2.5 text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700';
+  'mt-2 w-full rounded-xl border semantic-border px-4 py-2.5 semantic-text-primary focus-visible:outline-2 focus-visible:outline-offset-2 semantic-focus-outline';

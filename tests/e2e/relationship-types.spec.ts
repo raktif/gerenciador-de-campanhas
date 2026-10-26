@@ -87,9 +87,7 @@ test('configura, arquiva e persiste tipos de relação', async () => {
     const archivedRelationshipTypes = window.getByRole('list', {
       name: 'Tipos de relação arquivados',
     });
-    await expect(archivedRelationshipTypes.getByRole('button', { name: /^Mover / })).toHaveCount(
-      0,
-    );
+    await expect(archivedRelationshipTypes.getByRole('button', { name: /^Mover / })).toHaveCount(0);
     await expect(archivedRelationshipTypes).not.toContainText(/Ordem \d/);
     await window.getByRole('button', { name: 'Restaurar' }).click();
     await window.getByRole('button', { name: 'Confirmar' }).click();

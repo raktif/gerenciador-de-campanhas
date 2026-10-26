@@ -207,15 +207,15 @@ export function RelationshipTypeManager({
       <Button className="mb-6" onClick={onBack} size="small" variant="ghost">
         ← Voltar para detalhes da campanha
       </Button>
-      <header className="flex items-end justify-between gap-6 border-b border-stone-200 pb-7">
+      <header className="flex items-end justify-between gap-6 border-b semantic-border pb-7">
         <div>
-          <p className="text-xs font-bold tracking-[0.18em] text-amber-800 uppercase">
+          <p className="text-xs font-bold tracking-[0.18em] semantic-accent-text uppercase">
             Grafo de {campaign.name}
           </p>
           <h1 id="relationship-types-title" className="mt-2 text-4xl font-semibold">
             Tipos de relação
           </h1>
-          <p className="mt-3 text-slate-600">
+          <p className="mt-3 semantic-text-secondary">
             Configure conexões direcionais, inversas ou simétricas entre entidades.
           </p>
         </div>
@@ -255,18 +255,21 @@ export function RelationshipTypeManager({
       {announcement === null ? null : (
         <p
           aria-live="polite"
-          className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800"
+          className="mt-6 rounded-xl border semantic-success-border semantic-success-surface p-4 text-sm semantic-success-text"
           role="status"
         >
           {announcement}
         </p>
       )}
       {pending === null ? null : (
-        <div className="mt-6 rounded-2xl border border-amber-300 bg-amber-50 p-5" role="alert">
+        <div
+          className="mt-6 rounded-2xl border semantic-warning-border semantic-warning-surface p-5"
+          role="alert"
+        >
           <h2 className="font-semibold">
             {pending.isArchived ? 'Restaurar' : 'Arquivar'} “{pending.name}”?
           </h2>
-          <p className="mt-2 text-sm text-slate-700">
+          <p className="mt-2 text-sm semantic-text-secondary">
             O tipo permanecerá preservado e poderá ser restaurado.
           </p>
           <ButtonGroup aria-label="Ações de confirmação" className="mt-4">
@@ -291,15 +294,15 @@ export function RelationshipTypeManager({
       {loading ? (
         <div aria-busy="true" aria-label="Carregando tipos de relação" className="mt-8 grid gap-4">
           {[0, 1, 2].map((item) => (
-            <div className="h-32 animate-pulse rounded-2xl bg-stone-200" key={item} />
+            <div className="h-32 animate-pulse rounded-2xl semantic-skeleton" key={item} />
           ))}
         </div>
       ) : types.length === 0 ? (
-        <div className="mt-8 rounded-2xl border border-dashed border-stone-300 bg-white px-8 py-14 text-center">
+        <div className="mt-8 rounded-2xl border border-dashed semantic-border semantic-surface px-8 py-14 text-center">
           <h2 className="text-xl font-semibold">
             {showArchived ? 'Nenhum tipo arquivado' : 'Nenhum tipo de relação criado'}
           </h2>
-          <p className="mt-2 text-slate-600">
+          <p className="mt-2 semantic-text-secondary">
             {showArchived
               ? 'Tipos arquivados aparecerão aqui.'
               : 'Crie a primeira linguagem de conexão deste mundo.'}
@@ -344,20 +347,20 @@ function RelationshipTypeCard({
 }): React.JSX.Element {
   const entityTypeNames = new Map(entityTypes.map((type) => [type.id, type.name]));
   return (
-    <article className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
+    <article className="rounded-2xl border semantic-border semantic-surface p-6 shadow-sm">
       <div className="flex items-start justify-between gap-6">
         <div>
           <h2 className="text-xl font-semibold">{relationshipType.name}</h2>
-          <p className="mt-1 text-sm text-slate-500">
+          <p className="mt-1 text-sm semantic-text-secondary">
             {relationshipType.slug} ·{' '}
             {relationshipType.isSymmetric
               ? 'Simétrica'
               : `Inversa: ${relationshipType.inverseName ?? 'não definida'}`}
           </p>
           {relationshipType.description === null ? null : (
-            <p className="mt-3 text-slate-600">{relationshipType.description}</p>
+            <p className="mt-3 semantic-text-secondary">{relationshipType.description}</p>
           )}
-          <p className="mt-3 text-sm text-slate-600">
+          <p className="mt-3 text-sm semantic-text-secondary">
             Origem: {allowedLabel(relationshipType.allowedSourceTypeIds, entityTypeNames)} ·
             Destino: {allowedLabel(relationshipType.allowedTargetTypeIds, entityTypeNames)}
           </p>
@@ -365,7 +368,7 @@ function RelationshipTypeCard({
       </div>
       <ToolbarActions
         aria-label={`Ações de ${relationshipType.name}`}
-        className="mt-5 justify-end border-t border-stone-100 pt-4"
+        className="mt-5 justify-end border-t semantic-border pt-4"
       >
         <Button onClick={onEdit}>Editar</Button>
         <Button onClick={onLifecycle}>
@@ -387,7 +390,7 @@ function Filter({
   return (
     <Button
       aria-pressed={active}
-      className={`rounded-full ${active ? 'bg-slate-900 text-white' : ''}`}
+      className={`rounded-full ${active ? 'semantic-selected-surface semantic-selected-text' : ''}`}
       onClick={onClick}
       size="small"
     >

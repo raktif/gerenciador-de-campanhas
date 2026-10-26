@@ -344,9 +344,7 @@ test('configura tipos de entidade isolados na campanha e os recupera após reini
     const persistedEntityTypes = window.getByRole('list', { name: 'Ordenar tipos de entidade' });
     await expect(persistedEntityTypes.getByRole('heading')).toHaveText(['Locais', 'Personagens']);
     await expect(persistedEntityTypes).toContainText('Protagonista');
-    await expect(persistedEntityTypes).toContainText(
-      'Pessoas centrais para a história.',
-    );
+    await expect(persistedEntityTypes).toContainText('Pessoas centrais para a história.');
     await window.getByRole('button', { name: 'Gerenciar campos de Personagens' }).click();
     const persistedFields = window.getByRole('list', { name: 'Ordenar definições de campo' });
     await expect(persistedFields.getByRole('heading')).toHaveText(['Apelido', 'Nome completo']);

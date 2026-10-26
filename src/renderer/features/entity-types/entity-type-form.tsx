@@ -93,15 +93,15 @@ export function EntityTypeForm(props: EntityTypeFormProps): React.JSX.Element {
         Voltar para tipos de entidade
       </Button>
 
-      <div className="overflow-hidden rounded-3xl border border-stone-200 bg-white shadow-[0_20px_60px_-35px_rgba(15,23,42,0.35)]">
-        <header className="border-b border-stone-200 bg-stone-50 px-8 py-7 sm:px-10">
-          <p className="text-xs font-bold tracking-[0.2em] text-amber-800 uppercase">
+      <div className="overflow-hidden rounded-3xl border semantic-border semantic-surface semantic-domain-card">
+        <header className="border-b semantic-border semantic-surface-muted px-8 py-7 sm:px-10">
+          <p className="text-xs font-bold tracking-[0.2em] semantic-accent-text uppercase">
             {props.mode === 'create' ? 'Novo tipo de entidade' : 'Editar tipo de entidade'}
           </p>
           <h1 id="entity-type-form-title" className="mt-2 text-3xl font-semibold tracking-tight">
             {props.mode === 'create' ? 'Defina uma categoria do seu mundo' : props.entityType.name}
           </h1>
-          <p className="mt-3 max-w-2xl leading-7 text-slate-600">
+          <p className="mt-3 max-w-2xl leading-7 semantic-text-secondary">
             O nome plural organiza a coleção; o singular aparece ao criar cada entidade.
           </p>
         </header>
@@ -140,7 +140,7 @@ export function EntityTypeForm(props: EntityTypeFormProps): React.JSX.Element {
               value={values.slug}
             />
           </div>
-          <p className="-mt-5 text-xs text-slate-500">
+          <p className="-mt-5 text-xs semantic-text-secondary">
             Use letras minúsculas, números e hífens simples no identificador.
           </p>
 
@@ -176,7 +176,7 @@ export function EntityTypeForm(props: EntityTypeFormProps): React.JSX.Element {
           {props.error === null && validationError === null ? null : (
             <p
               aria-live="assertive"
-              className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
+              className="rounded-xl border semantic-danger-border semantic-danger-surface px-4 py-3 text-sm semantic-error-text"
               role="alert"
             >
               {props.error ?? validationError}
@@ -231,7 +231,7 @@ function TextField({
   return (
     <div>
       <label className={labelClassName} htmlFor={id}>
-        {label} {required ? <span className="text-amber-800">*</span> : null}
+        {label} {required ? <span className="semantic-accent-text">*</span> : null}
       </label>
       <input
         autoFocus={autoFocus}
@@ -360,6 +360,6 @@ function iconPickerValue(value: EntityTypeFormIconValue): string | null {
   return typeof value === 'object' && value !== null ? value.legacy : value;
 }
 
-const labelClassName = 'block text-sm font-semibold text-slate-800';
+const labelClassName = 'block text-sm font-semibold semantic-text-primary';
 const inputClassName =
-  'mt-2 w-full rounded-xl border border-stone-300 bg-white px-4 py-3 text-slate-950 shadow-sm outline-none placeholder:text-slate-400 focus:border-amber-700 focus:ring-3 focus:ring-amber-700/15 disabled:bg-stone-100 disabled:text-slate-500';
+  'mt-2 w-full rounded-xl border semantic-border semantic-surface px-4 py-3 semantic-text-primary shadow-sm outline-none semantic-placeholder semantic-focus-border focus:ring-3 semantic-focus-ring semantic-disabled-surface semantic-disabled-text';

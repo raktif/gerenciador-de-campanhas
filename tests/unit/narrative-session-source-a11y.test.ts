@@ -35,9 +35,10 @@ describe('continuidade de foco do retry de sessoes', () => {
         error: 'Falha anterior ainda renderizada.',
       }),
     ).toEqual({ phase: 'awaiting-loading', target: undefined });
-    expect(
-      advanceSessionRetryFocus({ phase: 'awaiting-loading', loading: true }),
-    ).toEqual({ phase: 'awaiting-result', target: undefined });
+    expect(advanceSessionRetryFocus({ phase: 'awaiting-loading', loading: true })).toEqual({
+      phase: 'awaiting-result',
+      target: undefined,
+    });
   });
 
   it.each([

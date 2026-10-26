@@ -41,7 +41,7 @@ export function UserFacingErrorNotice({
 
   return (
     <div
-      className={`${compact ? 'p-3 text-sm' : 'p-4'} rounded-xl border border-red-200 bg-red-50 text-red-950`}
+      className={`${compact ? 'p-3 text-sm' : 'p-4'} semantic-error-notice rounded-xl border`}
       role="alert"
     >
       <p className="font-semibold">{error.title}</p>

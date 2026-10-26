@@ -1,6 +1,27 @@
 @import 'tailwindcss';
 
 :root {
+  --background: #f7f4ed;
+  --surface: #ffffff;
+  --surface-elevated: #f5f5f4;
+  --text-primary: #1e293b;
+  --text-secondary: #475569;
+  --border: #78716c;
+  --accent: #92400e;
+  --danger: #991b1b;
+  --warning: #92400e;
+  --success: #166534;
+  --focus: #b45309;
+  --on-accent: #ffffff;
+  --danger-surface: #fef2f2;
+  --warning-surface: #fffbeb;
+  --success-surface: #f0fdf4;
+  --navigation-surface-elevated: #1e293b;
+  --navigation-surface: #020617;
+  --navigation-border: #1e293b;
+  --navigation-text: #cbd5e1;
+  --navigation-text-muted: #94a3b8;
+  --navigation-text-active: #ffffff;
   color-scheme: light;
   font-family:
     Inter,
@@ -14,6 +35,452 @@
   text-rendering: optimizeLegibility;
 }
 
+:root[data-theme='dark'] {
+  --background: #1c1917;
+  --surface: #292524;
+  --surface-elevated: #3f3a37;
+  --text-primary: #fafaf9;
+  --text-secondary: #d6d3d1;
+  --border: #a8a29e;
+  --accent: #fbbf24;
+  --danger: #fecaca;
+  --warning: #fde68a;
+  --success: #bbf7d0;
+  --focus: #fbbf24;
+  --on-accent: #1c1917;
+  --danger-surface: #451a1a;
+  --warning-surface: #422006;
+  --success-surface: #052e16;
+  --navigation-surface-elevated: #1e293b;
+  --navigation-surface: #020617;
+  --navigation-border: #1e293b;
+  --navigation-text: #cbd5e1;
+  --navigation-text-muted: #94a3b8;
+  --navigation-text-active: #ffffff;
+  color-scheme: dark;
+}
+
+.theme-control {
+  color: var(--text-secondary);
+}
+
+.theme-control-icon {
+  font-size: 1.125rem;
+  line-height: 1;
+}
+
+.theme-switch {
+  display: inline-grid;
+  cursor: pointer;
+  place-items: center;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--accent);
+  outline-color: var(--focus);
+}
+
+.theme-switch[aria-disabled='true'] {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.theme-switch:not([aria-disabled='true']):hover {
+  border-color: var(--accent);
+  background: var(--surface-elevated);
+}
+
+.theme-switch-track {
+  display: flex;
+  width: 2rem;
+  height: 1.125rem;
+  align-items: center;
+  border-radius: 9999px;
+  background: var(--border);
+  padding: 0.125rem;
+}
+
+.theme-switch-thumb {
+  width: 0.875rem;
+  height: 0.875rem;
+  border-radius: 9999px;
+  background: var(--surface);
+  box-shadow: 0 1px 2px rgb(15 23 42 / 30%);
+  transition: transform 150ms ease;
+}
+
+.theme-switch[aria-checked='true'] .theme-switch-track {
+  background: var(--accent);
+}
+
+.theme-switch[aria-checked='true'] .theme-switch-thumb {
+  transform: translateX(0.875rem);
+}
+
+.theme-control-error {
+  color: var(--danger);
+}
+
+.app-base {
+  background: var(--background);
+  color: var(--text-primary);
+}
+
+.action-group-divider {
+  border-color: var(--border);
+}
+
+.action-button--primary {
+  border-color: transparent;
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.action-button--primary:hover {
+  background: color-mix(in srgb, var(--accent) 86%, var(--background));
+}
+
+.action-button--secondary {
+  border-color: var(--border);
+  background: var(--surface);
+  color: var(--text-primary);
+}
+
+.action-button--secondary:hover,
+.action-button--ghost:hover {
+  background: var(--surface-elevated);
+}
+
+.action-button--secondary:hover {
+  border-color: var(--accent);
+}
+
+.action-button--secondary[aria-pressed='true'] {
+  border-color: var(--text-primary);
+  background: var(--text-primary);
+  color: var(--background);
+  box-shadow: inset 0 -0.25rem 0 var(--focus);
+}
+
+.action-button--danger {
+  border-color: var(--danger);
+  background: var(--surface);
+  color: var(--danger);
+}
+
+.action-button--danger:hover {
+  background: var(--danger-surface);
+}
+
+.action-button--ghost,
+.action-button--link {
+  border-color: transparent;
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+.action-button--ghost:hover {
+  color: var(--text-primary);
+}
+
+.action-button--link {
+  color: var(--accent);
+}
+
+.action-button--link:hover {
+  text-decoration: underline;
+}
+
+.action-button--dark-navigation {
+  border-color: transparent;
+  background: transparent;
+  color: var(--navigation-text);
+}
+
+.action-button--dark-navigation:hover,
+.action-button--dark-navigation[aria-current='page'] {
+  background: var(--navigation-surface-elevated);
+  color: var(--navigation-text-active);
+}
+
+.action-button--dark-navigation[aria-current='page'] {
+  border-inline-start-color: var(--focus);
+  border-inline-start-width: 0.25rem;
+  box-shadow: inset 0 1px 3px rgb(15 23 42 / 40%);
+}
+
+.navigation-label {
+  color: var(--navigation-text);
+}
+
+.semantic-navigation-surface {
+  border-color: var(--navigation-border);
+  background: var(--navigation-surface);
+  color: var(--navigation-text);
+}
+
+.semantic-navigation-surface-elevated {
+  border-color: var(--navigation-border);
+  background: var(--navigation-surface-elevated);
+  color: var(--navigation-text);
+}
+
+.semantic-navigation-border {
+  border-color: var(--navigation-border);
+}
+
+.semantic-navigation-surface .semantic-text-primary,
+.semantic-navigation-surface-elevated .semantic-text-primary {
+  color: var(--navigation-text-active);
+}
+
+.semantic-navigation-surface .semantic-text-secondary,
+.semantic-navigation-surface-elevated .semantic-text-secondary {
+  color: var(--navigation-text-muted);
+}
+
+.semantic-navigation-current {
+  background: var(--navigation-surface-elevated);
+  color: var(--navigation-text-active);
+}
+
+.semantic-navigation-accent {
+  background: var(--focus);
+}
+
+.semantic-brand-surface {
+  background: linear-gradient(135deg, var(--accent), var(--warning));
+  color: var(--on-accent);
+}
+
+.action-button--primary,
+.action-button--secondary,
+.action-button--danger,
+.action-button--ghost,
+.action-button--link,
+.action-button--dark-navigation,
+.semantic-choice,
+.semantic-input,
+.contextual-help-trigger {
+  outline-color: var(--focus);
+}
+
+.semantic-panel,
+.contextual-help-popover {
+  border-color: var(--border);
+  background: var(--surface);
+  color: var(--text-secondary);
+}
+
+.semantic-panel-muted {
+  border-color: var(--border);
+  background: var(--surface-elevated);
+}
+
+.semantic-field-label,
+.semantic-strong {
+  color: var(--text-primary);
+}
+
+.semantic-help-text {
+  color: var(--text-secondary);
+}
+
+.semantic-warning-text {
+  color: var(--warning);
+}
+
+.semantic-error-text {
+  color: var(--danger);
+}
+
+.semantic-accent-control {
+  accent-color: var(--accent);
+}
+
+.semantic-surface {
+  background-color: var(--surface);
+}
+
+.semantic-surface-muted,
+.semantic-skeleton {
+  background-color: var(--surface-elevated);
+}
+
+.semantic-text-primary {
+  color: var(--text-primary);
+}
+
+.semantic-text-secondary,
+.semantic-disabled-text {
+  color: var(--text-secondary);
+}
+
+.semantic-accent-text {
+  color: var(--accent);
+}
+
+.semantic-selected-surface {
+  background-color: var(--text-primary);
+}
+
+.semantic-selected-text {
+  color: var(--background);
+}
+
+.semantic-border {
+  border-color: var(--border);
+}
+
+.semantic-accent-border {
+  border-color: var(--accent);
+}
+
+.semantic-danger-border {
+  border-color: var(--danger);
+}
+
+.semantic-warning-border {
+  border-color: var(--warning);
+}
+
+.semantic-success-border {
+  border-color: var(--success);
+}
+
+.semantic-danger-surface {
+  background-color: var(--danger-surface);
+}
+
+.semantic-warning-surface {
+  background-color: var(--warning-surface);
+}
+
+.semantic-success-surface {
+  background-color: var(--success-surface);
+}
+
+.semantic-success-text {
+  color: var(--success);
+}
+
+.semantic-focus-outline {
+  outline-color: var(--focus);
+}
+
+.semantic-focus-border:focus {
+  border-color: var(--focus);
+}
+
+.semantic-focus-ring:focus {
+  box-shadow: 0 0 0 0.1875rem color-mix(in srgb, var(--focus) 20%, transparent);
+}
+
+.semantic-placeholder::placeholder {
+  color: var(--text-secondary);
+}
+
+.semantic-disabled-surface:disabled {
+  background-color: var(--surface-elevated);
+}
+
+.semantic-hover-accent-border:hover {
+  border-color: var(--accent);
+}
+
+.semantic-hover-success-surface:hover {
+  background-color: var(--success-surface);
+}
+
+.semantic-accent-shadow {
+  box-shadow: 0 0.625rem 1.5rem color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+.semantic-overlay {
+  background-color: rgb(15 23 42 / 55%);
+}
+
+.semantic-divide > :not(:last-child) {
+  border-color: var(--border);
+}
+
+.semantic-ring {
+  --tw-ring-color: color-mix(in srgb, var(--border) 45%, transparent);
+}
+
+.semantic-strong-ring {
+  --tw-ring-color: var(--border);
+}
+
+.semantic-accent-ring {
+  --tw-ring-color: color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
+.semantic-success-ring {
+  --tw-ring-color: color-mix(in srgb, var(--success) 25%, transparent);
+}
+
+.semantic-accent-background {
+  background-color: var(--accent);
+}
+
+.semantic-card-accent {
+  background: linear-gradient(90deg, var(--accent), var(--warning));
+}
+
+.semantic-success-background {
+  background-color: var(--success);
+}
+
+.semantic-domain-card {
+  box-shadow: 0 1rem 2.75rem -2rem color-mix(in srgb, var(--text-primary) 35%, transparent);
+}
+
+.semantic-domain-card:hover {
+  box-shadow: 0 1.25rem 3rem -2rem color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+.semantic-input,
+.semantic-choice {
+  border-color: var(--border);
+  background: var(--surface);
+  color: var(--text-primary);
+}
+
+.semantic-input:focus,
+.semantic-choice:has(:focus-visible),
+.semantic-choice:has(:checked) {
+  border-color: var(--accent);
+}
+
+.semantic-input:focus,
+.semantic-choice:has(:checked) {
+  box-shadow: 0 0 0 0.1875rem color-mix(in srgb, var(--focus) 20%, transparent);
+}
+
+.semantic-input:disabled {
+  background: var(--surface-elevated);
+}
+
+.semantic-choice:hover {
+  border-color: var(--accent);
+}
+
+.semantic-error-notice {
+  border-color: var(--danger);
+  background: var(--danger-surface);
+  color: var(--danger);
+}
+
+.contextual-help-trigger {
+  border-color: var(--accent);
+  background: var(--warning-surface);
+  color: var(--warning);
+}
+
+.contextual-help-trigger:hover {
+  background: var(--surface-elevated);
+}
+
 * {
   box-sizing: border-box;
 }
@@ -22,6 +489,8 @@ body {
   margin: 0;
   min-width: 1024px;
   min-height: 700px;
+  background: var(--background);
+  color: var(--text-primary);
 }
 
 button,

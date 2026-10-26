@@ -173,9 +173,9 @@ export function FieldDefinitionForm(props: FormProps): React.JSX.Element {
       >
         ← Voltar para definições de campo
       </Button>
-      <div className="overflow-hidden rounded-3xl border border-stone-200 bg-white shadow-sm">
-        <header className="border-b border-stone-200 bg-stone-50 px-8 py-7">
-          <p className="text-xs font-bold tracking-[0.2em] text-amber-800 uppercase">
+      <div className="overflow-hidden rounded-3xl border semantic-border semantic-surface shadow-sm">
+        <header className="border-b semantic-border semantic-surface-muted px-8 py-7">
+          <p className="text-xs font-bold tracking-[0.2em] semantic-accent-text uppercase">
             {props.mode === 'create' ? 'Nova definição de campo' : 'Editar definição de campo'}
           </p>
           <h1 id="field-form-title" className="mt-2 text-3xl font-semibold">
@@ -193,7 +193,7 @@ export function FieldDefinitionForm(props: FormProps): React.JSX.Element {
             required
           />
           {props.mode === 'create' ? (
-            <p className="-mt-5 text-sm text-slate-600" id="field-key-generation-help">
+            <p className="-mt-5 text-sm semantic-text-secondary" id="field-key-generation-help">
               A chave técnica será gerada automaticamente ao criar o campo.
             </p>
           ) : null}
@@ -240,7 +240,7 @@ export function FieldDefinitionForm(props: FormProps): React.JSX.Element {
               ]}
             />
           </div>
-          <div className="flex flex-wrap gap-6 rounded-2xl bg-stone-50 p-5">
+          <div className="flex flex-wrap gap-6 rounded-2xl semantic-surface-muted p-5">
             <Check
               label="Obrigatório"
               checked={values.required}
@@ -275,7 +275,7 @@ export function FieldDefinitionForm(props: FormProps): React.JSX.Element {
             />
           </div>
           {isReference ? (
-            <fieldset className="grid gap-6 rounded-2xl border border-stone-200 p-5 md:grid-cols-2">
+            <fieldset className="grid gap-6 rounded-2xl border semantic-border p-5 md:grid-cols-2">
               <legend className="px-2 font-semibold">Configuração da referência</legend>
               <Select
                 disabled={referenceOptionsBusy || referenceOptionsState === 'error'}
@@ -323,12 +323,12 @@ export function FieldDefinitionForm(props: FormProps): React.JSX.Element {
                 ]}
               />
               {referenceOptionsState === 'loading' ? (
-                <p className="text-sm text-slate-600 md:col-span-2" role="status">
+                <p className="text-sm semantic-text-secondary md:col-span-2" role="status">
                   Carregando opções de referência…
                 </p>
               ) : referenceOptionsState === 'error' ? (
                 <div
-                  className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 md:col-span-2"
+                  className="rounded-xl border semantic-danger-border semantic-danger-surface p-4 text-sm semantic-error-text md:col-span-2"
                   role="alert"
                 >
                   <p>Não foi possível carregar as opções de referência.</p>
@@ -346,7 +346,7 @@ export function FieldDefinitionForm(props: FormProps): React.JSX.Element {
           ) : null}
           {props.error === null && validationError === null ? null : (
             <p
-              className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800"
+              className="rounded-xl border semantic-danger-border semantic-danger-surface p-4 text-sm semantic-error-text"
               role="alert"
             >
               {props.error ?? validationError}
@@ -609,13 +609,15 @@ function EntityTypeChoices({
   const labelId = `field-entity-types-${generatedId.replaceAll(':', '')}`;
   const options = entityTypeOptions(entityTypes, selected);
   return (
-    <div aria-labelledby={labelId} className="rounded-xl border border-stone-200 p-4" role="group">
-      <p className="font-semibold text-slate-800" id={labelId}>
+    <div aria-labelledby={labelId} className="rounded-xl border semantic-border p-4" role="group">
+      <p className="font-semibold semantic-text-primary" id={labelId}>
         {label}
       </p>
-      <p className="mt-1 text-xs text-slate-600">Nenhuma seleção permite todos os tipos.</p>
+      <p className="mt-1 text-xs semantic-text-secondary">
+        Nenhuma seleção permite todos os tipos.
+      </p>
       {options.length === 0 ? (
-        <p className="mt-3 text-sm text-slate-500">Nenhum tipo de entidade ativo.</p>
+        <p className="mt-3 text-sm semantic-text-secondary">Nenhum tipo de entidade ativo.</p>
       ) : (
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           {options.map(([id, text]) => (
@@ -685,6 +687,6 @@ function entityTypeOptions(
   }
   return options;
 }
-const labelClass = 'block text-sm font-semibold text-slate-800';
+const labelClass = 'block text-sm font-semibold semantic-text-primary';
 const inputClass =
-  'mt-2 w-full rounded-xl border border-stone-300 bg-white px-4 py-3 font-normal text-slate-950 outline-none focus:border-amber-700 focus:ring-3 focus:ring-amber-700/15';
+  'mt-2 w-full rounded-xl border semantic-border semantic-surface px-4 py-3 font-normal semantic-text-primary outline-none semantic-focus-border focus:ring-3 semantic-focus-ring';

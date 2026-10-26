@@ -5,6 +5,12 @@ export const phaseZeroChannels = {
   openDataDirectory: 'storage:open-data-directory',
 } as const;
 
+export const appearanceChannels = {
+  getTheme: 'appearance:get-theme',
+  setTheme: 'appearance:set-theme',
+  themeChanged: 'appearance:theme-changed',
+} as const;
+
 export const diagnosticsChannels = {
   copyStartupDiagnostic: 'diagnostics:copy-startup',
 } as const;

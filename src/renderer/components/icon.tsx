@@ -1,9 +1,9 @@
 import { iconIdSchema, type IconId } from '../../core/contracts/icons';
 
-type IconProps = {
+interface IconProps {
   className?: string;
   value: string | null;
-};
+}
 
 export function Icon({ className = 'size-5', value }: IconProps): React.JSX.Element {
   if (value === null)
@@ -57,7 +57,15 @@ export const iconPaths: Readonly<Record<IconId, readonly string[]>> = {
     'M14 17v4',
   ],
   location: ['M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z', 'M12 10h.01'],
-  building: ['M3 21h18', 'M6 21V3h12v18', 'M9 7h2', 'M13 7h2', 'M9 11h2', 'M13 11h2', 'M10 21v-5h4v5'],
+  building: [
+    'M3 21h18',
+    'M6 21V3h12v18',
+    'M9 7h2',
+    'M13 7h2',
+    'M9 11h2',
+    'M13 11h2',
+    'M10 21v-5h4v5',
+  ],
   mountain: ['m3 20 6-10 4 6 2-3 6 7Z', 'm9 10 3-5 4 7'],
   forest: ['M12 22V8', 'm7 12 5-10 5 10', 'm5 17 7-12 7 12', 'M5 22h14'],
   house: ['m3 11 9-8 9 8', 'M5 10v11h14V10', 'M9 21v-7h6v7'],
@@ -71,5 +79,12 @@ export const iconPaths: Readonly<Record<IconId, readonly string[]>> = {
   eye: ['M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z', 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z'],
   flag: ['M5 22V4', 'M5 4h12l-2 4 2 4H5'],
   star: ['m12 2 3.1 6.3 6.9 1-5 4.9 1.2 6.8-6.1-3.2-6.1 3.2 1.2-6.8-5-4.9 6.9-1Z'],
-  network: ['M12 7a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z', 'M5 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z', 'M19 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z', 'M12 7v4', 'm10 12-5 6', 'm14 12 5 6'],
+  network: [
+    'M12 7a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z',
+    'M5 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z',
+    'M19 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z',
+    'M12 7v4',
+    'm10 12-5 6',
+    'm14 12 5 6',
+  ],
 };

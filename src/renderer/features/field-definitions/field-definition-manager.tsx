@@ -227,15 +227,15 @@ export function FieldDefinitionManager({
       <Button className="mb-6" onClick={onBack} size="small" variant="ghost">
         ← Voltar para tipos de entidade
       </Button>
-      <header className="flex items-end justify-between gap-6 border-b border-stone-200 pb-7">
+      <header className="flex items-end justify-between gap-6 border-b semantic-border pb-7">
         <div>
-          <p className="text-xs font-bold tracking-[0.18em] text-amber-800 uppercase">
+          <p className="text-xs font-bold tracking-[0.18em] semantic-accent-text uppercase">
             {campaign.name} · {entityType.name}
           </p>
           <h1 id="fields-title" className="mt-2 text-4xl font-semibold">
             Definições de campo
           </h1>
-          <p className="mt-3 text-slate-600">
+          <p className="mt-3 semantic-text-secondary">
             Configure os atributos usados por cada{' '}
             {entityType.singularName.toLocaleLowerCase('pt-BR')}.
           </p>
@@ -270,18 +270,21 @@ export function FieldDefinitionManager({
       </ToolbarActions>
       {announcement === null ? null : (
         <p
-          className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800"
+          className="mt-6 rounded-xl border semantic-success-border semantic-success-surface p-4 text-sm semantic-success-text"
           role="status"
         >
           {announcement}
         </p>
       )}
       {pending === null ? null : (
-        <div className="mt-6 rounded-2xl border border-amber-300 bg-amber-50 p-5" role="alert">
+        <div
+          className="mt-6 rounded-2xl border semantic-warning-border semantic-warning-surface p-5"
+          role="alert"
+        >
           <h2 className="font-semibold">
             {pending.isArchived ? 'Restaurar' : 'Arquivar'} “{pending.label}”?
           </h2>
-          <p className="mt-2 text-sm text-slate-700">
+          <p className="mt-2 text-sm semantic-text-secondary">
             A definição e os valores associados permanecerão preservados.
           </p>
           <ButtonGroup aria-label="Ações de confirmação" className="mt-4">
@@ -305,11 +308,11 @@ export function FieldDefinitionManager({
       )}
       {loading ? (
         <div
-          className="mt-8 h-32 animate-pulse rounded-2xl bg-stone-200"
+          className="mt-8 h-32 animate-pulse rounded-2xl semantic-skeleton"
           aria-label="Carregando definições de campo"
         />
       ) : fields.length === 0 ? (
-        <div className="mt-8 rounded-2xl border border-dashed border-stone-300 bg-white px-8 py-14 text-center">
+        <div className="mt-8 rounded-2xl border border-dashed semantic-border semantic-surface px-8 py-14 text-center">
           <h2 className="text-xl font-semibold">
             {showArchived ? 'Nenhum campo arquivado' : 'Nenhuma definição de campo criada'}
           </h2>
@@ -337,13 +340,15 @@ export function FieldDefinitionManager({
           onMove={moveField}
           reorderable={!showArchived}
           renderItem={(field) => (
-            <article className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
+            <article className="rounded-2xl border semantic-border semantic-surface p-6 shadow-sm">
               <div className="flex justify-between gap-5">
                 <div>
                   <h2 className="text-xl font-semibold">{field.label}</h2>
-                  <p className="mt-1 text-sm text-slate-500">{dataTypeLabel(field.dataType)}</p>
+                  <p className="mt-1 text-sm semantic-text-secondary">
+                    {dataTypeLabel(field.dataType)}
+                  </p>
                   {field.description === null ? null : (
-                    <p className="mt-3 text-slate-600">{field.description}</p>
+                    <p className="mt-3 semantic-text-secondary">{field.description}</p>
                   )}
                   <div className="mt-3 flex gap-2 text-xs">
                     {field.required ? <Badge>Obrigatório</Badge> : null}
@@ -354,7 +359,7 @@ export function FieldDefinitionManager({
               </div>
               <ToolbarActions
                 aria-label={`Ações do campo ${field.label}`}
-                className="mt-5 justify-end border-t border-stone-100 pt-4"
+                className="mt-5 justify-end border-t semantic-border pt-4"
               >
                 <Button
                   aria-label={`Editar campo ${field.label}`}
@@ -393,7 +398,7 @@ function Filter({
   return (
     <Button
       aria-pressed={active}
-      className={`rounded-full ${active ? 'bg-slate-900 text-white' : ''}`}
+      className={`rounded-full ${active ? 'semantic-selected-surface semantic-selected-text' : ''}`}
       onClick={onClick}
       size="small"
     >
@@ -403,7 +408,7 @@ function Filter({
 }
 function Badge({ children }: { children: React.ReactNode }): React.JSX.Element {
   return (
-    <span className="rounded-full bg-stone-100 px-2 py-1 font-semibold text-slate-600">
+    <span className="rounded-full semantic-surface-muted px-2 py-1 font-semibold semantic-text-secondary">
       {children}
     </span>
   );

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  appearanceChannels,
   campaignChannels,
   diagnosticsChannels,
   entityChannels,
@@ -11,6 +12,7 @@ import {
 import {
   createCampaignManagerGateway,
   type IpcInvoker,
+  type IpcSubscriber,
 } from '../../src/preload/gateways/campaign-manager-gateway';
 
 describe('gateway do preload', () => {
@@ -18,6 +20,7 @@ describe('gateway do preload', () => {
     const gateway = createCampaignManagerGateway(createInvoker([]));
 
     expect(Object.keys(gateway).sort()).toEqual([
+      'appearance',
       'assertions',
       'campaigns',
       'diagnostics',
@@ -43,6 +46,11 @@ describe('gateway do preload', () => {
       'moveToTrash',
       'restore',
       'update',
+    ]);
+    expect(Object.keys(gateway.appearance).sort()).toEqual([
+      'getTheme',
+      'onThemeChanged',
+      'setTheme',
     ]);
     expect('ipcRenderer' in gateway).toBe(false);
     expect('invoke' in gateway).toBe(false);
@@ -90,6 +98,50 @@ describe('gateway do preload', () => {
       'restore',
       'update',
     ]);
+  });
+
+  it('expõe somente get/set de aparência e bloqueia payloads fora do contrato', async () => {
+    const invocations: Invocation[] = [];
+    const gateway = createCampaignManagerGateway(createInvoker(invocations));
+
+    await gateway.appearance.getTheme();
+    await gateway.appearance.setTheme({ theme: 'dark', revision: 2 });
+
+    expect(invocations).toEqual([
+      { channel: appearanceChannels.getTheme, input: {} },
+      {
+        channel: appearanceChannels.setTheme,
+        input: { theme: 'dark', revision: 2 },
+      },
+    ]);
+    expect(() =>
+      gateway.appearance.setTheme({ theme: 'dark', revision: 2, rawChannel: true } as never),
+    ).toThrow();
+    expect(invocations).toHaveLength(2);
+  });
+
+  it('valida eventos de tema e oferece unsubscribe idempotente sem expor o listener bruto', () => {
+    const listeners = new Map<string, (payload: unknown) => void>();
+    const removed: string[] = [];
+    const gateway = createCampaignManagerGateway(
+      createInvoker([]),
+      createSubscriber(listeners, removed),
+    );
+    const received: unknown[] = [];
+    const unsubscribe = gateway.appearance.onThemeChanged((setting) => received.push(setting));
+    const listener = listeners.get(appearanceChannels.themeChanged);
+    if (listener === undefined) throw new Error('Listener de tema não registrado.');
+
+    listener({ theme: 'dark', revision: 2, rawChannel: true });
+    listener({ theme: 'system', revision: 2 });
+    expect(received).toEqual([]);
+
+    listener({ theme: 'dark', revision: 2 });
+    expect(received).toEqual([{ theme: 'dark', revision: 2 }]);
+
+    unsubscribe();
+    unsubscribe();
+    expect(removed).toEqual([appearanceChannels.themeChanged]);
   });
 
   it('valida entradas públicas e as encaminha sem aplicar transforms do main', async () => {
@@ -397,5 +449,21 @@ function createInvoker(invocations: Invocation[]): IpcInvoker {
   return (channel, input) => {
     invocations.push({ channel, input });
     return Promise.resolve({ ok: true, data: null, requestId: 'test-request' });
+  };
+}
+
+function createSubscriber(
+  listeners: Map<string, (payload: unknown) => void>,
+  removed: string[],
+): IpcSubscriber {
+  return (channel, listener) => {
+    listeners.set(channel, listener);
+    let subscribed = true;
+    return () => {
+      if (!subscribed) return;
+      subscribed = false;
+      listeners.delete(channel);
+      removed.push(channel);
+    };
   };
 }

@@ -252,15 +252,15 @@ export function EntityTypeManager({
         Voltar para detalhes da campanha
       </Button>
 
-      <header className="flex items-end justify-between gap-6 border-b border-stone-200 pb-7">
+      <header className="flex items-end justify-between gap-6 border-b semantic-border pb-7">
         <div>
-          <p className="text-xs font-bold tracking-[0.18em] text-amber-800 uppercase">
+          <p className="text-xs font-bold tracking-[0.18em] semantic-accent-text uppercase">
             Estrutura de {campaign.name}
           </p>
           <h1 id="entity-types-title" className="mt-2 text-4xl font-semibold tracking-tight">
             Tipos de entidade
           </h1>
-          <p className="mt-3 text-slate-600">
+          <p className="mt-3 semantic-text-secondary">
             Defina as categorias usadas para organizar pessoas, locais, facções e outros elementos.
           </p>
         </div>
@@ -283,7 +283,7 @@ export function EntityTypeManager({
       {announcement === null ? null : (
         <p
           aria-live="polite"
-          className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800"
+          className="mt-6 rounded-xl border semantic-success-border semantic-success-surface px-4 py-3 text-sm semantic-success-text"
           role="status"
         >
           {announcement}
@@ -291,13 +291,16 @@ export function EntityTypeManager({
       )}
 
       {pendingLifecycle === null ? null : (
-        <div className="mt-6 rounded-2xl border border-amber-300 bg-amber-50 p-5" role="alert">
-          <h2 className="font-semibold text-slate-950">
+        <div
+          className="mt-6 rounded-2xl border semantic-warning-border semantic-warning-surface p-5"
+          role="alert"
+        >
+          <h2 className="font-semibold semantic-text-primary">
             {pendingLifecycle.action === 'archive'
               ? `Arquivar “${pendingLifecycle.entityType.name}”?`
               : `Restaurar “${pendingLifecycle.entityType.name}”?`}
           </h2>
-          <p className="mt-2 text-sm text-slate-700">
+          <p className="mt-2 text-sm semantic-text-secondary">
             O tipo e todos os seus dados permanecerão preservados.
           </p>
           <ButtonGroup aria-label="Ações de confirmação" className="mt-4">
@@ -326,15 +329,15 @@ export function EntityTypeManager({
       {loading ? (
         <div aria-busy="true" aria-label="Carregando tipos de entidade" className="mt-8 grid gap-4">
           {[0, 1, 2].map((item) => (
-            <div className="h-32 animate-pulse rounded-2xl bg-stone-200" key={item} />
+            <div className="h-32 animate-pulse rounded-2xl semantic-skeleton" key={item} />
           ))}
         </div>
       ) : entityTypes.length === 0 ? (
-        <div className="mt-8 rounded-2xl border border-dashed border-stone-300 bg-white px-8 py-14 text-center">
-          <h2 className="text-xl font-semibold text-slate-900">
+        <div className="mt-8 rounded-2xl border border-dashed semantic-border semantic-surface px-8 py-14 text-center">
+          <h2 className="text-xl font-semibold semantic-text-primary">
             {showArchived ? 'Nenhum tipo arquivado' : 'Nenhum tipo de entidade criado'}
           </h2>
-          <p className="mx-auto mt-2 max-w-lg text-slate-600">
+          <p className="mx-auto mt-2 max-w-lg semantic-text-secondary">
             {showArchived
               ? 'Tipos arquivados permanecerão disponíveis aqui para restauração.'
               : 'Crie a primeira categoria para começar a estruturar este mundo.'}
@@ -388,12 +391,12 @@ function EntityTypeCard({
   onFields: () => void;
 }): React.JSX.Element {
   return (
-    <article className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
+    <article className="rounded-2xl border semantic-border semantic-surface p-6 shadow-sm">
       <div className="flex items-start justify-between gap-6">
         <div className="flex min-w-0 gap-4">
           <div
             aria-hidden="true"
-            className="grid size-11 shrink-0 place-items-center rounded-xl bg-slate-900 text-lg font-bold text-white"
+            className="grid size-11 shrink-0 place-items-center rounded-xl semantic-selected-surface text-lg font-bold semantic-selected-text"
             data-testid="entity-type-icon"
             style={entityTypeColorStyle(entityType.color)}
           >
@@ -404,19 +407,19 @@ function EntityTypeCard({
             )}
           </div>
           <div className="min-w-0">
-            <h2 className="text-xl font-semibold text-slate-950">{entityType.name}</h2>
-            <p className="mt-1 text-sm text-slate-500">
+            <h2 className="text-xl font-semibold semantic-text-primary">{entityType.name}</h2>
+            <p className="mt-1 text-sm semantic-text-secondary">
               Singular: {entityType.singularName} · {entityType.slug}
             </p>
             {entityType.description === null ? null : (
-              <p className="mt-3 leading-6 text-slate-600">{entityType.description}</p>
+              <p className="mt-3 leading-6 semantic-text-secondary">{entityType.description}</p>
             )}
           </div>
         </div>
       </div>
       <ToolbarActions
         aria-label={`Ações de ${entityType.name}`}
-        className="mt-5 justify-end border-t border-stone-100 pt-4"
+        className="mt-5 justify-end border-t semantic-border pt-4"
       >
         <Button aria-label={`Gerenciar campos de ${entityType.name}`} onClick={onFields}>
           Gerenciar campos
@@ -447,7 +450,7 @@ function FilterButton({
   return (
     <Button
       aria-pressed={active}
-      className={`rounded-full ${active ? 'bg-slate-900 text-white' : ''}`}
+      className={`rounded-full ${active ? 'semantic-selected-surface semantic-selected-text' : ''}`}
       onClick={onClick}
       size="small"
     >

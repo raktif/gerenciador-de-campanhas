@@ -1,11 +1,23 @@
-import { app, clipboard, dialog, ipcMain, shell, type BrowserWindow } from 'electron';
+import {
+  app,
+  clipboard,
+  dialog,
+  ipcMain,
+  Menu,
+  nativeTheme,
+  shell,
+  type BrowserWindow,
+} from 'electron';
 import type { CampaignPageRequest, CampaignPageResult } from '../../core/contracts/campaigns';
+import { appearanceSettingSchema } from '../../core/contracts/appearance';
+import { appearanceChannels } from '../../core/contracts/ipc-channels';
 import { AppError } from '../../core/errors/app-error';
 import { readEnvironment, resolveDataRoot } from '../../core/config/environment';
 import { FileLogger } from '../../core/logging/logger';
 import { ensureDataDirectories, getDataDirectories } from '../../core/storage/data-directories';
 import { openApplicationDatabase, type DatabaseContext } from '../../db/connection';
 import { AssertionRepository } from '../../db/repositories/assertion-repository';
+import { AppearanceRepository } from '../../db/repositories/appearance-repository';
 import { CampaignRepository } from '../../db/repositories/campaign-repository';
 import { EntityRepository } from '../../db/repositories/entity-repository';
 import { EventRepository } from '../../db/repositories/event-repository';
@@ -20,6 +32,7 @@ import { TimelineRepository } from '../../db/repositories/timeline-repository';
 import { SessionIntentionRepository } from '../../db/repositories/session-intention-repository';
 import { SessionRepository } from '../../db/repositories/session-repository';
 import { registerCampaignIpcHandlers } from '../ipc/campaign-handlers';
+import { registerAppearanceIpcHandlers } from '../ipc/appearance-handlers';
 import { registerDiagnosticsIpcHandlers } from '../ipc/diagnostics-handlers';
 import { registerAssertionIpcHandlers } from '../ipc/assertion-handlers';
 import { registerEntityIpcHandlers } from '../ipc/entity-handlers';
@@ -37,6 +50,7 @@ import {
 } from '../ipc/session-handlers';
 import { registerTimelineIpcHandlers } from '../ipc/timeline-handlers';
 import { CampaignService } from '../services/campaign-service';
+import { AppearanceService } from '../services/appearance-service';
 import { StartupDiagnosticsService } from '../services/startup-diagnostics-service';
 import { AssertionService } from '../services/assertion-service';
 import { EntityService } from '../services/entity-service';
@@ -52,6 +66,12 @@ import { SessionIntentionService } from '../services/session-intention-service';
 import { SessionParticipantService } from '../services/session-participant-service';
 import { SessionService } from '../services/session-service';
 import { TimelineService } from '../services/timeline-service';
+import {
+  AppearanceController,
+  createWindowWithInitialTheme,
+} from '../appearance/appearance-controller';
+import { showAppearanceChangeFailure } from '../appearance/appearance-failure-dialog';
+import { installApplicationMenu, type AppearanceMenuPort } from '../appearance/application-menu';
 import { createMainWindow, loadMainWindow } from '../windows/main-window';
 
 export interface RunningApplication {
@@ -76,6 +96,7 @@ export async function bootstrapApplication(): Promise<RunningApplication> {
     });
     throw error;
   }
+  const appearanceRepository = new AppearanceRepository(database.orm);
   const phaseZeroRepository = new PhaseZeroRepository(database.orm);
   const campaignRepository = new CampaignRepository(database.orm);
   const entityTypeRepository = new EntityTypeRepository(database.orm);
@@ -90,7 +111,49 @@ export async function bootstrapApplication(): Promise<RunningApplication> {
   const inboxRepository = new InboxRepository(database.orm);
   const sessionRepository = new SessionRepository(database.orm);
   const sessionIntentionRepository = new SessionIntentionRepository(database.orm);
-  const window = createMainWindow();
+  const appearanceService = new AppearanceService({ repository: appearanceRepository });
+  const initialAppearance = appearanceService.get();
+  const window = createWindowWithInitialTheme(
+    initialAppearance.theme,
+    nativeTheme,
+    createMainWindow,
+  );
+  let appearanceMenu: AppearanceMenuPort | null = null;
+  const appearanceController = new AppearanceController(appearanceService, {
+    notifyThemeChanged: (setting) =>
+      window.webContents.send(
+        appearanceChannels.themeChanged,
+        appearanceSettingSchema.parse(setting),
+      ),
+    setMenuTheme: (theme) => appearanceMenu?.setTheme(theme),
+    setNativeTheme: (theme) => {
+      nativeTheme.themeSource = theme;
+    },
+    setWindowBackground: (color) => window.setBackgroundColor(color),
+  });
+  appearanceMenu = installApplicationMenu(Menu, {
+    applicationName: app.name,
+    platform: process.platform,
+    onThemeSelected: (theme) => {
+      try {
+        appearanceController.setThemeFromMenu(theme);
+      } catch (error) {
+        void showAppearanceChangeFailure(dialog, window).catch(() => undefined);
+        void logger
+          .error('Falha ao alterar o tema pelo menu nativo.', {
+            errorName: error instanceof Error ? error.name : 'UnknownError',
+            errorMessage: error instanceof Error ? error.message : 'Unknown error',
+          })
+          .catch(() => undefined);
+      }
+    },
+  });
+  appearanceController.initialize(initialAppearance);
+  const unregisterAppearanceIpc = registerAppearanceIpcHandlers(ipcMain, {
+    controller: appearanceController,
+    logger,
+    authorizedWebContentsId: window.webContents.id,
+  });
   const service = new PhaseZeroService({
     applicationVersion: app.getVersion(),
     dataDirectory: dataRoot,
@@ -260,6 +323,7 @@ export async function bootstrapApplication(): Promise<RunningApplication> {
     dispose: () => {
       if (disposed) return;
       disposed = true;
+      unregisterAppearanceIpc();
       unregisterIpc();
       unregisterCampaignIpc();
       unregisterDiagnosticsIpc();
@@ -274,6 +338,7 @@ export async function bootstrapApplication(): Promise<RunningApplication> {
       unregisterEventIpc();
       unregisterTimelineIpc();
       unregisterSessionIpc();
+      appearanceMenu.dispose();
       database.close();
     },
   };

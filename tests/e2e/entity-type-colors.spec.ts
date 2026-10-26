@@ -46,7 +46,9 @@ test('seleciona, valida, cancela, limpa e persiste cor de tipo de entidade', asy
     const hexadecimal = window.getByLabel('Cor hexadecimal');
     await hexadecimal.fill('#12');
     await window.getByRole('button', { name: 'Criar tipo de entidade' }).click();
-    await expect(window.getByRole('heading', { name: 'Defina uma categoria do seu mundo' })).toBeVisible();
+    await expect(
+      window.getByRole('heading', { name: 'Defina uma categoria do seu mundo' }),
+    ).toBeVisible();
     await expect(hexadecimal).toHaveValue('#12');
     await expect(hexadecimal).toHaveAttribute('aria-invalid', 'true');
     await expect(window.getByRole('alert')).toContainText(

@@ -16,7 +16,7 @@ describe('formulário de tipo de entidade', () => {
         error: null,
         mode: 'create',
         onCancel: () => undefined,
-        onSubmit: async () => undefined,
+        onSubmit: () => Promise.resolve(),
       }),
     );
 

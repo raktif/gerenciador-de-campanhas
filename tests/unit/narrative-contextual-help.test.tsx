@@ -18,12 +18,7 @@ describe('ajuda contextual dos metadados narrativos', () => {
       />,
     );
 
-    for (const label of [
-      'Estado canônico',
-      'Natureza do conhecimento',
-      'Visibilidade',
-      'Origem',
-    ]) {
+    for (const label of ['Estado canônico', 'Natureza do conhecimento', 'Visibilidade', 'Origem']) {
       expect(markup).toContain(`Ajuda sobre ${label}`);
     }
     expect(markup).toContain('Distingue fatos confirmados de rumores');

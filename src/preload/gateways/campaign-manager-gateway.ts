@@ -1,5 +1,10 @@
 import type { z } from 'zod';
 import {
+  appearanceSettingSchema,
+  updateAppearanceThemeInputSchema,
+  type AppearanceSetting,
+} from '../../core/contracts/appearance';
+import {
   assertionLifecycleInputSchema,
   assertionPageRequestSchema,
   createAssertionInputSchema,
@@ -111,6 +116,7 @@ import {
 } from '../../core/contracts/field-definitions';
 import {
   assertionChannels,
+  appearanceChannels,
   campaignChannels,
   diagnosticsChannels,
   entityChannels,
@@ -160,8 +166,12 @@ import {
 } from '../../core/contracts/timeline';
 
 export type IpcInvoker = (channel: string, input: unknown) => Promise<unknown>;
+export type IpcSubscriber = (channel: string, listener: (payload: unknown) => void) => () => void;
 
-export function createCampaignManagerGateway(invokeIpc: IpcInvoker): CampaignManagerGateway {
+export function createCampaignManagerGateway(
+  invokeIpc: IpcInvoker,
+  subscribeIpc: IpcSubscriber = () => () => undefined,
+): CampaignManagerGateway {
   const invoke = <TResult>(
     channel: string,
     input: unknown,
@@ -173,6 +183,21 @@ export function createCampaignManagerGateway(invokeIpc: IpcInvoker): CampaignMan
   };
 
   return {
+    appearance: {
+      getTheme: (input = {}) =>
+        invoke<AppearanceSetting>(appearanceChannels.getTheme, input, emptyInputSchema),
+      setTheme: (input) =>
+        invoke<AppearanceSetting>(
+          appearanceChannels.setTheme,
+          input,
+          updateAppearanceThemeInputSchema,
+        ),
+      onThemeChanged: (listener) =>
+        subscribeIpc(appearanceChannels.themeChanged, (payload) => {
+          const setting = appearanceSettingSchema.safeParse(payload);
+          if (setting.success) listener(setting.data);
+        }),
+    },
     diagnostics: {
       copyStartupDiagnostic: (input) =>
         invoke<CopiedStartupDiagnostic>(

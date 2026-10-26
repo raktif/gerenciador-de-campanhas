@@ -26,6 +26,7 @@ import { InboxManager } from '../features/inbox/inbox-manager';
 import { presentUserFacingError, type UserFacingError } from '../../core/errors/user-facing-error';
 import { UserFacingErrorNotice } from '../components/user-facing-error-notice';
 import { Button, ButtonGroup } from '../components/actions';
+import { ThemeToggle } from '../theme/theme-toggle';
 
 type Screen =
   | 'campaigns'
@@ -260,32 +261,35 @@ export function CampaignApp(): React.JSX.Element {
   }
 
   return (
-    <div className="min-h-screen bg-[#f7f4ed] text-slate-900">
+    <div className="app-base min-h-screen">
       <div className="grid min-h-screen grid-cols-[15.5rem_1fr]">
-        <aside className="flex flex-col border-r border-stone-200 bg-slate-950 px-5 py-7 text-slate-100">
+        <aside className="flex flex-col border-r semantic-navigation-border semantic-navigation-surface px-5 py-7">
           <div className="flex items-center gap-3 px-2">
             <div
               aria-hidden="true"
-              className="grid size-10 place-items-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-700 text-lg font-black text-white shadow-lg shadow-orange-950/30"
+              className="grid size-10 place-items-center rounded-xl semantic-brand-surface text-lg font-black shadow-lg"
             >
               G
             </div>
             <div>
               <p className="text-sm font-bold tracking-wide">Gerenciador</p>
-              <p className="text-xs text-slate-400">Campanhas de RPG</p>
+              <p className="text-xs semantic-text-secondary">Campanhas de RPG</p>
             </div>
           </div>
 
           {selectedCampaign === null ? (
             <nav aria-label="Navegação principal" className="mt-10">
-              <p className="px-3 text-[0.68rem] font-bold tracking-[0.18em] text-slate-500 uppercase">
+              <p className="navigation-label px-3 text-[0.68rem] font-bold tracking-[0.18em] uppercase">
                 Organização
               </p>
               <div
                 aria-current="page"
-                className="mt-3 flex items-center gap-3 rounded-xl bg-slate-800 px-3 py-3 text-sm font-semibold text-white shadow-inner"
+                className="mt-3 flex items-center gap-3 rounded-xl semantic-navigation-current px-3 py-3 text-sm font-semibold shadow-inner"
               >
-                <span aria-hidden="true" className="size-2 rounded-full bg-amber-400" />
+                <span
+                  aria-hidden="true"
+                  className="size-2 rounded-full semantic-navigation-accent"
+                />
                 Campanhas
               </div>
             </nav>
@@ -298,13 +302,16 @@ export function CampaignApp(): React.JSX.Element {
             />
           )}
 
-          <div className="mt-auto rounded-xl border border-slate-800 bg-slate-900 p-4 text-xs leading-5 text-slate-400">
-            <p className="font-semibold text-slate-200">Privado e local</p>
+          <div className="mt-auto rounded-xl border semantic-navigation-border semantic-navigation-surface-elevated p-4 text-xs leading-5 semantic-text-secondary">
+            <p className="font-semibold semantic-text-primary">Privado e local</p>
             <p className="mt-1">Seus dados permanecem neste computador.</p>
           </div>
         </aside>
 
         <main className="min-w-0 px-8 py-8 lg:px-12 lg:py-10" ref={contentRef}>
+          <div className="mb-4 flex justify-end">
+            <ThemeToggle />
+          </div>
           {screen === 'create' ? (
             <>
               <CampaignForm
@@ -428,11 +435,14 @@ function CampaignNavigation({
         Campanhas
       </Button>
 
-      <div className="mt-6 border-y border-slate-800 px-3 py-4">
-        <p className="text-[0.68rem] font-bold tracking-[0.18em] text-slate-500 uppercase">
+      <div className="mt-6 border-y semantic-navigation-border px-3 py-4">
+        <p className="navigation-label text-[0.68rem] font-bold tracking-[0.18em] uppercase">
           Campanha atual
         </p>
-        <p className="mt-2 truncate text-sm font-semibold text-slate-100" title={campaign.name}>
+        <p
+          className="mt-2 truncate text-sm font-semibold semantic-text-primary"
+          title={campaign.name}
+        >
           {campaign.name}
         </p>
       </div>
@@ -498,7 +508,7 @@ function CampaignNavigation({
           />
         </CampaignNavigationGroup>
       ) : (
-        <p className="mt-6 px-3 text-xs leading-5 text-slate-400">
+        <p className="mt-6 px-3 text-xs leading-5 semantic-text-secondary">
           Restaure a campanha para acessar seus registros.
         </p>
       )}
@@ -515,7 +525,7 @@ function CampaignNavigationGroup({
 }): React.JSX.Element {
   return (
     <section className="mt-6" aria-label={label}>
-      <p className="px-3 text-[0.68rem] font-bold tracking-[0.18em] text-slate-500 uppercase">
+      <p className="navigation-label px-3 text-[0.68rem] font-bold tracking-[0.18em] uppercase">
         {label}
       </p>
       <div className="mt-2 grid gap-1">{children}</div>
@@ -573,11 +583,11 @@ function CampaignsScreen({
     return (
       <section aria-busy="true" aria-label={message} className="animate-pulse" role="status">
         <p className="sr-only">{message}</p>
-        <div className="h-5 w-28 rounded bg-stone-200" />
-        <div className="mt-4 h-10 w-80 rounded bg-stone-200" />
+        <div className="h-5 w-28 rounded semantic-skeleton" />
+        <div className="mt-4 h-10 w-80 rounded semantic-skeleton" />
         <div className="mt-10 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
           {[0, 1, 2].map((item) => (
-            <div className="h-52 rounded-2xl bg-stone-200" key={item} />
+            <div className="h-52 rounded-2xl semantic-skeleton" key={item} />
           ))}
         </div>
       </section>
@@ -600,11 +610,11 @@ function CampaignsScreen({
             status={status}
           />
           {announcement === null ? null : <Announcement message={announcement} />}
-          <div className="mt-10 rounded-2xl border border-dashed border-stone-300 bg-white px-8 py-14 text-center">
-            <h2 className="text-xl font-semibold text-slate-900">
+          <div className="mt-10 rounded-2xl border border-dashed semantic-border semantic-surface px-8 py-14 text-center">
+            <h2 className="text-xl font-semibold semantic-text-primary">
               {status === 'archived' ? 'Nenhuma campanha arquivada' : 'A lixeira está vazia'}
             </h2>
-            <p className="mt-2 text-slate-600">
+            <p className="mt-2 semantic-text-secondary">
               {status === 'archived'
                 ? 'Campanhas arquivadas permanecerão preservadas aqui.'
                 : 'Campanhas enviadas para a lixeira poderão ser restauradas aqui.'}
@@ -619,29 +629,29 @@ function CampaignsScreen({
         <CampaignStatusTabs onChange={onStatusChange} status={status} />
         {announcement === null ? null : <Announcement message={announcement} />}
         <div className="grid min-h-[70vh] place-items-center">
-          <div className="relative max-w-2xl overflow-hidden rounded-3xl border border-stone-200 bg-white px-10 py-12 text-center shadow-[0_24px_80px_-45px_rgba(15,23,42,0.5)]">
+          <div className="relative max-w-2xl overflow-hidden rounded-3xl border semantic-border semantic-surface px-10 py-12 text-center semantic-domain-card">
             <div
               aria-hidden="true"
-              className="absolute -top-24 -right-20 size-64 rounded-full bg-amber-100 blur-2xl"
+              className="absolute -top-24 -right-20 size-64 rounded-full semantic-warning-surface blur-2xl"
             />
             <div
               aria-hidden="true"
-              className="relative mx-auto grid size-16 place-items-center rounded-2xl bg-slate-950 text-2xl text-amber-400 shadow-xl shadow-slate-900/20"
+              className="relative mx-auto grid size-16 place-items-center rounded-2xl semantic-navigation-surface text-2xl semantic-accent-text shadow-xl "
             >
               ✦
             </div>
-            <p className="relative mt-7 text-xs font-bold tracking-[0.2em] text-amber-800 uppercase">
+            <p className="relative mt-7 text-xs font-bold tracking-[0.2em] semantic-accent-text uppercase">
               Seu mundo começa aqui
             </p>
-            <h1 className="relative mt-3 text-4xl font-semibold tracking-tight text-slate-950">
+            <h1 className="relative mt-3 text-4xl font-semibold tracking-tight semantic-text-primary">
               Bem-vindo ao Gerenciador de Campanhas de RPG
             </h1>
-            <p className="relative mx-auto mt-5 max-w-xl text-lg leading-8 text-slate-600">
+            <p className="relative mx-auto mt-5 max-w-xl text-lg leading-8 semantic-text-secondary">
               Organize seu mundo, acompanhe acontecimentos e transforme anotações em uma campanha
               viva.
             </p>
             <Button
-              className="relative mt-8 shadow-lg shadow-amber-900/15"
+              className="relative mt-8 shadow-lg semantic-accent-shadow"
               onClick={onCreate}
               size="large"
               variant="primary"
@@ -717,8 +727,8 @@ function StartupFailureScreen({
       className="grid min-h-[70vh] place-items-center"
       onKeyDown={handleKeyDown}
     >
-      <div className="max-w-lg rounded-2xl border border-red-200 bg-white p-8 text-center shadow-sm">
-        <p className="text-sm font-bold tracking-wider text-red-700 uppercase">
+      <div className="max-w-lg rounded-2xl border semantic-danger-border semantic-surface p-8 text-center shadow-sm">
+        <p className="text-sm font-bold tracking-wider semantic-error-text uppercase">
           Erro de inicialização
         </p>
         <h1
@@ -730,21 +740,21 @@ function StartupFailureScreen({
         >
           {failure.title}
         </h1>
-        <p className="mt-3 leading-7 text-slate-600" id="startup-error-description">
+        <p className="mt-3 leading-7 semantic-text-secondary" id="startup-error-description">
           {failure.message}
         </p>
-        <p className="mt-2 text-sm text-slate-600" id="startup-error-suggested-action">
+        <p className="mt-2 text-sm semantic-text-secondary" id="startup-error-suggested-action">
           {failure.suggestedAction}
         </p>
-        <details className="mt-4 text-left text-xs text-slate-600">
-          <summary className="cursor-pointer text-center font-semibold tracking-wide text-slate-500">
+        <details className="mt-4 text-left text-xs semantic-text-secondary">
+          <summary className="cursor-pointer text-center font-semibold tracking-wide semantic-text-secondary">
             Ver detalhes técnicos
           </summary>
           <p className="mt-2">Código: {failure.code}</p>
         </details>
         <ButtonGroup align="center" aria-label="Ações de recuperação" className="mt-6">
           <Button
-            className="bg-slate-900 text-white hover:bg-slate-800"
+            className="semantic-navigation-surface-elevated semantic-navigation-current"
             onClick={onRetry}
             size="large"
             variant="primary"
@@ -765,16 +775,16 @@ function StartupFailureScreen({
           </Button>
         </ButtonGroup>
         {copyFeedback === null ? null : (
-          <p className="mt-4 text-sm text-slate-600" role="status">
+          <p className="mt-4 text-sm semantic-text-secondary" role="status">
             {copyFeedback}
           </p>
         )}
         {helpOpen ? (
           <aside
-            className="mt-6 rounded-xl border border-stone-200 bg-stone-50 p-4 text-left text-sm leading-6 text-slate-700"
+            className="mt-6 rounded-xl border semantic-border semantic-surface-muted p-4 text-left text-sm leading-6 semantic-text-secondary"
             id="startup-recovery-help"
           >
-            <h2 className="font-semibold text-slate-900">Recuperação da inicialização</h2>
+            <h2 className="font-semibold semantic-text-primary">Recuperação da inicialização</h2>
             <p className="mt-2">
               Tente carregar novamente. Se a falha persistir, copie o diagnóstico e consulte a
               documentação de solução de problemas quando a Ajuda completa estiver disponível.
@@ -799,15 +809,17 @@ function CampaignsHeader({
 }): React.JSX.Element {
   return (
     <>
-      <header className="flex items-end justify-between gap-6 border-b border-stone-200 pb-7">
+      <header className="flex items-end justify-between gap-6 border-b semantic-border pb-7">
         <div>
-          <p className="text-xs font-bold tracking-[0.18em] text-amber-800 uppercase">
+          <p className="text-xs font-bold tracking-[0.18em] semantic-accent-text uppercase">
             Seus mundos
           </p>
           <h1 id="campaigns-title" className="mt-2 text-4xl font-semibold tracking-tight">
             Campanhas
           </h1>
-          <p className="mt-3 text-slate-600">{campaignCountLabel(campaignCount, status)}</p>
+          <p className="mt-3 semantic-text-secondary">
+            {campaignCountLabel(campaignCount, status)}
+          </p>
         </div>
         {status === 'active' ? (
           <Button className="shrink-0 shadow-sm" onClick={onCreate} size="large" variant="primary">
@@ -837,7 +849,7 @@ function CampaignStatusTabs({
       {tabs.map((tab) => (
         <Button
           aria-pressed={status === tab.status}
-          className={`rounded-full ${status === tab.status ? 'bg-slate-900 text-white' : ''}`}
+          className={`rounded-full ${status === tab.status ? 'semantic-navigation-current' : ''}`}
           key={tab.status}
           onClick={() => onChange(tab.status)}
           size="small"
@@ -853,7 +865,7 @@ function Announcement({ message }: { message: string }): React.JSX.Element {
   return (
     <p
       aria-live="polite"
-      className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800"
+      className="mt-6 rounded-xl border semantic-success-border semantic-success-surface px-4 py-3 text-sm semantic-success-text"
       role="status"
     >
       {message}

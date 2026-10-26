@@ -77,9 +77,9 @@ export function RelationshipTypeForm(props: Props): React.JSX.Element {
       >
         ← Voltar para tipos de relação
       </Button>
-      <div className="overflow-hidden rounded-3xl border border-stone-200 bg-white shadow-sm">
-        <header className="border-b border-stone-200 bg-stone-50 px-8 py-7">
-          <p className="text-xs font-bold tracking-[0.2em] text-amber-800 uppercase">
+      <div className="overflow-hidden rounded-3xl border semantic-border semantic-surface shadow-sm">
+        <header className="border-b semantic-border semantic-surface-muted px-8 py-7">
+          <p className="text-xs font-bold tracking-[0.2em] semantic-accent-text uppercase">
             Estrutura do grafo
           </p>
           <h1 id="relationship-type-form-title" className="mt-2 text-3xl font-semibold">
@@ -87,14 +87,14 @@ export function RelationshipTypeForm(props: Props): React.JSX.Element {
               ? 'Novo tipo de relação'
               : `Editar ${props.relationshipType.name}`}
           </h1>
-          <p className="mt-3 text-slate-600">
+          <p className="mt-3 semantic-text-secondary">
             Defina como a conexão será apresentada em cada direção e quais entidades poderão usá-la.
           </p>
         </header>
         <form className="space-y-8 px-8 py-8" onSubmit={submit}>
           {props.error === null && validationError === null ? null : (
             <p
-              className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800"
+              className="rounded-xl border semantic-danger-border semantic-danger-surface p-4 text-sm semantic-error-text"
               role="alert"
             >
               {validationError ?? props.error}
@@ -146,7 +146,7 @@ export function RelationshipTypeForm(props: Props): React.JSX.Element {
             />
           </div>
 
-          <label className="block text-sm font-semibold text-slate-800">
+          <label className="block text-sm font-semibold semantic-text-primary">
             Descrição
             <textarea
               className={`${inputClass} min-h-28 resize-y`}
@@ -157,17 +157,17 @@ export function RelationshipTypeForm(props: Props): React.JSX.Element {
             />
           </label>
 
-          <label className="flex items-start gap-3 rounded-2xl border border-stone-200 p-5">
+          <label className="flex items-start gap-3 rounded-2xl border semantic-border p-5">
             <input
               checked={values.isSymmetric}
-              className="mt-1 size-4 accent-amber-700"
+              className="mt-1 size-4 semantic-accent-control"
               disabled={props.busy}
               onChange={(event) => update('isSymmetric', event.target.checked)}
               type="checkbox"
             />
             <span>
-              <span className="block font-semibold text-slate-900">Relação simétrica</span>
-              <span className="mt-1 block text-sm text-slate-600">
+              <span className="block font-semibold semantic-text-primary">Relação simétrica</span>
+              <span className="mt-1 block text-sm semantic-text-secondary">
                 A conexão representa o mesmo vínculo nos dois sentidos. O nome inverso é opcional.
               </span>
             </span>
@@ -222,11 +222,13 @@ function EntityTypeChoices({
   selected: string[];
 }): React.JSX.Element {
   return (
-    <fieldset className="rounded-2xl border border-stone-200 p-5">
-      <legend className="px-2 font-semibold text-slate-900">{label}</legend>
-      <p className="mb-4 text-sm text-slate-600">Nenhuma seleção significa sem restrição.</p>
+    <fieldset className="rounded-2xl border semantic-border p-5">
+      <legend className="px-2 font-semibold semantic-text-primary">{label}</legend>
+      <p className="mb-4 text-sm semantic-text-secondary">
+        Nenhuma seleção significa sem restrição.
+      </p>
       {entityTypes.length === 0 ? (
-        <p className="text-sm text-slate-500">Nenhum tipo de entidade ativo.</p>
+        <p className="text-sm semantic-text-secondary">Nenhum tipo de entidade ativo.</p>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
           {entityTypes.map((entityType) => (
@@ -272,8 +274,8 @@ function TextField({
   value: string;
 }): React.JSX.Element {
   return (
-    <label className="block text-sm font-semibold text-slate-800">
-      {label} {required ? <span className="text-amber-800">*</span> : null}
+    <label className="block text-sm font-semibold semantic-text-primary">
+      {label} {required ? <span className="semantic-accent-text">*</span> : null}
       <input
         autoFocus={autoFocus}
         className={inputClass}
@@ -376,4 +378,4 @@ function sameIds(left: string[] | null, right: string[] | null): boolean {
 }
 
 const inputClass =
-  'mt-2 w-full rounded-xl border border-stone-300 bg-white px-4 py-3 text-slate-950 shadow-sm outline-none focus:border-amber-700 focus:ring-3 focus:ring-amber-700/15 disabled:bg-stone-100';
+  'mt-2 w-full rounded-xl border semantic-border semantic-surface px-4 py-3 semantic-text-primary shadow-sm outline-none semantic-focus-border focus:ring-3 semantic-focus-ring semantic-disabled-surface';

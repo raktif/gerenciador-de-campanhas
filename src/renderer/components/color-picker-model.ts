@@ -1,7 +1,4 @@
-import {
-  hexColorSchema,
-  type HexColor,
-} from '../../core/contracts/colors';
+import { hexColorSchema, type HexColor } from '../../core/contracts/colors';
 
 export interface ColorPickerModel {
   readonly selectedColor: HexColor | null;
@@ -33,10 +30,7 @@ export function createColorPickerModel(value: string | null): ColorPickerModel {
   };
 }
 
-export function selectColor(
-  model: ColorPickerModel,
-  value: HexColor | null,
-): ColorPickerModel {
+export function selectColor(model: ColorPickerModel, value: HexColor | null): ColorPickerModel {
   void model;
   return selectedModel(value);
 }

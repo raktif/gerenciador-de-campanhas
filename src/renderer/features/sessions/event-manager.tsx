@@ -274,15 +274,15 @@ export function EventManager({
       >
         ← Voltar para sessões
       </Button>
-      <header className="mt-6 flex flex-wrap items-end justify-between gap-5 border-b border-stone-200 pb-6">
+      <header className="mt-6 flex flex-wrap items-end justify-between gap-5 border-b semantic-border pb-6">
         <div>
-          <p className="text-xs font-bold tracking-[0.18em] text-amber-800 uppercase">
+          <p className="text-xs font-bold tracking-[0.18em] semantic-accent-text uppercase">
             {campaign.name}
           </p>
           <h1 className="mt-2 text-4xl font-semibold" id="events-title">
             Eventos
           </h1>
-          <p className="mt-2 text-slate-600">
+          <p className="mt-2 semantic-text-secondary">
             Registre acontecimentos, a sessão associada e as entidades envolvidas.
           </p>
         </div>
@@ -299,7 +299,7 @@ export function EventManager({
         </Button>
       </header>
       {referencesLoading ? (
-        <p aria-live="polite" className="mt-4 text-sm text-slate-600" role="status">
+        <p aria-live="polite" className="mt-4 text-sm semantic-text-secondary" role="status">
           Carregando sessões e entidades para o evento…
         </p>
       ) : null}
@@ -314,7 +314,7 @@ export function EventManager({
       {announcement === null ? null : (
         <p
           aria-live="polite"
-          className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-800"
+          className="mt-5 rounded-xl border semantic-success-border semantic-success-surface p-4 semantic-success-text"
           role="status"
         >
           {announcement}
@@ -333,7 +333,10 @@ export function EventManager({
         </div>
       )}
       {pending === null ? null : (
-        <div className="mt-5 rounded-xl border border-amber-300 bg-amber-50 p-5" role="alert">
+        <div
+          className="mt-5 rounded-xl border semantic-warning-border semantic-warning-surface p-5"
+          role="alert"
+        >
           <p className="font-semibold">
             {pending.restore ? 'Restaurar' : 'Arquivar'} “{pending.event.title}”?
           </p>
@@ -357,24 +360,24 @@ export function EventManager({
           Carregando eventos…
         </p>
       ) : items.length === 0 ? (
-        <div className="mt-8 rounded-2xl border border-dashed border-stone-300 bg-white p-12 text-center">
+        <div className="mt-8 rounded-2xl border border-dashed semantic-border semantic-surface p-12 text-center">
           <h2 className="text-xl font-semibold">Nenhum evento encontrado</h2>
-          <p className="mt-2 text-slate-600">
+          <p className="mt-2 semantic-text-secondary">
             Registre um acontecimento para começar a cronologia.
           </p>
         </div>
       ) : (
         <ul className="mt-7 grid gap-4" data-testid="event-list">
           {items.map((item) => (
-            <li className="rounded-2xl border border-stone-200 bg-white p-6" key={item.id}>
+            <li className="rounded-2xl border semantic-border semantic-surface p-6" key={item.id}>
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <p className="text-sm font-semibold text-amber-800">
+                  <p className="text-sm font-semibold semantic-accent-text">
                     {sessionLabel(item.sessionId, sessions)} · Ordem narrativa {item.eventOrder}
                   </p>
                   <h2 className="mt-1 text-xl font-semibold">{item.title}</h2>
                   {item.occurredAtLabel === null ? null : (
-                    <p className="mt-2 text-sm text-slate-600">{item.occurredAtLabel}</p>
+                    <p className="mt-2 text-sm semantic-text-secondary">{item.occurredAtLabel}</p>
                   )}
                   <div className="mt-3 flex flex-wrap gap-2 text-xs">
                     <Badge>{canonLabel(item.canonState)}</Badge>
@@ -492,8 +495,8 @@ function EventEditor({
       <Button disabled={busy} onClick={onCancel} size="small" variant="ghost">
         ← Voltar para eventos
       </Button>
-      <div className="mt-6 rounded-3xl border border-stone-200 bg-white p-8">
-        <p className="text-xs font-bold tracking-[0.18em] text-amber-800 uppercase">
+      <div className="mt-6 rounded-3xl border semantic-border semantic-surface p-8">
+        <p className="text-xs font-bold tracking-[0.18em] semantic-accent-text uppercase">
           {campaign.name}
         </p>
         <h1 className="mt-2 text-3xl font-semibold" id="event-form-title">
@@ -599,10 +602,10 @@ function EventEditor({
           />
           <fieldset
             aria-label="Vínculos com entidades"
-            className="rounded-2xl border border-stone-200 p-5"
+            className="rounded-2xl border semantic-border p-5"
           >
             <legend className="px-2 font-semibold">Vínculos com entidades</legend>
-            <p className="mt-1 text-sm text-slate-600">
+            <p className="mt-1 text-sm semantic-text-secondary">
               Somente entidades ativas desta campanha podem ser vinculadas.
             </p>
             <ReorderableList
@@ -620,7 +623,7 @@ function EventEditor({
                 const isActiveEntity =
                   link.entityId === '' || availableEntityIds.has(link.entityId);
                 return (
-                  <div className="grid gap-3 rounded-xl bg-stone-50 p-4 md:grid-cols-[1fr_12rem_auto]">
+                  <div className="grid gap-3 rounded-xl semantic-surface-muted p-4 md:grid-cols-[1fr_12rem_auto]">
                     {isActiveEntity ? (
                       <label
                         className="text-sm font-semibold"
@@ -647,7 +650,7 @@ function EventEditor({
                         </select>
                       </label>
                     ) : (
-                      <div className="text-sm font-semibold text-red-800">
+                      <div className="text-sm font-semibold semantic-error-text">
                         Entidade indisponível
                         <p className="mt-2 font-normal">
                           Esta entidade foi arquivada; remova o vínculo antes de salvar.
@@ -691,7 +694,7 @@ function EventEditor({
               }}
             />
             {links.length === 0 ? (
-              <p className="mt-4 text-sm text-slate-600">Nenhuma entidade vinculada.</p>
+              <p className="mt-4 text-sm semantic-text-secondary">Nenhuma entidade vinculada.</p>
             ) : null}
             <Button
               aria-label="Adicionar vínculo"
@@ -711,7 +714,7 @@ function EventEditor({
             <UserFacingErrorNotice error={error} operation="events.mutate" />
           )}
           {validation === null ? null : (
-            <p className="rounded-xl bg-red-50 p-4 text-red-800" role="alert">
+            <p className="rounded-xl semantic-danger-surface p-4 semantic-error-text" role="alert">
               {validation}
             </p>
           )}
@@ -770,5 +773,5 @@ function sessionLabel(sessionId: string | null, sessions: Session[]): string {
 }
 
 function Badge({ children }: { children: React.ReactNode }): React.JSX.Element {
-  return <span className="rounded-full bg-stone-100 px-3 py-1">{children}</span>;
+  return <span className="rounded-full semantic-surface-muted px-3 py-1">{children}</span>;
 }

@@ -33,10 +33,10 @@ describe('createCampaignStartupFailure', () => {
   });
 
   it('trata uma rejeição sem payload como falha recuperável', () => {
-    expect(createCampaignStartupFailure()).toMatchObject({
-      code: 'CAMPAIGN_LIST_UNAVAILABLE',
-      suggestedAction: expect.stringContaining('Tente novamente'),
-    });
+    const failure = createCampaignStartupFailure();
+
+    expect(failure.code).toBe('CAMPAIGN_LIST_UNAVAILABLE');
+    expect(failure.suggestedAction).toContain('Tente novamente');
   });
 
   it('modela inicialização, falha, retry e conclusão bem-sucedida', () => {

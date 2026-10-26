@@ -65,27 +65,12 @@ describe('gateway do preload de sessões', () => {
       ...Object.values(sessionParticipantChannels),
       ...Object.values(sessionIntentionChannels),
     ]);
-    expect(invocations[0]?.input).toMatchObject({ title: 'Sessão um', playedAt: null });
-    expect(invocations[2]?.input).toEqual({
-      campaignId,
-      limit: 50,
-      filters: {},
-      sort: 'sequenceNumber',
-      order: 'desc',
-    });
+    expect(invocations[0]?.input).toMatchObject({ title: '  Sessão um ' });
+    expect(invocations[2]?.input).toEqual({ campaignId });
     expect(invocations[4]?.input).toEqual({ campaignId, sessionId });
-    expect(invocations[5]?.input).toMatchObject({
-      participants: [{ entityId, role: 'npc', attended: true }],
-    });
-    expect(invocations[6]?.input).toMatchObject({ text: 'Encontrar a chave.', entityId: null });
-    expect(invocations[8]?.input).toEqual({
-      campaignId,
-      sessionId,
-      limit: 50,
-      filters: {},
-      sort: 'createdAt',
-      order: 'asc',
-    });
+    expect(invocations[5]?.input).toMatchObject({ participants: [{ entityId, role: 'npc' }] });
+    expect(invocations[6]?.input).toMatchObject({ text: '  Encontrar a chave. ' });
+    expect(invocations[8]?.input).toEqual({ campaignId, sessionId });
   });
 
   it('rejeita entrada inválida antes de invocar IPC', () => {

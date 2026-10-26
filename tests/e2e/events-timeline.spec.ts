@@ -140,7 +140,10 @@ async function createEventThroughForm(window: Page): Promise<void> {
     .selectOption({ label: 'Participante' });
   await expect(links.getByText('Ordem', { exact: true })).toHaveCount(0);
   await links.getByRole('button', { name: 'Adicionar vínculo', exact: true }).click();
-  await links.getByLabel('Entidade vinculada', { exact: true }).nth(1).selectOption({ label: 'Brena' });
+  await links
+    .getByLabel('Entidade vinculada', { exact: true })
+    .nth(1)
+    .selectOption({ label: 'Brena' });
   await links
     .getByLabel('Papel da entidade vinculada', { exact: true })
     .nth(1)

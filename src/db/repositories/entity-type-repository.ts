@@ -57,10 +57,7 @@ export class EntityTypeRepository {
         .select({ sortOrder: entityTypes.sortOrder })
         .from(entityTypes)
         .where(
-          and(
-            eq(entityTypes.campaignId, entityType.campaignId),
-            eq(entityTypes.isArchived, false),
-          ),
+          and(eq(entityTypes.campaignId, entityType.campaignId), eq(entityTypes.isArchived, false)),
         )
         .orderBy(desc(entityTypes.sortOrder))
         .get();
@@ -173,14 +170,15 @@ export class EntityTypeRepository {
       if (current === undefined) throw entityTypeNotFound(input.campaignId, input.id);
       if (current.revision !== input.revision) throw revisionConflict(current, input.revision);
       if (!current.isArchived)
-        throw new AppError('INVALID_ENTITY_TYPE_STATE', 'O tipo de entidade j\u00e1 est\u00e1 ativo.');
+        throw new AppError(
+          'INVALID_ENTITY_TYPE_STATE',
+          'O tipo de entidade j\u00e1 est\u00e1 ativo.',
+        );
 
       const last = transaction
         .select({ sortOrder: entityTypes.sortOrder })
         .from(entityTypes)
-        .where(
-          and(eq(entityTypes.campaignId, input.campaignId), eq(entityTypes.isArchived, false)),
-        )
+        .where(and(eq(entityTypes.campaignId, input.campaignId), eq(entityTypes.isArchived, false)))
         .orderBy(desc(entityTypes.sortOrder))
         .get();
       const restoredResult = transaction
@@ -215,9 +213,7 @@ export class EntityTypeRepository {
       const current = transaction
         .select()
         .from(entityTypes)
-        .where(
-          and(eq(entityTypes.campaignId, input.campaignId), eq(entityTypes.isArchived, false)),
-        )
+        .where(and(eq(entityTypes.campaignId, input.campaignId), eq(entityTypes.isArchived, false)))
         .orderBy(asc(entityTypes.sortOrder), asc(entityTypes.name), asc(entityTypes.id))
         .all();
       const source = current.find(({ id }) => id === input.sourceId);
@@ -248,9 +244,7 @@ export class EntityTypeRepository {
       return transaction
         .select()
         .from(entityTypes)
-        .where(
-          and(eq(entityTypes.campaignId, input.campaignId), eq(entityTypes.isArchived, false)),
-        )
+        .where(and(eq(entityTypes.campaignId, input.campaignId), eq(entityTypes.isArchived, false)))
         .orderBy(asc(entityTypes.sortOrder), asc(entityTypes.name), asc(entityTypes.id))
         .all();
     });
@@ -339,9 +333,13 @@ function entityTypeNotFound(campaignId: string, id: string): AppError {
 }
 
 function revisionConflict(current: EntityType, expectedRevision: number): AppError {
-  return new AppError('REVISION_CONFLICT', 'O tipo de entidade foi alterado em outra opera\u00e7\u00e3o.', {
-    expectedRevision,
-    currentRevision: current.revision,
-    current,
-  });
+  return new AppError(
+    'REVISION_CONFLICT',
+    'O tipo de entidade foi alterado em outra opera\u00e7\u00e3o.',
+    {
+      expectedRevision,
+      currentRevision: current.revision,
+      current,
+    },
+  );
 }

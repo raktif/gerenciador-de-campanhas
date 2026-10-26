@@ -143,7 +143,7 @@ export function ReorderableList<Item extends { id: string }>({
                 {canReorder ? (
                   <span
                     aria-hidden="true"
-                    className="mt-1 cursor-grab select-none text-slate-500"
+                    className="semantic-help-text mt-1 cursor-grab select-none"
                     title="Arrastar para reordenar"
                   >
                     ☰
@@ -181,7 +181,7 @@ export function ReorderableList<Item extends { id: string }>({
       {presentedError === null ? null : (
         <p
           aria-live="assertive"
-          className="mt-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
+          className="semantic-error-notice mt-3 rounded-xl border px-4 py-3 text-sm"
           role="alert"
         >
           {presentedError}

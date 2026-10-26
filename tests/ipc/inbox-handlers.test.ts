@@ -256,9 +256,10 @@ describe('canais de triagem da Caixa de Entrada', () => {
       });
       service.failure = null;
     }
-    expect(service.eventConvertInput?.destination.links).toEqual([
+    expect(service.noteConvertInput?.destination.links).toEqual([
       { entityId: '30000000-0000-4000-8000-000000000001', role: 'witness' },
     ]);
+    expect(service.eventConvertInput?.destination.links).toEqual([]);
     const convertEvent = handlers.get(inboxChannels.convertToEvent);
     if (convertEvent === undefined) throw new Error('Canal de evento ausente.');
     expect(
@@ -555,9 +556,7 @@ function noteConversionInput(): ConvertInboxItemToNoteInput {
       title: 'Nota',
       bodyMarkdown: 'Corpo',
       noteType: 'general',
-      links: [
-        { entityId: '30000000-0000-4000-8000-000000000001', role: 'witness' },
-      ],
+      links: [{ entityId: '30000000-0000-4000-8000-000000000001', role: 'witness' }],
       canonState: 'accepted',
       knowledgeState: 'fact',
       visibility: 'gm',

@@ -69,7 +69,7 @@ export function NarrativeMetadataFields({
   };
 
   return (
-    <fieldset className="grid gap-4 rounded-2xl border border-stone-200 p-5 md:grid-cols-2">
+    <fieldset className="grid gap-4 rounded-2xl border semantic-border p-5 md:grid-cols-2">
       <legend className="px-2 font-semibold">Metadados narrativos</legend>
       <Select
         helpKey="narrative.canonState"
@@ -130,7 +130,9 @@ export function NarrativeMetadataFields({
             aria-describedby={sessionSourceDescription(sessionSource)}
             aria-invalid={sessionSource.error === undefined ? undefined : true}
             className={inputClass}
-            disabled={disabled || sessionSource.loading || sessionSource.available === false}
+            disabled={
+              disabled || (sessionSource.loading ?? false) || sessionSource.available === false
+            }
             id="narrative-source-session"
             ref={sessionSelectRef}
             required
@@ -145,14 +147,14 @@ export function NarrativeMetadataFields({
             ))}
           </select>
           <span
-            className="mt-1 block text-xs font-normal text-slate-600"
+            className="mt-1 block text-xs font-normal semantic-text-secondary"
             id="narrative-source-session-help"
           >
             Escolha a sessão desta campanha que deu origem ao evento.
           </span>
           {sessionSource.loading ? (
             <span
-              className="mt-1 block text-sm font-normal text-slate-700"
+              className="mt-1 block text-sm font-normal semantic-text-secondary"
               id="narrative-source-session-loading"
               role="status"
             >
@@ -164,7 +166,7 @@ export function NarrativeMetadataFields({
           sessionSource.available === false ? (
             <span
               aria-live="polite"
-              className="mt-1 block text-sm font-normal text-slate-700"
+              className="mt-1 block text-sm font-normal semantic-text-secondary"
               id="narrative-source-session-unavailable"
               role="status"
             >
@@ -172,7 +174,7 @@ export function NarrativeMetadataFields({
             </span>
           ) : null}
           {sessionSource.error === undefined ? null : (
-            <div className="mt-1 text-sm font-normal text-red-800">
+            <div className="mt-1 text-sm font-normal semantic-error-text">
               {typeof sessionSource.error === 'string' ? (
                 <>
                   <span id="narrative-source-session-error">{sessionSource.error}</span>
@@ -301,8 +303,8 @@ export const originOptions = [
   ['generator', 'Gerador'],
 ] as const;
 export const inputClass =
-  'mt-2 w-full rounded-xl border border-stone-300 bg-white px-4 py-2.5 text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 disabled:bg-stone-100';
-export const labelClass = 'block text-sm font-semibold text-slate-800';
+  'mt-2 w-full rounded-xl border semantic-border semantic-surface px-4 py-2.5 semantic-text-primary focus-visible:outline-2 focus-visible:outline-offset-2 semantic-focus-outline semantic-disabled-surface';
+export const labelClass = 'block text-sm font-semibold semantic-text-primary';
 
 export function sessionSourceDescription({
   available,

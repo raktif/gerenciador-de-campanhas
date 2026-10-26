@@ -35,7 +35,9 @@ test('seleciona ícone por teclado, cancela alterações e persiste a escolha', 
     await window.getByRole('button', { name: 'Criar tipo de entidade' }).click();
 
     const card = window.getByRole('article').filter({ hasText: 'Personagens' });
-    await expect(card.getByTestId('entity-type-icon').locator('svg[data-icon-id="person"]')).toBeVisible();
+    await expect(
+      card.getByTestId('entity-type-icon').locator('svg[data-icon-id="person"]'),
+    ).toBeVisible();
 
     await application.close();
     application = null;

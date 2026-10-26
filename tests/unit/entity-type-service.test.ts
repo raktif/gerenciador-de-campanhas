@@ -47,7 +47,7 @@ describe('EntityTypeService', () => {
       slug: 'personagens',
       description: null,
       icon: null,
-      color: '#92400e',
+      color: '#92400E',
       sortOrder: 0,
       isSystem: false,
       isArchived: false,
@@ -149,7 +149,8 @@ class MemoryEntityTypeRepository implements EntityTypeRepositoryPort {
     return this.update({ ...input, patch: { isArchived: false } }, updatedAt);
   }
 
-  public move(_input: MoveEntityTypeInput): EntityType[] {
+  public move(input: MoveEntityTypeInput): EntityType[] {
+    void input;
     return [...this.records.values()];
   }
 }

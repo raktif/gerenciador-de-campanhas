@@ -106,21 +106,21 @@ export function EntityDetailsView({
       <Button className="mb-6" onClick={onBack} size="small" variant="ghost">
         ← Voltar para entidades
       </Button>
-      <article className="overflow-hidden rounded-3xl border border-stone-200 bg-white shadow-sm">
-        <header className="flex flex-wrap items-start justify-between gap-5 border-b border-stone-200 bg-stone-50 px-8 py-7">
+      <article className="overflow-hidden rounded-3xl border semantic-border semantic-surface shadow-sm">
+        <header className="flex flex-wrap items-start justify-between gap-5 border-b semantic-border semantic-surface-muted px-8 py-7">
           <div>
-            <p className="text-xs font-bold tracking-[0.2em] text-amber-800 uppercase">
+            <p className="text-xs font-bold tracking-[0.2em] semantic-accent-text uppercase">
               Detalhes da entidade
             </p>
             <h1
-              className="mt-2 text-3xl font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700"
+              className="mt-2 text-3xl font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 semantic-focus-outline"
               id="entity-details-title"
               ref={titleRef}
               tabIndex={-1}
             >
               {details.entity.name}
             </h1>
-            <p className="mt-2 text-slate-600">
+            <p className="mt-2 semantic-text-secondary">
               {entityType?.singularName ?? 'Tipo de entidade não encontrado'}
             </p>
           </div>
@@ -135,7 +135,9 @@ export function EntityDetailsView({
               <h2 className={sectionTitleClass} id="entity-description-title">
                 Descrição
               </h2>
-              <p className="mt-3 whitespace-pre-wrap text-slate-700">{details.entity.summary}</p>
+              <p className="mt-3 whitespace-pre-wrap semantic-text-secondary">
+                {details.entity.summary}
+              </p>
             </section>
           )}
 
@@ -143,7 +145,7 @@ export function EntityDetailsView({
             <h2 className={sectionTitleClass} id="entity-metadata-title">
               Informações narrativas
             </h2>
-            <dl className="mt-3 grid gap-4 rounded-2xl border border-stone-200 p-5 sm:grid-cols-2">
+            <dl className="mt-3 grid gap-4 rounded-2xl border semantic-border p-5 sm:grid-cols-2">
               <Detail label="Estado canônico" value={canonStateLabel(details.entity.canonState)} />
               <Detail
                 label="Natureza da informação"
@@ -155,13 +157,13 @@ export function EntityDetailsView({
           </section>
 
           {fieldsLoading ? (
-            <p className="text-sm text-slate-500">Carregando campos preenchidos…</p>
+            <p className="text-sm semantic-text-secondary">Carregando campos preenchidos…</p>
           ) : filledFields.length === 0 && referenceFields.length === 0 ? null : (
             <section aria-labelledby="entity-fields-title">
               <h2 className={sectionTitleClass} id="entity-fields-title">
                 Campos preenchidos
               </h2>
-              <dl className="mt-3 grid gap-4 rounded-2xl border border-stone-200 p-5 sm:grid-cols-2">
+              <dl className="mt-3 grid gap-4 rounded-2xl border semantic-border p-5 sm:grid-cols-2">
                 {filledFields.map((field) => (
                   <Detail
                     field={field}
@@ -199,14 +201,14 @@ export function EntityDetailsView({
               </Button>
             </div>
             {fieldsLoading ? null : relationships.length === 0 ? (
-              <p className="mt-3 text-slate-600">
+              <p className="mt-3 semantic-text-secondary">
                 Nenhuma relação ativa foi registrada para esta entidade.
               </p>
             ) : (
               <ul className="mt-3 grid gap-3" aria-label="Relações da entidade">
                 {relationships.map((relationship) => (
                   <li
-                    className="rounded-xl border border-stone-200 px-4 py-3 text-slate-700"
+                    className="rounded-xl border semantic-border px-4 py-3 semantic-text-secondary"
                     key={relationship.id}
                   >
                     {relationshipDescription(
@@ -225,7 +227,7 @@ export function EntityDetailsView({
             <h2 className={sectionTitleClass} id="entity-sources-title">
               Fontes
             </h2>
-            <p className="mt-3 text-slate-600">
+            <p className="mt-3 semantic-text-secondary">
               {details.entity.sourceId === null
                 ? 'Nenhuma fonte vinculada a esta entidade.'
                 : 'Esta entidade possui uma fonte vinculada. Os detalhes da fonte ainda não estão disponíveis nesta tela.'}
@@ -236,7 +238,7 @@ export function EntityDetailsView({
             <h2 className={sectionTitleClass} id="entity-history-title">
               Histórico
             </h2>
-            <p className="mt-3 text-slate-600">
+            <p className="mt-3 semantic-text-secondary">
               O histórico de alterações ainda não está disponível nesta versão.
             </p>
           </section>
@@ -271,11 +273,11 @@ function Detail({
   const help = field === undefined ? null : fieldDefinitionHelpContent(field);
   return (
     <div>
-      <dt className="flex items-center gap-1 text-sm font-semibold text-slate-800">
+      <dt className="flex items-center gap-1 text-sm font-semibold semantic-text-primary">
         {resolvedLabel}
         {help === null ? null : <ContextualHelp content={help} label={resolvedLabel} />}
       </dt>
-      <dd className="mt-1 whitespace-pre-wrap text-slate-600">{value}</dd>
+      <dd className="mt-1 whitespace-pre-wrap semantic-text-secondary">{value}</dd>
     </div>
   );
 }
@@ -366,4 +368,4 @@ function originKindLabel(value: EntityDetails['entity']['originKind']): string {
   }[value];
 }
 
-const sectionTitleClass = 'text-lg font-semibold text-slate-900';
+const sectionTitleClass = 'text-lg font-semibold semantic-text-primary';

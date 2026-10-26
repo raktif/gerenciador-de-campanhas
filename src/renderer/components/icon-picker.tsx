@@ -1,13 +1,13 @@
 import { iconCatalog, iconIdSchema, type IconId } from '../../core/contracts/icons';
 import { Icon } from './icon';
 
-type IconPickerProps = {
+interface IconPickerProps {
   disabled?: boolean;
   id: string;
   legend?: string;
   onChange: (value: IconId | null) => void;
   value: string | null;
-};
+}
 
 export function IconPicker({
   disabled = false,
@@ -27,9 +27,9 @@ export function IconPicker({
       className="space-y-3"
       disabled={disabled}
     >
-      <legend className="text-sm font-semibold text-slate-800">{legend}</legend>
+      <legend className="semantic-field-label text-sm font-semibold">{legend}</legend>
       {hasLegacyValue ? (
-        <p className="text-sm text-amber-800" id={legacyMessageId} role="status">
+        <p className="semantic-warning-text text-sm" id={legacyMessageId} role="status">
           O ícone anterior não pertence ao catálogo e será preservado. Para substituí-lo, escolha
           uma opção.
         </p>
@@ -83,12 +83,12 @@ function IconOption({
 }): React.JSX.Element {
   return (
     <label
-      className={`relative flex min-h-11 items-center gap-2 rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm font-medium text-slate-800 shadow-sm transition has-checked:border-slate-900 has-checked:ring-2 has-checked:ring-slate-900/20 has-focus-visible:outline-3 has-focus-visible:outline-offset-2 has-focus-visible:outline-amber-700 ${disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:border-amber-600'}`}
+      className={`semantic-choice relative flex min-h-11 items-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium shadow-sm transition has-focus-visible:outline-3 has-focus-visible:outline-offset-2 ${disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
       htmlFor={id}
     >
       <input
         checked={checked}
-        className="size-4 shrink-0 accent-amber-700"
+        className="semantic-accent-control size-4 shrink-0"
         disabled={disabled}
         id={id}
         name={name}

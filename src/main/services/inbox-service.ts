@@ -20,10 +20,7 @@ import type {
 } from '../../core/contracts/inbox';
 import type { Entity } from '../../core/contracts/entities';
 import type { Assertion } from '../../core/contracts/assertions';
-import type {
-  Event,
-  EventEntityLinkPersistenceInput,
-} from '../../core/contracts/events';
+import type { Event, EventEntityLinkPersistenceInput } from '../../core/contracts/events';
 import type { Note, NoteEntityLinkInput } from '../../core/contracts/notes';
 import type { Relationship } from '../../core/contracts/relationships';
 import type { EntityType } from '../../core/contracts/entity-types';

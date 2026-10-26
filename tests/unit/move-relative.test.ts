@@ -13,17 +13,13 @@ describe('movimento relativo', () => {
 
   it('move para depois compensando a remoção da origem', () => {
     expect(
-      moveRelative(items, { sourceId: 'a', targetId: 'c', placement: 'after' }).map(
-        ({ id }) => id,
-      ),
+      moveRelative(items, { sourceId: 'a', targetId: 'c', placement: 'after' }).map(({ id }) => id),
     ).toEqual(['b', 'c', 'a', 'd']);
   });
 
   it('preserva a ordem em movimentos adjacentes equivalentes', () => {
     expect(
-      moveRelative(items, { sourceId: 'b', targetId: 'a', placement: 'after' }).map(
-        ({ id }) => id,
-      ),
+      moveRelative(items, { sourceId: 'b', targetId: 'a', placement: 'after' }).map(({ id }) => id),
     ).toEqual(['a', 'b', 'c', 'd']);
   });
 
@@ -34,9 +30,9 @@ describe('movimento relativo', () => {
     expect(() =>
       moveRelative(items, { sourceId: 'x', targetId: 'a', placement: 'before' }),
     ).toThrow('origem');
-    expect(() =>
-      moveRelative(items, { sourceId: 'a', targetId: 'x', placement: 'after' }),
-    ).toThrow('destino');
+    expect(() => moveRelative(items, { sourceId: 'a', targetId: 'x', placement: 'after' })).toThrow(
+      'destino',
+    );
     expect(() =>
       moveRelative([{ id: 'a' }, { id: 'a' }], {
         sourceId: 'a',

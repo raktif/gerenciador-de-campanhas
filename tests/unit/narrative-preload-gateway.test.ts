@@ -51,19 +51,10 @@ describe('gateways narrativos do preload', () => {
       ...Object.values(assertionChannels),
       ...Object.values(noteChannels),
     ]);
-    expect(invocations[0]?.input).toMatchObject({
-      statement: 'Pista.',
-      canonState: 'accepted',
-    });
-    expect(invocations[2]?.input).toEqual({
-      campaignId,
-      limit: 50,
-      filters: { archived: false },
-      sort: 'updatedAt',
-      order: 'desc',
-    });
-    expect(invocations[6]?.input).toMatchObject({ title: 'Nota', noteType: 'general', links: [] });
-    expect(invocations[9]?.input).toMatchObject({ links: [{ entityId, role: 'alvo' }] });
+    expect(invocations[0]?.input).toMatchObject({ statement: '  Pista.  ' });
+    expect(invocations[2]?.input).toEqual({ campaignId });
+    expect(invocations[6]?.input).toMatchObject({ title: '  Nota  ' });
+    expect(invocations[9]?.input).toMatchObject({ links: [{ entityId, role: '  alvo  ' }] });
   });
 
   it('bloqueia entradas inválidas antes de invocar o IPC', () => {

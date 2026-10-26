@@ -279,7 +279,10 @@ describe('EntityTypeRepository', () => {
         ),
       ).code,
     ).toBe('REVISION_CONFLICT');
-    expect(entityTypes.findById(campaignId, archived.id)).toMatchObject({ isArchived: true, revision: 1 });
+    expect(entityTypes.findById(campaignId, archived.id)).toMatchObject({
+      isArchived: true,
+      revision: 1,
+    });
     context.native.exec('DROP TRIGGER reject_entity_type_restore');
     const restored = entityTypes.restoreAtEnd(
       { campaignId, id: archived.id, revision: archived.revision },

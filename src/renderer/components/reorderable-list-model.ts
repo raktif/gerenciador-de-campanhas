@@ -2,8 +2,8 @@ import type { RelativeMove, RelativePlacement } from '../../core/ordering/move-r
 
 export type MoveDirection = 'up' | 'down';
 
-export function relativeMoveForDirection<Item extends { id: string }>(
-  items: readonly Item[],
+export function relativeMoveForDirection(
+  items: readonly { id: string }[],
   sourceId: string,
   direction: MoveDirection,
 ): RelativeMove | null {

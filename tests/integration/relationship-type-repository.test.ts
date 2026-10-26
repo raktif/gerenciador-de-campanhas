@@ -208,7 +208,8 @@ describe('RelationshipTypeRepository', () => {
         .items.map(({ slug }) => slug),
     ).toEqual(['segundo', 'primeiro']);
 
-    context.native.exec(`CREATE TRIGGER reject_relationship_type_restore BEFORE UPDATE OF is_archived
+    context.native
+      .exec(`CREATE TRIGGER reject_relationship_type_restore BEFORE UPDATE OF is_archived
       ON relationship_types WHEN OLD.id = '${archived.id}' BEGIN SELECT RAISE(IGNORE); END`);
     expect(
       capture(() =>
@@ -218,7 +219,10 @@ describe('RelationshipTypeRepository', () => {
         ),
       ).code,
     ).toBe('REVISION_CONFLICT');
-    expect(repository.findById(campaignId, archived.id)).toMatchObject({ isArchived: true, revision: 1 });
+    expect(repository.findById(campaignId, archived.id)).toMatchObject({
+      isArchived: true,
+      revision: 1,
+    });
     context.native.exec('DROP TRIGGER reject_relationship_type_restore');
     const restored = repository.restoreAtEnd(
       { campaignId, id: archived.id, revision: archived.revision },

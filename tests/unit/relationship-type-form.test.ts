@@ -17,7 +17,7 @@ describe('formulário de tipo de relação', () => {
         error: null,
         mode: 'create',
         onCancel: () => undefined,
-        onSubmit: async () => undefined,
+        onSubmit: () => Promise.resolve(),
       }),
     );
 
@@ -31,19 +31,18 @@ describe('formulário de tipo de relação', () => {
   });
 
   it('normaliza a cor na criação e preserva null', () => {
-    expect(toCreateValues({ ...emptyValues, name: 'Conhece', slug: 'conhece', color: '#abcdef' }))
-      .toMatchObject({ color: '#ABCDEF' });
-    expect(toCreateValues({ ...emptyValues, name: 'Conhece', slug: 'conhece', color: '  ' }))
-      .toMatchObject({ color: null });
+    expect(
+      toCreateValues({ ...emptyValues, name: 'Conhece', slug: 'conhece', color: '#abcdef' }),
+    ).toMatchObject({ color: '#ABCDEF' });
+    expect(
+      toCreateValues({ ...emptyValues, name: 'Conhece', slug: 'conhece', color: '  ' }),
+    ).toMatchObject({ color: null });
   });
 
   it('preserva valor legado intocado ao editar outro campo', () => {
     const legacy = { ...relationshipType, color: 'amber' };
     expect(
-      toPatch(
-        { ...toFormValues(legacy), description: 'Descrição atualizada.' },
-        legacy,
-      ),
+      toPatch({ ...toFormValues(legacy), description: 'Descrição atualizada.' }, legacy),
     ).toEqual({ description: 'Descrição atualizada.' });
   });
 
@@ -51,10 +50,7 @@ describe('formulário de tipo de relação', () => {
     for (const color of [' amber ', '']) {
       const historical = { ...relationshipType, color };
       expect(
-        toPatch(
-          { ...toFormValues(historical), description: 'Descrição atualizada.' },
-          historical,
-        ),
+        toPatch({ ...toFormValues(historical), description: 'Descrição atualizada.' }, historical),
       ).toEqual({ description: 'Descrição atualizada.' });
     }
   });

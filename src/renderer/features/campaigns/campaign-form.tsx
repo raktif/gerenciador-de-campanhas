@@ -86,21 +86,21 @@ export function CampaignForm(props: CampaignFormProps): React.JSX.Element {
         Voltar para campanhas
       </Button>
 
-      <div className="overflow-hidden rounded-3xl border border-stone-200 bg-white shadow-[0_20px_60px_-35px_rgba(15,23,42,0.35)]">
-        <header className="border-b border-stone-200 bg-stone-50 px-8 py-7 sm:px-10">
-          <p className="text-xs font-bold tracking-[0.2em] text-amber-800 uppercase">
+      <div className="overflow-hidden rounded-3xl border semantic-border semantic-surface semantic-domain-card">
+        <header className="border-b semantic-border semantic-surface-muted px-8 py-7 sm:px-10">
+          <p className="text-xs font-bold tracking-[0.2em] semantic-accent-text uppercase">
             {editing ? 'Detalhes da campanha' : 'Nova campanha'}
           </p>
           <h1 id="campaign-form-title" className="mt-2 text-3xl font-semibold tracking-tight">
             {editing ? campaign?.name : 'Comece pelo essencial'}
           </h1>
-          <p className="mt-3 max-w-2xl leading-7 text-slate-600">
+          <p className="mt-3 max-w-2xl leading-7 semantic-text-secondary">
             {editing
               ? 'Revise e atualize as informações centrais deste mundo.'
               : 'Apenas o nome é obrigatório. Você poderá ampliar e reorganizar tudo depois.'}
           </p>
           {campaign === null ? null : (
-            <p className="mt-4 text-sm font-semibold text-slate-500">
+            <p className="mt-4 text-sm font-semibold semantic-text-secondary">
               Status: {campaignStatusLabel(campaign.status)}
             </p>
           )}
@@ -108,8 +108,11 @@ export function CampaignForm(props: CampaignFormProps): React.JSX.Element {
 
         <form className="space-y-8 px-8 py-8 sm:px-10" onSubmit={submit}>
           <div>
-            <label className="block text-sm font-semibold text-slate-800" htmlFor="campaign-name">
-              Nome da campanha <span className="text-amber-800">*</span>
+            <label
+              className="block text-sm font-semibold semantic-text-primary"
+              htmlFor="campaign-name"
+            >
+              Nome da campanha <span className="semantic-accent-text">*</span>
             </label>
             <input
               autoFocus
@@ -162,7 +165,7 @@ export function CampaignForm(props: CampaignFormProps): React.JSX.Element {
 
           <div>
             <label
-              className="block text-sm font-semibold text-slate-800"
+              className="block text-sm font-semibold semantic-text-primary"
               htmlFor="campaign-concept"
             >
               Conceito
@@ -179,7 +182,7 @@ export function CampaignForm(props: CampaignFormProps): React.JSX.Element {
 
           <div>
             <label
-              className="block text-sm font-semibold text-slate-800"
+              className="block text-sm font-semibold semantic-text-primary"
               htmlFor="campaign-summary"
             >
               Resumo
@@ -197,7 +200,7 @@ export function CampaignForm(props: CampaignFormProps): React.JSX.Element {
           {error === null && validationError === null ? null : (
             <p
               aria-live="assertive"
-              className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
+              className="rounded-xl border semantic-danger-border semantic-danger-surface px-4 py-3 text-sm semantic-error-text"
               role="alert"
             >
               {error ?? validationError}
@@ -207,13 +210,13 @@ export function CampaignForm(props: CampaignFormProps): React.JSX.Element {
           {props.mode === 'edit' && pendingAction !== null ? (
             <div
               aria-labelledby="lifecycle-confirmation-title"
-              className="rounded-2xl border border-amber-300 bg-amber-50 p-5"
+              className="rounded-2xl border semantic-warning-border semantic-warning-surface p-5"
               role="alert"
             >
-              <h2 id="lifecycle-confirmation-title" className="font-semibold text-slate-950">
+              <h2 id="lifecycle-confirmation-title" className="font-semibold semantic-text-primary">
                 {confirmationTitle(pendingAction)}
               </h2>
-              <p className="mt-2 text-sm leading-6 text-slate-700">
+              <p className="mt-2 text-sm leading-6 semantic-text-secondary">
                 {confirmationDescription(pendingAction)}
               </p>
               <ButtonGroup
@@ -332,7 +335,7 @@ function TextField({
 }): React.JSX.Element {
   return (
     <div>
-      <label className="block text-sm font-semibold text-slate-800" htmlFor={id}>
+      <label className="block text-sm font-semibold semantic-text-primary" htmlFor={id}>
         {label}
       </label>
       <input
@@ -406,4 +409,4 @@ function optionalValue<Field extends Exclude<keyof CreateCampaignInput, 'name'>>
 }
 
 const inputClassName =
-  'mt-2 w-full rounded-xl border border-stone-300 bg-white px-4 py-3 text-slate-950 shadow-sm outline-none placeholder:text-slate-400 focus:border-amber-700 focus:ring-3 focus:ring-amber-700/15 disabled:bg-stone-100 disabled:text-slate-500';
+  'mt-2 w-full rounded-xl border semantic-border semantic-surface px-4 py-3 semantic-text-primary shadow-sm outline-none semantic-placeholder semantic-focus-border focus:ring-3 semantic-focus-ring semantic-disabled-surface semantic-disabled-text';

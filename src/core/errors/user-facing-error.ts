@@ -155,7 +155,10 @@ export function presentUserFacingError(
   });
 }
 
-export function userFacingErrorMessage(error: unknown, operation: UserFacingErrorOperation): string {
+export function userFacingErrorMessage(
+  error: unknown,
+  operation: UserFacingErrorOperation,
+): string {
   return presentUserFacingError(error, operation).message;
 }
 
@@ -191,10 +194,12 @@ function fallbackForOperation(operation: UserFacingErrorOperation): ErrorDefinit
   const defined = operationFallbacks[operation];
   if (defined !== undefined) return defined;
 
-  const noun = operation.split('.')[0];
+  const noun = operation.split('.')[0] ?? operation;
   const loading = operation.endsWith('.list');
   return {
-    title: loading ? 'Não foi possível carregar estas informações' : 'Não foi possível concluir esta operação',
+    title: loading
+      ? 'Não foi possível carregar estas informações'
+      : 'Não foi possível concluir esta operação',
     message: loading
       ? 'Seus dados continuam salvos e não foram alterados.'
       : 'Nenhuma alteração parcial foi confirmada.',

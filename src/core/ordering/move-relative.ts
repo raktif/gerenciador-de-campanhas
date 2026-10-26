@@ -16,7 +16,8 @@ export function moveRelative<Item extends { id: string }>(
 
   const ids = new Set<string>();
   for (const item of items) {
-    if (ids.has(item.id)) throw new Error(`Identificador duplicado na cole\u00e7\u00e3o: ${item.id}`);
+    if (ids.has(item.id))
+      throw new Error(`Identificador duplicado na cole\u00e7\u00e3o: ${item.id}`);
     ids.add(item.id);
   }
   if (!ids.has(move.sourceId)) throw new Error('O item de origem n\u00e3o foi encontrado.');

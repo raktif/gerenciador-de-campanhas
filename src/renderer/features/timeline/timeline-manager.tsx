@@ -84,14 +84,14 @@ export function TimelineManager({
       <Button onClick={onBack} size="small" variant="ghost">
         ← {entity === undefined ? 'Voltar para detalhes da campanha' : 'Voltar para entidades'}
       </Button>
-      <header className="mt-6 border-b border-stone-200 pb-6">
-        <p className="text-xs font-bold tracking-[0.18em] text-amber-800 uppercase">
+      <header className="mt-6 border-b semantic-border pb-6">
+        <p className="text-xs font-bold tracking-[0.18em] semantic-accent-text uppercase">
           {campaign.name}
         </p>
         <h1 className="mt-2 text-4xl font-semibold" id="timeline-title" ref={heading} tabIndex={-1}>
           {title}
         </h1>
-        <p className="mt-2 text-slate-600">
+        <p className="mt-2 semantic-text-secondary">
           {entity === undefined
             ? 'Eventos são apresentados na ordem narrativa registrada.'
             : 'Consulta histórica dos eventos vinculados a esta entidade.'}
@@ -106,7 +106,7 @@ export function TimelineManager({
         </Button>
       </ToolbarActions>
       {announcement === null ? null : (
-        <p aria-live="polite" className="mt-5 text-sm text-emerald-800" role="status">
+        <p aria-live="polite" className="mt-5 text-sm semantic-success-text" role="status">
           {announcement}
         </p>
       )}
@@ -124,24 +124,27 @@ export function TimelineManager({
           Carregando cronologia…
         </p>
       ) : items.length === 0 ? (
-        <div className="mt-8 rounded-2xl border border-dashed border-stone-300 bg-white p-12 text-center">
+        <div className="mt-8 rounded-2xl border border-dashed semantic-border semantic-surface p-12 text-center">
           <h2 className="text-xl font-semibold">{empty}</h2>
         </div>
       ) : (
         <ol className="mt-8 grid gap-4" data-testid="timeline-list">
           {items.map((entry) => (
-            <li className="rounded-2xl border border-stone-200 bg-white p-6" key={entry.event.id}>
-              <p className="text-sm font-semibold text-amber-800">
+            <li
+              className="rounded-2xl border semantic-border semantic-surface p-6"
+              key={entry.event.id}
+            >
+              <p className="text-sm font-semibold semantic-accent-text">
                 {timelineGroupLabel(entry)} · Ordem narrativa {entry.event.eventOrder}
               </p>
               <h2 className="mt-1 text-xl font-semibold">{entry.event.title}</h2>
               {entry.event.occurredAtLabel === null ? null : (
-                <p className="mt-2 text-sm text-slate-600">
+                <p className="mt-2 text-sm semantic-text-secondary">
                   Referência temporal: {entry.event.occurredAtLabel}
                 </p>
               )}
               {entry.event.descriptionMarkdown === null ? null : (
-                <p className="mt-4 whitespace-pre-wrap text-slate-700">
+                <p className="mt-4 whitespace-pre-wrap semantic-text-secondary">
                   {entry.event.descriptionMarkdown}
                 </p>
               )}
@@ -152,9 +155,11 @@ export function TimelineManager({
                 <Badge>Origem: {originLabel(entry.event.originKind)}</Badge>
               </div>
               {entity === undefined ? (
-                <p className="mt-4 text-sm text-slate-600">Vínculos: {linkSummary(entry)}</p>
+                <p className="mt-4 text-sm semantic-text-secondary">
+                  Vínculos: {linkSummary(entry)}
+                </p>
               ) : (
-                <p className="mt-4 text-sm text-slate-600">
+                <p className="mt-4 text-sm semantic-text-secondary">
                   Papel nesta entidade:{' '}
                   {rolesForEntity(entry, entity.id).join(' · ') || 'Vínculo registrado'}
                 </p>
@@ -173,5 +178,5 @@ export function TimelineManager({
 }
 
 function Badge({ children }: { children: React.ReactNode }): React.JSX.Element {
-  return <span className="rounded-full bg-stone-100 px-3 py-1">{children}</span>;
+  return <span className="rounded-full semantic-surface-muted px-3 py-1">{children}</span>;
 }

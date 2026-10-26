@@ -205,19 +205,19 @@ export function RelationshipManager({
           ? '← Voltar para detalhes da campanha'
           : `← Voltar para detalhes de ${contextualEntity.name}`}
       </Button>
-      <header className="border-b border-stone-200 pb-7">
-        <p className="text-xs font-bold tracking-[0.18em] text-amber-800 uppercase">
+      <header className="border-b semantic-border pb-7">
+        <p className="text-xs font-bold tracking-[0.18em] semantic-accent-text uppercase">
           {campaign.name}
         </p>
         <h1 className="mt-2 text-4xl font-semibold" id="relationships-title">
           Relações
         </h1>
-        <p className="mt-3 text-slate-600">
+        <p className="mt-3 semantic-text-secondary">
           Conecte os elementos do mundo usando os tipos de relação da campanha.
         </p>
       </header>
       {loading ? (
-        <p aria-live="polite" className="mt-6 text-sm text-slate-600" role="status">
+        <p aria-live="polite" className="mt-6 text-sm semantic-text-secondary" role="status">
           Carregando relações…
         </p>
       ) : (
@@ -232,7 +232,7 @@ export function RelationshipManager({
       )}
       {!loading && !showArchived && activeTypes.length > 0 && activeEntities.length > 0 ? (
         <form
-          className="mt-6 grid gap-4 rounded-2xl border border-stone-200 bg-white p-6 md:grid-cols-2"
+          className="mt-6 grid gap-4 rounded-2xl border semantic-border semantic-surface p-6 md:grid-cols-2"
           onSubmit={(event) => void save(event)}
         >
           <h2 className="text-xl font-semibold md:col-span-2">
@@ -315,7 +315,7 @@ export function RelationshipManager({
       </ToolbarActions>
       {announcement === null ? null : (
         <p
-          className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800"
+          className="mt-6 rounded-xl border semantic-success-border semantic-success-surface p-4 text-sm semantic-success-text"
           role="status"
         >
           {announcement}
@@ -331,9 +331,9 @@ export function RelationshipManager({
         </div>
       )}
       {loading || error !== null ? null : relationships.length === 0 ? (
-        <div className="mt-6 rounded-2xl border border-dashed border-stone-300 bg-white p-12 text-center">
+        <div className="mt-6 rounded-2xl border border-dashed semantic-border semantic-surface p-12 text-center">
           <h2 className="text-xl font-semibold">Nenhuma relação encontrada</h2>
-          <p className="mt-2 text-slate-600">
+          <p className="mt-2 semantic-text-secondary">
             {showArchived
               ? 'Relações arquivadas aparecerão aqui.'
               : 'Crie tipos e entidades para registrar a primeira conexão.'}
@@ -342,10 +342,13 @@ export function RelationshipManager({
       ) : (
         <div className="mt-6 grid gap-4" data-testid="relationship-list">
           {relationships.map((item) => (
-            <article className="rounded-2xl border border-stone-200 bg-white p-6" key={item.id}>
+            <article
+              className="rounded-2xl border semantic-border semantic-surface p-6"
+              key={item.id}
+            >
               <h2 className="text-lg font-semibold">{relationshipLabel(item)}</h2>
               {item.description === null ? null : (
-                <p className="mt-2 text-slate-600">{item.description}</p>
+                <p className="mt-2 semantic-text-secondary">{item.description}</p>
               )}
               <ToolbarActions
                 aria-label={`Ações da relação ${relationshipLabel(item)}`}
@@ -375,7 +378,9 @@ export async function collectPages<T>(
   let cursor: string | undefined;
   do {
     const result = await fetchPage(cursor);
-    if (!result.ok) throw result.error;
+    if (!result.ok) {
+      throw Object.assign(new Error(result.error.message, { cause: result.error }), result.error);
+    }
     items.push(...result.data.items);
     cursor = result.data.nextCursor ?? undefined;
   } while (cursor !== undefined);
@@ -429,7 +434,7 @@ function Filter({
   return (
     <Button
       aria-pressed={active}
-      className={`rounded-full ${active ? 'bg-slate-900 text-white' : ''}`}
+      className={`rounded-full ${active ? 'semantic-selected-surface semantic-selected-text' : ''}`}
       disabled={disabled}
       onClick={onClick}
       size="small"
@@ -438,5 +443,5 @@ function Filter({
     </Button>
   );
 }
-const labelClass = 'block text-sm font-semibold text-slate-800';
-const inputClass = 'mt-2 w-full rounded-xl border border-stone-300 px-4 py-2.5';
+const labelClass = 'block text-sm font-semibold semantic-text-primary';
+const inputClass = 'mt-2 w-full rounded-xl border semantic-border px-4 py-2.5';

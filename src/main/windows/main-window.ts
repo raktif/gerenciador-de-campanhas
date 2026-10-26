@@ -1,19 +1,21 @@
 import path from 'node:path';
 import { BrowserWindow } from 'electron';
+import type { AppearanceTheme } from '../../core/contracts/appearance';
+import { appearanceWindowBackgrounds } from '../appearance/appearance-controller';
 import {
   isMainWindowNavigationAllowed,
   loadMainWindowContent,
   selectMainWindowDevelopmentUrl,
 } from './main-window-navigation';
 
-export function createMainWindow(): BrowserWindow {
+export function createMainWindow(theme: AppearanceTheme = 'light'): BrowserWindow {
   const mainWindow = new BrowserWindow({
     width: 1440,
     height: 900,
     minWidth: 1024,
     minHeight: 700,
     show: false,
-    backgroundColor: '#f6f4ef',
+    backgroundColor: appearanceWindowBackgrounds[theme],
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,

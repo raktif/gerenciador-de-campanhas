@@ -142,7 +142,8 @@ class MemoryRepository implements RelationshipTypeRepositoryPort {
   ): RelationshipType {
     return this.update({ ...input, patch: { isArchived: false } }, updatedAt);
   }
-  public move(_input: MoveRelationshipTypeInput): RelationshipType[] {
+  public move(input: MoveRelationshipTypeInput): RelationshipType[] {
+    void input;
     return [...this.records.values()];
   }
 }

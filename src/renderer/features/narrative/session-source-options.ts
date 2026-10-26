@@ -58,7 +58,9 @@ async function load(campaignId: string): Promise<SessionSourceOption[]> {
       order: 'desc',
       ...(cursor === undefined ? {} : { cursor }),
     });
-    if (!result.ok) throw result.error;
+    if (!result.ok) {
+      throw Object.assign(new Error(result.error.message, { cause: result.error }), result.error);
+    }
     sessions.push(...result.data.items);
     cursor = result.data.nextCursor ?? undefined;
   } while (cursor !== undefined);

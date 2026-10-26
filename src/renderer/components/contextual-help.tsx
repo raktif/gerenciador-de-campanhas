@@ -119,7 +119,7 @@ export function ContextualHelp({ content, label }: ContextualHelpProps): React.J
         aria-describedby={popoverId}
         aria-expanded={open}
         aria-label={`Ajuda sobre ${label}`}
-        className="ml-1 size-8 rounded-full border-amber-700 bg-amber-50 font-bold text-amber-900 hover:border-amber-700 hover:bg-amber-100 hover:text-amber-900"
+        className="contextual-help-trigger ml-1 size-8 rounded-full font-bold"
         onBlur={() => {
           triggerFocusedRef.current = false;
           scheduleTransientClose();
@@ -157,7 +157,7 @@ export function ContextualHelp({ content, label }: ContextualHelpProps): React.J
         <span aria-hidden="true">?</span>
       </IconButton>
       <div
-        className="m-0 max-h-[min(28rem,calc(100vh-2rem))] w-[min(24rem,calc(100vw-2rem))] overflow-auto rounded-2xl border border-stone-300 bg-white p-4 text-left text-sm font-normal text-slate-700 shadow-xl"
+        className="contextual-help-popover m-0 max-h-[min(28rem,calc(100vh-2rem))] w-[min(24rem,calc(100vw-2rem))] overflow-auto rounded-2xl border p-4 text-left text-sm font-normal shadow-xl"
         id={popoverId}
         onPointerEnter={() => {
           popoverHoveredRef.current = true;
@@ -185,19 +185,19 @@ export function ContextualHelp({ content, label }: ContextualHelpProps): React.J
         {content.description === undefined ? null : <p>{content.description}</p>}
         {content.purpose === undefined ? null : (
           <p className="mt-3">
-            <strong className="font-semibold text-slate-900">Finalidade: </strong>
+            <strong className="semantic-strong font-semibold">Finalidade: </strong>
             {content.purpose}
           </p>
         )}
         {content.example === undefined ? null : (
           <p className="mt-3">
-            <strong className="font-semibold text-slate-900">Exemplo: </strong>
+            <strong className="semantic-strong font-semibold">Exemplo: </strong>
             {content.example}
           </p>
         )}
         {content.consequence === undefined ? null : (
           <p className="mt-3">
-            <strong className="font-semibold text-slate-900">Consequência: </strong>
+            <strong className="semantic-strong font-semibold">Consequência: </strong>
             {content.consequence}
           </p>
         )}
