@@ -16,7 +16,7 @@ export const campaignSchema = z
     genre: z.string().nullable(),
     tone: z.string().nullable(),
     summary: z.string().nullable(),
-    imagePath: z.string().nullable(),
+    coverAttachmentId: z.uuid().nullable(),
     status: z.enum(campaignStatuses),
     createdAt: z.iso.datetime(),
     updatedAt: z.iso.datetime(),
@@ -34,7 +34,6 @@ export const createCampaignInputSchema = z
     genre: optionalCampaignTextSchema,
     tone: optionalCampaignTextSchema,
     summary: optionalCampaignTextSchema,
-    imagePath: optionalCampaignTextSchema,
   })
   .strict();
 export type CreateCampaignInput = z.infer<typeof createCampaignInputSchema>;
@@ -47,7 +46,6 @@ export const campaignPatchSchema = z
     genre: nullableCampaignTextSchema.optional(),
     tone: nullableCampaignTextSchema.optional(),
     summary: nullableCampaignTextSchema.optional(),
-    imagePath: nullableCampaignTextSchema.optional(),
   })
   .strict()
   .refine((patch) => Object.keys(patch).length > 0, 'Informe ao menos uma alteração.');

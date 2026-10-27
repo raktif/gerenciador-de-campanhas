@@ -6,6 +6,7 @@ import {
   entityChannels,
   entityTypeChannels,
   fieldDefinitionChannels,
+  imageImportChannels,
   relationshipChannels,
   relationshipTypeChannels,
 } from '../../src/core/contracts/ipc-channels';
@@ -28,6 +29,7 @@ describe('gateway do preload', () => {
       'entityTypes',
       'events',
       'fieldDefinitions',
+      'images',
       'inbox',
       'notes',
       'phaseZero',
@@ -47,6 +49,7 @@ describe('gateway do preload', () => {
       'restore',
       'update',
     ]);
+    expect(Object.keys(gateway.images).sort()).toEqual(['importBytes', 'importUrl', 'selectLocal']);
     expect(Object.keys(gateway.appearance).sort()).toEqual([
       'getTheme',
       'onThemeChanged',
@@ -437,6 +440,46 @@ describe('gateway do preload', () => {
         },
       },
     ]);
+  });
+
+  it('limita o ingresso de imagens a bytes e metadados sem paths', async () => {
+    const invocations: Invocation[] = [];
+    const gateway = createCampaignManagerGateway(createInvoker(invocations));
+    const identity = {
+      campaignId: '00000000-0000-4000-8000-000000000001',
+      revision: 1,
+    };
+    await gateway.images.selectLocal(identity);
+    await gateway.images.importBytes({
+      ...identity,
+      bytes: new Uint8Array([1, 2, 3]),
+      metadata: { originalFilename: 'capa.png', sourceKind: 'clipboard' },
+    });
+    await gateway.images.importUrl({
+      ...identity,
+      url: 'https://images.example/capa.png',
+    });
+    expect(invocations.map(({ channel }) => channel)).toEqual([
+      imageImportChannels.selectLocal,
+      imageImportChannels.importBytes,
+      imageImportChannels.importUrl,
+    ]);
+    expect(() =>
+      gateway.images.selectLocal({ ...identity, path: 'C:\\capa.png' } as never),
+    ).toThrow();
+    expect(() =>
+      gateway.images.importBytes({
+        ...identity,
+        bytes: new Uint8Array([1]),
+        metadata: { originalFilename: 'capa.png', sourceKind: 'file' },
+      } as never),
+    ).toThrow();
+    expect(() =>
+      gateway.images.importUrl({
+        ...identity,
+        url: 'file:///C:/capa.png',
+      }),
+    ).toThrow();
   });
 });
 

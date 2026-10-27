@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import {
+  type AnySQLiteColumn,
   check,
   index,
   integer,
@@ -28,6 +29,11 @@ import {
   referenceDeleteBehaviors,
   referenceDirections,
 } from '../../core/contracts/field-definitions';
+import {
+  attachmentMimeTypes,
+  attachmentProcessingStatuses,
+  attachmentSourceKinds,
+} from '../../core/contracts/attachments';
 
 export const schemaMigrations = sqliteTable('schema_migrations', {
   version: integer('version').primaryKey(),
@@ -61,6 +67,10 @@ export const campaigns = sqliteTable(
     tone: text('tone'),
     summary: text('summary'),
     imagePath: text('image_path'),
+    coverAttachmentId: text('cover_attachment_id').references(
+      (): AnySQLiteColumn => attachments.id,
+      { onDelete: 'restrict' },
+    ),
     status: text('status', { enum: campaignStatuses }).notNull().default('active'),
     createdAt: text('created_at').notNull(),
     updatedAt: text('updated_at').notNull(),
@@ -88,6 +98,137 @@ export const campaigns = sqliteTable(
       sql`${table.updatedAt} DESC`,
       sql`${table.id} DESC`,
     ),
+  ],
+);
+
+export const attachments = sqliteTable(
+  'attachments',
+  {
+    id: text('id').primaryKey(),
+    campaignId: text('campaign_id')
+      .notNull()
+      .references(() => campaigns.id, { onDelete: 'cascade' }),
+    originalFilename: text('original_filename').notNull(),
+    storedFilename: text('stored_filename').notNull(),
+    relativePath: text('relative_path').notNull(),
+    mimeType: text('mime_type', { enum: attachmentMimeTypes }).notNull(),
+    fileSize: integer('file_size').notNull(),
+    checksumSha256: text('checksum_sha256').notNull(),
+    visibility: text('visibility', { enum: visibilityStates }).notNull().default('gm'),
+    width: integer('width').notNull(),
+    height: integer('height').notNull(),
+    thumbnailRelativePath: text('thumbnail_relative_path').notNull(),
+    sourceKind: text('source_kind', { enum: attachmentSourceKinds }).notNull(),
+    sourceUrl: text('source_url'),
+    processedMimeType: text('processed_mime_type', { enum: attachmentMimeTypes }).notNull(),
+    processingStatus: text('processing_status', { enum: attachmentProcessingStatuses }).notNull(),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
+    revision: integer('revision').notNull().default(1),
+  },
+  (table) => [
+    check(
+      'attachments_id_uuid',
+      sql`length(${table.id}) = 36
+        AND substr(${table.id}, 9, 1) = '-'
+        AND substr(${table.id}, 14, 1) = '-'
+        AND substr(${table.id}, 19, 1) = '-'
+        AND substr(${table.id}, 24, 1) = '-'
+        AND ${table.id} = lower(${table.id})
+        AND replace(${table.id}, '-', '') NOT GLOB '*[^0-9a-f]*'`,
+    ),
+    check(
+      'attachments_original_filename_valid',
+      sql`length(trim(${table.originalFilename})) BETWEEN 1 AND 255`,
+    ),
+    check(
+      'attachments_stored_filename_valid',
+      sql`length(${table.storedFilename}) BETWEEN 1 AND 255
+        AND ${table.storedFilename} = lower(${table.storedFilename})
+        AND substr(${table.storedFilename}, 1, 1) GLOB '[a-z0-9]'
+        AND substr(${table.storedFilename}, -1, 1) GLOB '[a-z0-9]'
+        AND ${table.storedFilename} NOT GLOB '*[^a-z0-9._-]*'
+        AND ${table.storedFilename} NOT IN ('.', '..')`,
+    ),
+    check(
+      'attachments_relative_path_valid',
+      sql`length(${table.relativePath}) BETWEEN 1 AND 1000
+        AND ${table.relativePath} = lower(${table.relativePath})
+        AND substr(${table.relativePath}, 1, 1) GLOB '[a-z0-9]'
+        AND substr(${table.relativePath}, -1, 1) GLOB '[a-z0-9]'
+        AND ${table.relativePath} NOT GLOB '*[^a-z0-9._/-]*'
+        AND instr(${table.relativePath}, '//') = 0
+        AND ${table.relativePath} NOT LIKE './%'
+        AND ${table.relativePath} NOT LIKE '../%'
+        AND ${table.relativePath} NOT LIKE '%/./%'
+        AND ${table.relativePath} NOT LIKE '%/../%'
+        AND ${table.relativePath} NOT LIKE '%/.'
+        AND ${table.relativePath} NOT LIKE '%/..'`,
+    ),
+    check(
+      'attachments_mime_type_valid',
+      sql`${table.mimeType} IN ('image/png', 'image/jpeg', 'image/webp')`,
+    ),
+    check('attachments_file_size_valid', sql`${table.fileSize} BETWEEN 1 AND 10485760`),
+    check(
+      'attachments_checksum_valid',
+      sql`length(${table.checksumSha256}) = 64
+        AND ${table.checksumSha256} = lower(${table.checksumSha256})
+        AND ${table.checksumSha256} NOT GLOB '*[^0-9a-f]*'`,
+    ),
+    check('attachments_visibility_valid', sql`${table.visibility} IN ('gm', 'players', 'public')`),
+    check('attachments_width_valid', sql`${table.width} BETWEEN 1 AND 1280`),
+    check('attachments_height_valid', sql`${table.height} BETWEEN 1 AND 1024`),
+    check(
+      'attachments_thumbnail_path_valid',
+      sql`length(${table.thumbnailRelativePath}) BETWEEN 1 AND 1000
+        AND ${table.thumbnailRelativePath} = lower(${table.thumbnailRelativePath})
+        AND substr(${table.thumbnailRelativePath}, 1, 1) GLOB '[a-z0-9]'
+        AND substr(${table.thumbnailRelativePath}, -1, 1) GLOB '[a-z0-9]'
+        AND ${table.thumbnailRelativePath} NOT GLOB '*[^a-z0-9._/-]*'
+        AND instr(${table.thumbnailRelativePath}, '//') = 0
+        AND ${table.thumbnailRelativePath} NOT LIKE './%'
+        AND ${table.thumbnailRelativePath} NOT LIKE '../%'
+        AND ${table.thumbnailRelativePath} NOT LIKE '%/./%'
+        AND ${table.thumbnailRelativePath} NOT LIKE '%/../%'
+        AND ${table.thumbnailRelativePath} NOT LIKE '%/.'
+        AND ${table.thumbnailRelativePath} NOT LIKE '%/..'
+        AND ${table.thumbnailRelativePath} <> ${table.relativePath}`,
+    ),
+    check(
+      'attachments_source_kind_valid',
+      sql`${table.sourceKind} IN ('file', 'url', 'clipboard', 'drag_drop')`,
+    ),
+    check(
+      'attachments_source_url_valid',
+      sql`${table.sourceUrl} IS NULL OR length(trim(${table.sourceUrl})) BETWEEN 1 AND 2048`,
+    ),
+    check(
+      'attachments_source_url_coherent',
+      sql`(${table.sourceKind} = 'url' AND ${table.sourceUrl} IS NOT NULL)
+        OR (${table.sourceKind} <> 'url' AND ${table.sourceUrl} IS NULL)`,
+    ),
+    check(
+      'attachments_processed_mime_type_valid',
+      sql`${table.processedMimeType} IN ('image/png', 'image/jpeg', 'image/webp')`,
+    ),
+    check(
+      'attachments_processing_status_valid',
+      sql`${table.processingStatus} IN ('pending', 'ready', 'failed')`,
+    ),
+    check('attachments_created_at_not_blank', sql`length(${table.createdAt}) > 0`),
+    check('attachments_updated_at_not_blank', sql`length(${table.updatedAt}) > 0`),
+    check('attachments_revision_positive', sql`${table.revision} > 0`),
+    uniqueIndex('attachments_stored_filename_unique').on(table.storedFilename),
+    uniqueIndex('attachments_relative_path_unique').on(table.relativePath),
+    uniqueIndex('attachments_thumbnail_path_unique').on(table.thumbnailRelativePath),
+    index('attachments_campaign_status_created_idx').on(
+      table.campaignId,
+      table.processingStatus,
+      sql`${table.createdAt} DESC`,
+      sql`${table.id} DESC`,
+    ),
+    index('attachments_campaign_checksum_idx').on(table.campaignId, table.checksumSha256),
   ],
 );
 

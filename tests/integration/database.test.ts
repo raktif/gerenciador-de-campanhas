@@ -210,7 +210,7 @@ describe('SQLite embutido', () => {
     legacyDatabase.close();
 
     const context = await openTestDatabase(directories);
-    expect(context.schemaVersion).toBe(16);
+    expect(context.schemaVersion).toBe(latestSchemaVersion);
     expect(
       context.native
         .prepare(
@@ -224,6 +224,54 @@ describe('SQLite embutido', () => {
       example_text: null,
       help_article_id: null,
     });
+    context.close();
+  });
+
+  it('adiciona anexos de capa a um banco na versão 16 sem expor ou perder a referência legada', async () => {
+    const root = await createTemporaryRoot();
+    const directories = getDataDirectories(root);
+    await ensureDataDirectories(directories);
+    const databasePath = path.join(directories.database, 'app.db');
+    const legacyDatabase = new Database(databasePath);
+    legacyDatabase.exec(`
+      CREATE TABLE schema_migrations (
+        version INTEGER PRIMARY KEY NOT NULL,
+        name TEXT NOT NULL,
+        checksum TEXT NOT NULL,
+        applied_at TEXT NOT NULL
+      );
+    `);
+    const insertMigration = legacyDatabase.prepare(
+      'INSERT INTO schema_migrations (version, name, checksum, applied_at) VALUES (?, ?, ?, ?)',
+    );
+    for (const migration of migrations.filter(({ version }) => version <= 16)) {
+      legacyDatabase.exec(migration.sql);
+      insertMigration.run(migration.version, migration.name, migration.checksum, timestamp());
+    }
+    const campaignId = randomUUID();
+    const now = timestamp();
+    legacyDatabase
+      .prepare(
+        `INSERT INTO campaigns (id, name, image_path, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?)`,
+      )
+      .run(campaignId, 'Campanha preservada', 'C:\\legado\\capa.png', now, now);
+    legacyDatabase.close();
+
+    const context = await openTestDatabase(directories);
+    expect(context.schemaVersion).toBe(17);
+    expect(
+      context.native
+        .prepare('SELECT image_path, cover_attachment_id FROM campaigns WHERE id = ?')
+        .get(campaignId),
+    ).toEqual({ image_path: 'C:\\legado\\capa.png', cover_attachment_id: null });
+    expect(
+      context.native
+        .prepare(
+          "SELECT count(*) AS total FROM sqlite_master WHERE type = 'table' AND name = 'attachments'",
+        )
+        .get(),
+    ).toEqual({ total: 1 });
     context.close();
   });
 
@@ -265,6 +313,7 @@ describe('SQLite embutido', () => {
     const campaign = secondContext.native
       .prepare(
         `SELECT id, name, system_name, concept, genre, tone, summary, image_path,
+                cover_attachment_id,
                 status, created_at, updated_at, archived_at, revision
          FROM campaigns WHERE id = ?`,
       )
@@ -279,6 +328,7 @@ describe('SQLite embutido', () => {
       tone: null,
       summary: null,
       image_path: null,
+      cover_attachment_id: null,
       status: 'active',
       created_at: timestamp,
       updated_at: timestamp,

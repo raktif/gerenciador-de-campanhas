@@ -146,7 +146,7 @@ async function setup(): Promise<{ context: DatabaseContext; entities: EntityRepo
       genre: null,
       tone: null,
       summary: null,
-      imagePath: null,
+      coverAttachmentId: null,
       status: 'active',
       createdAt: timestamp,
       updatedAt: timestamp,

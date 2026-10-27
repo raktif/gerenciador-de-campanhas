@@ -259,7 +259,7 @@ function createCampaign(id: string, name: string): Campaign {
     genre: null,
     tone: null,
     summary: null,
-    imagePath: null,
+    coverAttachmentId: null,
     status: 'active',
     createdAt: timestamp,
     updatedAt: timestamp,

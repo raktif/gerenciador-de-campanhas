@@ -19,6 +19,7 @@ import { openApplicationDatabase, type DatabaseContext } from '../../db/connecti
 import { AssertionRepository } from '../../db/repositories/assertion-repository';
 import { AppearanceRepository } from '../../db/repositories/appearance-repository';
 import { CampaignRepository } from '../../db/repositories/campaign-repository';
+import { AttachmentRepository } from '../../db/repositories/attachment-repository';
 import { EntityRepository } from '../../db/repositories/entity-repository';
 import { EventRepository } from '../../db/repositories/event-repository';
 import { EntityTypeRepository } from '../../db/repositories/entity-type-repository';
@@ -32,6 +33,7 @@ import { TimelineRepository } from '../../db/repositories/timeline-repository';
 import { SessionIntentionRepository } from '../../db/repositories/session-intention-repository';
 import { SessionRepository } from '../../db/repositories/session-repository';
 import { registerCampaignIpcHandlers } from '../ipc/campaign-handlers';
+import { registerImageImportIpcHandlers } from '../ipc/image-import-handlers';
 import { registerAppearanceIpcHandlers } from '../ipc/appearance-handlers';
 import { registerDiagnosticsIpcHandlers } from '../ipc/diagnostics-handlers';
 import { registerAssertionIpcHandlers } from '../ipc/assertion-handlers';
@@ -50,6 +52,9 @@ import {
 } from '../ipc/session-handlers';
 import { registerTimelineIpcHandlers } from '../ipc/timeline-handlers';
 import { CampaignService } from '../services/campaign-service';
+import { ImageImportService } from '../services/image-import-service';
+import { ImageProcessingService } from '../services/image-processing-service';
+import { SecureImageDownloadService } from '../services/secure-image-download-service';
 import { AppearanceService } from '../services/appearance-service';
 import { StartupDiagnosticsService } from '../services/startup-diagnostics-service';
 import { AssertionService } from '../services/assertion-service';
@@ -99,6 +104,7 @@ export async function bootstrapApplication(): Promise<RunningApplication> {
   const appearanceRepository = new AppearanceRepository(database.orm);
   const phaseZeroRepository = new PhaseZeroRepository(database.orm);
   const campaignRepository = new CampaignRepository(database.orm);
+  const attachmentRepository = new AttachmentRepository(database.native);
   const entityTypeRepository = new EntityTypeRepository(database.orm);
   const fieldDefinitionRepository = new FieldDefinitionRepository(database.orm);
   const entityRepository = new EntityRepository(database.orm);
@@ -172,6 +178,24 @@ export async function bootstrapApplication(): Promise<RunningApplication> {
   const campaignService = createCampaignService(campaignRepository);
   const unregisterCampaignIpc = registerCampaignIpcHandlers(ipcMain, {
     service: campaignService,
+    logger,
+    authorizedWebContentsId: window.webContents.id,
+  });
+  const imageImportService = new ImageImportService({
+    repository: attachmentRepository,
+    processor: new ImageProcessingService(),
+    downloader: new SecureImageDownloadService(),
+    directories,
+    selectImageFile: async () => {
+      const selection = await dialog.showOpenDialog(window, {
+        properties: ['openFile'],
+        filters: [{ name: 'Imagens', extensions: ['png', 'jpg', 'jpeg', 'webp'] }],
+      });
+      return selection.canceled ? null : (selection.filePaths[0] ?? null);
+    },
+  });
+  const unregisterImageImportIpc = registerImageImportIpcHandlers(ipcMain, {
+    service: imageImportService,
     logger,
     authorizedWebContentsId: window.webContents.id,
   });
@@ -326,6 +350,7 @@ export async function bootstrapApplication(): Promise<RunningApplication> {
       unregisterAppearanceIpc();
       unregisterIpc();
       unregisterCampaignIpc();
+      unregisterImageImportIpc();
       unregisterDiagnosticsIpc();
       unregisterEntityTypeIpc();
       unregisterFieldDefinitionIpc();

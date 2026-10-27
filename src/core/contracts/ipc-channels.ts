@@ -25,6 +25,12 @@ export const campaignChannels = {
   moveToTrash: 'campaigns:move-to-trash',
 } as const;
 
+export const imageImportChannels = {
+  selectLocal: 'images:select',
+  importBytes: 'images:import-bytes',
+  importUrl: 'images:import-url',
+} as const;
+
 export const entityTypeChannels = {
   create: 'entity-types:create',
   get: 'entity-types:get',

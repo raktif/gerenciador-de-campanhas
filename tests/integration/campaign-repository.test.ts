@@ -155,6 +155,162 @@ describe('CampaignRepository', () => {
     context.close();
   });
 
+  it('associa capa pronta somente à campanha proprietária e preserva revisão otimista', async () => {
+    const { context, repository } = await createRepository();
+    const first = createCampaign({
+      id: '00000000-0000-4000-8000-000000000001',
+      name: 'Primeira',
+    });
+    const second = createCampaign({
+      id: '00000000-0000-4000-8000-000000000002',
+      name: 'Segunda',
+    });
+    repository.insert(first);
+    repository.insert(second);
+    const firstAttachmentId = '00000000-0000-4000-8000-000000000011';
+    const secondAttachmentId = '00000000-0000-4000-8000-000000000012';
+    const pendingAttachmentId = '00000000-0000-4000-8000-000000000013';
+    insertReadyAttachment(context, first.id, firstAttachmentId);
+    insertReadyAttachment(context, second.id, secondAttachmentId);
+    insertAttachment(context, first.id, pendingAttachmentId, { processingStatus: 'pending' });
+
+    const updated = repository.update(
+      {
+        id: first.id,
+        revision: first.revision,
+        patch: { coverAttachmentId: firstAttachmentId },
+      },
+      '2026-10-26T13:00:00.000Z',
+    );
+
+    expect(updated).toMatchObject({ coverAttachmentId: firstAttachmentId, revision: 2 });
+    expect(() =>
+      repository.update(
+        {
+          id: first.id,
+          revision: updated.revision,
+          patch: { coverAttachmentId: pendingAttachmentId },
+        },
+        '2026-10-26T13:30:00.000Z',
+      ),
+    ).toThrow(/campaign cover attachment must be ready and belong to the campaign/);
+    expect(() =>
+      repository.update(
+        {
+          id: first.id,
+          revision: updated.revision,
+          patch: { coverAttachmentId: secondAttachmentId },
+        },
+        '2026-10-26T14:00:00.000Z',
+      ),
+    ).toThrow(/campaign cover attachment must be ready and belong to the campaign/);
+    expect(() =>
+      context.native
+        .prepare('UPDATE attachments SET campaign_id = ? WHERE id = ?')
+        .run(second.id, firstAttachmentId),
+    ).toThrow(/attachment campaign cannot be changed/);
+    expect(() =>
+      context.native
+        .prepare('UPDATE attachments SET processing_status = ? WHERE id = ?')
+        .run('failed', firstAttachmentId),
+    ).toThrow(/a campaign cover attachment must remain ready/);
+    expect(repository.findById(first.id)).toEqual(updated);
+    context.close();
+  });
+
+  it('rejeita revisão, origem incoerente e nomes ou caminhos internos não normalizados', async () => {
+    const { context, repository } = await createRepository();
+    const campaign = createCampaign({
+      id: '00000000-0000-4000-8000-000000000001',
+      name: 'Segura',
+    });
+    repository.insert(campaign);
+    const attachmentId = '00000000-0000-4000-8000-000000000020';
+
+    expect(() => insertAttachment(context, campaign.id, attachmentId, { revision: 0 })).toThrow();
+    expect(() =>
+      insertAttachment(context, campaign.id, attachmentId, {
+        sourceKind: 'file',
+        sourceUrl: 'https://example.invalid/capa.png',
+      }),
+    ).toThrow();
+    expect(() =>
+      insertAttachment(context, campaign.id, attachmentId, {
+        sourceKind: 'url',
+        sourceUrl: null,
+      }),
+    ).toThrow();
+    for (const storedFilename of [
+      'pasta/capa.png',
+      'pasta\\capa.png',
+      'c:capa.png',
+      '.',
+      '..',
+      '.oculta.png',
+    ]) {
+      expect(() =>
+        insertAttachment(context, campaign.id, attachmentId, { storedFilename }),
+      ).toThrow();
+    }
+
+    for (const relativePath of [
+      '/absoluto/capa.png',
+      'c:/campanha/capa.png',
+      'campanha\\capa.png',
+      './campanha/capa.png',
+      'campanha/./capa.png',
+      'campanha/../capa.png',
+    ]) {
+      expect(() =>
+        insertAttachment(context, campaign.id, attachmentId, { relativePath }),
+      ).toThrow();
+    }
+    for (const thumbnailRelativePath of [
+      '/absoluto/miniatura.png',
+      'c:/campanha/miniatura.png',
+      'campanha\\miniatura.png',
+      './campanha/miniatura.png',
+      'campanha/./miniatura.png',
+      'campanha/../miniatura.png',
+    ]) {
+      expect(() =>
+        insertAttachment(context, campaign.id, attachmentId, { thumbnailRelativePath }),
+      ).toThrow();
+    }
+
+    insertAttachment(context, campaign.id, attachmentId, {
+      sourceKind: 'url',
+      sourceUrl: 'https://example.invalid/capa.png',
+    });
+    expect(
+      context.native
+        .prepare('SELECT revision, source_kind, source_url FROM attachments WHERE id = ?')
+        .get(attachmentId),
+    ).toEqual({
+      revision: 1,
+      source_kind: 'url',
+      source_url: 'https://example.invalid/capa.png',
+    });
+    context.close();
+  });
+
+  it('não devolve image_path legado pelo repositório público', async () => {
+    const { context, repository } = await createRepository();
+    const campaign = createCampaign({
+      id: '00000000-0000-4000-8000-000000000001',
+      name: 'Legado',
+    });
+    repository.insert(campaign);
+    context.native
+      .prepare('UPDATE campaigns SET image_path = ? WHERE id = ?')
+      .run('C:\\privado\\capa.png', campaign.id);
+
+    const publicCampaign = repository.findById(campaign.id);
+    expect(publicCampaign).toEqual(campaign);
+    expect(publicCampaign).not.toHaveProperty('imagePath');
+    context.close();
+  });
+
   it('diferencia registro ausente de conflito de revisão', async () => {
     const { context, repository } = await createRepository();
     let error: unknown;
@@ -201,7 +357,7 @@ function createCampaign(overrides: Partial<Campaign> & Pick<Campaign, 'id' | 'na
     genre: null,
     tone: null,
     summary: null,
-    imagePath: null,
+    coverAttachmentId: null,
     status: 'active',
     createdAt: '2026-08-27T12:00:00.000Z',
     updatedAt: '2026-08-27T12:00:00.000Z',
@@ -219,4 +375,66 @@ function captureAppError(operation: () => unknown): AppError {
     throw error;
   }
   throw new Error('A operação deveria ter lançado AppError.');
+}
+
+function insertReadyAttachment(
+  context: DatabaseContext,
+  campaignId: string,
+  attachmentId: string,
+): void {
+  insertAttachment(context, campaignId, attachmentId);
+}
+
+interface AttachmentOverrides {
+  processingStatus?: 'pending' | 'ready' | 'failed';
+  relativePath?: string;
+  revision?: number;
+  sourceKind?: 'file' | 'url' | 'clipboard' | 'drag_drop';
+  sourceUrl?: string | null;
+  storedFilename?: string;
+  thumbnailRelativePath?: string;
+}
+
+function insertAttachment(
+  context: DatabaseContext,
+  campaignId: string,
+  attachmentId: string,
+  overrides: AttachmentOverrides = {},
+): void {
+  const storedFilename = overrides.storedFilename ?? `${attachmentId}.png`;
+  const relativePath = overrides.relativePath ?? `${campaignId}/${attachmentId}.png`;
+  const thumbnailRelativePath =
+    overrides.thumbnailRelativePath ?? `${campaignId}/${attachmentId}-thumb.png`;
+  const sourceKind = overrides.sourceKind ?? 'file';
+  const sourceUrl = overrides.sourceUrl ?? null;
+  context.native
+    .prepare(
+      `INSERT INTO attachments (
+        id, campaign_id, original_filename, stored_filename, relative_path, mime_type,
+        file_size, checksum_sha256, visibility, width, height, thumbnail_relative_path,
+        source_kind, source_url, processed_mime_type, processing_status, created_at, updated_at,
+        revision
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .run(
+      attachmentId,
+      campaignId,
+      'capa.png',
+      storedFilename,
+      relativePath,
+      'image/png',
+      1024,
+      attachmentId.endsWith('11') ? 'a'.repeat(64) : 'b'.repeat(64),
+      'gm',
+      1280,
+      720,
+      thumbnailRelativePath,
+      sourceKind,
+      sourceUrl,
+      'image/png',
+      overrides.processingStatus ?? 'ready',
+      '2026-10-26T12:00:00.000Z',
+      '2026-10-26T12:00:00.000Z',
+      overrides.revision ?? 1,
+    );
 }

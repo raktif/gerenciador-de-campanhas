@@ -16,6 +16,7 @@ import inboxNarrativeProvenanceMigration from './0013_inbox_narrative_provenance
 import assertionInboxSourceUpdateGuardMigration from './0014_assertion_inbox_source_update_guard.sql?raw';
 import noteEventInboxSourceUpdateGuardsMigration from './0015_note_event_inbox_source_update_guards.sql?raw';
 import fieldDefinitionContextualHelpMigration from './0016_field_definition_contextual_help.sql?raw';
+import campaignCoverAttachmentsMigration from './0017_campaign_cover_attachments.sql?raw';
 
 export interface MigrationDefinition {
   version: number;
@@ -131,6 +132,12 @@ export const migrations: readonly MigrationDefinition[] = [
     name: 'phase-two-field-definition-contextual-help',
     checksum: checksum(fieldDefinitionContextualHelpMigration),
     sql: fieldDefinitionContextualHelpMigration,
+  },
+  {
+    version: 17,
+    name: 'phase-two-campaign-cover-attachments',
+    checksum: checksum(campaignCoverAttachmentsMigration),
+    sql: campaignCoverAttachmentsMigration,
   },
 ];
 

@@ -35,7 +35,6 @@ interface FormValues {
   genre: string;
   tone: string;
   summary: string;
-  imagePath: string;
 }
 
 const emptyValues: FormValues = {
@@ -45,7 +44,6 @@ const emptyValues: FormValues = {
   genre: '',
   tone: '',
   summary: '',
-  imagePath: '',
 };
 
 export function CampaignForm(props: CampaignFormProps): React.JSX.Element {
@@ -152,14 +150,6 @@ export function CampaignForm(props: CampaignFormProps): React.JSX.Element {
               onChange={(value) => update('tone', value)}
               placeholder="Ex.: esperançoso e misterioso"
               value={values.tone}
-            />
-            <TextField
-              disabled={busy}
-              id="campaign-image"
-              label="Referência da imagem"
-              onChange={(value) => update('imagePath', value)}
-              placeholder="Caminho local ou referência"
-              value={values.imagePath}
             />
           </fieldset>
 
@@ -358,7 +348,6 @@ export function toCreateCampaignInput(values: FormValues): CreateCampaignInput {
     ...optionalValue('genre', values.genre),
     ...optionalValue('tone', values.tone),
     ...optionalValue('summary', values.summary),
-    ...optionalValue('imagePath', values.imagePath),
   };
 }
 
@@ -372,7 +361,6 @@ export function toCampaignPatch(values: FormValues, campaign: Campaign): Campaig
   assignNullableChange(patch, 'genre', values.genre, campaign.genre);
   assignNullableChange(patch, 'tone', values.tone, campaign.tone);
   assignNullableChange(patch, 'summary', values.summary, campaign.summary);
-  assignNullableChange(patch, 'imagePath', values.imagePath, campaign.imagePath);
 
   return Object.keys(patch).length === 0 ? null : patch;
 }
@@ -385,7 +373,6 @@ function toFormValues(campaign: Campaign): FormValues {
     genre: campaign.genre ?? '',
     tone: campaign.tone ?? '',
     summary: campaign.summary ?? '',
-    imagePath: campaign.imagePath ?? '',
   };
 }
 

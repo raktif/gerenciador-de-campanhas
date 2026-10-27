@@ -41,7 +41,7 @@ type CampaignMutableField =
   | 'genre'
   | 'tone'
   | 'summary'
-  | 'imagePath'
+  | 'coverAttachmentId'
   | 'status'
   | 'archivedAt';
 
@@ -64,7 +64,10 @@ export class CampaignRepository {
   }
 
   public findById(id: string): Campaign | null {
-    return this.database.select().from(campaigns).where(eq(campaigns.id, id)).get() ?? null;
+    return (
+      this.database.select(campaignSelection).from(campaigns).where(eq(campaigns.id, id)).get() ??
+      null
+    );
   }
 
   public list(request: CampaignPageRequest): CampaignPageResult {
@@ -75,7 +78,7 @@ export class CampaignRepository {
     if (cursorFilter !== undefined) filters.push(cursorFilter);
 
     const rows = this.database
-      .select()
+      .select(campaignSelection)
       .from(campaigns)
       .where(and(...filters))
       .orderBy(
@@ -148,6 +151,22 @@ export class CampaignRepository {
     return updated;
   }
 }
+
+const campaignSelection = {
+  id: campaigns.id,
+  name: campaigns.name,
+  systemName: campaigns.systemName,
+  concept: campaigns.concept,
+  genre: campaigns.genre,
+  tone: campaigns.tone,
+  summary: campaigns.summary,
+  coverAttachmentId: campaigns.coverAttachmentId,
+  status: campaigns.status,
+  createdAt: campaigns.createdAt,
+  updatedAt: campaigns.updatedAt,
+  archivedAt: campaigns.archivedAt,
+  revision: campaigns.revision,
+};
 
 function getSortExpression(sort: CampaignPageRequest['sort']): SQLWrapper {
   if (sort === 'createdAt') return campaigns.createdAt;

@@ -60,6 +60,12 @@ import {
 } from '../../core/contracts/inbox';
 import type { CampaignManagerGateway } from '../../core/contracts/gateway';
 import {
+  importImageBytesInputSchema,
+  importImageUrlInputSchema,
+  selectLocalImageInputSchema,
+  type ImageImportResult,
+} from '../../core/contracts/image-imports';
+import {
   copyStartupDiagnosticInputSchema,
   type CopiedStartupDiagnostic,
 } from '../../core/contracts/diagnostics';
@@ -124,6 +130,7 @@ import {
   eventChannels,
   fieldDefinitionChannels,
   inboxChannels,
+  imageImportChannels,
   noteChannels,
   phaseZeroChannels,
   relationshipTypeChannels,
@@ -234,6 +241,22 @@ export function createCampaignManagerGateway(
         invoke<Campaign>(campaignChannels.restore, input, campaignLifecycleInputSchema),
       moveToTrash: (input) =>
         invoke<Campaign>(campaignChannels.moveToTrash, input, campaignLifecycleInputSchema),
+    },
+    images: {
+      selectLocal: (input) =>
+        invoke<ImageImportResult>(
+          imageImportChannels.selectLocal,
+          input,
+          selectLocalImageInputSchema,
+        ),
+      importBytes: (input) =>
+        invoke<ImageImportResult>(
+          imageImportChannels.importBytes,
+          input,
+          importImageBytesInputSchema,
+        ),
+      importUrl: (input) =>
+        invoke<ImageImportResult>(imageImportChannels.importUrl, input, importImageUrlInputSchema),
     },
     entityTypes: {
       create: (input) =>
