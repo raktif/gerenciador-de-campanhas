@@ -99,11 +99,24 @@ describe('ImageImportService', () => {
       directories: fixture.directories,
       selectImageFile: () => Promise.resolve(null),
     });
-    await expect(
-      service.importUrl({ ...identity(), url: 'https://images.example/mapa.png' }),
-    ).resolves.toEqual(oversizeResult);
+    const result = await service.importUrl({
+      ...identity(),
+      url: 'https://images.example/mapa.png',
+    });
+    expect(result).toMatchObject(oversizeResult);
+    if (result.status !== 'oversize_choice_required') {
+      throw new Error('O teste esperava uma escolha oversize.');
+    }
+    expect(result.pendingImportId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u,
+    );
+    expect(JSON.stringify(result)).not.toMatch(
+      /https?:|sourceUrl|relativePath|thumbnailRelativePath/u,
+    );
     expect(fixture.persist).not.toHaveBeenCalled();
     expect(await listFiles(fixture.directories.temporary)).toEqual([]);
+    expect(await listFiles(fixture.directories.attachments)).toEqual([]);
+    expect(await listFiles(fixture.directories.thumbnails)).toEqual([]);
   });
 
   it('remove arquivos publicados e staging quando a transação falha', async () => {

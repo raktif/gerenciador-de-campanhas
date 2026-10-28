@@ -80,11 +80,13 @@ export class ImageProcessingService {
   }
 }
 
-function parseInput(input: ImageProcessingInput): ImageProcessingInput {
-  if (input?.bytes instanceof Uint8Array && input.bytes.byteLength > maximumImageBytes) {
+function parseInput(input: unknown): ImageProcessingInput {
+  const candidateBytes =
+    typeof input === 'object' && input !== null && 'bytes' in input ? input.bytes : undefined;
+  if (candidateBytes instanceof Uint8Array && candidateBytes.byteLength > maximumImageBytes) {
     throw new AppError('IMAGE_PAYLOAD_TOO_LARGE', 'A imagem ultrapassa o limite de 10 MB.', {
       maximumBytes: maximumImageBytes,
-      receivedBytes: input.bytes.byteLength,
+      receivedBytes: candidateBytes.byteLength,
     });
   }
   const result = imageProcessingInputSchema.safeParse(input);
@@ -137,14 +139,31 @@ function assertDecodedFormat(metadata: Metadata, detectedMimeType: SupportedMime
 }
 
 function orientedDimensions(metadata: Metadata): { width: number; height: number } {
-  const width = metadata.width;
-  const height = metadata.height;
-  if (width === undefined || height === undefined || width <= 0 || height <= 0) {
+  const width: unknown = metadata.width;
+  const height: unknown = metadata.height;
+  if (!isPositiveSafeInteger(width) || !isPositiveSafeInteger(height)) {
     throw new AppError('IMAGE_METADATA_INVALID', 'A imagem não possui dimensões válidas.');
   }
-  return metadata.autoOrient.width !== undefined && metadata.autoOrient.height !== undefined
-    ? { width: metadata.autoOrient.width, height: metadata.autoOrient.height }
-    : { width, height };
+  const autoOrient: unknown = metadata.autoOrient;
+  const orientedWidth = readUnknownProperty(autoOrient, 'width');
+  const orientedHeight = readUnknownProperty(autoOrient, 'height');
+  if (!isPositiveSafeInteger(orientedWidth) || !isPositiveSafeInteger(orientedHeight)) {
+    throw new AppError(
+      'IMAGE_METADATA_INVALID',
+      'A imagem não possui dimensões orientadas válidas.',
+    );
+  }
+  return { width: orientedWidth, height: orientedHeight };
+}
+
+function isPositiveSafeInteger(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0;
+}
+
+function readUnknownProperty(value: unknown, key: string): unknown {
+  return typeof value === 'object' && value !== null && key in value
+    ? (value as Record<string, unknown>)[key]
+    : undefined;
 }
 
 function assertPixelLimit(width: number, height: number): void {

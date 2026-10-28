@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import type { ReactNode } from 'react';
 import type {
   Campaign,
   CampaignPatch,
@@ -23,6 +24,7 @@ type CampaignFormProps = CommonCampaignFormProps &
     | {
         mode: 'edit';
         campaign: Campaign;
+        coverManager?: ReactNode;
         onLifecycle: (action: LifecycleAction) => Promise<void>;
         onSubmit: (patch: CampaignPatch) => Promise<void>;
       }
@@ -103,6 +105,8 @@ export function CampaignForm(props: CampaignFormProps): React.JSX.Element {
             </p>
           )}
         </header>
+
+        {props.mode === 'edit' ? props.coverManager : null}
 
         <form className="space-y-8 px-8 py-8 sm:px-10" onSubmit={submit}>
           <div>

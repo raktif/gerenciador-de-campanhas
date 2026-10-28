@@ -33,6 +33,7 @@ import { TimelineRepository } from '../../db/repositories/timeline-repository';
 import { SessionIntentionRepository } from '../../db/repositories/session-intention-repository';
 import { SessionRepository } from '../../db/repositories/session-repository';
 import { registerCampaignIpcHandlers } from '../ipc/campaign-handlers';
+import { registerCampaignCoverIpcHandlers } from '../ipc/campaign-cover-handlers';
 import { registerImageImportIpcHandlers } from '../ipc/image-import-handlers';
 import { registerAppearanceIpcHandlers } from '../ipc/appearance-handlers';
 import { registerDiagnosticsIpcHandlers } from '../ipc/diagnostics-handlers';
@@ -52,6 +53,8 @@ import {
 } from '../ipc/session-handlers';
 import { registerTimelineIpcHandlers } from '../ipc/timeline-handlers';
 import { CampaignService } from '../services/campaign-service';
+import { CampaignCoverService } from '../services/campaign-cover-service';
+import { recoverPendingAttachmentDeletions } from '../services/attachment-deletion-journal';
 import { ImageImportService } from '../services/image-import-service';
 import { ImageProcessingService } from '../services/image-processing-service';
 import { SecureImageDownloadService } from '../services/secure-image-download-service';
@@ -105,6 +108,22 @@ export async function bootstrapApplication(): Promise<RunningApplication> {
   const phaseZeroRepository = new PhaseZeroRepository(database.orm);
   const campaignRepository = new CampaignRepository(database.orm);
   const attachmentRepository = new AttachmentRepository(database.native);
+  try {
+    const recovery = await recoverPendingAttachmentDeletions(attachmentRepository, directories);
+    if (recovery.restored > 0 || recovery.purged > 0) {
+      await logger.info('Exclusões de anexos interrompidas foram reconciliadas.', {
+        restored: recovery.restored,
+        purged: recovery.purged,
+      });
+    }
+  } catch (error) {
+    await logger.error('Falha ao reconciliar exclusões de anexos interrompidas.', {
+      errorName: error instanceof Error ? error.name : 'UnknownError',
+      errorMessage: error instanceof Error ? error.message : 'Unknown error',
+    });
+    database.close();
+    throw error;
+  }
   const entityTypeRepository = new EntityTypeRepository(database.orm);
   const fieldDefinitionRepository = new FieldDefinitionRepository(database.orm);
   const entityRepository = new EntityRepository(database.orm);
@@ -196,6 +215,15 @@ export async function bootstrapApplication(): Promise<RunningApplication> {
   });
   const unregisterImageImportIpc = registerImageImportIpcHandlers(ipcMain, {
     service: imageImportService,
+    logger,
+    authorizedWebContentsId: window.webContents.id,
+  });
+  const campaignCoverService = new CampaignCoverService({
+    repository: attachmentRepository,
+    directories,
+  });
+  const unregisterCampaignCoverIpc = registerCampaignCoverIpcHandlers(ipcMain, {
+    service: campaignCoverService,
     logger,
     authorizedWebContentsId: window.webContents.id,
   });
@@ -351,6 +379,7 @@ export async function bootstrapApplication(): Promise<RunningApplication> {
       unregisterIpc();
       unregisterCampaignIpc();
       unregisterImageImportIpc();
+      unregisterCampaignCoverIpc();
       unregisterDiagnosticsIpc();
       unregisterEntityTypeIpc();
       unregisterFieldDefinitionIpc();

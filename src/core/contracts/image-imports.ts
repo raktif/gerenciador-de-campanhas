@@ -19,7 +19,18 @@ const importIdentitySchema = {
   oversizeMode: z.enum(imageOversizeModes).optional(),
 };
 
-export const selectLocalImageInputSchema = z.object(importIdentitySchema).strict();
+export const selectLocalImageInputSchema = z
+  .object({ ...importIdentitySchema, pendingImportId: z.uuid().optional() })
+  .strict()
+  .superRefine((input, context) => {
+    if (input.pendingImportId !== undefined && input.oversizeMode === undefined) {
+      context.addIssue({
+        code: 'custom',
+        path: ['oversizeMode'],
+        message: 'Escolha como ajustar a imagem pendente.',
+      });
+    }
+  });
 export type SelectLocalImageInput = z.infer<typeof selectLocalImageInputSchema>;
 
 export const importImageBytesInputSchema = z
@@ -51,9 +62,26 @@ export const importImageUrlInputSchema = z
       .max(2048)
       .refine((value) => value === value.trim() && isStrictHttpUrl(value), {
         message: 'Informe uma URL HTTP ou HTTPS válida.',
-      }),
+      })
+      .optional(),
+    pendingImportId: z.uuid().optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((input, context) => {
+    if ((input.url === undefined) === (input.pendingImportId === undefined)) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Informe uma URL ou uma importação pendente, exclusivamente.',
+      });
+    }
+    if (input.pendingImportId !== undefined && input.oversizeMode === undefined) {
+      context.addIssue({
+        code: 'custom',
+        path: ['oversizeMode'],
+        message: 'Escolha como ajustar a imagem pendente.',
+      });
+    }
+  });
 export type ImportImageUrlInput = z.infer<typeof importImageUrlInputSchema>;
 
 export const imageImportCancelledSchema = z.object({ status: z.literal('cancelled') }).strict();
@@ -67,9 +95,13 @@ export const imageImportedSchema = z
   .strict();
 export type ImageImported = z.infer<typeof imageImportedSchema>;
 
+export const imageImportOversizeChoiceRequiredSchema = imageOversizeChoiceRequiredSchema
+  .extend({ pendingImportId: z.uuid().optional() })
+  .strict();
+
 export const imageImportResultSchema = z.discriminatedUnion('status', [
   imageImportCancelledSchema,
-  imageOversizeChoiceRequiredSchema,
+  imageImportOversizeChoiceRequiredSchema,
   imageImportedSchema,
 ]);
 export type ImageImportResult = z.infer<typeof imageImportResultSchema>;

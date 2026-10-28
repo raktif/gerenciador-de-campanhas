@@ -1,5 +1,6 @@
 import type { Campaign } from '../../../core/contracts/campaigns';
 import { Button } from '../../components/actions';
+import { CampaignCoverPreview } from './campaign-cover';
 
 export function CampaignList({
   campaigns,
@@ -16,6 +17,7 @@ export function CampaignList({
           key={campaign.id}
         >
           <div className="semantic-card-accent absolute inset-x-0 top-0 h-1 opacity-80" />
+          <CampaignCoverPreview campaign={campaign} className="mb-5 h-36 w-full" />
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="text-xs font-bold tracking-[0.16em] semantic-accent-text uppercase">

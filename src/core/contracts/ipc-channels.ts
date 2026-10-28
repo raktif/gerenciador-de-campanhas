@@ -29,6 +29,11 @@ export const imageImportChannels = {
   selectLocal: 'images:select',
   importBytes: 'images:import-bytes',
   importUrl: 'images:import-url',
+  getCover: 'images:get-cover',
+  getCoverPreview: 'images:get-cover-preview',
+  setCover: 'images:set-cover',
+  removeCover: 'images:remove-cover',
+  deleteAttachment: 'images:delete-attachment',
 } as const;
 
 export const entityTypeChannels = {

@@ -36,6 +36,8 @@ export interface ImageImportServiceDependencies {
 export class ImageImportService {
   private readonly now: () => Date;
   private readonly createId: () => string;
+  private readonly pendingLocalImports = new Map<string, PendingLocalImport>();
+  private readonly pendingUrlImports = new Map<string, PendingUrlImport>();
 
   public constructor(private readonly dependencies: ImageImportServiceDependencies) {
     this.now = dependencies.now ?? (() => new Date());
@@ -44,10 +46,29 @@ export class ImageImportService {
 
   public async selectLocal(input: SelectLocalImageInput): Promise<ImageImportResult> {
     const parsed = selectLocalImageInputSchema.parse(input);
+    this.prunePendingLocalImports();
+    if (parsed.pendingImportId !== undefined) {
+      const pending = this.pendingLocalImports.get(parsed.pendingImportId);
+      this.pendingLocalImports.delete(parsed.pendingImportId);
+      if (pending?.campaignId !== parsed.campaignId || pending.revision !== parsed.revision) {
+        throw new AppError(
+          'IMAGE_PENDING_IMPORT_INVALID',
+          'A imagem pendente expirou ou é inválida.',
+        );
+      }
+      return this.processAndPersist({
+        campaignId: pending.campaignId,
+        revision: pending.revision,
+        ...(parsed.oversizeMode === undefined ? {} : { oversizeMode: parsed.oversizeMode }),
+        bytes: pending.bytes,
+        originalFilename: pending.originalFilename,
+        sourceKind: 'file',
+      });
+    }
     const selectedPath = await this.dependencies.selectImageFile();
     if (selectedPath === null) return { status: 'cancelled' };
     const bytes = await readBoundedSelectedFile(selectedPath);
-    return this.processAndPersist({
+    const result = await this.processAndPersist({
       campaignId: parsed.campaignId,
       revision: parsed.revision,
       ...(parsed.oversizeMode === undefined ? {} : { oversizeMode: parsed.oversizeMode }),
@@ -55,6 +76,16 @@ export class ImageImportService {
       originalFilename: path.basename(selectedPath),
       sourceKind: 'file',
     });
+    if (result.status !== 'oversize_choice_required') return result;
+    const pendingImportId = this.createId();
+    this.pendingLocalImports.set(pendingImportId, {
+      campaignId: parsed.campaignId,
+      revision: parsed.revision,
+      bytes,
+      originalFilename: path.basename(selectedPath),
+      expiresAt: this.now().getTime() + pendingLocalImportLifetimeMilliseconds,
+    });
+    return imageImportResultSchema.parse({ ...result, pendingImportId });
   }
 
   public async importBytes(input: ImportImageBytesInput): Promise<ImageImportResult> {
@@ -74,14 +105,40 @@ export class ImageImportService {
 
   public async importUrl(input: ImportImageUrlInput): Promise<ImageImportResult> {
     const parsed = importImageUrlInputSchema.parse(input);
-    if (this.dependencies.downloader === undefined) {
+    this.prunePendingUrlImports();
+    if (parsed.pendingImportId !== undefined) {
+      const pending = this.pendingUrlImports.get(parsed.pendingImportId);
+      this.pendingUrlImports.delete(parsed.pendingImportId);
+      if (
+        pending?.campaignId !== parsed.campaignId ||
+        pending.revision !== parsed.revision ||
+        parsed.oversizeMode === undefined
+      ) {
+        throw new AppError(
+          'IMAGE_PENDING_IMPORT_INVALID',
+          'A imagem pendente expirou ou é inválida.',
+        );
+      }
+      return this.processAndPersist({
+        campaignId: pending.campaignId,
+        revision: pending.revision,
+        oversizeMode: parsed.oversizeMode,
+        bytes: pending.bytes,
+        originalFilename: pending.originalFilename,
+        sourceKind: 'url',
+        sourceUrl: pending.sourceUrl,
+        declaredMimeType: pending.contentType,
+        expectedMimeType: pending.contentType,
+      });
+    }
+    if (this.dependencies.downloader === undefined || parsed.url === undefined) {
       throw new AppError(
         'IMAGE_URL_IMPORT_UNAVAILABLE',
         'A importação remota não está disponível.',
       );
     }
     const downloaded = await this.dependencies.downloader.download(parsed.url);
-    return this.processAndPersist({
+    const result = await this.processAndPersist({
       campaignId: parsed.campaignId,
       revision: parsed.revision,
       ...(parsed.oversizeMode === undefined ? {} : { oversizeMode: parsed.oversizeMode }),
@@ -92,6 +149,19 @@ export class ImageImportService {
       declaredMimeType: downloaded.contentType,
       expectedMimeType: downloaded.contentType,
     });
+    if (result.status !== 'oversize_choice_required') return result;
+    const pendingImportId = this.createId();
+    this.pendingUrlImports.set(pendingImportId, {
+      campaignId: parsed.campaignId,
+      revision: parsed.revision,
+      requestedUrl: parsed.url,
+      bytes: downloaded.bytes,
+      originalFilename: downloaded.originalFilename,
+      sourceUrl: downloaded.sourceUrl,
+      contentType: downloaded.contentType,
+      expiresAt: this.now().getTime() + pendingImportLifetimeMilliseconds,
+    });
+    return imageImportResultSchema.parse({ ...result, pendingImportId });
   }
 
   private async processAndPersist(input: InternalImportInput): Promise<ImageImportResult> {
@@ -203,6 +273,20 @@ export class ImageImportService {
       await rm(stagingDirectory, { recursive: true, force: true });
     }
   }
+
+  private prunePendingLocalImports(): void {
+    const now = this.now().getTime();
+    for (const [id, pending] of this.pendingLocalImports) {
+      if (pending.expiresAt <= now) this.pendingLocalImports.delete(id);
+    }
+  }
+
+  private prunePendingUrlImports(): void {
+    const now = this.now().getTime();
+    for (const [id, pending] of this.pendingUrlImports) {
+      if (pending.expiresAt <= now) this.pendingUrlImports.delete(id);
+    }
+  }
 }
 
 interface InternalImportInput {
@@ -216,6 +300,28 @@ interface InternalImportInput {
   declaredMimeType?: string;
   expectedMimeType?: 'image/png' | 'image/jpeg' | 'image/webp';
 }
+
+interface PendingLocalImport {
+  campaignId: string;
+  revision: number;
+  bytes: Uint8Array;
+  originalFilename: string;
+  expiresAt: number;
+}
+
+interface PendingUrlImport {
+  campaignId: string;
+  revision: number;
+  requestedUrl: string;
+  bytes: Uint8Array;
+  originalFilename: string;
+  sourceUrl: string;
+  contentType: 'image/png' | 'image/jpeg' | 'image/webp';
+  expiresAt: number;
+}
+
+const pendingImportLifetimeMilliseconds = 5 * 60 * 1000;
+const pendingLocalImportLifetimeMilliseconds = pendingImportLifetimeMilliseconds;
 
 async function readBoundedSelectedFile(selectedPath: string): Promise<Uint8Array> {
   const handle = await open(selectedPath, 'r');

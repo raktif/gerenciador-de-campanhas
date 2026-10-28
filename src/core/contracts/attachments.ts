@@ -34,7 +34,7 @@ export type Attachment = z.infer<typeof attachmentSchema>;
 export const setCampaignCoverInputSchema = z
   .object({
     campaignId: z.uuid(),
-    attachmentId: z.uuid().nullable(),
+    attachmentId: z.uuid(),
     revision: z.number().int().positive(),
   })
   .strict();

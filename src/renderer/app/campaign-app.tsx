@@ -14,6 +14,7 @@ import {
 import { AssertionManager, type NarrativeContext } from '../features/assertions/assertion-manager';
 import { CampaignForm } from '../features/campaigns/campaign-form';
 import { CampaignList } from '../features/campaigns/campaign-list';
+import { CampaignCoverManager, CampaignCoverPreview } from '../features/campaigns/campaign-cover';
 import { EntityManager } from '../features/entities/entity-manager';
 import { EntityTypeManager } from '../features/entity-types/entity-type-manager';
 import { QuickCapture } from '../features/inbox/quick-capture';
@@ -176,6 +177,11 @@ export function CampaignApp(): React.JSX.Element {
     setFormFailure(null);
     setAnnouncement(null);
     setScreen('edit');
+  }
+
+  function updateCampaignFromCover(campaign: Campaign): void {
+    setSelectedCampaign(campaign);
+    setCampaigns((current) => current.map((item) => (item.id === campaign.id ? campaign : item)));
   }
 
   function returnToCampaigns(): void {
@@ -382,6 +388,12 @@ export function CampaignApp(): React.JSX.Element {
               <CampaignForm
                 busy={creating}
                 campaign={selectedCampaign}
+                coverManager={
+                  <CampaignCoverManager
+                    campaign={selectedCampaign}
+                    onCampaignChange={updateCampaignFromCover}
+                  />
+                }
                 error={null}
                 key={`${selectedCampaign.id}:${String(selectedCampaign.revision)}`}
                 mode="edit"
@@ -445,6 +457,9 @@ function CampaignNavigation({
         >
           {campaign.name}
         </p>
+        {screen === 'edit' ? null : (
+          <CampaignCoverPreview campaign={campaign} className="mt-3 h-24 w-full" />
+        )}
       </div>
 
       <CampaignNavigationGroup label="Campanha">

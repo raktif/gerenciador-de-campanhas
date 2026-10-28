@@ -1,6 +1,11 @@
 import type Database from 'better-sqlite3';
 import { attachmentSchema, type Attachment } from '../../core/contracts/attachments';
 import { campaignSchema, type Campaign } from '../../core/contracts/campaigns';
+import type {
+  CampaignCover,
+  DeleteAttachmentInput,
+  SetCampaignCoverInput,
+} from '../../core/contracts/campaign-covers';
 import { AppError } from '../../core/errors/app-error';
 
 export interface AttachmentPersistenceRecord extends Attachment {
@@ -28,6 +33,20 @@ export interface UpdateAttachmentStatusInput {
   revision: number;
   processingStatus: Attachment['processingStatus'];
   updatedAt: string;
+}
+
+export interface AttachmentDeletionCandidate {
+  attachment: Attachment;
+  relativePath: string;
+  thumbnailRelativePath: string;
+}
+
+export interface AttachmentDeletionIdentity {
+  attachmentId: string;
+  campaignId: string;
+  revision: number;
+  relativePath: string;
+  thumbnailRelativePath: string;
 }
 
 export class AttachmentRepository {
@@ -99,6 +118,110 @@ export class AttachmentRepository {
     return updated;
   }
 
+  public getCampaignCover(campaignId: string): CampaignCover {
+    const campaign = this.readCampaign(campaignId);
+    if (campaign === null) throw campaignNotFound(campaignId);
+    if (campaign.coverAttachmentId === null) return { campaign, attachment: null };
+    const attachment = this.findById(campaignId, campaign.coverAttachmentId);
+    if (attachment === null) {
+      throw new AppError(
+        'CAMPAIGN_COVER_INVALID',
+        'A capa da campanha referencia um anexo inválido.',
+      );
+    }
+    return { campaign, attachment };
+  }
+
+  public setCampaignCover(input: SetCampaignCoverInput, updatedAt: string): CampaignCover {
+    return this.database.transaction(() => {
+      const campaign = this.requireCampaignRevision(input.campaignId, input.revision);
+      const attachment = this.requireOwnedAttachment(input.campaignId, input.attachmentId);
+      if (attachment.processingStatus !== 'ready') {
+        throw new AppError(
+          'ATTACHMENT_NOT_READY',
+          'Somente um anexo pronto pode ser usado como capa.',
+        );
+      }
+      if (campaign.coverAttachmentId === input.attachmentId) {
+        throw new AppError(
+          'ATTACHMENT_ALREADY_COVER',
+          'O anexo informado já é a capa da campanha.',
+        );
+      }
+      this.updateCampaignCover(input.campaignId, input.revision, input.attachmentId, updatedAt);
+      return this.getCampaignCover(input.campaignId);
+    })();
+  }
+
+  public removeCampaignCover(
+    input: { campaignId: string; revision: number },
+    updatedAt: string,
+  ): CampaignCover {
+    return this.database.transaction(() => {
+      const campaign = this.requireCampaignRevision(input.campaignId, input.revision);
+      if (campaign.coverAttachmentId === null) {
+        throw new AppError('CAMPAIGN_COVER_NOT_SET', 'A campanha não possui capa para remover.');
+      }
+      this.updateCampaignCover(input.campaignId, input.revision, null, updatedAt);
+      return this.getCampaignCover(input.campaignId);
+    })();
+  }
+
+  public prepareAttachmentDeletion(input: DeleteAttachmentInput): AttachmentDeletionCandidate {
+    const campaign = this.readCampaign(input.campaignId);
+    if (campaign === null) throw campaignNotFound(input.campaignId);
+    const row = this.readPrivateAttachment(input.attachmentId);
+    if (row === null) throw attachmentNotFound();
+    if (row.campaign_id !== input.campaignId) throw attachmentCampaignMismatch();
+    const attachment = attachmentSchema.parse(toAttachment(row));
+    if (attachment.revision !== input.revision) {
+      throw revisionConflict(input.revision, attachment.revision);
+    }
+    if (campaign.coverAttachmentId === input.attachmentId) throw attachmentInUse();
+    return {
+      attachment,
+      relativePath: row.relative_path,
+      thumbnailRelativePath: row.thumbnail_relative_path,
+    };
+  }
+
+  public deleteUnusedAttachment(input: DeleteAttachmentInput): Attachment {
+    return this.database.transaction(() => {
+      const candidate = this.prepareAttachmentDeletion(input);
+      const referenced = this.database
+        .prepare('SELECT 1 FROM campaigns WHERE cover_attachment_id = ? LIMIT 1')
+        .get(input.attachmentId);
+      if (referenced !== undefined) throw attachmentInUse();
+      const deletion = this.database
+        .prepare(
+          `DELETE FROM attachments
+           WHERE id = ? AND campaign_id = ? AND revision = ?
+             AND NOT EXISTS (
+               SELECT 1 FROM campaigns WHERE cover_attachment_id = attachments.id
+             )`,
+        )
+        .run(input.attachmentId, input.campaignId, input.revision);
+      if (deletion.changes !== 1) {
+        const current = this.findById(input.campaignId, input.attachmentId);
+        if (current === null) throw attachmentNotFound();
+        throw revisionConflict(input.revision, current.revision);
+      }
+      return candidate.attachment;
+    })();
+  }
+
+  public findAttachmentDeletionIdentity(attachmentId: string): AttachmentDeletionIdentity | null {
+    const row = this.readPrivateAttachment(attachmentId);
+    if (row === null) return null;
+    return {
+      attachmentId: row.id,
+      campaignId: row.campaign_id,
+      revision: row.revision,
+      relativePath: row.relative_path,
+      thumbnailRelativePath: row.thumbnail_relative_path,
+    };
+  }
+
   private readCampaignRevision(id: string): number | null {
     const row = this.database.prepare('SELECT revision FROM campaigns WHERE id = ?').get(id) as
       { revision: number } | undefined;
@@ -109,6 +232,46 @@ export class AttachmentRepository {
     const row = this.database.prepare(campaignPublicSelect).get(id) as CampaignRow | undefined;
     return row === undefined ? null : campaignSchema.parse(toCampaign(row));
   }
+
+  private requireCampaignRevision(id: string, revision: number): Campaign {
+    const campaign = this.readCampaign(id);
+    if (campaign === null) throw campaignNotFound(id);
+    if (campaign.revision !== revision) throw revisionConflict(revision, campaign.revision);
+    return campaign;
+  }
+
+  private requireOwnedAttachment(campaignId: string, attachmentId: string): Attachment {
+    const row = this.readPrivateAttachment(attachmentId);
+    if (row === null) throw attachmentNotFound();
+    if (row.campaign_id !== campaignId) throw attachmentCampaignMismatch();
+    return attachmentSchema.parse(toAttachment(row));
+  }
+
+  private readPrivateAttachment(id: string): PrivateAttachmentRow | null {
+    const row = this.database.prepare(attachmentPrivateSelect).get(id) as
+      PrivateAttachmentRow | undefined;
+    return row ?? null;
+  }
+
+  private updateCampaignCover(
+    campaignId: string,
+    revision: number,
+    attachmentId: string | null,
+    updatedAt: string,
+  ): void {
+    const update = this.database
+      .prepare(
+        `UPDATE campaigns
+         SET cover_attachment_id = ?, updated_at = ?, revision = revision + 1
+         WHERE id = ? AND revision = ?`,
+      )
+      .run(attachmentId, updatedAt, campaignId, revision);
+    if (update.changes !== 1) {
+      const current = this.readCampaignRevision(campaignId);
+      if (current === null) throw campaignNotFound(campaignId);
+      throw revisionConflict(revision, current);
+    }
+  }
 }
 
 const attachmentPublicSelect = `
@@ -117,6 +280,14 @@ const attachmentPublicSelect = `
          created_at, updated_at, revision
   FROM attachments
   WHERE id = ? AND campaign_id = ?
+`;
+
+const attachmentPrivateSelect = `
+  SELECT id, campaign_id, original_filename, mime_type, file_size, checksum_sha256,
+         visibility, width, height, source_kind, processed_mime_type, processing_status,
+         created_at, updated_at, revision, relative_path, thumbnail_relative_path
+  FROM attachments
+  WHERE id = ?
 `;
 
 const campaignPublicSelect = `
@@ -142,6 +313,11 @@ interface AttachmentRow {
   created_at: string;
   updated_at: string;
   revision: number;
+}
+
+interface PrivateAttachmentRow extends AttachmentRow {
+  relative_path: string;
+  thumbnail_relative_path: string;
 }
 
 interface CampaignRow {
@@ -240,6 +416,14 @@ function campaignNotFound(id: string): AppError {
 
 function attachmentNotFound(): AppError {
   return new AppError('ATTACHMENT_NOT_FOUND', 'O anexo não foi encontrado nesta campanha.');
+}
+
+function attachmentCampaignMismatch(): AppError {
+  return new AppError('ATTACHMENT_CAMPAIGN_MISMATCH', 'O anexo não pertence à campanha informada.');
+}
+
+function attachmentInUse(): AppError {
+  return new AppError('ATTACHMENT_IN_USE', 'O anexo não pode ser excluído enquanto for capa.');
 }
 
 function revisionConflict(expectedRevision: number, currentRevision: number): AppError {

@@ -59,10 +59,9 @@ describe('Contratos de anexos de imagem', () => {
     };
 
     expect(setCampaignCoverInputSchema.parse(input)).toEqual(input);
-    expect(setCampaignCoverInputSchema.parse({ ...input, attachmentId: null })).toEqual({
-      ...input,
-      attachmentId: null,
-    });
+    expect(setCampaignCoverInputSchema.safeParse({ ...input, attachmentId: null }).success).toBe(
+      false,
+    );
     expect(setCampaignCoverInputSchema.safeParse({ ...input, revision: 0 }).success).toBe(false);
     expect(setCampaignCoverInputSchema.safeParse({ ...input, unexpected: true }).success).toBe(
       false,

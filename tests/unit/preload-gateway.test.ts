@@ -49,7 +49,16 @@ describe('gateway do preload', () => {
       'restore',
       'update',
     ]);
-    expect(Object.keys(gateway.images).sort()).toEqual(['importBytes', 'importUrl', 'selectLocal']);
+    expect(Object.keys(gateway.images).sort()).toEqual([
+      'deleteAttachment',
+      'getCover',
+      'getCoverPreview',
+      'importBytes',
+      'importUrl',
+      'removeCover',
+      'selectLocal',
+      'setCover',
+    ]);
     expect(Object.keys(gateway.appearance).sort()).toEqual([
       'getTheme',
       'onThemeChanged',
@@ -480,6 +489,40 @@ describe('gateway do preload', () => {
         url: 'file:///C:/capa.png',
       }),
     ).toThrow();
+  });
+
+  it('expõe gestão de capa somente por contratos estritos e canais nomeados', async () => {
+    const invocations: Invocation[] = [];
+    const gateway = createCampaignManagerGateway(createInvoker(invocations));
+    const campaignId = '00000000-0000-4000-8000-000000000001';
+    const attachmentId = '10000000-0000-4000-8000-000000000001';
+    await gateway.images.getCover({ campaignId });
+    await gateway.images.getCoverPreview({ campaignId });
+    await gateway.images.setCover({ campaignId, attachmentId, revision: 1 });
+    await gateway.images.removeCover({ campaignId, revision: 2 });
+    await gateway.images.deleteAttachment({ campaignId, attachmentId, revision: 1 });
+    expect(invocations).toEqual([
+      { channel: imageImportChannels.getCover, input: { campaignId } },
+      { channel: imageImportChannels.getCoverPreview, input: { campaignId } },
+      {
+        channel: imageImportChannels.setCover,
+        input: { campaignId, attachmentId, revision: 1 },
+      },
+      { channel: imageImportChannels.removeCover, input: { campaignId, revision: 2 } },
+      {
+        channel: imageImportChannels.deleteAttachment,
+        input: { campaignId, attachmentId, revision: 1 },
+      },
+    ]);
+    expect(() =>
+      gateway.images.setCover({
+        campaignId,
+        attachmentId,
+        revision: 1,
+        sourceUrl: 'https://private.example/capa.png',
+      } as never),
+    ).toThrow();
+    expect(() => gateway.images.removeCover({ campaignId, revision: 0 })).toThrow();
   });
 });
 

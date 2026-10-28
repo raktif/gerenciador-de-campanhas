@@ -11,7 +11,13 @@ describe('handlers IPC de ingresso de imagens', () => {
   it('registra somente os canais explícitos e os remove', () => {
     const handlers = new Map<string, CapturedHandler>();
     const unregister = register(handlers, new FakeImageImportService());
-    expect([...handlers.keys()].sort()).toEqual(Object.values(imageImportChannels).sort());
+    expect([...handlers.keys()].sort()).toEqual(
+      [
+        imageImportChannels.selectLocal,
+        imageImportChannels.importBytes,
+        imageImportChannels.importUrl,
+      ].sort(),
+    );
     unregister();
     expect(handlers.size).toBe(0);
   });

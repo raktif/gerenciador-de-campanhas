@@ -60,6 +60,15 @@ import {
 } from '../../core/contracts/inbox';
 import type { CampaignManagerGateway } from '../../core/contracts/gateway';
 import {
+  deleteAttachmentInputSchema,
+  getCampaignCoverInputSchema,
+  removeCampaignCoverInputSchema,
+  setCampaignCoverInputSchema,
+  type CampaignCover,
+  type CampaignCoverPreview,
+  type DeleteAttachmentResult,
+} from '../../core/contracts/campaign-covers';
+import {
   importImageBytesInputSchema,
   importImageUrlInputSchema,
   selectLocalImageInputSchema,
@@ -257,6 +266,28 @@ export function createCampaignManagerGateway(
         ),
       importUrl: (input) =>
         invoke<ImageImportResult>(imageImportChannels.importUrl, input, importImageUrlInputSchema),
+      getCover: (input) =>
+        invoke<CampaignCover>(imageImportChannels.getCover, input, getCampaignCoverInputSchema),
+      setCover: (input) =>
+        invoke<CampaignCover>(imageImportChannels.setCover, input, setCampaignCoverInputSchema),
+      removeCover: (input) =>
+        invoke<CampaignCover>(
+          imageImportChannels.removeCover,
+          input,
+          removeCampaignCoverInputSchema,
+        ),
+      getCoverPreview: (input) =>
+        invoke<CampaignCoverPreview>(
+          imageImportChannels.getCoverPreview,
+          input,
+          getCampaignCoverInputSchema,
+        ),
+      deleteAttachment: (input) =>
+        invoke<DeleteAttachmentResult>(
+          imageImportChannels.deleteAttachment,
+          input,
+          deleteAttachmentInputSchema,
+        ),
     },
     entityTypes: {
       create: (input) =>
