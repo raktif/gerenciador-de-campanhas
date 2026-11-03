@@ -75,6 +75,17 @@ import {
   type ImageImportResult,
 } from '../../core/contracts/image-imports';
 import {
+  getEntityReferenceImageInputSchema,
+  importEntityReferenceImageBytesInputSchema,
+  importEntityReferenceImageUrlInputSchema,
+  removeEntityReferenceImageInputSchema,
+  selectLocalEntityReferenceImageInputSchema,
+  setEntityReferenceImageInputSchema,
+  type EntityReferenceImage,
+  type EntityReferenceImageImportResult,
+  type EntityReferenceImagePreview,
+} from '../../core/contracts/entity-reference-images';
+import {
   copyStartupDiagnosticInputSchema,
   type CopiedStartupDiagnostic,
 } from '../../core/contracts/diagnostics';
@@ -287,6 +298,48 @@ export function createCampaignManagerGateway(
           imageImportChannels.deleteAttachment,
           input,
           deleteAttachmentInputSchema,
+        ),
+      selectEntityReferenceLocal: (input) =>
+        invoke<EntityReferenceImageImportResult>(
+          imageImportChannels.selectEntityReferenceLocal,
+          input,
+          selectLocalEntityReferenceImageInputSchema,
+        ),
+      importEntityReferenceBytes: (input) =>
+        invoke<EntityReferenceImageImportResult>(
+          imageImportChannels.importEntityReferenceBytes,
+          input,
+          importEntityReferenceImageBytesInputSchema,
+        ),
+      importEntityReferenceUrl: (input) =>
+        invoke<EntityReferenceImageImportResult>(
+          imageImportChannels.importEntityReferenceUrl,
+          input,
+          importEntityReferenceImageUrlInputSchema,
+        ),
+      getEntityReference: (input) =>
+        invoke<EntityReferenceImage>(
+          imageImportChannels.getEntityReference,
+          input,
+          getEntityReferenceImageInputSchema,
+        ),
+      getEntityReferencePreview: (input) =>
+        invoke<EntityReferenceImagePreview>(
+          imageImportChannels.getEntityReferencePreview,
+          input,
+          getEntityReferenceImageInputSchema,
+        ),
+      setEntityReference: (input) =>
+        invoke<EntityReferenceImage>(
+          imageImportChannels.setEntityReference,
+          input,
+          setEntityReferenceImageInputSchema,
+        ),
+      removeEntityReference: (input) =>
+        invoke<EntityReferenceImage>(
+          imageImportChannels.removeEntityReference,
+          input,
+          removeEntityReferenceImageInputSchema,
         ),
     },
     entityTypes: {

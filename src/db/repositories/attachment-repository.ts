@@ -6,6 +6,11 @@ import type {
   DeleteAttachmentInput,
   SetCampaignCoverInput,
 } from '../../core/contracts/campaign-covers';
+import type {
+  EntityReferenceImage,
+  SetEntityReferenceImageInput,
+} from '../../core/contracts/entity-reference-images';
+import { entitySchema, type Entity } from '../../core/contracts/entities';
 import { AppError } from '../../core/errors/app-error';
 
 export interface AttachmentPersistenceRecord extends Attachment {
@@ -24,6 +29,19 @@ export interface InsertCampaignCoverInput {
 
 export interface CampaignCoverPersistenceResult {
   campaign: Campaign;
+  attachment: Attachment;
+}
+
+export interface InsertEntityReferenceImageInput {
+  campaignId: string;
+  entityId: string;
+  entityRevision: number;
+  entityUpdatedAt: string;
+  attachment: AttachmentPersistenceRecord;
+}
+
+export interface EntityReferenceImagePersistenceResult {
+  entity: Entity;
   attachment: Attachment;
 }
 
@@ -100,6 +118,36 @@ export class AttachmentRepository {
     })();
   }
 
+  public insertAndSetEntityReferenceImage(
+    input: InsertEntityReferenceImageInput,
+  ): EntityReferenceImagePersistenceResult {
+    if (input.attachment.campaignId !== input.campaignId) throw attachmentCampaignMismatch();
+    return this.database.transaction(() => {
+      const entity = this.requireEntityRevision(
+        input.campaignId,
+        input.entityId,
+        input.entityRevision,
+      );
+      insertAttachment(this.database, input.attachment);
+      this.updateEntityReferenceImage(
+        entity.campaignId,
+        entity.id,
+        input.entityRevision,
+        input.attachment.id,
+        input.entityUpdatedAt,
+      );
+      const updated = this.readEntity(input.campaignId, input.entityId);
+      const attachment = this.findById(input.campaignId, input.attachment.id);
+      if (updated === null || attachment === null) {
+        throw new AppError(
+          'ATTACHMENT_PERSISTENCE_FAILED',
+          'A imagem de referência não pôde ser confirmada.',
+        );
+      }
+      return { entity: updated, attachment };
+    })();
+  }
+
   public updateProcessingStatus(input: UpdateAttachmentStatusInput): Attachment {
     const update = this.database
       .prepare(
@@ -167,6 +215,73 @@ export class AttachmentRepository {
     })();
   }
 
+  public getEntityReferenceImage(campaignId: string, entityId: string): EntityReferenceImage {
+    const entity = this.readEntity(campaignId, entityId);
+    if (entity === null) throw entityNotFound(entityId);
+    if (entity.referenceImageAttachmentId === null) return { entity, attachment: null };
+    const attachment = this.findById(campaignId, entity.referenceImageAttachmentId);
+    if (attachment === null) {
+      throw new AppError(
+        'ENTITY_REFERENCE_IMAGE_INVALID',
+        'A entidade referencia uma imagem inválida.',
+      );
+    }
+    return { entity, attachment };
+  }
+
+  public setEntityReferenceImage(
+    input: SetEntityReferenceImageInput,
+    updatedAt: string,
+  ): EntityReferenceImage {
+    return this.database.transaction(() => {
+      const entity = this.requireEntityRevision(input.campaignId, input.entityId, input.revision);
+      const attachment = this.requireOwnedAttachment(input.campaignId, input.attachmentId);
+      if (attachment.processingStatus !== 'ready') {
+        throw new AppError(
+          'ATTACHMENT_NOT_READY',
+          'Somente um anexo pronto pode ser usado como imagem de referência.',
+        );
+      }
+      if (entity.referenceImageAttachmentId === input.attachmentId) {
+        throw new AppError(
+          'ATTACHMENT_ALREADY_ENTITY_REFERENCE',
+          'O anexo informado já é a imagem de referência da entidade.',
+        );
+      }
+      this.updateEntityReferenceImage(
+        input.campaignId,
+        input.entityId,
+        input.revision,
+        input.attachmentId,
+        updatedAt,
+      );
+      return this.getEntityReferenceImage(input.campaignId, input.entityId);
+    })();
+  }
+
+  public removeEntityReferenceImage(
+    input: { campaignId: string; entityId: string; revision: number },
+    updatedAt: string,
+  ): EntityReferenceImage {
+    return this.database.transaction(() => {
+      const entity = this.requireEntityRevision(input.campaignId, input.entityId, input.revision);
+      if (entity.referenceImageAttachmentId === null) {
+        throw new AppError(
+          'ENTITY_REFERENCE_IMAGE_NOT_SET',
+          'A entidade não possui imagem de referência para remover.',
+        );
+      }
+      this.updateEntityReferenceImage(
+        input.campaignId,
+        input.entityId,
+        input.revision,
+        null,
+        updatedAt,
+      );
+      return this.getEntityReferenceImage(input.campaignId, input.entityId);
+    })();
+  }
+
   public prepareAttachmentDeletion(input: DeleteAttachmentInput): AttachmentDeletionCandidate {
     const campaign = this.readCampaign(input.campaignId);
     if (campaign === null) throw campaignNotFound(input.campaignId);
@@ -177,7 +292,11 @@ export class AttachmentRepository {
     if (attachment.revision !== input.revision) {
       throw revisionConflict(input.revision, attachment.revision);
     }
-    if (campaign.coverAttachmentId === input.attachmentId) throw attachmentInUse();
+    if (
+      campaign.coverAttachmentId === input.attachmentId ||
+      this.isEntityReference(input.attachmentId)
+    )
+      throw attachmentInUse();
     return {
       attachment,
       relativePath: row.relative_path,
@@ -189,8 +308,13 @@ export class AttachmentRepository {
     return this.database.transaction(() => {
       const candidate = this.prepareAttachmentDeletion(input);
       const referenced = this.database
-        .prepare('SELECT 1 FROM campaigns WHERE cover_attachment_id = ? LIMIT 1')
-        .get(input.attachmentId);
+        .prepare(
+          `SELECT 1 FROM campaigns WHERE cover_attachment_id = ?
+           UNION ALL
+           SELECT 1 FROM entities WHERE reference_image_attachment_id = ?
+           LIMIT 1`,
+        )
+        .get(input.attachmentId, input.attachmentId);
       if (referenced !== undefined) throw attachmentInUse();
       const deletion = this.database
         .prepare(
@@ -198,6 +322,9 @@ export class AttachmentRepository {
            WHERE id = ? AND campaign_id = ? AND revision = ?
              AND NOT EXISTS (
                SELECT 1 FROM campaigns WHERE cover_attachment_id = attachments.id
+             )
+             AND NOT EXISTS (
+               SELECT 1 FROM entities WHERE reference_image_attachment_id = attachments.id
              )`,
         )
         .run(input.attachmentId, input.campaignId, input.revision);
@@ -247,6 +374,28 @@ export class AttachmentRepository {
     return attachmentSchema.parse(toAttachment(row));
   }
 
+  private readEntity(campaignId: string, entityId: string): Entity | null {
+    const row = this.database.prepare(entityPublicSelect).get(entityId, campaignId) as
+      | EntityRow
+      | undefined;
+    return row === undefined ? null : entitySchema.parse(toEntity(row));
+  }
+
+  private requireEntityRevision(campaignId: string, entityId: string, revision: number): Entity {
+    const entity = this.readEntity(campaignId, entityId);
+    if (entity === null) throw entityNotFound(entityId);
+    if (entity.revision !== revision) throw revisionConflict(revision, entity.revision);
+    return entity;
+  }
+
+  private isEntityReference(attachmentId: string): boolean {
+    return (
+      this.database
+        .prepare('SELECT 1 FROM entities WHERE reference_image_attachment_id = ? LIMIT 1')
+        .get(attachmentId) !== undefined
+    );
+  }
+
   private readPrivateAttachment(id: string): PrivateAttachmentRow | null {
     const row = this.database.prepare(attachmentPrivateSelect).get(id) as
       PrivateAttachmentRow | undefined;
@@ -272,6 +421,27 @@ export class AttachmentRepository {
       throw revisionConflict(revision, current);
     }
   }
+
+  private updateEntityReferenceImage(
+    campaignId: string,
+    entityId: string,
+    revision: number,
+    attachmentId: string | null,
+    updatedAt: string,
+  ): void {
+    const update = this.database
+      .prepare(
+        `UPDATE entities
+         SET reference_image_attachment_id = ?, updated_at = ?, revision = revision + 1
+         WHERE id = ? AND campaign_id = ? AND revision = ?`,
+      )
+      .run(attachmentId, updatedAt, entityId, campaignId, revision);
+    if (update.changes !== 1) {
+      const current = this.readEntity(campaignId, entityId);
+      if (current === null) throw entityNotFound(entityId);
+      throw revisionConflict(revision, current.revision);
+    }
+  }
 }
 
 const attachmentPublicSelect = `
@@ -295,6 +465,14 @@ const campaignPublicSelect = `
          status, created_at, updated_at, archived_at, revision
   FROM campaigns
   WHERE id = ?
+`;
+
+const entityPublicSelect = `
+  SELECT id, campaign_id, entity_type_id, reference_image_attachment_id, name, summary,
+         canon_state, knowledge_state, visibility, origin_kind, source_id,
+         created_at, updated_at, archived_at, revision
+  FROM entities
+  WHERE id = ? AND campaign_id = ?
 `;
 
 interface AttachmentRow {
@@ -330,6 +508,24 @@ interface CampaignRow {
   summary: string | null;
   cover_attachment_id: string | null;
   status: Campaign['status'];
+  created_at: string;
+  updated_at: string;
+  archived_at: string | null;
+  revision: number;
+}
+
+interface EntityRow {
+  id: string;
+  campaign_id: string;
+  entity_type_id: string;
+  reference_image_attachment_id: string | null;
+  name: string;
+  summary: string | null;
+  canon_state: Entity['canonState'];
+  knowledge_state: Entity['knowledgeState'];
+  visibility: Entity['visibility'];
+  origin_kind: Entity['originKind'];
+  source_id: string | null;
   created_at: string;
   updated_at: string;
   archived_at: string | null;
@@ -410,6 +606,26 @@ function toCampaign(row: CampaignRow): Campaign {
   };
 }
 
+function toEntity(row: EntityRow): Entity {
+  return {
+    id: row.id,
+    campaignId: row.campaign_id,
+    entityTypeId: row.entity_type_id,
+    referenceImageAttachmentId: row.reference_image_attachment_id,
+    name: row.name,
+    summary: row.summary,
+    canonState: row.canon_state,
+    knowledgeState: row.knowledge_state,
+    visibility: row.visibility,
+    originKind: row.origin_kind,
+    sourceId: row.source_id,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    archivedAt: row.archived_at,
+    revision: row.revision,
+  };
+}
+
 function campaignNotFound(id: string): AppError {
   return new AppError('CAMPAIGN_NOT_FOUND', 'A campanha não foi encontrada.', { id });
 }
@@ -423,7 +639,11 @@ function attachmentCampaignMismatch(): AppError {
 }
 
 function attachmentInUse(): AppError {
-  return new AppError('ATTACHMENT_IN_USE', 'O anexo não pode ser excluído enquanto for capa.');
+  return new AppError('ATTACHMENT_IN_USE', 'O anexo não pode ser excluído enquanto estiver em uso.');
+}
+
+function entityNotFound(id: string): AppError {
+  return new AppError('ENTITY_NOT_FOUND', 'A entidade não foi encontrada.', { id });
 }
 
 function revisionConflict(expectedRevision: number, currentRevision: number): AppError {

@@ -10,6 +10,7 @@ import {
 } from '../../../core/errors/user-facing-error';
 import { UserFacingErrorNotice } from '../../components/user-facing-error-notice';
 import { Button, ButtonGroup, ToolbarActions } from '../../components/actions';
+import { EntityReferenceImagePreview } from './entity-reference-image';
 
 type View = 'list' | 'create' | 'details' | 'edit';
 type LifecycleAction = 'archive' | 'restore';
@@ -134,6 +135,13 @@ export function EntityManager({
     setEditing(viewing);
     setViewing(null);
     setView('edit');
+  }
+
+  function updateViewingDetails(details: EntityDetails): void {
+    setViewing(details);
+    setEntities((current) =>
+      current.map((entity) => (entity.id === details.entity.id ? details.entity : entity)),
+    );
   }
 
   async function createEntity(
@@ -283,6 +291,7 @@ export function EntityManager({
         onOpenNotes={() => onOpenNotes(viewing.entity)}
         onOpenTimeline={() => onOpenTimeline(viewing.entity)}
         onOpenRelationships={onOpenRelationships}
+        onDetailsChange={updateViewingDetails}
         focusRelationshipButton={
           focusRelationshipButton && initialDetailEntity?.id === viewing.entity.id
         }
@@ -407,8 +416,9 @@ export function EntityManager({
               className="rounded-2xl border semantic-border semantic-surface p-6 shadow-sm"
               key={entity.id}
             >
-              <div className="flex justify-between gap-5">
-                <div>
+              <div className="flex items-start gap-5">
+                <EntityReferenceImagePreview className="size-24 shrink-0" entity={entity} />
+                <div className="min-w-0 flex-1">
                   <h2 className="text-xl font-semibold">
                     <Button
                       aria-label={`Abrir detalhes de ${entity.name}`}

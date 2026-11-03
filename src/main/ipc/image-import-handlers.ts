@@ -5,6 +5,12 @@ import {
   importImageUrlInputSchema,
   selectLocalImageInputSchema,
 } from '../../core/contracts/image-imports';
+import {
+  entityReferenceImageImportResultSchema,
+  importEntityReferenceImageBytesInputSchema,
+  importEntityReferenceImageUrlInputSchema,
+  selectLocalEntityReferenceImageInputSchema,
+} from '../../core/contracts/entity-reference-images';
 import { imageImportChannels } from '../../core/contracts/ipc-channels';
 import type { Result } from '../../core/contracts/result';
 import type { Logger } from '../../core/logging/logger';
@@ -59,6 +65,42 @@ export function registerImageImportIpcHandlers(
           imageImportResultSchema,
           dependencies,
           (validatedInput) => dependencies.service.importUrl(validatedInput),
+        ),
+    },
+    {
+      channel: imageImportChannels.selectEntityReferenceLocal,
+      handler: (event, input) =>
+        executeIpcHandler(
+          event,
+          input,
+          selectLocalEntityReferenceImageInputSchema,
+          entityReferenceImageImportResultSchema,
+          dependencies,
+          (validatedInput) => dependencies.service.selectEntityReferenceLocal(validatedInput),
+        ),
+    },
+    {
+      channel: imageImportChannels.importEntityReferenceBytes,
+      handler: (event, input) =>
+        executeIpcHandler(
+          event,
+          input,
+          importEntityReferenceImageBytesInputSchema,
+          entityReferenceImageImportResultSchema,
+          dependencies,
+          (validatedInput) => dependencies.service.importEntityReferenceBytes(validatedInput),
+        ),
+    },
+    {
+      channel: imageImportChannels.importEntityReferenceUrl,
+      handler: (event, input) =>
+        executeIpcHandler(
+          event,
+          input,
+          importEntityReferenceImageUrlInputSchema,
+          entityReferenceImageImportResultSchema,
+          dependencies,
+          (validatedInput) => dependencies.service.importEntityReferenceUrl(validatedInput),
         ),
     },
   ];

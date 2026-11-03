@@ -1,12 +1,9 @@
 import { randomUUID } from 'node:crypto';
-import { open } from 'node:fs/promises';
-import path from 'node:path';
 import {
   campaignCoverPreviewSchema,
   deleteAttachmentInputSchema,
   deleteAttachmentResultSchema,
   getCampaignCoverInputSchema,
-  maximumCampaignCoverPreviewBytes,
   removeCampaignCoverInputSchema,
   setCampaignCoverInputSchema,
   type CampaignCover,
@@ -21,6 +18,7 @@ import { AppError } from '../../core/errors/app-error';
 import type { DataDirectories } from '../../core/storage/data-directories';
 import type { AttachmentRepository } from '../../db/repositories/attachment-repository';
 import { AttachmentDeletionJournal } from './attachment-deletion-journal';
+import { readAttachmentThumbnailPreview } from './attachment-preview';
 
 type CampaignCoverRepository = Pick<
   AttachmentRepository,
@@ -66,43 +64,9 @@ export class CampaignCoverService {
     ) {
       throw new AppError('CAMPAIGN_COVER_INVALID', 'A capa da campanha é inválida.');
     }
-    const previewPath = resolvePrivateAssetPath(
-      this.dependencies.directories.thumbnails,
-      identity.thumbnailRelativePath,
+    return campaignCoverPreviewSchema.parse(
+      await readAttachmentThumbnailPreview(this.dependencies.directories.thumbnails, identity),
     );
-    const handle = await open(previewPath, 'r');
-    let bytes: Buffer;
-    try {
-      const stats = await handle.stat();
-      if (!stats.isFile() || stats.size <= 0 || stats.size > maximumCampaignCoverPreviewBytes) {
-        throw new AppError(
-          'CAMPAIGN_COVER_PREVIEW_INVALID',
-          'A miniatura da capa é inválida ou ultrapassa 2 MB.',
-        );
-      }
-      bytes = Buffer.alloc(stats.size);
-      let offset = 0;
-      while (offset < bytes.byteLength) {
-        const chunk = await handle.read(bytes, offset, bytes.byteLength - offset, offset);
-        if (chunk.bytesRead === 0) break;
-        offset += chunk.bytesRead;
-      }
-      const trailingByte = Buffer.alloc(1);
-      const trailing = await handle.read(trailingByte, 0, 1, offset);
-      if (offset !== bytes.byteLength || trailing.bytesRead !== 0) {
-        throw new AppError(
-          'CAMPAIGN_COVER_PREVIEW_INVALID',
-          'A miniatura da capa mudou durante a leitura segura.',
-        );
-      }
-    } finally {
-      await handle.close();
-    }
-    return campaignCoverPreviewSchema.parse({
-      attachmentId: identity.attachmentId,
-      mimeType: 'image/webp',
-      bytes: new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength),
-    });
   }
 
   public set(input: SetCampaignCoverInput): CampaignCover {
@@ -154,13 +118,4 @@ export class CampaignCoverService {
       throw error;
     }
   }
-}
-
-function resolvePrivateAssetPath(root: string, relativePath: string): string {
-  const normalizedRoot = path.resolve(root);
-  const resolved = path.resolve(normalizedRoot, ...relativePath.split('/'));
-  if (!resolved.startsWith(`${normalizedRoot}${path.sep}`)) {
-    throw new AppError('ATTACHMENT_PATH_INVALID', 'O caminho interno do anexo é inválido.');
-  }
-  return resolved;
 }

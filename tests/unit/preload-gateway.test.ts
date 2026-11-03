@@ -53,11 +53,18 @@ describe('gateway do preload', () => {
       'deleteAttachment',
       'getCover',
       'getCoverPreview',
+      'getEntityReference',
+      'getEntityReferencePreview',
       'importBytes',
+      'importEntityReferenceBytes',
+      'importEntityReferenceUrl',
       'importUrl',
       'removeCover',
+      'removeEntityReference',
+      'selectEntityReferenceLocal',
       'selectLocal',
       'setCover',
+      'setEntityReference',
     ]);
     expect(Object.keys(gateway.appearance).sort()).toEqual([
       'getTheme',
@@ -523,6 +530,49 @@ describe('gateway do preload', () => {
       } as never),
     ).toThrow();
     expect(() => gateway.images.removeCover({ campaignId, revision: 0 })).toThrow();
+  });
+
+  it('encaminha imagem de entidade somente pelos canais e contratos públicos', async () => {
+    const invocations: Invocation[] = [];
+    const gateway = createCampaignManagerGateway(createInvoker(invocations));
+    const identity = {
+      campaignId: '00000000-0000-4000-8000-000000000001',
+      entityId: '20000000-0000-4000-8000-000000000001',
+    };
+    const attachmentId = '30000000-0000-4000-8000-000000000001';
+    await gateway.images.getEntityReference(identity);
+    await gateway.images.getEntityReferencePreview(identity);
+    await gateway.images.selectEntityReferenceLocal({ ...identity, revision: 1 });
+    await gateway.images.importEntityReferenceBytes({
+      ...identity,
+      revision: 1,
+      bytes: new Uint8Array([1, 2, 3]),
+      metadata: { originalFilename: 'retrato.png', sourceKind: 'clipboard' },
+    });
+    await gateway.images.importEntityReferenceUrl({
+      ...identity,
+      revision: 1,
+      url: 'https://images.example/retrato.png',
+    });
+    await gateway.images.setEntityReference({ ...identity, attachmentId, revision: 1 });
+    await gateway.images.removeEntityReference({ ...identity, revision: 2 });
+    expect(invocations.map(({ channel }) => channel)).toEqual([
+      imageImportChannels.getEntityReference,
+      imageImportChannels.getEntityReferencePreview,
+      imageImportChannels.selectEntityReferenceLocal,
+      imageImportChannels.importEntityReferenceBytes,
+      imageImportChannels.importEntityReferenceUrl,
+      imageImportChannels.setEntityReference,
+      imageImportChannels.removeEntityReference,
+    ]);
+    expect(() =>
+      gateway.images.setEntityReference({
+        ...identity,
+        attachmentId,
+        revision: 1,
+        path: 'C:\\privado\\retrato.webp',
+      } as never),
+    ).toThrow();
   });
 });
 

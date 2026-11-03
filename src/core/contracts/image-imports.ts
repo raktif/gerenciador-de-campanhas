@@ -8,7 +8,7 @@ import {
 } from './image-processing';
 import type { Result } from './result';
 
-const imageBytesSchema = z
+export const imageBytesSchema = z
   .custom<Uint8Array>((value) => value instanceof Uint8Array, 'Informe bytes binários válidos.')
   .refine((value) => value.byteLength > 0, 'A imagem não pode estar vazia.')
   .refine((value) => value.byteLength <= maximumImageBytes, 'A imagem não pode ultrapassar 10 MB.');
@@ -112,7 +112,7 @@ export interface ImageImportGateway {
   importUrl(input: ImportImageUrlInput): Promise<Result<ImageImportResult>>;
 }
 
-function isStrictHttpUrl(value: string): boolean {
+export function isStrictHttpUrl(value: string): boolean {
   try {
     const url = new URL(value);
     return (

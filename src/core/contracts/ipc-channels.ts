@@ -34,6 +34,13 @@ export const imageImportChannels = {
   setCover: 'images:set-cover',
   removeCover: 'images:remove-cover',
   deleteAttachment: 'images:delete-attachment',
+  selectEntityReferenceLocal: 'images:select-entity-reference',
+  importEntityReferenceBytes: 'images:import-entity-reference-bytes',
+  importEntityReferenceUrl: 'images:import-entity-reference-url',
+  getEntityReference: 'images:get-entity-reference',
+  getEntityReferencePreview: 'images:get-entity-reference-preview',
+  setEntityReference: 'images:set-entity-reference',
+  removeEntityReference: 'images:remove-entity-reference',
 } as const;
 
 export const entityTypeChannels = {

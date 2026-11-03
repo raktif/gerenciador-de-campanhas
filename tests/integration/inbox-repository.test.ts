@@ -691,6 +691,7 @@ describe('InboxRepository', () => {
       id: '30000000-0000-4000-8000-000000000080',
       campaignId,
       entityTypeId,
+      referenceImageAttachmentId: null,
       name: 'Iara',
       summary: null,
       canonState: 'accepted' as const,

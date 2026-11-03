@@ -17,6 +17,7 @@ import assertionInboxSourceUpdateGuardMigration from './0014_assertion_inbox_sou
 import noteEventInboxSourceUpdateGuardsMigration from './0015_note_event_inbox_source_update_guards.sql?raw';
 import fieldDefinitionContextualHelpMigration from './0016_field_definition_contextual_help.sql?raw';
 import campaignCoverAttachmentsMigration from './0017_campaign_cover_attachments.sql?raw';
+import entityReferenceImagesMigration from './0018_entity_reference_images.sql?raw';
 
 export interface MigrationDefinition {
   version: number;
@@ -138,6 +139,12 @@ export const migrations: readonly MigrationDefinition[] = [
     name: 'phase-two-campaign-cover-attachments',
     checksum: checksum(campaignCoverAttachmentsMigration),
     sql: campaignCoverAttachmentsMigration,
+  },
+  {
+    version: 18,
+    name: 'phase-two-entity-reference-images',
+    checksum: checksum(entityReferenceImagesMigration),
+    sql: entityReferenceImagesMigration,
   },
 ];
 

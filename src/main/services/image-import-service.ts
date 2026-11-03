@@ -11,6 +11,16 @@ import {
   type ImportImageUrlInput,
   type SelectLocalImageInput,
 } from '../../core/contracts/image-imports';
+import {
+  entityReferenceImageImportResultSchema,
+  importEntityReferenceImageBytesInputSchema,
+  importEntityReferenceImageUrlInputSchema,
+  selectLocalEntityReferenceImageInputSchema,
+  type EntityReferenceImageImportResult,
+  type ImportEntityReferenceImageBytesInput,
+  type ImportEntityReferenceImageUrlInput,
+  type SelectLocalEntityReferenceImageInput,
+} from '../../core/contracts/entity-reference-images';
 import { maximumImageBytes } from '../../core/contracts/image-processing';
 import { AppError } from '../../core/errors/app-error';
 import type { DataDirectories } from '../../core/storage/data-directories';
@@ -38,6 +48,8 @@ export class ImageImportService {
   private readonly createId: () => string;
   private readonly pendingLocalImports = new Map<string, PendingLocalImport>();
   private readonly pendingUrlImports = new Map<string, PendingUrlImport>();
+  private readonly pendingEntityLocalImports = new Map<string, PendingEntityLocalImport>();
+  private readonly pendingEntityUrlImports = new Map<string, PendingEntityUrlImport>();
 
   public constructor(private readonly dependencies: ImageImportServiceDependencies) {
     this.now = dependencies.now ?? (() => new Date());
@@ -164,7 +176,151 @@ export class ImageImportService {
     return imageImportResultSchema.parse({ ...result, pendingImportId });
   }
 
-  private async processAndPersist(input: InternalImportInput): Promise<ImageImportResult> {
+  public async selectEntityReferenceLocal(
+    input: SelectLocalEntityReferenceImageInput,
+  ): Promise<EntityReferenceImageImportResult> {
+    const parsed = selectLocalEntityReferenceImageInputSchema.parse(input);
+    this.prunePendingEntityLocalImports();
+    if (parsed.pendingImportId !== undefined) {
+      const pending = this.pendingEntityLocalImports.get(parsed.pendingImportId);
+      this.pendingEntityLocalImports.delete(parsed.pendingImportId);
+      if (
+        pending?.campaignId !== parsed.campaignId ||
+        pending.entityId !== parsed.entityId ||
+        pending.revision !== parsed.revision
+      ) {
+        throw new AppError(
+          'IMAGE_PENDING_IMPORT_INVALID',
+          'A imagem pendente expirou ou é inválida.',
+        );
+      }
+      return this.processAndPersist({
+        campaignId: pending.campaignId,
+        entityId: pending.entityId,
+        revision: pending.revision,
+        ...(parsed.oversizeMode === undefined ? {} : { oversizeMode: parsed.oversizeMode }),
+        bytes: pending.bytes,
+        originalFilename: pending.originalFilename,
+        sourceKind: 'file',
+      });
+    }
+    const selectedPath = await this.dependencies.selectImageFile();
+    if (selectedPath === null) return { status: 'cancelled' };
+    const bytes = await readBoundedSelectedFile(selectedPath);
+    const result = await this.processAndPersist({
+      campaignId: parsed.campaignId,
+      entityId: parsed.entityId,
+      revision: parsed.revision,
+      ...(parsed.oversizeMode === undefined ? {} : { oversizeMode: parsed.oversizeMode }),
+      bytes,
+      originalFilename: path.basename(selectedPath),
+      sourceKind: 'file',
+    });
+    if (result.status !== 'oversize_choice_required') return result;
+    const pendingImportId = this.createId();
+    this.pendingEntityLocalImports.set(pendingImportId, {
+      campaignId: parsed.campaignId,
+      entityId: parsed.entityId,
+      revision: parsed.revision,
+      bytes,
+      originalFilename: path.basename(selectedPath),
+      expiresAt: this.now().getTime() + pendingImportLifetimeMilliseconds,
+    });
+    return entityReferenceImageImportResultSchema.parse({ ...result, pendingImportId });
+  }
+
+  public async importEntityReferenceBytes(
+    input: ImportEntityReferenceImageBytesInput,
+  ): Promise<EntityReferenceImageImportResult> {
+    const parsed = importEntityReferenceImageBytesInputSchema.parse(input);
+    return this.processAndPersist({
+      campaignId: parsed.campaignId,
+      entityId: parsed.entityId,
+      revision: parsed.revision,
+      ...(parsed.oversizeMode === undefined ? {} : { oversizeMode: parsed.oversizeMode }),
+      bytes: parsed.bytes,
+      originalFilename: parsed.metadata.originalFilename,
+      sourceKind: parsed.metadata.sourceKind,
+      ...(parsed.metadata.declaredMimeType === undefined
+        ? {}
+        : { declaredMimeType: parsed.metadata.declaredMimeType }),
+    });
+  }
+
+  public async importEntityReferenceUrl(
+    input: ImportEntityReferenceImageUrlInput,
+  ): Promise<EntityReferenceImageImportResult> {
+    const parsed = importEntityReferenceImageUrlInputSchema.parse(input);
+    this.prunePendingEntityUrlImports();
+    if (parsed.pendingImportId !== undefined) {
+      const pending = this.pendingEntityUrlImports.get(parsed.pendingImportId);
+      this.pendingEntityUrlImports.delete(parsed.pendingImportId);
+      if (
+        pending?.campaignId !== parsed.campaignId ||
+        pending.entityId !== parsed.entityId ||
+        pending.revision !== parsed.revision ||
+        parsed.oversizeMode === undefined
+      ) {
+        throw new AppError(
+          'IMAGE_PENDING_IMPORT_INVALID',
+          'A imagem pendente expirou ou é inválida.',
+        );
+      }
+      return this.processAndPersist({
+        campaignId: pending.campaignId,
+        entityId: pending.entityId,
+        revision: pending.revision,
+        oversizeMode: parsed.oversizeMode,
+        bytes: pending.bytes,
+        originalFilename: pending.originalFilename,
+        sourceKind: 'url',
+        sourceUrl: pending.sourceUrl,
+        declaredMimeType: pending.contentType,
+        expectedMimeType: pending.contentType,
+      });
+    }
+    if (this.dependencies.downloader === undefined || parsed.url === undefined) {
+      throw new AppError(
+        'IMAGE_URL_IMPORT_UNAVAILABLE',
+        'A importação remota não está disponível.',
+      );
+    }
+    const downloaded = await this.dependencies.downloader.download(parsed.url);
+    const result = await this.processAndPersist({
+      campaignId: parsed.campaignId,
+      entityId: parsed.entityId,
+      revision: parsed.revision,
+      ...(parsed.oversizeMode === undefined ? {} : { oversizeMode: parsed.oversizeMode }),
+      bytes: downloaded.bytes,
+      originalFilename: downloaded.originalFilename,
+      sourceKind: 'url',
+      sourceUrl: downloaded.sourceUrl,
+      declaredMimeType: downloaded.contentType,
+      expectedMimeType: downloaded.contentType,
+    });
+    if (result.status !== 'oversize_choice_required') return result;
+    const pendingImportId = this.createId();
+    this.pendingEntityUrlImports.set(pendingImportId, {
+      campaignId: parsed.campaignId,
+      entityId: parsed.entityId,
+      revision: parsed.revision,
+      requestedUrl: parsed.url,
+      bytes: downloaded.bytes,
+      originalFilename: downloaded.originalFilename,
+      sourceUrl: downloaded.sourceUrl,
+      contentType: downloaded.contentType,
+      expiresAt: this.now().getTime() + pendingImportLifetimeMilliseconds,
+    });
+    return entityReferenceImageImportResultSchema.parse({ ...result, pendingImportId });
+  }
+
+  private processAndPersist(input: InternalCoverImportInput): Promise<ImageImportResult>;
+  private processAndPersist(
+    input: InternalEntityImportInput,
+  ): Promise<EntityReferenceImageImportResult>;
+  private async processAndPersist(
+    input: InternalImportInput,
+  ): Promise<ImageImportResult | EntityReferenceImageImportResult> {
     const processed = await this.dependencies.processor.process({
       bytes: input.bytes,
       metadata: {
@@ -253,14 +409,25 @@ export class ImageImportService {
         updatedAt: timestamp,
         revision: 1,
       };
-      const result = this.dependencies.repository.insertAndSetCampaignCover({
-        campaignId: input.campaignId,
-        campaignRevision: input.revision,
-        campaignUpdatedAt: timestamp,
-        attachment,
-      });
+      const result =
+        input.entityId === undefined
+          ? this.dependencies.repository.insertAndSetCampaignCover({
+              campaignId: input.campaignId,
+              campaignRevision: input.revision,
+              campaignUpdatedAt: timestamp,
+              attachment,
+            })
+          : this.dependencies.repository.insertAndSetEntityReferenceImage({
+              campaignId: input.campaignId,
+              entityId: input.entityId,
+              entityRevision: input.revision,
+              entityUpdatedAt: timestamp,
+              attachment,
+            });
       metadataCommitted = true;
-      return imageImportResultSchema.parse({ status: 'imported', ...result });
+      return input.entityId === undefined
+        ? imageImportResultSchema.parse({ status: 'imported', ...result })
+        : entityReferenceImageImportResultSchema.parse({ status: 'imported', ...result });
     } catch (error) {
       if (!metadataCommitted) {
         await Promise.allSettled([
@@ -287,9 +454,23 @@ export class ImageImportService {
       if (pending.expiresAt <= now) this.pendingUrlImports.delete(id);
     }
   }
+
+  private prunePendingEntityLocalImports(): void {
+    const now = this.now().getTime();
+    for (const [id, pending] of this.pendingEntityLocalImports) {
+      if (pending.expiresAt <= now) this.pendingEntityLocalImports.delete(id);
+    }
+  }
+
+  private prunePendingEntityUrlImports(): void {
+    const now = this.now().getTime();
+    for (const [id, pending] of this.pendingEntityUrlImports) {
+      if (pending.expiresAt <= now) this.pendingEntityUrlImports.delete(id);
+    }
+  }
 }
 
-interface InternalImportInput {
+interface InternalImportInputBase {
   campaignId: string;
   revision: number;
   oversizeMode?: 'resize' | 'crop';
@@ -300,6 +481,16 @@ interface InternalImportInput {
   declaredMimeType?: string;
   expectedMimeType?: 'image/png' | 'image/jpeg' | 'image/webp';
 }
+
+interface InternalCoverImportInput extends InternalImportInputBase {
+  entityId?: never;
+}
+
+interface InternalEntityImportInput extends InternalImportInputBase {
+  entityId: string;
+}
+
+type InternalImportInput = InternalCoverImportInput | InternalEntityImportInput;
 
 interface PendingLocalImport {
   campaignId: string;
@@ -318,6 +509,14 @@ interface PendingUrlImport {
   sourceUrl: string;
   contentType: 'image/png' | 'image/jpeg' | 'image/webp';
   expiresAt: number;
+}
+
+interface PendingEntityLocalImport extends PendingLocalImport {
+  entityId: string;
+}
+
+interface PendingEntityUrlImport extends PendingUrlImport {
+  entityId: string;
 }
 
 const pendingImportLifetimeMilliseconds = 5 * 60 * 1000;

@@ -35,6 +35,7 @@ import { SessionRepository } from '../../db/repositories/session-repository';
 import { registerCampaignIpcHandlers } from '../ipc/campaign-handlers';
 import { registerCampaignCoverIpcHandlers } from '../ipc/campaign-cover-handlers';
 import { registerImageImportIpcHandlers } from '../ipc/image-import-handlers';
+import { registerEntityReferenceImageIpcHandlers } from '../ipc/entity-reference-image-handlers';
 import { registerAppearanceIpcHandlers } from '../ipc/appearance-handlers';
 import { registerDiagnosticsIpcHandlers } from '../ipc/diagnostics-handlers';
 import { registerAssertionIpcHandlers } from '../ipc/assertion-handlers';
@@ -56,6 +57,7 @@ import { CampaignService } from '../services/campaign-service';
 import { CampaignCoverService } from '../services/campaign-cover-service';
 import { recoverPendingAttachmentDeletions } from '../services/attachment-deletion-journal';
 import { ImageImportService } from '../services/image-import-service';
+import { EntityReferenceImageService } from '../services/entity-reference-image-service';
 import { ImageProcessingService } from '../services/image-processing-service';
 import { SecureImageDownloadService } from '../services/secure-image-download-service';
 import { AppearanceService } from '../services/appearance-service';
@@ -227,6 +229,15 @@ export async function bootstrapApplication(): Promise<RunningApplication> {
     logger,
     authorizedWebContentsId: window.webContents.id,
   });
+  const entityReferenceImageService = new EntityReferenceImageService({
+    repository: attachmentRepository,
+    directories,
+  });
+  const unregisterEntityReferenceImageIpc = registerEntityReferenceImageIpcHandlers(ipcMain, {
+    service: entityReferenceImageService,
+    logger,
+    authorizedWebContentsId: window.webContents.id,
+  });
   const startupDiagnosticsService = new StartupDiagnosticsService((text) =>
     clipboard.writeText(text),
   );
@@ -380,6 +391,7 @@ export async function bootstrapApplication(): Promise<RunningApplication> {
       unregisterCampaignIpc();
       unregisterImageImportIpc();
       unregisterCampaignCoverIpc();
+      unregisterEntityReferenceImageIpc();
       unregisterDiagnosticsIpc();
       unregisterEntityTypeIpc();
       unregisterFieldDefinitionIpc();

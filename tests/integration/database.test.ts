@@ -259,7 +259,7 @@ describe('SQLite embutido', () => {
     legacyDatabase.close();
 
     const context = await openTestDatabase(directories);
-    expect(context.schemaVersion).toBe(17);
+    expect(context.schemaVersion).toBe(latestSchemaVersion);
     expect(
       context.native
         .prepare('SELECT image_path, cover_attachment_id FROM campaigns WHERE id = ?')
@@ -272,6 +272,126 @@ describe('SQLite embutido', () => {
         )
         .get(),
     ).toEqual({ total: 1 });
+    context.close();
+  });
+
+  it('migra v17 para v18 preservando entidades e substituindo guards de anexos', async () => {
+    const root = await createTemporaryRoot();
+    const directories = getDataDirectories(root);
+    await ensureDataDirectories(directories);
+    const databasePath = path.join(directories.database, 'app.db');
+    const legacy = new Database(databasePath);
+    legacy.exec(`
+      CREATE TABLE schema_migrations (
+        version INTEGER PRIMARY KEY NOT NULL,
+        name TEXT NOT NULL,
+        checksum TEXT NOT NULL,
+        applied_at TEXT NOT NULL
+      );
+    `);
+    const recordMigration = legacy.prepare(
+      'INSERT INTO schema_migrations (version, name, checksum, applied_at) VALUES (?, ?, ?, ?)',
+    );
+    for (const migration of migrations.filter(({ version }) => version <= 17)) {
+      legacy.exec(migration.sql);
+      recordMigration.run(migration.version, migration.name, migration.checksum, timestamp());
+    }
+    const now = timestamp();
+    const firstCampaign = randomUUID();
+    const secondCampaign = randomUUID();
+    const firstType = randomUUID();
+    const secondType = randomUUID();
+    const firstEntity = randomUUID();
+    const secondEntity = randomUUID();
+    const coverAttachment = randomUUID();
+    for (const [campaignId, name] of [
+      [firstCampaign, 'Primeira'],
+      [secondCampaign, 'Segunda'],
+    ]) {
+      legacy
+        .prepare('INSERT INTO campaigns (id, name, created_at, updated_at) VALUES (?, ?, ?, ?)')
+        .run(campaignId, name, now, now);
+    }
+    for (const [typeId, campaignId, slug] of [
+      [firstType, firstCampaign, 'pessoas-primeira'],
+      [secondType, secondCampaign, 'pessoas-segunda'],
+    ]) {
+      legacy
+        .prepare(
+          `INSERT INTO entity_types
+           (id, campaign_id, name, singular_name, slug, created_at, updated_at)
+           VALUES (?, ?, 'Pessoas', 'Pessoa', ?, ?, ?)`,
+        )
+        .run(typeId, campaignId, slug, now, now);
+    }
+    for (const [entityId, campaignId, typeId, name] of [
+      [firstEntity, firstCampaign, firstType, 'Gorel'],
+      [secondEntity, secondCampaign, secondType, 'Skel'],
+    ]) {
+      legacy
+        .prepare(
+          `INSERT INTO entities
+           (id, campaign_id, entity_type_id, name, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+        )
+        .run(entityId, campaignId, typeId, name, now, now);
+    }
+    insertMigrationAttachment(legacy, coverAttachment, firstCampaign, 'ready', now);
+    legacy
+      .prepare('UPDATE campaigns SET cover_attachment_id = ? WHERE id = ?')
+      .run(coverAttachment, firstCampaign);
+    legacy.close();
+
+    const context = await openTestDatabase(directories);
+    expect(context.schemaVersion).toBe(18);
+    expect(
+      context.native
+        .prepare('SELECT name, reference_image_attachment_id FROM entities WHERE id = ?')
+        .get(firstEntity),
+    ).toEqual({ name: 'Gorel', reference_image_attachment_id: null });
+    expect(
+      context.native
+        .prepare(
+          `SELECT name FROM sqlite_master
+           WHERE type = 'trigger' AND name IN (
+             'attachments_ready_cover_guard', 'attachments_ready_reference_guard'
+           ) ORDER BY name`,
+        )
+        .all(),
+    ).toEqual([{ name: 'attachments_ready_reference_guard' }]);
+
+    expect(() =>
+      context.native
+        .prepare("UPDATE attachments SET processing_status = 'failed' WHERE id = ?")
+        .run(coverAttachment),
+    ).toThrow(/referenced attachment must remain ready/u);
+
+    const foreignReady = randomUUID();
+    insertMigrationAttachment(context.native, foreignReady, firstCampaign, 'ready', now);
+    expect(() =>
+      context.native
+        .prepare('UPDATE entities SET reference_image_attachment_id = ? WHERE id = ?')
+        .run(foreignReady, secondEntity),
+    ).toThrow(/must be ready and belong to the campaign/u);
+
+    const failedAttachment = randomUUID();
+    insertMigrationAttachment(context.native, failedAttachment, firstCampaign, 'failed', now);
+    expect(() =>
+      context.native
+        .prepare('UPDATE entities SET reference_image_attachment_id = ? WHERE id = ?')
+        .run(failedAttachment, firstEntity),
+    ).toThrow(/must be ready and belong to the campaign/u);
+
+    const referenceAttachment = randomUUID();
+    insertMigrationAttachment(context.native, referenceAttachment, firstCampaign, 'ready', now);
+    context.native
+      .prepare('UPDATE entities SET reference_image_attachment_id = ? WHERE id = ?')
+      .run(referenceAttachment, firstEntity);
+    expect(() =>
+      context.native
+        .prepare("UPDATE attachments SET processing_status = 'failed' WHERE id = ?")
+        .run(referenceAttachment),
+    ).toThrow(/referenced attachment must remain ready/u);
     context.close();
   });
 
@@ -402,4 +522,34 @@ async function openTestDatabase(directories: DataDirectories): Promise<DatabaseC
 
 function timestamp(): string {
   return new Date().toISOString();
+}
+
+function insertMigrationAttachment(
+  database: Database.Database,
+  id: string,
+  campaignId: string,
+  processingStatus: 'ready' | 'failed',
+  now: string,
+): void {
+  database
+    .prepare(
+      `INSERT INTO attachments (
+        id, campaign_id, original_filename, stored_filename, relative_path, mime_type,
+        file_size, checksum_sha256, visibility, width, height, thumbnail_relative_path,
+        source_kind, source_url, processed_mime_type, processing_status,
+        created_at, updated_at, revision
+      ) VALUES (?, ?, 'imagem.png', ?, ?, 'image/png', 128, ?, 'gm', 320, 240, ?,
+                'file', NULL, 'image/webp', ?, ?, ?, 1)`,
+    )
+    .run(
+      id,
+      campaignId,
+      `${id}.webp`,
+      `${campaignId}/${id}.webp`,
+      'a'.repeat(64),
+      `${campaignId}/${id}-thumb.webp`,
+      processingStatus,
+      now,
+      now,
+    );
 }

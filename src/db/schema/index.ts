@@ -421,6 +421,10 @@ export const entities = sqliteTable(
     entityTypeId: text('entity_type_id')
       .notNull()
       .references(() => entityTypes.id, { onDelete: 'restrict' }),
+    referenceImageAttachmentId: text('reference_image_attachment_id').references(
+      () => attachments.id,
+      { onDelete: 'restrict' },
+    ),
     name: text('name').notNull(),
     summary: text('summary'),
     canonState: text('canon_state', { enum: canonStates }).notNull().default('accepted'),
@@ -440,6 +444,9 @@ export const entities = sqliteTable(
       sql`${table.summary} IS NULL OR length(${table.summary}) <= 10000`,
     ),
     check('entities_revision_positive', sql`${table.revision} > 0`),
+    index('entities_reference_image_attachment_idx')
+      .on(table.referenceImageAttachmentId)
+      .where(sql`${table.referenceImageAttachmentId} IS NOT NULL`),
     index('entities_campaign_archived_name_idx').on(
       table.campaignId,
       table.archivedAt,

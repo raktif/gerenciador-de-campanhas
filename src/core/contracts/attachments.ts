@@ -5,6 +5,7 @@ export const attachmentMimeTypes = ['image/png', 'image/jpeg', 'image/webp'] as 
 export const attachmentSourceKinds = ['file', 'url', 'clipboard', 'drag_drop'] as const;
 export const attachmentProcessingStatuses = ['pending', 'ready', 'failed'] as const;
 export const attachmentRevisionSchema = z.number().int().positive();
+export const maximumAttachmentPreviewBytes = 2 * 1024 * 1024;
 
 export const attachmentSchema = z
   .object({
@@ -31,6 +32,23 @@ export const attachmentSchema = z
   .strict();
 export type Attachment = z.infer<typeof attachmentSchema>;
 
+export const attachmentPreviewSchema = z
+  .object({
+    attachmentId: z.uuid(),
+    mimeType: z.literal('image/webp'),
+    bytes: z.custom<Uint8Array>(
+      (value) =>
+        value instanceof Uint8Array &&
+        value.byteLength > 0 &&
+        value.byteLength <= maximumAttachmentPreviewBytes &&
+        hasWebpMagic(value),
+      'A miniatura pública deve ser um WebP válido de até 2 MB.',
+    ),
+  })
+  .strict()
+  .nullable();
+export type AttachmentPreview = z.infer<typeof attachmentPreviewSchema>;
+
 export const setCampaignCoverInputSchema = z
   .object({
     campaignId: z.uuid(),
@@ -39,3 +57,17 @@ export const setCampaignCoverInputSchema = z
   })
   .strict();
 export type SetCampaignCoverInput = z.infer<typeof setCampaignCoverInputSchema>;
+
+function hasWebpMagic(bytes: Uint8Array): boolean {
+  return (
+    bytes.byteLength >= 12 &&
+    bytes[0] === 0x52 &&
+    bytes[1] === 0x49 &&
+    bytes[2] === 0x46 &&
+    bytes[3] === 0x46 &&
+    bytes[8] === 0x57 &&
+    bytes[9] === 0x45 &&
+    bytes[10] === 0x42 &&
+    bytes[11] === 0x50
+  );
+}

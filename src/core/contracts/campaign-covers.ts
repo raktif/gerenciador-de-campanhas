@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import {
+  attachmentPreviewSchema,
   attachmentSchema,
+  maximumAttachmentPreviewBytes,
   setCampaignCoverInputSchema,
   type SetCampaignCoverInput,
 } from './attachments';
@@ -37,23 +39,8 @@ export const campaignCoverSchema = z
   .strict();
 export type CampaignCover = z.infer<typeof campaignCoverSchema>;
 
-export const maximumCampaignCoverPreviewBytes = 2 * 1024 * 1024;
-
-export const campaignCoverPreviewSchema = z
-  .object({
-    attachmentId: z.uuid(),
-    mimeType: z.literal('image/webp'),
-    bytes: z.custom<Uint8Array>(
-      (value) =>
-        value instanceof Uint8Array &&
-        value.byteLength > 0 &&
-        value.byteLength <= maximumCampaignCoverPreviewBytes &&
-        hasWebpMagic(value),
-      'A miniatura pública deve ser um WebP válido de até 2 MB.',
-    ),
-  })
-  .strict()
-  .nullable();
+export const maximumCampaignCoverPreviewBytes = maximumAttachmentPreviewBytes;
+export const campaignCoverPreviewSchema = attachmentPreviewSchema;
 export type CampaignCoverPreview = z.infer<typeof campaignCoverPreviewSchema>;
 
 export const deleteAttachmentResultSchema = z
@@ -70,18 +57,4 @@ export interface CampaignCoverGateway {
   setCover(input: SetCampaignCoverInput): Promise<Result<CampaignCover>>;
   removeCover(input: RemoveCampaignCoverInput): Promise<Result<CampaignCover>>;
   deleteAttachment(input: DeleteAttachmentInput): Promise<Result<DeleteAttachmentResult>>;
-}
-
-function hasWebpMagic(bytes: Uint8Array): boolean {
-  return (
-    bytes.byteLength >= 12 &&
-    bytes[0] === 0x52 &&
-    bytes[1] === 0x49 &&
-    bytes[2] === 0x46 &&
-    bytes[3] === 0x46 &&
-    bytes[8] === 0x57 &&
-    bytes[9] === 0x45 &&
-    bytes[10] === 0x42 &&
-    bytes[11] === 0x50
-  );
 }

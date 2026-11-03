@@ -16,6 +16,9 @@ describe('handlers IPC de ingresso de imagens', () => {
         imageImportChannels.selectLocal,
         imageImportChannels.importBytes,
         imageImportChannels.importUrl,
+        imageImportChannels.selectEntityReferenceLocal,
+        imageImportChannels.importEntityReferenceBytes,
+        imageImportChannels.importEntityReferenceUrl,
       ].sort(),
     );
     unregister();
@@ -69,6 +72,29 @@ describe('handlers IPC de ingresso de imagens', () => {
     expect(service.selectCalls).toBe(0);
   });
 
+  it('valida e encaminha importação estrita para uma entidade', async () => {
+    const handlers = new Map<string, CapturedHandler>();
+    const service = new FakeImageImportService();
+    register(handlers, service);
+    const input = {
+      campaignId: identity().campaignId,
+      entityId: '20000000-0000-4000-8000-000000000001',
+      revision: 3,
+      bytes: new Uint8Array([1, 2, 3]),
+      metadata: { originalFilename: 'retrato.png', sourceKind: 'clipboard' },
+    };
+    const handler = required(handlers, imageImportChannels.importEntityReferenceBytes);
+    expect(await handler(event(42), input)).toMatchObject({
+      ok: true,
+      data: { status: 'oversize_choice_required' },
+    });
+    expect(service.lastEntityBytesInput).toEqual(input);
+    expect(await handler(event(42), { ...input, path: 'C:\\privado\\retrato.png' })).toMatchObject({
+      ok: false,
+      error: { code: 'VALIDATION_ERROR' },
+    });
+  });
+
   it('valida URL estrita e não aceita paths ou credenciais pelo IPC', async () => {
     const handlers = new Map<string, CapturedHandler>();
     const service = new FakeImageImportService();
@@ -100,6 +126,7 @@ class FakeImageImportService {
   public selectCalls = 0;
   public lastBytesInput: unknown = null;
   public lastUrlInput: unknown = null;
+  public lastEntityBytesInput: unknown = null;
 
   public selectLocal(): Promise<{ status: 'cancelled' }> {
     this.selectCalls += 1;
@@ -130,6 +157,19 @@ class FakeImageImportService {
       maximumHeight: 1024 as const,
       allowedModes: ['resize', 'crop'] as const,
     });
+  }
+
+  public selectEntityReferenceLocal(): Promise<{ status: 'cancelled' }> {
+    return Promise.resolve({ status: 'cancelled' });
+  }
+
+  public importEntityReferenceBytes(input: unknown) {
+    this.lastEntityBytesInput = input;
+    return this.importBytes(input);
+  }
+
+  public importEntityReferenceUrl(input: unknown) {
+    return this.importUrl(input);
   }
 }
 

@@ -52,6 +52,7 @@ function entity(id: string, campaignId: string): Entity {
     id,
     campaignId,
     entityTypeId: '30000000-0000-4000-8000-000000000001',
+    referenceImageAttachmentId: null,
     name: 'Entidade',
     summary: null,
     canonState: 'accepted',

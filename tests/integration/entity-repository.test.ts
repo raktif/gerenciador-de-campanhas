@@ -209,6 +209,7 @@ function createEntity(id: string, name: string, overrides: Partial<Entity> = {})
     id,
     campaignId,
     entityTypeId,
+    referenceImageAttachmentId: null,
     name,
     summary: null,
     canonState: 'accepted',

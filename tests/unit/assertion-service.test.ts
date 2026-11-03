@@ -302,6 +302,7 @@ function createEntity(
     id,
     campaignId: ownerCampaignId,
     entityTypeId: '10000000-0000-4000-8000-000000000001',
+    referenceImageAttachmentId: null,
     name: id,
     summary: null,
     canonState: 'accepted',

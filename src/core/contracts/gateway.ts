@@ -4,6 +4,7 @@ import type { CampaignGateway } from './campaigns';
 import type { CampaignCoverGateway } from './campaign-covers';
 import type { DiagnosticsGateway } from './diagnostics';
 import type { EntityGateway } from './entities';
+import type { EntityReferenceImageGateway } from './entity-reference-images';
 import type { EntityTypeGateway } from './entity-types';
 import type { EventGateway } from './events';
 import type { FieldDefinitionGateway } from './field-definitions';
@@ -25,7 +26,7 @@ export interface CampaignManagerGateway {
   diagnostics: DiagnosticsGateway;
   phaseZero: PhaseZeroGateway;
   campaigns: CampaignGateway;
-  images: ImageImportGateway & CampaignCoverGateway;
+  images: ImageImportGateway & CampaignCoverGateway & EntityReferenceImageGateway;
   entityTypes: EntityTypeGateway;
   relationshipTypes: RelationshipTypeGateway;
   relationships: RelationshipGateway;

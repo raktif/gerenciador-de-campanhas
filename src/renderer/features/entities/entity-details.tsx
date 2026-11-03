@@ -8,6 +8,7 @@ import type { Relationship } from '../../../core/contracts/relationships';
 import { Button, ButtonGroup } from '../../components/actions';
 import { ContextualHelp } from '../../components/contextual-help';
 import { fieldDefinitionHelpContent } from '../../content/contextual-help';
+import { EntityReferenceImageManager } from './entity-reference-image';
 
 export function EntityDetailsView({
   campaign,
@@ -19,6 +20,7 @@ export function EntityDetailsView({
   onOpenNotes,
   onOpenTimeline,
   onOpenRelationships,
+  onDetailsChange,
   focusRelationshipButton = false,
 }: {
   campaign: Campaign;
@@ -30,6 +32,7 @@ export function EntityDetailsView({
   onOpenNotes: () => void;
   onOpenTimeline: () => void;
   onOpenRelationships: (entity: EntityDetails['entity']) => void;
+  onDetailsChange: (details: EntityDetails) => void;
   focusRelationshipButton?: boolean;
 }): React.JSX.Element {
   const [fields, setFields] = useState<FieldDefinition[]>([]);
@@ -128,6 +131,13 @@ export function EntityDetailsView({
             Editar
           </Button>
         </header>
+
+        <div className="border-b semantic-border px-8 py-7">
+          <EntityReferenceImageManager
+            entity={details.entity}
+            onEntityChange={(entity) => onDetailsChange(replaceDetailsEntity(details, entity))}
+          />
+        </div>
 
         <div className="space-y-8 px-8 py-8">
           {details.entity.summary === null ? null : (
@@ -257,6 +267,13 @@ export function EntityDetailsView({
       </article>
     </section>
   );
+}
+
+export function replaceDetailsEntity(
+  details: EntityDetails,
+  entity: EntityDetails['entity'],
+): EntityDetails {
+  return { ...details, entity };
 }
 
 function Detail({
