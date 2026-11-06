@@ -1,6 +1,7 @@
 import type { IpcMain, IpcMainInvokeEvent } from 'electron';
 import {
   entityReferenceImagePreviewSchema,
+  entityReferenceImageDisplaySchema,
   entityReferenceImageSchema,
   getEntityReferenceImageInputSchema,
   removeEntityReferenceImageInputSchema,
@@ -46,6 +47,18 @@ export function registerEntityReferenceImageIpcHandlers(
           entityReferenceImagePreviewSchema,
           dependencies,
           (validated) => dependencies.service.getPreview(validated),
+        ),
+    },
+    {
+      channel: imageImportChannels.getEntityReferenceDisplay,
+      handler: (event, input) =>
+        executeIpcHandler(
+          event,
+          input,
+          getEntityReferenceImageInputSchema,
+          entityReferenceImageDisplaySchema,
+          dependencies,
+          (validated) => dependencies.service.getDisplay(validated),
         ),
     },
     {

@@ -1,6 +1,9 @@
 import type { IpcMain, IpcMainInvokeEvent } from 'electron';
 import { describe, expect, it } from 'vitest';
-import { imageImportChannels } from '../../src/core/contracts/ipc-channels';
+import {
+  imageFieldValueChannels,
+  imageImportChannels,
+} from '../../src/core/contracts/ipc-channels';
 import { registerImageImportIpcHandlers } from '../../src/main/ipc/image-import-handlers';
 import type { ImageImportService } from '../../src/main/services/image-import-service';
 import { TestLogger } from '../helpers/test-logger';
@@ -19,6 +22,9 @@ describe('handlers IPC de ingresso de imagens', () => {
         imageImportChannels.selectEntityReferenceLocal,
         imageImportChannels.importEntityReferenceBytes,
         imageImportChannels.importEntityReferenceUrl,
+        imageFieldValueChannels.selectLocal,
+        imageFieldValueChannels.importBytes,
+        imageFieldValueChannels.importUrl,
       ].sort(),
     );
     unregister();
@@ -169,6 +175,18 @@ class FakeImageImportService {
   }
 
   public importEntityReferenceUrl(input: unknown) {
+    return this.importUrl(input);
+  }
+
+  public selectImageFieldLocal(): Promise<{ status: 'cancelled' }> {
+    return Promise.resolve({ status: 'cancelled' });
+  }
+
+  public importImageFieldBytes(input: unknown) {
+    return this.importBytes(input);
+  }
+
+  public importImageFieldUrl(input: unknown) {
     return this.importUrl(input);
   }
 }

@@ -8,13 +8,14 @@ import { TestLogger } from '../helpers/test-logger';
 type CapturedHandler = (event: IpcMainInvokeEvent, input: unknown) => Promise<unknown>;
 
 describe('handlers IPC da imagem de referência', () => {
-  it('registra e remove somente os quatro canais de associação', () => {
+  it('registra e remove somente os canais de associação e leitura', () => {
     const handlers = new Map<string, CapturedHandler>();
     const unregister = register(handlers, new FakeEntityReferenceImageService());
     expect([...handlers.keys()].sort()).toEqual(
       [
         imageImportChannels.getEntityReference,
         imageImportChannels.getEntityReferencePreview,
+        imageImportChannels.getEntityReferenceDisplay,
         imageImportChannels.setEntityReference,
         imageImportChannels.removeEntityReference,
       ].sort(),
@@ -35,12 +36,15 @@ describe('handlers IPC da imagem de referência', () => {
     expect(
       await required(handlers, imageImportChannels.getEntityReferencePreview)(event(42), identity),
     ).toMatchObject({ ok: true, data: { attachmentId, mimeType: 'image/webp' } });
+    expect(
+      await required(handlers, imageImportChannels.getEntityReferenceDisplay)(event(42), identity),
+    ).toMatchObject({ ok: true, data: { attachmentId, mimeType: 'image/webp' } });
     await required(handlers, imageImportChannels.setEntityReference)(event(42), setInput);
     await required(handlers, imageImportChannels.removeEntityReference)(event(42), {
       ...identity,
       revision: 2,
     });
-    expect(service.calls).toEqual(['get', 'preview', 'set', 'remove']);
+    expect(service.calls).toEqual(['get', 'preview', 'display', 'set', 'remove']);
     expect(
       await required(handlers, imageImportChannels.setEntityReference)(event(42), {
         ...setInput,
@@ -58,7 +62,9 @@ describe('handlers IPC da imagem de referência', () => {
       ok: false,
       error: { code: 'IPC_SENDER_NOT_ALLOWED' },
     });
-    expect(await handler(event(42), { campaignId: 'inválida', entityId, revision: 0 })).toMatchObject({
+    expect(
+      await handler(event(42), { campaignId: 'inválida', entityId, revision: 0 }),
+    ).toMatchObject({
       ok: false,
       error: { code: 'VALIDATION_ERROR' },
     });
@@ -80,13 +86,27 @@ class FakeEntityReferenceImageService {
       bytes: new Uint8Array([0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50]),
     };
   }
+  public getDisplay() {
+    this.calls.push('display');
+    return {
+      attachmentId,
+      mimeType: 'image/webp' as const,
+      bytes: new Uint8Array([0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50]),
+    };
+  }
   public set() {
     this.calls.push('set');
-    return { entity: { ...entity, referenceImageAttachmentId: attachmentId, revision: 2 }, attachment };
+    return {
+      entity: { ...entity, referenceImageAttachmentId: attachmentId, revision: 2 },
+      attachment,
+    };
   }
   public remove() {
     this.calls.push('remove');
-    return { entity: { ...entity, referenceImageAttachmentId: null, revision: 3 }, attachment: null };
+    return {
+      entity: { ...entity, referenceImageAttachmentId: null, revision: 3 },
+      attachment: null,
+    };
   }
 }
 

@@ -11,7 +11,13 @@ import {
   importEntityReferenceImageUrlInputSchema,
   selectLocalEntityReferenceImageInputSchema,
 } from '../../core/contracts/entity-reference-images';
-import { imageImportChannels } from '../../core/contracts/ipc-channels';
+import {
+  imageFieldValueImportResultSchema,
+  importImageFieldValueBytesInputSchema,
+  importImageFieldValueUrlInputSchema,
+  selectLocalImageFieldValueInputSchema,
+} from '../../core/contracts/image-field-values';
+import { imageFieldValueChannels, imageImportChannels } from '../../core/contracts/ipc-channels';
 import type { Result } from '../../core/contracts/result';
 import type { Logger } from '../../core/logging/logger';
 import type { ImageImportService } from '../services/image-import-service';
@@ -101,6 +107,42 @@ export function registerImageImportIpcHandlers(
           entityReferenceImageImportResultSchema,
           dependencies,
           (validatedInput) => dependencies.service.importEntityReferenceUrl(validatedInput),
+        ),
+    },
+    {
+      channel: imageFieldValueChannels.selectLocal,
+      handler: (event, input) =>
+        executeIpcHandler(
+          event,
+          input,
+          selectLocalImageFieldValueInputSchema,
+          imageFieldValueImportResultSchema,
+          dependencies,
+          (validatedInput) => dependencies.service.selectImageFieldLocal(validatedInput),
+        ),
+    },
+    {
+      channel: imageFieldValueChannels.importBytes,
+      handler: (event, input) =>
+        executeIpcHandler(
+          event,
+          input,
+          importImageFieldValueBytesInputSchema,
+          imageFieldValueImportResultSchema,
+          dependencies,
+          (validatedInput) => dependencies.service.importImageFieldBytes(validatedInput),
+        ),
+    },
+    {
+      channel: imageFieldValueChannels.importUrl,
+      handler: (event, input) =>
+        executeIpcHandler(
+          event,
+          input,
+          importImageFieldValueUrlInputSchema,
+          imageFieldValueImportResultSchema,
+          dependencies,
+          (validatedInput) => dependencies.service.importImageFieldUrl(validatedInput),
         ),
     },
   ];

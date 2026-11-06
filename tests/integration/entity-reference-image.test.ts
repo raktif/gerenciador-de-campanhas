@@ -68,6 +68,12 @@ describe('imagem de referência da entidade', () => {
     });
     expect(preview).toMatchObject({ attachmentId: imported.attachment.id, mimeType: 'image/webp' });
     expect(preview?.bytes.byteLength).toBeGreaterThan(0);
+    const display = await fixture.references.getDisplay({
+      campaignId: firstCampaignId,
+      entityId: firstEntityId,
+    });
+    expect(display).toMatchObject({ attachmentId: imported.attachment.id, mimeType: 'image/webp' });
+    expect(display.bytes.byteLength).toBeGreaterThan(preview?.bytes.byteLength ?? 0);
     expect(() =>
       fixture.attachments.updateProcessingStatus({
         campaignId: firstCampaignId,

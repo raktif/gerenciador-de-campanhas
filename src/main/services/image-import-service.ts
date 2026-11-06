@@ -21,6 +21,16 @@ import {
   type ImportEntityReferenceImageUrlInput,
   type SelectLocalEntityReferenceImageInput,
 } from '../../core/contracts/entity-reference-images';
+import {
+  imageFieldValueImportResultSchema,
+  importImageFieldValueBytesInputSchema,
+  importImageFieldValueUrlInputSchema,
+  selectLocalImageFieldValueInputSchema,
+  type ImageFieldValueImportResult,
+  type ImportImageFieldValueBytesInput,
+  type ImportImageFieldValueUrlInput,
+  type SelectLocalImageFieldValueInput,
+} from '../../core/contracts/image-field-values';
 import { maximumImageBytes } from '../../core/contracts/image-processing';
 import { AppError } from '../../core/errors/app-error';
 import type { DataDirectories } from '../../core/storage/data-directories';
@@ -28,6 +38,7 @@ import type {
   AttachmentPersistenceRecord,
   AttachmentRepository,
 } from '../../db/repositories/attachment-repository';
+import type { ImageFieldValueRepository } from '../../db/repositories/image-field-value-repository';
 import type { ImageProcessingService } from './image-processing-service';
 import type { ImageDownloader } from './secure-image-download-service';
 
@@ -35,6 +46,7 @@ export type SelectImageFile = () => Promise<string | null>;
 
 export interface ImageImportServiceDependencies {
   repository: AttachmentRepository;
+  imageFieldValues?: Pick<ImageFieldValueRepository, 'insertWithAttachment'>;
   processor: ImageProcessingService;
   directories: Pick<DataDirectories, 'attachments' | 'thumbnails' | 'temporary'>;
   selectImageFile: SelectImageFile;
@@ -50,6 +62,8 @@ export class ImageImportService {
   private readonly pendingUrlImports = new Map<string, PendingUrlImport>();
   private readonly pendingEntityLocalImports = new Map<string, PendingEntityLocalImport>();
   private readonly pendingEntityUrlImports = new Map<string, PendingEntityUrlImport>();
+  private readonly pendingFieldLocalImports = new Map<string, PendingFieldLocalImport>();
+  private readonly pendingFieldUrlImports = new Map<string, PendingFieldUrlImport>();
 
   public constructor(private readonly dependencies: ImageImportServiceDependencies) {
     this.now = dependencies.now ?? (() => new Date());
@@ -314,13 +328,160 @@ export class ImageImportService {
     return entityReferenceImageImportResultSchema.parse({ ...result, pendingImportId });
   }
 
+  public async selectImageFieldLocal(
+    input: SelectLocalImageFieldValueInput,
+  ): Promise<ImageFieldValueImportResult> {
+    const parsed = selectLocalImageFieldValueInputSchema.parse(input);
+    this.prunePendingFieldLocalImports();
+    if (parsed.pendingImportId !== undefined) {
+      const pending = this.pendingFieldLocalImports.get(parsed.pendingImportId);
+      this.pendingFieldLocalImports.delete(parsed.pendingImportId);
+      if (
+        pending?.campaignId !== parsed.campaignId ||
+        pending.entityId !== parsed.entityId ||
+        pending.fieldDefinitionId !== parsed.fieldDefinitionId
+      ) {
+        throw new AppError(
+          'IMAGE_PENDING_IMPORT_INVALID',
+          'A imagem pendente expirou ou é inválida.',
+        );
+      }
+      return this.processAndPersist({
+        campaignId: pending.campaignId,
+        entityId: pending.entityId,
+        fieldDefinitionId: pending.fieldDefinitionId,
+        caption: pending.caption,
+        altText: pending.altText,
+        ...(parsed.oversizeMode === undefined ? {} : { oversizeMode: parsed.oversizeMode }),
+        bytes: pending.bytes,
+        originalFilename: pending.originalFilename,
+        sourceKind: 'file',
+      });
+    }
+    const selectedPath = await this.dependencies.selectImageFile();
+    if (selectedPath === null) return { status: 'cancelled' };
+    const bytes = await readBoundedSelectedFile(selectedPath);
+    const request: InternalFieldImportInput & { sourceKind: 'file' } = {
+      campaignId: parsed.campaignId,
+      entityId: parsed.entityId,
+      fieldDefinitionId: parsed.fieldDefinitionId,
+      caption: parsed.caption,
+      altText: parsed.altText,
+      ...(parsed.oversizeMode === undefined ? {} : { oversizeMode: parsed.oversizeMode }),
+      bytes,
+      originalFilename: path.basename(selectedPath),
+      sourceKind: 'file',
+    };
+    const result = await this.processAndPersist(request);
+    if (result.status !== 'oversize_choice_required') return result;
+    const pendingImportId = this.createId();
+    this.pendingFieldLocalImports.set(pendingImportId, {
+      ...request,
+      expiresAt: this.now().getTime() + pendingImportLifetimeMilliseconds,
+    });
+    return imageFieldValueImportResultSchema.parse({ ...result, pendingImportId });
+  }
+
+  public async importImageFieldBytes(
+    input: ImportImageFieldValueBytesInput,
+  ): Promise<ImageFieldValueImportResult> {
+    const parsed = importImageFieldValueBytesInputSchema.parse(input);
+    return this.processAndPersist({
+      campaignId: parsed.campaignId,
+      entityId: parsed.entityId,
+      fieldDefinitionId: parsed.fieldDefinitionId,
+      caption: parsed.caption,
+      altText: parsed.altText,
+      ...(parsed.oversizeMode === undefined ? {} : { oversizeMode: parsed.oversizeMode }),
+      bytes: parsed.bytes,
+      originalFilename: parsed.metadata.originalFilename,
+      sourceKind: parsed.metadata.sourceKind,
+      ...(parsed.metadata.declaredMimeType === undefined
+        ? {}
+        : { declaredMimeType: parsed.metadata.declaredMimeType }),
+    });
+  }
+
+  public async importImageFieldUrl(
+    input: ImportImageFieldValueUrlInput,
+  ): Promise<ImageFieldValueImportResult> {
+    const parsed = importImageFieldValueUrlInputSchema.parse(input);
+    this.prunePendingFieldUrlImports();
+    if (parsed.pendingImportId !== undefined) {
+      const pending = this.pendingFieldUrlImports.get(parsed.pendingImportId);
+      this.pendingFieldUrlImports.delete(parsed.pendingImportId);
+      if (
+        pending?.campaignId !== parsed.campaignId ||
+        pending.entityId !== parsed.entityId ||
+        pending.fieldDefinitionId !== parsed.fieldDefinitionId ||
+        parsed.oversizeMode === undefined
+      ) {
+        throw new AppError(
+          'IMAGE_PENDING_IMPORT_INVALID',
+          'A imagem pendente expirou ou é inválida.',
+        );
+      }
+      return this.processAndPersist({
+        campaignId: pending.campaignId,
+        entityId: pending.entityId,
+        fieldDefinitionId: pending.fieldDefinitionId,
+        caption: pending.caption,
+        altText: pending.altText,
+        oversizeMode: parsed.oversizeMode,
+        bytes: pending.bytes,
+        originalFilename: pending.originalFilename,
+        sourceKind: 'url',
+        sourceUrl: pending.sourceUrl,
+        declaredMimeType: pending.contentType,
+        expectedMimeType: pending.contentType,
+      });
+    }
+    if (this.dependencies.downloader === undefined || parsed.url === undefined) {
+      throw new AppError(
+        'IMAGE_URL_IMPORT_UNAVAILABLE',
+        'A importação remota não está disponível.',
+      );
+    }
+    const downloaded = await this.dependencies.downloader.download(parsed.url);
+    const request: InternalFieldImportInput & {
+      sourceKind: 'url';
+      sourceUrl: string;
+      declaredMimeType: 'image/png' | 'image/jpeg' | 'image/webp';
+      expectedMimeType: 'image/png' | 'image/jpeg' | 'image/webp';
+    } = {
+      campaignId: parsed.campaignId,
+      entityId: parsed.entityId,
+      fieldDefinitionId: parsed.fieldDefinitionId,
+      caption: parsed.caption,
+      altText: parsed.altText,
+      ...(parsed.oversizeMode === undefined ? {} : { oversizeMode: parsed.oversizeMode }),
+      bytes: downloaded.bytes,
+      originalFilename: downloaded.originalFilename,
+      sourceKind: 'url',
+      sourceUrl: downloaded.sourceUrl,
+      declaredMimeType: downloaded.contentType,
+      expectedMimeType: downloaded.contentType,
+    };
+    const result = await this.processAndPersist(request);
+    if (result.status !== 'oversize_choice_required') return result;
+    const pendingImportId = this.createId();
+    this.pendingFieldUrlImports.set(pendingImportId, {
+      ...request,
+      requestedUrl: parsed.url,
+      contentType: downloaded.contentType,
+      expiresAt: this.now().getTime() + pendingImportLifetimeMilliseconds,
+    });
+    return imageFieldValueImportResultSchema.parse({ ...result, pendingImportId });
+  }
+
   private processAndPersist(input: InternalCoverImportInput): Promise<ImageImportResult>;
   private processAndPersist(
     input: InternalEntityImportInput,
   ): Promise<EntityReferenceImageImportResult>;
+  private processAndPersist(input: InternalFieldImportInput): Promise<ImageFieldValueImportResult>;
   private async processAndPersist(
     input: InternalImportInput,
-  ): Promise<ImageImportResult | EntityReferenceImageImportResult> {
+  ): Promise<ImageImportResult | EntityReferenceImageImportResult | ImageFieldValueImportResult> {
     const processed = await this.dependencies.processor.process({
       bytes: input.bytes,
       metadata: {
@@ -342,6 +503,10 @@ export class ImageImportService {
       );
     }
     if (processed.status === 'oversize_choice_required') {
+      if (input.fieldDefinitionId !== undefined)
+        return imageFieldValueImportResultSchema.parse(processed);
+      if (input.entityId !== undefined)
+        return entityReferenceImageImportResultSchema.parse(processed);
       return imageImportResultSchema.parse(processed);
     }
 
@@ -409,25 +574,45 @@ export class ImageImportService {
         updatedAt: timestamp,
         revision: 1,
       };
-      const result =
-        input.entityId === undefined
-          ? this.dependencies.repository.insertAndSetCampaignCover({
-              campaignId: input.campaignId,
-              campaignRevision: input.revision,
-              campaignUpdatedAt: timestamp,
-              attachment,
-            })
-          : this.dependencies.repository.insertAndSetEntityReferenceImage({
-              campaignId: input.campaignId,
-              entityId: input.entityId,
-              entityRevision: input.revision,
-              entityUpdatedAt: timestamp,
-              attachment,
-            });
+      if (input.fieldDefinitionId !== undefined) {
+        if (this.dependencies.imageFieldValues === undefined) {
+          throw new AppError(
+            'IMAGE_FIELD_IMPORT_UNAVAILABLE',
+            'A importação para campos de imagem não está disponível.',
+          );
+        }
+        const result = this.dependencies.imageFieldValues.insertWithAttachment({
+          campaignId: input.campaignId,
+          entityId: input.entityId,
+          fieldDefinitionId: input.fieldDefinitionId,
+          valueId: this.createId(),
+          caption: input.caption,
+          altText: input.altText,
+          timestamp,
+          attachment,
+        });
+        metadataCommitted = true;
+        return imageFieldValueImportResultSchema.parse({ status: 'imported', ...result });
+      }
+      if (input.entityId !== undefined) {
+        const result = this.dependencies.repository.insertAndSetEntityReferenceImage({
+          campaignId: input.campaignId,
+          entityId: input.entityId,
+          entityRevision: input.revision,
+          entityUpdatedAt: timestamp,
+          attachment,
+        });
+        metadataCommitted = true;
+        return entityReferenceImageImportResultSchema.parse({ status: 'imported', ...result });
+      }
+      const result = this.dependencies.repository.insertAndSetCampaignCover({
+        campaignId: input.campaignId,
+        campaignRevision: input.revision,
+        campaignUpdatedAt: timestamp,
+        attachment,
+      });
       metadataCommitted = true;
-      return input.entityId === undefined
-        ? imageImportResultSchema.parse({ status: 'imported', ...result })
-        : entityReferenceImageImportResultSchema.parse({ status: 'imported', ...result });
+      return imageImportResultSchema.parse({ status: 'imported', ...result });
     } catch (error) {
       if (!metadataCommitted) {
         await Promise.allSettled([
@@ -468,11 +653,24 @@ export class ImageImportService {
       if (pending.expiresAt <= now) this.pendingEntityUrlImports.delete(id);
     }
   }
+
+  private prunePendingFieldLocalImports(): void {
+    const now = this.now().getTime();
+    for (const [id, pending] of this.pendingFieldLocalImports) {
+      if (pending.expiresAt <= now) this.pendingFieldLocalImports.delete(id);
+    }
+  }
+
+  private prunePendingFieldUrlImports(): void {
+    const now = this.now().getTime();
+    for (const [id, pending] of this.pendingFieldUrlImports) {
+      if (pending.expiresAt <= now) this.pendingFieldUrlImports.delete(id);
+    }
+  }
 }
 
 interface InternalImportInputBase {
   campaignId: string;
-  revision: number;
   oversizeMode?: 'resize' | 'crop';
   bytes: Uint8Array;
   originalFilename: string;
@@ -483,14 +681,27 @@ interface InternalImportInputBase {
 }
 
 interface InternalCoverImportInput extends InternalImportInputBase {
+  revision: number;
   entityId?: never;
+  fieldDefinitionId?: never;
 }
 
 interface InternalEntityImportInput extends InternalImportInputBase {
+  revision: number;
   entityId: string;
+  fieldDefinitionId?: never;
 }
 
-type InternalImportInput = InternalCoverImportInput | InternalEntityImportInput;
+interface InternalFieldImportInput extends InternalImportInputBase {
+  revision?: never;
+  entityId: string;
+  fieldDefinitionId: string;
+  caption: string | null;
+  altText: string;
+}
+
+type InternalImportInput =
+  InternalCoverImportInput | InternalEntityImportInput | InternalFieldImportInput;
 
 interface PendingLocalImport {
   campaignId: string;
@@ -517,6 +728,19 @@ interface PendingEntityLocalImport extends PendingLocalImport {
 
 interface PendingEntityUrlImport extends PendingUrlImport {
   entityId: string;
+}
+
+interface PendingFieldLocalImport extends InternalFieldImportInput {
+  sourceKind: 'file';
+  expiresAt: number;
+}
+
+interface PendingFieldUrlImport extends InternalFieldImportInput {
+  sourceKind: 'url';
+  requestedUrl: string;
+  sourceUrl: string;
+  contentType: 'image/png' | 'image/jpeg' | 'image/webp';
+  expiresAt: number;
 }
 
 const pendingImportLifetimeMilliseconds = 5 * 60 * 1000;

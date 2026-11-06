@@ -6,6 +6,7 @@ export const attachmentSourceKinds = ['file', 'url', 'clipboard', 'drag_drop'] a
 export const attachmentProcessingStatuses = ['pending', 'ready', 'failed'] as const;
 export const attachmentRevisionSchema = z.number().int().positive();
 export const maximumAttachmentPreviewBytes = 2 * 1024 * 1024;
+export const maximumAttachmentDisplayBytes = 10 * 1024 * 1024;
 
 export const attachmentSchema = z
   .object({
@@ -48,6 +49,22 @@ export const attachmentPreviewSchema = z
   .strict()
   .nullable();
 export type AttachmentPreview = z.infer<typeof attachmentPreviewSchema>;
+
+export const attachmentDisplaySchema = z
+  .object({
+    attachmentId: z.uuid(),
+    mimeType: z.literal('image/webp'),
+    bytes: z.custom<Uint8Array>(
+      (value) =>
+        value instanceof Uint8Array &&
+        value.byteLength > 0 &&
+        value.byteLength <= maximumAttachmentDisplayBytes &&
+        hasWebpMagic(value),
+      'A imagem ampliada deve ser um WebP válido de até 10 MB.',
+    ),
+  })
+  .strict();
+export type AttachmentDisplay = z.infer<typeof attachmentDisplaySchema>;
 
 export const setCampaignCoverInputSchema = z
   .object({

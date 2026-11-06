@@ -176,6 +176,36 @@ describe('FieldDefinitionService', () => {
         .code,
     ).toBe('REVISION_CONFLICT');
   });
+
+  it('rejeita configuração incompatível ao converter um campo para imagem', () => {
+    const service = createService(
+      new MemoryFieldDefinitionRepository([
+        createField({ dataType: 'short_text', required: true, searchable: true }),
+      ]),
+    );
+
+    expect(
+      captureAppError(() =>
+        service.update({
+          campaignId,
+          entityTypeId,
+          id: fieldId,
+          revision: 1,
+          patch: { dataType: 'image' },
+        }),
+      ).code,
+    ).toBe('INVALID_IMAGE_FIELD_CONFIG');
+
+    expect(
+      service.update({
+        campaignId,
+        entityTypeId,
+        id: fieldId,
+        revision: 1,
+        patch: { dataType: 'image', required: false, searchable: false },
+      }),
+    ).toMatchObject({ dataType: 'image', required: false, searchable: false, revision: 2 });
+  });
 });
 
 class MemoryFieldDefinitionRepository implements FieldDefinitionRepositoryPort {

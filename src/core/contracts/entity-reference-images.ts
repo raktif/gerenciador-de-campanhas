@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { attachmentPreviewSchema, attachmentSchema } from './attachments';
+import { attachmentDisplaySchema, attachmentPreviewSchema, attachmentSchema } from './attachments';
 import { entitySchema } from './entities';
 import {
   imageBytesSchema,
@@ -39,9 +39,7 @@ export const removeEntityReferenceImageInputSchema = z
     revision: z.number().int().positive(),
   })
   .strict();
-export type RemoveEntityReferenceImageInput = z.infer<
-  typeof removeEntityReferenceImageInputSchema
->;
+export type RemoveEntityReferenceImageInput = z.infer<typeof removeEntityReferenceImageInputSchema>;
 
 export const selectLocalEntityReferenceImageInputSchema = z
   .object({ ...entityReferenceIdentitySchema, pendingImportId: z.uuid().optional() })
@@ -138,6 +136,8 @@ export type EntityReferenceImageImportResult = z.infer<
 
 export const entityReferenceImagePreviewSchema = attachmentPreviewSchema;
 export type EntityReferenceImagePreview = z.infer<typeof entityReferenceImagePreviewSchema>;
+export const entityReferenceImageDisplaySchema = attachmentDisplaySchema;
+export type EntityReferenceImageDisplay = z.infer<typeof entityReferenceImageDisplaySchema>;
 
 export interface EntityReferenceImageGateway {
   selectEntityReferenceLocal(
@@ -149,15 +149,14 @@ export interface EntityReferenceImageGateway {
   importEntityReferenceUrl(
     input: ImportEntityReferenceImageUrlInput,
   ): Promise<Result<EntityReferenceImageImportResult>>;
-  getEntityReference(
-    input: GetEntityReferenceImageInput,
-  ): Promise<Result<EntityReferenceImage>>;
+  getEntityReference(input: GetEntityReferenceImageInput): Promise<Result<EntityReferenceImage>>;
   getEntityReferencePreview(
     input: GetEntityReferenceImageInput,
   ): Promise<Result<EntityReferenceImagePreview>>;
-  setEntityReference(
-    input: SetEntityReferenceImageInput,
-  ): Promise<Result<EntityReferenceImage>>;
+  getEntityReferenceDisplay(
+    input: GetEntityReferenceImageInput,
+  ): Promise<Result<EntityReferenceImageDisplay>>;
+  setEntityReference(input: SetEntityReferenceImageInput): Promise<Result<EntityReferenceImage>>;
   removeEntityReference(
     input: RemoveEntityReferenceImageInput,
   ): Promise<Result<EntityReferenceImage>>;

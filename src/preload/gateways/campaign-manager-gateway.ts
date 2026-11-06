@@ -84,7 +84,22 @@ import {
   type EntityReferenceImage,
   type EntityReferenceImageImportResult,
   type EntityReferenceImagePreview,
+  type EntityReferenceImageDisplay,
 } from '../../core/contracts/entity-reference-images';
+import {
+  getImageFieldValueInputSchema,
+  importImageFieldValueBytesInputSchema,
+  importImageFieldValueUrlInputSchema,
+  listImageFieldValuesInputSchema,
+  moveImageFieldValueInputSchema,
+  removeImageFieldValueInputSchema,
+  selectLocalImageFieldValueInputSchema,
+  updateImageFieldValueInputSchema,
+  type ImageFieldValueDetails,
+  type ImageFieldValueImportResult,
+  type ImageFieldValuePreview,
+  type ImageFieldValueDisplay,
+} from '../../core/contracts/image-field-values';
 import {
   copyStartupDiagnosticInputSchema,
   type CopiedStartupDiagnostic,
@@ -150,6 +165,7 @@ import {
   eventChannels,
   fieldDefinitionChannels,
   inboxChannels,
+  imageFieldValueChannels,
   imageImportChannels,
   noteChannels,
   phaseZeroChannels,
@@ -329,6 +345,12 @@ export function createCampaignManagerGateway(
           input,
           getEntityReferenceImageInputSchema,
         ),
+      getEntityReferenceDisplay: (input) =>
+        invoke<EntityReferenceImageDisplay>(
+          imageImportChannels.getEntityReferenceDisplay,
+          input,
+          getEntityReferenceImageInputSchema,
+        ),
       setEntityReference: (input) =>
         invoke<EntityReferenceImage>(
           imageImportChannels.setEntityReference,
@@ -340,6 +362,62 @@ export function createCampaignManagerGateway(
           imageImportChannels.removeEntityReference,
           input,
           removeEntityReferenceImageInputSchema,
+        ),
+    },
+    imageFieldValues: {
+      selectLocal: (input) =>
+        invoke<ImageFieldValueImportResult>(
+          imageFieldValueChannels.selectLocal,
+          input,
+          selectLocalImageFieldValueInputSchema,
+        ),
+      importBytes: (input) =>
+        invoke<ImageFieldValueImportResult>(
+          imageFieldValueChannels.importBytes,
+          input,
+          importImageFieldValueBytesInputSchema,
+        ),
+      importUrl: (input) =>
+        invoke<ImageFieldValueImportResult>(
+          imageFieldValueChannels.importUrl,
+          input,
+          importImageFieldValueUrlInputSchema,
+        ),
+      list: (input) =>
+        invoke<ImageFieldValueDetails[]>(
+          imageFieldValueChannels.list,
+          input,
+          listImageFieldValuesInputSchema,
+        ),
+      getPreview: (input) =>
+        invoke<ImageFieldValuePreview>(
+          imageFieldValueChannels.getPreview,
+          input,
+          getImageFieldValueInputSchema,
+        ),
+      getDisplay: (input) =>
+        invoke<ImageFieldValueDisplay>(
+          imageFieldValueChannels.getDisplay,
+          input,
+          getImageFieldValueInputSchema,
+        ),
+      update: (input) =>
+        invoke<ImageFieldValueDetails>(
+          imageFieldValueChannels.update,
+          input,
+          updateImageFieldValueInputSchema,
+        ),
+      remove: (input) =>
+        invoke<ImageFieldValueDetails>(
+          imageFieldValueChannels.remove,
+          input,
+          removeImageFieldValueInputSchema,
+        ),
+      move: (input) =>
+        invoke<ImageFieldValueDetails[]>(
+          imageFieldValueChannels.move,
+          input,
+          moveImageFieldValueInputSchema,
         ),
     },
     entityTypes: {

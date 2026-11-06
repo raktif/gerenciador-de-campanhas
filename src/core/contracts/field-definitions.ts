@@ -13,6 +13,7 @@ export const fieldDataTypes = [
   'multi_select',
   'entity_reference',
   'entity_reference_list',
+  'image',
   'progress',
   'structured',
 ] as const;
@@ -83,7 +84,8 @@ export const fieldDefinitionSchema = z
     updatedAt: z.iso.datetime(),
     revision: z.number().int().positive(),
   })
-  .strict();
+  .strict()
+  .superRefine(validateImageFieldConfiguration);
 export type FieldDefinition = z.infer<typeof fieldDefinitionSchema>;
 
 const editableFieldsSchema = z.object({
@@ -129,6 +131,7 @@ export const createFieldDefinitionInputSchema = z
     onDeleteBehavior: z.enum(referenceDeleteBehaviors).nullable().default(null),
   })
   .strict()
+  .superRefine(validateImageFieldConfiguration)
   .transform((input) => ({ ...input, sortOrder: 0 }));
 export type CreateFieldDefinitionInput = z.output<typeof createFieldDefinitionInputSchema>;
 export type CreateFieldDefinitionInputRequest = z.input<typeof createFieldDefinitionInputSchema>;
@@ -216,4 +219,41 @@ export interface FieldDefinitionGateway {
   archive(input: FieldDefinitionLifecycleInput): Promise<Result<FieldDefinition>>;
   restore(input: FieldDefinitionLifecycleInput): Promise<Result<FieldDefinition>>;
   move(input: MoveFieldDefinitionInput): Promise<Result<FieldDefinition[]>>;
+}
+
+function validateImageFieldConfiguration(
+  field: {
+    dataType: (typeof fieldDataTypes)[number];
+    required: boolean;
+    searchable: boolean;
+    defaultValue: unknown | null;
+    options: unknown | null;
+    validation: unknown | null;
+    referenceRelationshipTypeId: string | null;
+    referenceDirection: (typeof referenceDirections)[number] | null;
+    allowedTargetTypeIds: string[] | null;
+    onDeleteBehavior: (typeof referenceDeleteBehaviors)[number] | null;
+  },
+  context: z.RefinementCtx,
+): void {
+  if (field.dataType !== 'image') return;
+  const incompatibleFields = [
+    ['required', field.required],
+    ['searchable', field.searchable],
+    ['defaultValue', field.defaultValue !== null],
+    ['options', field.options !== null],
+    ['validation', field.validation !== null],
+    ['referenceRelationshipTypeId', field.referenceRelationshipTypeId !== null],
+    ['referenceDirection', field.referenceDirection !== null],
+    ['allowedTargetTypeIds', field.allowedTargetTypeIds !== null],
+    ['onDeleteBehavior', field.onDeleteBehavior !== null],
+  ] as const;
+  for (const [path, incompatible] of incompatibleFields) {
+    if (!incompatible) continue;
+    context.addIssue({
+      code: 'custom',
+      path: [path],
+      message: 'Campos de imagem não aceitam esta configuração.',
+    });
+  }
 }

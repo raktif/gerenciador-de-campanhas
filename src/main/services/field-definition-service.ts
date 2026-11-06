@@ -52,6 +52,7 @@ export class FieldDefinitionService {
 
   public create(input: CreateFieldDefinitionInput): FieldDefinition {
     const entityType = this.requireEntityType(input.campaignId, input.entityTypeId);
+    this.validateImageConfiguration(input);
     this.validateReferenceConfiguration(input.campaignId, input.entityTypeId, input);
     const timestamp = this.now();
     return this.dependencies.repository.insertWithGeneratedKey(
@@ -96,6 +97,32 @@ export class FieldDefinitionService {
 
   public update(input: UpdateFieldDefinitionInput): FieldDefinition {
     const current = this.requireFieldDefinition(input);
+    this.validateImageConfiguration({
+      dataType: input.patch.dataType ?? current.dataType,
+      required: input.patch.required ?? current.required,
+      searchable: input.patch.searchable ?? current.searchable,
+      defaultValue:
+        input.patch.defaultValue === undefined ? current.defaultValue : input.patch.defaultValue,
+      options: input.patch.options === undefined ? current.options : input.patch.options,
+      validation:
+        input.patch.validation === undefined ? current.validation : input.patch.validation,
+      referenceRelationshipTypeId:
+        input.patch.referenceRelationshipTypeId === undefined
+          ? current.referenceRelationshipTypeId
+          : input.patch.referenceRelationshipTypeId,
+      referenceDirection:
+        input.patch.referenceDirection === undefined
+          ? current.referenceDirection
+          : input.patch.referenceDirection,
+      allowedTargetTypeIds:
+        input.patch.allowedTargetTypeIds === undefined
+          ? current.allowedTargetTypeIds
+          : input.patch.allowedTargetTypeIds,
+      onDeleteBehavior:
+        input.patch.onDeleteBehavior === undefined
+          ? current.onDeleteBehavior
+          : input.patch.onDeleteBehavior,
+    });
     this.validateReferenceConfiguration(input.campaignId, input.entityTypeId, {
       dataType: input.patch.dataType ?? current.dataType,
       referenceRelationshipTypeId:
@@ -264,6 +291,40 @@ export class FieldDefinitionService {
           { campaignId, targetTypeId },
         );
       }
+    }
+  }
+
+  private validateImageConfiguration(
+    field: Pick<
+      FieldDefinition,
+      | 'dataType'
+      | 'required'
+      | 'searchable'
+      | 'defaultValue'
+      | 'options'
+      | 'validation'
+      | 'referenceRelationshipTypeId'
+      | 'referenceDirection'
+      | 'allowedTargetTypeIds'
+      | 'onDeleteBehavior'
+    >,
+  ): void {
+    if (field.dataType !== 'image') return;
+    if (
+      field.required ||
+      field.searchable ||
+      field.defaultValue !== null ||
+      field.options !== null ||
+      field.validation !== null ||
+      field.referenceRelationshipTypeId !== null ||
+      field.referenceDirection !== null ||
+      field.allowedTargetTypeIds !== null ||
+      field.onDeleteBehavior !== null
+    ) {
+      throw new AppError(
+        'INVALID_IMAGE_FIELD_CONFIG',
+        'Campos de imagem não aceitam obrigatoriedade, busca, valor padrão, opções, validação ou configuração de referência.',
+      );
     }
   }
 }

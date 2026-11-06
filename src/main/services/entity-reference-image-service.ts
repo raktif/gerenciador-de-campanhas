@@ -1,10 +1,12 @@
 import {
   entityReferenceImagePreviewSchema,
+  entityReferenceImageDisplaySchema,
   getEntityReferenceImageInputSchema,
   removeEntityReferenceImageInputSchema,
   setEntityReferenceImageInputSchema,
   type EntityReferenceImage,
   type EntityReferenceImagePreview,
+  type EntityReferenceImageDisplay,
   type GetEntityReferenceImageInput,
   type RemoveEntityReferenceImageInput,
   type SetEntityReferenceImageInput,
@@ -12,7 +14,7 @@ import {
 import { AppError } from '../../core/errors/app-error';
 import type { DataDirectories } from '../../core/storage/data-directories';
 import type { AttachmentRepository } from '../../db/repositories/attachment-repository';
-import { readAttachmentThumbnailPreview } from './attachment-preview';
+import { readAttachmentDisplay, readAttachmentThumbnailPreview } from './attachment-preview';
 
 type EntityReferenceImageRepository = Pick<
   AttachmentRepository,
@@ -28,7 +30,7 @@ export class EntityReferenceImageService {
   public constructor(
     private readonly dependencies: {
       repository: EntityReferenceImageRepository;
-      directories: Pick<DataDirectories, 'thumbnails'>;
+      directories: Pick<DataDirectories, 'attachments' | 'thumbnails'>;
       now?: () => Date;
     },
   ) {
@@ -66,12 +68,40 @@ export class EntityReferenceImageService {
     );
   }
 
+  public async getDisplay(
+    input: GetEntityReferenceImageInput,
+  ): Promise<EntityReferenceImageDisplay> {
+    const parsed = getEntityReferenceImageInputSchema.parse(input);
+    const reference = this.dependencies.repository.getEntityReferenceImage(
+      parsed.campaignId,
+      parsed.entityId,
+    );
+    if (reference.attachment === null) {
+      throw new AppError(
+        'ENTITY_REFERENCE_IMAGE_NOT_FOUND',
+        'A entidade não possui imagem de referência.',
+      );
+    }
+    const identity = this.dependencies.repository.findAttachmentDeletionIdentity(
+      reference.attachment.id,
+    );
+    if (
+      identity?.campaignId !== parsed.campaignId ||
+      identity.attachmentId !== reference.attachment.id
+    ) {
+      throw new AppError(
+        'ENTITY_REFERENCE_IMAGE_DISPLAY_INVALID',
+        'A imagem ampliada de referência é inválida.',
+      );
+    }
+    return entityReferenceImageDisplaySchema.parse(
+      await readAttachmentDisplay(this.dependencies.directories.attachments, identity),
+    );
+  }
+
   public set(input: SetEntityReferenceImageInput): EntityReferenceImage {
     const parsed = setEntityReferenceImageInputSchema.parse(input);
-    return this.dependencies.repository.setEntityReferenceImage(
-      parsed,
-      this.now().toISOString(),
-    );
+    return this.dependencies.repository.setEntityReferenceImage(parsed, this.now().toISOString());
   }
 
   public remove(input: RemoveEntityReferenceImageInput): EntityReferenceImage {

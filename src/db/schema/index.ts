@@ -396,6 +396,20 @@ export const fieldDefinitions = sqliteTable(
       'field_definitions_on_delete_valid',
       sql`${table.onDeleteBehavior} IS NULL OR ${table.onDeleteBehavior} IN ('restrict', 'unlink')`,
     ),
+    check(
+      'field_definitions_image_configuration_valid',
+      sql`${table.dataType} <> 'image' OR (
+        ${table.required} = 0
+        AND ${table.searchable} = 0
+        AND ${table.defaultValue} IS NULL
+        AND ${table.options} IS NULL
+        AND ${table.validation} IS NULL
+        AND ${table.referenceRelationshipTypeId} IS NULL
+        AND ${table.referenceDirection} IS NULL
+        AND ${table.allowedTargetTypeIds} IS NULL
+        AND ${table.onDeleteBehavior} IS NULL
+      )`,
+    ),
     check('field_definitions_sort_order_nonnegative', sql`${table.sortOrder} >= 0`),
     check('field_definitions_created_at_not_blank', sql`length(${table.createdAt}) > 0`),
     check('field_definitions_updated_at_not_blank', sql`length(${table.updatedAt}) > 0`),
@@ -488,6 +502,64 @@ export const fieldValues = sqliteTable(
       table.fieldDefinitionId,
     ),
     index('field_values_entity_idx').on(table.entityId, table.fieldDefinitionId),
+  ],
+);
+
+export const imageFieldValues = sqliteTable(
+  'image_field_values',
+  {
+    id: text('id').primaryKey(),
+    entityId: text('entity_id')
+      .notNull()
+      .references(() => entities.id, { onDelete: 'cascade' }),
+    fieldDefinitionId: text('field_definition_id')
+      .notNull()
+      .references(() => fieldDefinitions.id, { onDelete: 'restrict' }),
+    attachmentId: text('attachment_id')
+      .notNull()
+      .references(() => attachments.id, { onDelete: 'restrict' }),
+    caption: text('caption'),
+    altText: text('alt_text').notNull(),
+    sortOrder: integer('sort_order').notNull().default(0),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
+    revision: integer('revision').notNull().default(1),
+  },
+  (table) => [
+    check(
+      'image_field_values_id_uuid',
+      sql`length(${table.id}) = 36
+        AND substr(${table.id}, 9, 1) = '-'
+        AND substr(${table.id}, 14, 1) = '-'
+        AND substr(${table.id}, 19, 1) = '-'
+        AND substr(${table.id}, 24, 1) = '-'
+        AND ${table.id} = lower(${table.id})
+        AND replace(${table.id}, '-', '') NOT GLOB '*[^0-9a-f]*'`,
+    ),
+    check(
+      'image_field_values_caption_valid',
+      sql`${table.caption} IS NULL OR length(trim(${table.caption})) BETWEEN 1 AND 1000`,
+    ),
+    check(
+      'image_field_values_alt_text_valid',
+      sql`length(trim(${table.altText})) BETWEEN 1 AND 1000`,
+    ),
+    check('image_field_values_sort_order_nonnegative', sql`${table.sortOrder} >= 0`),
+    check('image_field_values_created_at_not_blank', sql`length(${table.createdAt}) > 0`),
+    check('image_field_values_updated_at_not_blank', sql`length(${table.updatedAt}) > 0`),
+    check('image_field_values_revision_positive', sql`${table.revision} > 0`),
+    uniqueIndex('image_field_values_entity_field_attachment_unique').on(
+      table.entityId,
+      table.fieldDefinitionId,
+      table.attachmentId,
+    ),
+    index('image_field_values_entity_field_sort_idx').on(
+      table.entityId,
+      table.fieldDefinitionId,
+      table.sortOrder,
+      table.id,
+    ),
+    index('image_field_values_attachment_idx').on(table.attachmentId),
   ],
 );
 

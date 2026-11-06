@@ -157,4 +157,41 @@ describe('contratos de definições de campo', () => {
       order: 'asc',
     });
   });
+
+  it('aceita campo de imagem somente com configuração compatível', () => {
+    expect(
+      createFieldDefinitionInputSchema.parse({
+        campaignId,
+        entityTypeId,
+        label: 'Brasão',
+        dataType: 'image',
+      }),
+    ).toMatchObject({
+      dataType: 'image',
+      required: false,
+      searchable: false,
+      defaultValue: null,
+      options: null,
+      validation: null,
+    });
+
+    for (const incompatible of [
+      { required: true },
+      { searchable: true },
+      { defaultValue: 'imagem' },
+      { options: ['uma'] },
+      { validation: { maximum: 1 } },
+      { referenceDirection: 'outgoing' },
+    ]) {
+      expect(() =>
+        createFieldDefinitionInputSchema.parse({
+          campaignId,
+          entityTypeId,
+          label: 'Brasão',
+          dataType: 'image',
+          ...incompatible,
+        }),
+      ).toThrow();
+    }
+  });
 });

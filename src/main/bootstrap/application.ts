@@ -20,6 +20,7 @@ import { AssertionRepository } from '../../db/repositories/assertion-repository'
 import { AppearanceRepository } from '../../db/repositories/appearance-repository';
 import { CampaignRepository } from '../../db/repositories/campaign-repository';
 import { AttachmentRepository } from '../../db/repositories/attachment-repository';
+import { ImageFieldValueRepository } from '../../db/repositories/image-field-value-repository';
 import { EntityRepository } from '../../db/repositories/entity-repository';
 import { EventRepository } from '../../db/repositories/event-repository';
 import { EntityTypeRepository } from '../../db/repositories/entity-type-repository';
@@ -35,6 +36,7 @@ import { SessionRepository } from '../../db/repositories/session-repository';
 import { registerCampaignIpcHandlers } from '../ipc/campaign-handlers';
 import { registerCampaignCoverIpcHandlers } from '../ipc/campaign-cover-handlers';
 import { registerImageImportIpcHandlers } from '../ipc/image-import-handlers';
+import { registerImageFieldValueIpcHandlers } from '../ipc/image-field-value-handlers';
 import { registerEntityReferenceImageIpcHandlers } from '../ipc/entity-reference-image-handlers';
 import { registerAppearanceIpcHandlers } from '../ipc/appearance-handlers';
 import { registerDiagnosticsIpcHandlers } from '../ipc/diagnostics-handlers';
@@ -57,6 +59,7 @@ import { CampaignService } from '../services/campaign-service';
 import { CampaignCoverService } from '../services/campaign-cover-service';
 import { recoverPendingAttachmentDeletions } from '../services/attachment-deletion-journal';
 import { ImageImportService } from '../services/image-import-service';
+import { ImageFieldValueService } from '../services/image-field-value-service';
 import { EntityReferenceImageService } from '../services/entity-reference-image-service';
 import { ImageProcessingService } from '../services/image-processing-service';
 import { SecureImageDownloadService } from '../services/secure-image-download-service';
@@ -110,6 +113,7 @@ export async function bootstrapApplication(): Promise<RunningApplication> {
   const phaseZeroRepository = new PhaseZeroRepository(database.orm);
   const campaignRepository = new CampaignRepository(database.orm);
   const attachmentRepository = new AttachmentRepository(database.native);
+  const imageFieldValueRepository = new ImageFieldValueRepository(database.native);
   try {
     const recovery = await recoverPendingAttachmentDeletions(attachmentRepository, directories);
     if (recovery.restored > 0 || recovery.purged > 0) {
@@ -204,6 +208,7 @@ export async function bootstrapApplication(): Promise<RunningApplication> {
   });
   const imageImportService = new ImageImportService({
     repository: attachmentRepository,
+    imageFieldValues: imageFieldValueRepository,
     processor: new ImageProcessingService(),
     downloader: new SecureImageDownloadService(),
     directories,
@@ -217,6 +222,16 @@ export async function bootstrapApplication(): Promise<RunningApplication> {
   });
   const unregisterImageImportIpc = registerImageImportIpcHandlers(ipcMain, {
     service: imageImportService,
+    logger,
+    authorizedWebContentsId: window.webContents.id,
+  });
+  const imageFieldValueService = new ImageFieldValueService({
+    repository: imageFieldValueRepository,
+    attachments: attachmentRepository,
+    directories,
+  });
+  const unregisterImageFieldValueIpc = registerImageFieldValueIpcHandlers(ipcMain, {
+    service: imageFieldValueService,
     logger,
     authorizedWebContentsId: window.webContents.id,
   });
@@ -390,6 +405,7 @@ export async function bootstrapApplication(): Promise<RunningApplication> {
       unregisterIpc();
       unregisterCampaignIpc();
       unregisterImageImportIpc();
+      unregisterImageFieldValueIpc();
       unregisterCampaignCoverIpc();
       unregisterEntityReferenceImageIpc();
       unregisterDiagnosticsIpc();

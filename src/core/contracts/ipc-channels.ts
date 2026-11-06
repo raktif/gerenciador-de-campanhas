@@ -39,8 +39,21 @@ export const imageImportChannels = {
   importEntityReferenceUrl: 'images:import-entity-reference-url',
   getEntityReference: 'images:get-entity-reference',
   getEntityReferencePreview: 'images:get-entity-reference-preview',
+  getEntityReferenceDisplay: 'images:get-entity-reference-display',
   setEntityReference: 'images:set-entity-reference',
   removeEntityReference: 'images:remove-entity-reference',
+} as const;
+
+export const imageFieldValueChannels = {
+  selectLocal: 'image-field-values:select-local',
+  importBytes: 'image-field-values:import-bytes',
+  importUrl: 'image-field-values:import-url',
+  list: 'image-field-values:list',
+  getPreview: 'image-field-values:get-preview',
+  getDisplay: 'image-field-values:get-display',
+  update: 'image-field-values:update',
+  remove: 'image-field-values:remove',
+  move: 'image-field-values:move',
 } as const;
 
 export const entityTypeChannels = {

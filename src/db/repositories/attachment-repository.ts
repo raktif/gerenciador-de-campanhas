@@ -91,7 +91,7 @@ export class AttachmentRepository {
       if (current !== input.campaignRevision)
         throw revisionConflict(input.campaignRevision, current);
 
-      insertAttachment(this.database, input.attachment);
+      insertAttachmentRecord(this.database, input.attachment);
       const update = this.database
         .prepare(
           `UPDATE campaigns
@@ -128,7 +128,7 @@ export class AttachmentRepository {
         input.entityId,
         input.entityRevision,
       );
-      insertAttachment(this.database, input.attachment);
+      insertAttachmentRecord(this.database, input.attachment);
       this.updateEntityReferenceImage(
         entity.campaignId,
         entity.id,
@@ -294,7 +294,8 @@ export class AttachmentRepository {
     }
     if (
       campaign.coverAttachmentId === input.attachmentId ||
-      this.isEntityReference(input.attachmentId)
+      this.isEntityReference(input.attachmentId) ||
+      this.isImageFieldValue(input.attachmentId)
     )
       throw attachmentInUse();
     return {
@@ -312,9 +313,11 @@ export class AttachmentRepository {
           `SELECT 1 FROM campaigns WHERE cover_attachment_id = ?
            UNION ALL
            SELECT 1 FROM entities WHERE reference_image_attachment_id = ?
+           UNION ALL
+           SELECT 1 FROM image_field_values WHERE attachment_id = ?
            LIMIT 1`,
         )
-        .get(input.attachmentId, input.attachmentId);
+        .get(input.attachmentId, input.attachmentId, input.attachmentId);
       if (referenced !== undefined) throw attachmentInUse();
       const deletion = this.database
         .prepare(
@@ -325,6 +328,9 @@ export class AttachmentRepository {
              )
              AND NOT EXISTS (
                SELECT 1 FROM entities WHERE reference_image_attachment_id = attachments.id
+             )
+             AND NOT EXISTS (
+               SELECT 1 FROM image_field_values WHERE attachment_id = attachments.id
              )`,
         )
         .run(input.attachmentId, input.campaignId, input.revision);
@@ -376,8 +382,7 @@ export class AttachmentRepository {
 
   private readEntity(campaignId: string, entityId: string): Entity | null {
     const row = this.database.prepare(entityPublicSelect).get(entityId, campaignId) as
-      | EntityRow
-      | undefined;
+      EntityRow | undefined;
     return row === undefined ? null : entitySchema.parse(toEntity(row));
   }
 
@@ -392,6 +397,14 @@ export class AttachmentRepository {
     return (
       this.database
         .prepare('SELECT 1 FROM entities WHERE reference_image_attachment_id = ? LIMIT 1')
+        .get(attachmentId) !== undefined
+    );
+  }
+
+  private isImageFieldValue(attachmentId: string): boolean {
+    return (
+      this.database
+        .prepare('SELECT 1 FROM image_field_values WHERE attachment_id = ? LIMIT 1')
         .get(attachmentId) !== undefined
     );
   }
@@ -532,7 +545,7 @@ interface EntityRow {
   revision: number;
 }
 
-function insertAttachment(
+export function insertAttachmentRecord(
   database: Database.Database,
   attachment: AttachmentPersistenceRecord,
 ): void {
@@ -639,7 +652,10 @@ function attachmentCampaignMismatch(): AppError {
 }
 
 function attachmentInUse(): AppError {
-  return new AppError('ATTACHMENT_IN_USE', 'O anexo não pode ser excluído enquanto estiver em uso.');
+  return new AppError(
+    'ATTACHMENT_IN_USE',
+    'O anexo não pode ser excluído enquanto estiver em uso.',
+  );
 }
 
 function entityNotFound(id: string): AppError {

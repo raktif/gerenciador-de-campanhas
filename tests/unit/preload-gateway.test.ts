@@ -29,6 +29,7 @@ describe('gateway do preload', () => {
       'entityTypes',
       'events',
       'fieldDefinitions',
+      'imageFieldValues',
       'images',
       'inbox',
       'notes',
@@ -54,6 +55,7 @@ describe('gateway do preload', () => {
       'getCover',
       'getCoverPreview',
       'getEntityReference',
+      'getEntityReferenceDisplay',
       'getEntityReferencePreview',
       'importBytes',
       'importEntityReferenceBytes',
@@ -65,6 +67,17 @@ describe('gateway do preload', () => {
       'selectLocal',
       'setCover',
       'setEntityReference',
+    ]);
+    expect(Object.keys(gateway.imageFieldValues).sort()).toEqual([
+      'getDisplay',
+      'getPreview',
+      'importBytes',
+      'importUrl',
+      'list',
+      'move',
+      'remove',
+      'selectLocal',
+      'update',
     ]);
     expect(Object.keys(gateway.appearance).sort()).toEqual([
       'getTheme',

@@ -55,6 +55,16 @@ test('adiciona, exibe nos detalhes e cartão, e remove imagem de referência', a
     ).toBeVisible();
     await expect(window.getByAltText('Imagem de referência de Gorel')).toBeVisible();
     await window.getByRole('button', { name: 'Fechar' }).click();
+    const amplifyReference = window.getByRole('button', {
+      name: 'Ampliar imagem de referência de Gorel',
+    });
+    await amplifyReference.click();
+    const referenceLightbox = window.getByRole('dialog', {
+      name: 'Visualização ampliada: Imagem de referência de Gorel',
+    });
+    await expect(referenceLightbox.getByAltText('Imagem de referência de Gorel')).toBeVisible();
+    await referenceLightbox.getByRole('button', { name: 'Fechar imagem ampliada' }).click();
+    await expect(amplifyReference).toBeFocused();
     await window.getByRole('button', { name: 'Voltar para entidades' }).click();
     await expect(
       window.getByTestId('entity-list').getByAltText('Imagem de referência de Gorel'),

@@ -10,6 +10,7 @@ import type { EventGateway } from './events';
 import type { FieldDefinitionGateway } from './field-definitions';
 import type { InboxGateway } from './inbox';
 import type { ImageImportGateway } from './image-imports';
+import type { ImageFieldValueGateway } from './image-field-values';
 import type { PhaseZeroGateway } from './phase-zero';
 import type { NoteGateway } from './notes';
 import type { RelationshipTypeGateway } from './relationship-types';
@@ -27,6 +28,7 @@ export interface CampaignManagerGateway {
   phaseZero: PhaseZeroGateway;
   campaigns: CampaignGateway;
   images: ImageImportGateway & CampaignCoverGateway & EntityReferenceImageGateway;
+  imageFieldValues: ImageFieldValueGateway;
   entityTypes: EntityTypeGateway;
   relationshipTypes: RelationshipTypeGateway;
   relationships: RelationshipGateway;

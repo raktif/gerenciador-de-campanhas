@@ -428,8 +428,12 @@ export function EntityForm(props: EntityFormProps): React.JSX.Element {
                 Os campos personalizados podem ficar em branco; apenas nome e tipo são obrigatórios.
               </p>
               {fields.map((field) =>
-                field.dataType === 'entity_reference' ||
-                field.dataType === 'entity_reference_list' ? (
+                field.dataType === 'image' ? (
+                  <p className="text-sm semantic-text-secondary md:col-span-2" key={field.id}>
+                    {field.label}: imagens são gerenciadas nos detalhes da entidade após salvar.
+                  </p>
+                ) : field.dataType === 'entity_reference' ||
+                  field.dataType === 'entity_reference_list' ? (
                   <ReferenceInputControl
                     disabled={props.busy}
                     entities={referenceEntities.filter(
@@ -736,13 +740,17 @@ function toFieldValueTexts(fieldValues: FieldValue[]): Record<string, string> {
   return result;
 }
 
-function toFieldValueInputs(
+export function toFieldValueInputs(
   fields: FieldDefinition[],
   values: Record<string, string>,
 ): FieldValueInput[] {
   const result: FieldValueInput[] = [];
   for (const field of fields) {
-    if (field.dataType === 'entity_reference' || field.dataType === 'entity_reference_list')
+    if (
+      field.dataType === 'image' ||
+      field.dataType === 'entity_reference' ||
+      field.dataType === 'entity_reference_list'
+    )
       continue;
     const raw = values[field.id];
     if (raw === undefined || raw.trim() === '') continue;

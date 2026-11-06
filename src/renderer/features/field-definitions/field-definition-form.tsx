@@ -94,6 +94,16 @@ export function FieldDefinitionForm(props: FormProps): React.JSX.Element {
     setValues((current) => ({
       ...current,
       dataType: value,
+      ...(value === 'image'
+        ? {
+            required: false,
+            searchable: false,
+            secretByDefault: false,
+            defaultValue: '',
+            options: '',
+            validation: '',
+          }
+        : {}),
       ...(value.startsWith('entity_reference')
         ? {}
         : {
@@ -106,6 +116,7 @@ export function FieldDefinitionForm(props: FormProps): React.JSX.Element {
   }
 
   const isReference = values.dataType.startsWith('entity_reference');
+  const isImage = values.dataType === 'image';
   useEffect(() => {
     if (!isReference) {
       setReferenceOptionsState('idle');
@@ -240,36 +251,49 @@ export function FieldDefinitionForm(props: FormProps): React.JSX.Element {
               ]}
             />
           </div>
+          {isImage ? (
+            <p className="rounded-xl semantic-surface-muted p-4 text-sm semantic-text-secondary">
+              Campos de imagem são sempre opcionais e não pesquisáveis; valor padrão, opções e
+              validação JSON ficam desativados. “Secreto por padrão” não se aplica a este tipo; as
+              imagens permanecem privadas e são servidas somente pelo canal seguro.
+            </p>
+          ) : null}
           <div className="flex flex-wrap gap-6 rounded-2xl semantic-surface-muted p-5">
             <Check
               label="Obrigatório"
               checked={values.required}
+              disabled={isImage}
               onChange={(v) => update('required', v)}
             />
             <Check
               label="Pesquisável"
               checked={values.searchable}
+              disabled={isImage}
               onChange={(v) => update('searchable', v)}
             />
             <Check
               label="Secreto por padrão"
               checked={values.secretByDefault}
+              disabled={isImage}
               onChange={(v) => update('secretByDefault', v)}
             />
           </div>
           <div className="grid gap-6 md:grid-cols-3">
             <JsonInput
               label="Valor padrão (JSON)"
+              disabled={isImage}
               value={values.defaultValue}
               onChange={(v) => update('defaultValue', v)}
             />
             <JsonInput
               label="Opções (JSON)"
+              disabled={isImage}
               value={values.options}
               onChange={(v) => update('options', v)}
             />
             <JsonInput
               label="Validação (JSON)"
+              disabled={isImage}
               value={values.validation}
               onChange={(v) => update('validation', v)}
             />
@@ -471,7 +495,22 @@ function displayJson(value: unknown): string {
   return value === null ? '' : JSON.stringify(value);
 }
 function dataTypeLabel(value: string): string {
-  return value.replaceAll('_', ' ');
+  return (
+    {
+      short_text: 'Texto curto',
+      long_text: 'Texto longo',
+      number: 'Número',
+      boolean: 'Sim/não',
+      date: 'Data',
+      single_select: 'Seleção única',
+      multi_select: 'Seleção múltipla',
+      entity_reference: 'Referência de entidade',
+      entity_reference_list: 'Lista de referências',
+      structured: 'Estruturado',
+      progress: 'Progresso',
+      image: 'Imagem',
+    }[value] ?? value.replaceAll('_', ' ')
+  );
 }
 
 function TextInput({
@@ -535,6 +574,7 @@ function TextArea({
   );
 }
 function JsonInput(props: {
+  disabled?: boolean;
   label: string;
   value: string;
   onChange: (value: string) => void;
@@ -544,6 +584,7 @@ function JsonInput(props: {
       {props.label}
       <textarea
         className={`${inputClass} min-h-24 font-mono text-sm`}
+        disabled={props.disabled}
         onChange={(e) => props.onChange(e.target.value)}
         placeholder='{"exemplo": true}'
         value={props.value}
@@ -643,17 +684,24 @@ function EntityTypeChoices({
   );
 }
 function Check({
+  disabled = false,
   label,
   checked,
   onChange,
 }: {
+  disabled?: boolean;
   label: string;
   checked: boolean;
   onChange: (value: boolean) => void;
 }): React.JSX.Element {
   return (
     <label className="flex items-center gap-2 text-sm font-semibold">
-      <input checked={checked} onChange={(e) => onChange(e.target.checked)} type="checkbox" />
+      <input
+        checked={checked}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.checked)}
+        type="checkbox"
+      />
       {label}
     </label>
   );

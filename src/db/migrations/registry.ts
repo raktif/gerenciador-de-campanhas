@@ -18,6 +18,8 @@ import noteEventInboxSourceUpdateGuardsMigration from './0015_note_event_inbox_s
 import fieldDefinitionContextualHelpMigration from './0016_field_definition_contextual_help.sql?raw';
 import campaignCoverAttachmentsMigration from './0017_campaign_cover_attachments.sql?raw';
 import entityReferenceImagesMigration from './0018_entity_reference_images.sql?raw';
+import customImageFieldsMigration from './0019_custom_image_fields.sql?raw';
+import imageFieldAltTextIntegrityMigration from './0020_image_field_alt_text_integrity.sql?raw';
 
 export interface MigrationDefinition {
   version: number;
@@ -145,6 +147,18 @@ export const migrations: readonly MigrationDefinition[] = [
     name: 'phase-two-entity-reference-images',
     checksum: checksum(entityReferenceImagesMigration),
     sql: entityReferenceImagesMigration,
+  },
+  {
+    version: 19,
+    name: 'phase-two-custom-image-fields',
+    checksum: checksum(customImageFieldsMigration),
+    sql: customImageFieldsMigration,
+  },
+  {
+    version: 20,
+    name: 'phase-two-image-field-alt-text-integrity',
+    checksum: checksum(imageFieldAltTextIntegrityMigration),
+    sql: imageFieldAltTextIntegrityMigration,
   },
 ];
 

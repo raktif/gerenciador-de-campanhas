@@ -8,6 +8,7 @@ import type {
 } from '../../../core/contracts/entity-reference-images';
 import type { Result } from '../../../core/contracts/result';
 import { Button, ButtonGroup, DialogActions } from '../../components/actions';
+import { ImageLightbox } from '../../components/image-lightbox';
 import {
   ChoiceDialog,
   handleSecondaryDialogKeyDown,
@@ -36,41 +37,78 @@ export function EntityReferenceImagePreview({
   entity,
   className = '',
   showRetry = false,
+  enableLightbox = false,
 }: {
   entity: Entity;
   className?: string;
   showRetry?: boolean;
+  enableLightbox?: boolean;
 }): React.JSX.Element {
   const [retryVersion, setRetryVersion] = useState(0);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const lightboxTriggerRef = useRef<HTMLButtonElement>(null);
   const preview = useEntityReferenceImagePreview(entity, retryVersion);
   return (
-    <div
-      aria-label={preview.loading ? `Carregando imagem de referência de ${entity.name}` : undefined}
-      className={`relative overflow-hidden rounded-xl semantic-surface-muted ${className}`}
-      role={preview.loading ? 'status' : undefined}
-    >
-      {preview.url === null ? (
-        <EntityReferenceImagePlaceholder entityName={entity.name} />
-      ) : (
-        <img
-          alt={`Imagem de referência de ${entity.name}`}
-          className="size-full object-cover"
-          src={preview.url}
-        />
-      )}
-      {preview.error && showRetry ? (
-        <div className="absolute inset-x-2 bottom-2 rounded-lg semantic-surface p-2 text-center text-xs shadow">
-          <p role="alert">Não foi possível carregar a imagem.</p>
-          <Button
-            className="mt-1"
-            onClick={() => setRetryVersion((value) => value + 1)}
-            size="small"
+    <>
+      <div
+        aria-label={
+          preview.loading ? `Carregando imagem de referência de ${entity.name}` : undefined
+        }
+        className={`relative overflow-hidden rounded-xl semantic-surface-muted ${className}`}
+        role={preview.loading ? 'status' : undefined}
+      >
+        {preview.url === null ? (
+          <EntityReferenceImagePlaceholder entityName={entity.name} />
+        ) : enableLightbox ? (
+          <button
+            aria-label={`Ampliar imagem de referência de ${entity.name}`}
+            className="size-full cursor-zoom-in"
+            onClick={() => setLightboxOpen(true)}
+            ref={lightboxTriggerRef}
+            type="button"
           >
-            Tentar novamente
-          </Button>
-        </div>
+            <img
+              alt={`Imagem de referência de ${entity.name}`}
+              className="size-full object-cover"
+              src={preview.url}
+            />
+          </button>
+        ) : (
+          <img
+            alt={`Imagem de referência de ${entity.name}`}
+            className="size-full object-cover"
+            src={preview.url}
+          />
+        )}
+        {preview.error && showRetry ? (
+          <div className="absolute inset-x-2 bottom-2 rounded-lg semantic-surface p-2 text-center text-xs shadow">
+            <p role="alert">Não foi possível carregar a imagem.</p>
+            <Button
+              className="mt-1"
+              onClick={() => setRetryVersion((value) => value + 1)}
+              size="small"
+            >
+              Tentar novamente
+            </Button>
+          </div>
+        ) : null}
+      </div>
+      {lightboxOpen ? (
+        <ImageLightbox
+          alt={`Imagem de referência de ${entity.name}`}
+          load={() =>
+            window.campaignManager.images.getEntityReferenceDisplay({
+              campaignId: entity.campaignId,
+              entityId: entity.id,
+            })
+          }
+          onClose={() => {
+            setLightboxOpen(false);
+            requestAnimationFrame(() => lightboxTriggerRef.current?.focus());
+          }}
+        />
       ) : null}
-    </div>
+    </>
   );
 }
 
@@ -306,6 +344,7 @@ export function EntityReferenceImageManager({
       <div className="grid gap-5 sm:grid-cols-[16rem_1fr] sm:items-center">
         <EntityReferenceImagePreview
           className="h-48 w-full"
+          enableLightbox
           entity={{ ...entity, revision: entity.revision + previewVersion }}
           showRetry
         />

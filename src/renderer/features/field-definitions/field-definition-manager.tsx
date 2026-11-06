@@ -417,5 +417,6 @@ function compare(left: FieldDefinition, right: FieldDefinition): number {
   return left.sortOrder - right.sortOrder || left.label.localeCompare(right.label, 'pt-BR');
 }
 function dataTypeLabel(value: string): string {
+  if (value === 'image') return 'Imagem';
   return value.replaceAll('_', ' ');
 }

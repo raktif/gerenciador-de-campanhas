@@ -9,6 +9,7 @@ import { Button, ButtonGroup } from '../../components/actions';
 import { ContextualHelp } from '../../components/contextual-help';
 import { fieldDefinitionHelpContent } from '../../content/contextual-help';
 import { EntityReferenceImageManager } from './entity-reference-image';
+import { ImageFieldGallery } from './image-field-gallery';
 
 export function EntityDetailsView({
   campaign,
@@ -40,6 +41,8 @@ export function EntityDetailsView({
   const [relationshipTypes, setRelationshipTypes] = useState<RelationshipType[]>([]);
   const [relatedEntities, setRelatedEntities] = useState<EntityDetails['entity'][]>([]);
   const [fieldsLoading, setFieldsLoading] = useState(true);
+  const [fieldsError, setFieldsError] = useState<string | null>(null);
+  const [fieldsAttempt, setFieldsAttempt] = useState(0);
   const titleRef = useRef<HTMLHeadingElement>(null);
   const relationshipsButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -49,6 +52,9 @@ export function EntityDetailsView({
 
   useEffect(() => {
     let cancelled = false;
+    setFieldsLoading(true);
+    setFieldsError(null);
+    setFields([]);
     void Promise.all([
       window.campaignManager.fieldDefinitions.list({
         campaignId: campaign.id,
@@ -70,18 +76,25 @@ export function EntityDetailsView({
         limit: 100,
         filters: { archived: false },
       }),
-    ]).then(([fieldResult, relationshipResult, typeResult, entityResult]) => {
-      if (cancelled) return;
-      if (fieldResult.ok) setFields(fieldResult.data.items);
-      if (relationshipResult.ok) setRelationships(relationshipResult.data.items);
-      if (typeResult.ok) setRelationshipTypes(typeResult.data.items);
-      if (entityResult.ok) setRelatedEntities(entityResult.data.items);
-      setFieldsLoading(false);
-    });
+    ])
+      .then(([fieldResult, relationshipResult, typeResult, entityResult]) => {
+        if (cancelled) return;
+        if (fieldResult.ok) setFields(fieldResult.data.items);
+        else setFieldsError(fieldResult.error.message);
+        if (relationshipResult.ok) setRelationships(relationshipResult.data.items);
+        if (typeResult.ok) setRelationshipTypes(typeResult.data.items);
+        if (entityResult.ok) setRelatedEntities(entityResult.data.items);
+      })
+      .catch(() => {
+        if (!cancelled) setFieldsError('Não foi possível carregar as definições de campo.');
+      })
+      .finally(() => {
+        if (!cancelled) setFieldsLoading(false);
+      });
     return () => {
       cancelled = true;
     };
-  }, [campaign.id, details.entity.entityTypeId, details.entity.id]);
+  }, [campaign.id, details.entity.entityTypeId, details.entity.id, fieldsAttempt]);
 
   const valuesByField = new Map(
     details.fieldValues.map((fieldValue) => [fieldValue.fieldDefinitionId, fieldValue.value]),
@@ -90,8 +103,10 @@ export function EntityDetailsView({
     (field) =>
       field.dataType !== 'entity_reference' &&
       field.dataType !== 'entity_reference_list' &&
+      field.dataType !== 'image' &&
       valuesByField.has(field.id),
   );
+  const imageFields = fields.filter((field) => field.dataType === 'image');
   const referenceFields = fields
     .filter(
       (field) =>
@@ -195,6 +210,40 @@ export function EntityDetailsView({
                   />
                 ))}
               </dl>
+            </section>
+          )}
+
+          {fieldsError === null ? null : (
+            <div
+              className="rounded-xl border semantic-danger-border semantic-danger-surface p-4"
+              role="alert"
+            >
+              <p className="semantic-error-text">{fieldsError}</p>
+              <Button
+                className="mt-3"
+                onClick={() => setFieldsAttempt((attempt) => attempt + 1)}
+                size="small"
+              >
+                Tentar carregar campos novamente
+              </Button>
+            </div>
+          )}
+
+          {fieldsLoading || fieldsError !== null || imageFields.length === 0 ? null : (
+            <section aria-labelledby="entity-image-fields-title">
+              <h2 className={sectionTitleClass} id="entity-image-fields-title">
+                Campos de imagem
+              </h2>
+              <div className="mt-3 grid gap-6">
+                {imageFields.map((field) => (
+                  <ImageFieldGallery
+                    campaignId={campaign.id}
+                    entityId={details.entity.id}
+                    field={field}
+                    key={field.id}
+                  />
+                ))}
+              </div>
             </section>
           )}
 
