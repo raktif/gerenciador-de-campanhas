@@ -7,6 +7,7 @@ import {
   type FieldDefinition,
   type FieldDefinitionPageRequest,
   type FieldDefinitionPageResult,
+  type MoveFieldDefinitionInput,
 } from '../../src/core/contracts/field-definitions';
 import { AppError } from '../../src/core/errors/app-error';
 import type { FieldDefinitionRepositoryUpdate } from '../../src/db/repositories/field-definition-repository';
@@ -32,17 +33,22 @@ describe('FieldDefinitionService', () => {
       createFieldDefinitionInputSchema.parse({
         campaignId,
         entityTypeId,
-        key: 'nome',
         label: 'Nome',
         dataType: 'short_text',
+        helpText: 'Nome usado nas cenas.',
+        exampleText: 'Capitã Aris',
+        helpArticleId: 'campos-de-entidade',
       }),
     );
 
     expect(created).toMatchObject({
       id: fieldId,
       entityTypeId,
-      key: 'nome',
+      key: 'vilao-nome',
       required: false,
+      helpText: 'Nome usado nas cenas.',
+      exampleText: 'Capitã Aris',
+      helpArticleId: 'campos-de-entidade',
       isArchived: false,
       createdAt: secondTimestamp,
       revision: 1,
@@ -75,6 +81,43 @@ describe('FieldDefinitionService', () => {
     ).toMatchObject({ isArchived: false, revision: 3 });
   });
 
+  it('preserva a chave técnica quando o rótulo é alterado', () => {
+    const service = createService(new MemoryFieldDefinitionRepository([createField()]));
+
+    const updated = service.update({
+      campaignId,
+      entityTypeId,
+      id: fieldId,
+      revision: 1,
+      patch: {
+        label: 'Nome completo',
+        helpText: 'Nome usado em documentos oficiais.',
+        exampleText: 'Aris Valedouro',
+        helpArticleId: 'nomes-de-personagem',
+      },
+    });
+
+    expect(updated).toMatchObject({
+      key: 'nome',
+      label: 'Nome completo',
+      helpText: 'Nome usado em documentos oficiais.',
+      exampleText: 'Aris Valedouro',
+      helpArticleId: 'nomes-de-personagem',
+      revision: 2,
+    });
+    expect(
+      captureAppError(() =>
+        service.update({
+          campaignId,
+          entityTypeId,
+          id: fieldId,
+          revision: 1,
+          patch: { helpText: 'Ajuda obsoleta.' },
+        }),
+      ).code,
+    ).toBe('REVISION_CONFLICT');
+  });
+
   it('valida configurações e destinos de campos de referência', () => {
     const service = createService(new MemoryFieldDefinitionRepository());
     expect(() =>
@@ -82,7 +125,6 @@ describe('FieldDefinitionService', () => {
         createFieldDefinitionInputSchema.parse({
           campaignId,
           entityTypeId,
-          key: 'aliados',
           label: 'Aliados',
           dataType: 'entity_reference_list',
           allowedTargetTypeIds: [targetTypeId],
@@ -96,7 +138,6 @@ describe('FieldDefinitionService', () => {
           createFieldDefinitionInputSchema.parse({
             campaignId,
             entityTypeId,
-            key: 'nome',
             label: 'Nome',
             dataType: 'short_text',
             referenceDirection: 'outgoing',
@@ -110,7 +151,6 @@ describe('FieldDefinitionService', () => {
           createFieldDefinitionInputSchema.parse({
             campaignId,
             entityTypeId,
-            key: 'inimigo',
             label: 'Inimigo',
             dataType: 'entity_reference',
             allowedTargetTypeIds: ['10000000-0000-4000-8000-000000000099'],
@@ -136,6 +176,36 @@ describe('FieldDefinitionService', () => {
         .code,
     ).toBe('REVISION_CONFLICT');
   });
+
+  it('rejeita configuração incompatível ao converter um campo para imagem', () => {
+    const service = createService(
+      new MemoryFieldDefinitionRepository([
+        createField({ dataType: 'short_text', required: true, searchable: true }),
+      ]),
+    );
+
+    expect(
+      captureAppError(() =>
+        service.update({
+          campaignId,
+          entityTypeId,
+          id: fieldId,
+          revision: 1,
+          patch: { dataType: 'image' },
+        }),
+      ).code,
+    ).toBe('INVALID_IMAGE_FIELD_CONFIG');
+
+    expect(
+      service.update({
+        campaignId,
+        entityTypeId,
+        id: fieldId,
+        revision: 1,
+        patch: { dataType: 'image', required: false, searchable: false },
+      }),
+    ).toMatchObject({ dataType: 'image', required: false, searchable: false, revision: 2 });
+  });
 });
 
 class MemoryFieldDefinitionRepository implements FieldDefinitionRepositoryPort {
@@ -146,9 +216,20 @@ class MemoryFieldDefinitionRepository implements FieldDefinitionRepositoryPort {
     for (const field of fields) this.records.set(field.id, field);
   }
 
-  public insert(field: FieldDefinition): FieldDefinition {
-    this.records.set(field.id, field);
-    return field;
+  public insertWithGeneratedKey(
+    field: Omit<FieldDefinition, 'key'>,
+    baseKey: string,
+  ): FieldDefinition {
+    let ordinal = 1;
+    let key = baseKey;
+    const occupied = new Set([...this.records.values()].map((record) => record.key));
+    while (occupied.has(key)) {
+      ordinal += 1;
+      key = `${baseKey}-${String(ordinal)}`;
+    }
+    const generated = fieldDefinitionSchema.parse({ ...field, key });
+    this.records.set(generated.id, generated);
+    return generated;
   }
 
   public findById(
@@ -188,6 +269,18 @@ class MemoryFieldDefinitionRepository implements FieldDefinitionRepositoryPort {
     this.records.set(updated.id, updated);
     return updated;
   }
+
+  public restoreAtEnd(
+    input: Omit<FieldDefinitionRepositoryUpdate, 'patch'>,
+    updatedAt: string,
+  ): FieldDefinition {
+    return this.update({ ...input, patch: { isArchived: false } }, updatedAt);
+  }
+
+  public move(_input: MoveFieldDefinitionInput): FieldDefinition[] {
+    void _input;
+    return [...this.records.values()];
+  }
 }
 
 class MemoryEntityTypes implements EntityTypeLookupPort {
@@ -213,6 +306,9 @@ function createField(overrides: Partial<FieldDefinition> = {}): FieldDefinition 
     key: 'nome',
     label: 'Nome',
     description: null,
+    helpText: null,
+    exampleText: null,
+    helpArticleId: null,
     dataType: 'short_text',
     semanticRole: 'name',
     required: true,
@@ -240,7 +336,7 @@ function createEntityType(id: string): EntityType {
     campaignId,
     packId: null,
     name: 'Tipo',
-    singularName: 'Tipo',
+    singularName: 'Vilão',
     slug: id === entityTypeId ? 'personagens' : 'faccoes',
     description: null,
     icon: null,

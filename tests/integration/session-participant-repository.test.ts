@@ -45,14 +45,14 @@ describe('SessionParticipantRepository', () => {
         sessionId,
         revision: 1,
         participants: [
-          { entityId: entityB, role: 'ally', attended: false, sortOrder: 2 },
-          { entityId: entityA, role: 'player_character', attended: true, sortOrder: 1 },
+          { entityId: entityB, role: 'ally', attended: false },
+          { entityId: entityA, role: 'player_character', attended: true },
         ],
       }),
     );
     expect(participants).toEqual([
+      createParticipant(entityB, { role: 'ally', attended: false, sortOrder: 0 }),
       createParticipant(entityA, { sortOrder: 1 }),
-      createParticipant(entityB, { role: 'ally', attended: false, sortOrder: 2 }),
     ]);
     expect(repository.findById(campaignId, sessionId)?.revision).toBe(2);
     expect(
@@ -79,7 +79,7 @@ describe('SessionParticipantRepository', () => {
         revision: 2,
         participants: [
           { entityId: entityA, role: 'player_character' },
-          { entityId: entityA, role: 'npc', sortOrder: 1 },
+          { entityId: entityA, role: 'npc' },
         ],
       }),
     ).toThrow();

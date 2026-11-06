@@ -19,8 +19,11 @@ import {
   type FieldDefinition,
   type FieldDefinitionPageRequest,
   type FieldDefinitionPageResult,
+  type MoveFieldDefinitionInput,
 } from '../../core/contracts/field-definitions';
 import { AppError } from '../../core/errors/app-error';
+import { createTechnicalKeyCandidate } from '../../core/identifiers/technical-key';
+import { moveRelative } from '../../core/ordering/move-relative';
 import { entityTypes, fieldDefinitions } from '../schema';
 import type * as schema from '../schema';
 
@@ -39,9 +42,11 @@ const cursorSchema = z
 type FieldDefinitionCursor = z.infer<typeof cursorSchema>;
 
 type MutableField =
-  | 'key'
   | 'label'
   | 'description'
+  | 'helpText'
+  | 'exampleText'
+  | 'helpArticleId'
   | 'dataType'
   | 'semanticRole'
   | 'required'
@@ -79,6 +84,51 @@ export class FieldDefinitionRepository {
     } catch (error) {
       throw translateConstraintError(error, fieldDefinition.entityTypeId, fieldDefinition.key);
     }
+  }
+
+  public insertWithGeneratedKey(
+    fieldDefinition: Omit<FieldDefinition, 'key'>,
+    baseKey: string,
+  ): FieldDefinition {
+    return this.database.transaction((transaction) => {
+      const occupiedKeys = new Set(
+        transaction
+          .select({ key: fieldDefinitions.key })
+          .from(fieldDefinitions)
+          .where(eq(fieldDefinitions.entityTypeId, fieldDefinition.entityTypeId))
+          .all()
+          .map(({ key }) => key),
+      );
+      let ordinal = 1;
+      let key = createTechnicalKeyCandidate(baseKey, ordinal);
+      while (occupiedKeys.has(key)) {
+        ordinal += 1;
+        key = createTechnicalKeyCandidate(baseKey, ordinal);
+      }
+
+      const last = transaction
+        .select({ sortOrder: fieldDefinitions.sortOrder })
+        .from(fieldDefinitions)
+        .where(
+          and(
+            eq(fieldDefinitions.entityTypeId, fieldDefinition.entityTypeId),
+            eq(fieldDefinitions.isArchived, false),
+          ),
+        )
+        .orderBy(desc(fieldDefinitions.sortOrder))
+        .get();
+      const generated = fieldDefinitionSchema.parse({
+        ...fieldDefinition,
+        key,
+        sortOrder: (last?.sortOrder ?? -1) + 1,
+      });
+      try {
+        transaction.insert(fieldDefinitions).values(generated).run();
+      } catch (error) {
+        throw translateConstraintError(error, generated.entityTypeId, generated.key);
+      }
+      return generated;
+    });
   }
 
   public findById(campaignId: string, entityTypeId: string, id: string): FieldDefinition | null {
@@ -199,13 +249,149 @@ export class FieldDefinitionRepository {
         );
       }
     } catch (error) {
-      const key = typeof input.patch.key === 'string' ? input.patch.key : undefined;
-      throw translateConstraintError(error, input.entityTypeId, key);
+      throw translateConstraintError(error, input.entityTypeId);
     }
 
     const updated = this.findById(input.campaignId, input.entityTypeId, input.id);
     if (updated === null) throw fieldDefinitionNotFound(input);
     return updated;
+  }
+
+  public restoreAtEnd(
+    input: Omit<FieldDefinitionRepositoryUpdate, 'patch'>,
+    updatedAt: string,
+  ): FieldDefinition {
+    return this.database.transaction((transaction) => {
+      const current = transaction
+        .select(getTableColumns(fieldDefinitions))
+        .from(fieldDefinitions)
+        .innerJoin(entityTypes, eq(fieldDefinitions.entityTypeId, entityTypes.id))
+        .where(
+          and(
+            eq(entityTypes.campaignId, input.campaignId),
+            eq(fieldDefinitions.entityTypeId, input.entityTypeId),
+            eq(fieldDefinitions.id, input.id),
+          ),
+        )
+        .get();
+      if (current === undefined) throw fieldDefinitionNotFound(input);
+      const parsed = fieldDefinitionSchema.parse(current);
+      if (parsed.revision !== input.revision) throw revisionConflict(parsed, input.revision);
+      if (!parsed.isArchived)
+        throw new AppError(
+          'INVALID_FIELD_DEFINITION_STATE',
+          'A defini\u00e7\u00e3o de campo j\u00e1 est\u00e1 ativa.',
+        );
+
+      const last = transaction
+        .select({ sortOrder: fieldDefinitions.sortOrder })
+        .from(fieldDefinitions)
+        .where(
+          and(
+            eq(fieldDefinitions.entityTypeId, input.entityTypeId),
+            eq(fieldDefinitions.isArchived, false),
+          ),
+        )
+        .orderBy(desc(fieldDefinitions.sortOrder))
+        .get();
+      const restoredResult = transaction
+        .update(fieldDefinitions)
+        .set({
+          isArchived: false,
+          sortOrder: (last?.sortOrder ?? -1) + 1,
+          updatedAt,
+          revision: sql`${fieldDefinitions.revision} + 1`,
+        })
+        .where(
+          and(
+            eq(fieldDefinitions.entityTypeId, input.entityTypeId),
+            eq(fieldDefinitions.id, input.id),
+            eq(fieldDefinitions.revision, input.revision),
+          ),
+        )
+        .run();
+      if (restoredResult.changes !== 1) throw revisionConflict(parsed, input.revision);
+      const restored = transaction
+        .select(getTableColumns(fieldDefinitions))
+        .from(fieldDefinitions)
+        .innerJoin(entityTypes, eq(fieldDefinitions.entityTypeId, entityTypes.id))
+        .where(
+          and(
+            eq(entityTypes.campaignId, input.campaignId),
+            eq(fieldDefinitions.entityTypeId, input.entityTypeId),
+            eq(fieldDefinitions.id, input.id),
+          ),
+        )
+        .get();
+      if (restored === undefined) throw fieldDefinitionNotFound(input);
+      return fieldDefinitionSchema.parse(restored);
+    });
+  }
+
+  public move(input: MoveFieldDefinitionInput, updatedAt: string): FieldDefinition[] {
+    return this.database.transaction((transaction) => {
+      const current = transaction
+        .select(getTableColumns(fieldDefinitions))
+        .from(fieldDefinitions)
+        .innerJoin(entityTypes, eq(fieldDefinitions.entityTypeId, entityTypes.id))
+        .where(
+          and(
+            eq(entityTypes.campaignId, input.campaignId),
+            eq(fieldDefinitions.entityTypeId, input.entityTypeId),
+            eq(fieldDefinitions.isArchived, false),
+          ),
+        )
+        .orderBy(
+          asc(fieldDefinitions.sortOrder),
+          asc(fieldDefinitions.label),
+          asc(fieldDefinitions.id),
+        )
+        .all()
+        .map((row) => fieldDefinitionSchema.parse(row));
+      const source = current.find(({ id }) => id === input.sourceId);
+      const target = current.find(({ id }) => id === input.targetId);
+      if (source === undefined) throw fieldDefinitionNotFound({ ...input, id: input.sourceId });
+      if (target === undefined) throw fieldDefinitionNotFound({ ...input, id: input.targetId });
+      if (source.revision !== input.sourceRevision)
+        throw revisionConflict(source, input.sourceRevision);
+      if (target.revision !== input.targetRevision)
+        throw revisionConflict(target, input.targetRevision);
+
+      const ordered = moveRelative(current, input);
+      ordered.forEach((item, sortOrder) => {
+        if (item.sortOrder === sortOrder) return;
+        const result = transaction
+          .update(fieldDefinitions)
+          .set({ sortOrder, updatedAt, revision: sql`${fieldDefinitions.revision} + 1` })
+          .where(
+            and(
+              eq(fieldDefinitions.entityTypeId, input.entityTypeId),
+              eq(fieldDefinitions.id, item.id),
+              eq(fieldDefinitions.revision, item.revision),
+            ),
+          )
+          .run();
+        if (result.changes !== 1) throw revisionConflict(item, item.revision);
+      });
+      return transaction
+        .select(getTableColumns(fieldDefinitions))
+        .from(fieldDefinitions)
+        .innerJoin(entityTypes, eq(fieldDefinitions.entityTypeId, entityTypes.id))
+        .where(
+          and(
+            eq(entityTypes.campaignId, input.campaignId),
+            eq(fieldDefinitions.entityTypeId, input.entityTypeId),
+            eq(fieldDefinitions.isArchived, false),
+          ),
+        )
+        .orderBy(
+          asc(fieldDefinitions.sortOrder),
+          asc(fieldDefinitions.label),
+          asc(fieldDefinitions.id),
+        )
+        .all()
+        .map((row) => fieldDefinitionSchema.parse(row));
+    });
   }
 }
 
@@ -267,6 +453,14 @@ function translateConstraintError(error: unknown, entityTypeId: string, key?: st
     );
   }
   return error instanceof Error ? error : new Error('Falha desconhecida ao persistir campo.');
+}
+
+function revisionConflict(current: FieldDefinition, expectedRevision: number): AppError {
+  return new AppError(
+    'REVISION_CONFLICT',
+    'A defini\u00e7\u00e3o de campo foi alterada em outra opera\u00e7\u00e3o.',
+    { expectedRevision, currentRevision: current.revision, current },
+  );
 }
 
 function findSqliteCode(error: unknown): string | undefined {

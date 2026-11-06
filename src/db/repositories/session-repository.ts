@@ -4,7 +4,7 @@ import { z } from 'zod';
 import type {
   Session,
   SessionParticipant,
-  SessionParticipantInput,
+  SessionParticipantPersistenceInput,
   SessionPageRequest,
   SessionPageResult,
   SessionPatch,
@@ -50,7 +50,7 @@ export interface SessionParticipantsReplace {
   campaignId: string;
   sessionId: string;
   revision: number;
-  participants: SessionParticipantInput[];
+  participants: SessionParticipantPersistenceInput[];
 }
 
 export class SessionRepository {

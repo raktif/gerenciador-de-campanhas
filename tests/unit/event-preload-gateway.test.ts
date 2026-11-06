@@ -42,17 +42,10 @@ describe('gateway do preload de eventos', () => {
 
     expect(invocations.map(({ channel }) => channel)).toEqual(Object.values(eventChannels));
     expect(invocations[0]?.input).toMatchObject({
-      title: 'A ponte desaba',
-      eventOrder: 0,
-      links: [{ entityId, role: 'location', sortOrder: 0 }],
+      title: '  A ponte desaba  ',
+      links: [{ entityId, role: 'location' }],
     });
-    expect(invocations[2]?.input).toEqual({
-      campaignId,
-      limit: 50,
-      filters: { archived: false },
-      sort: 'eventOrder',
-      order: 'asc',
-    });
+    expect(invocations[2]?.input).toEqual({ campaignId });
   });
 
   it('rejeita a entrada inv\u00e1lida antes de invocar IPC', () => {
@@ -68,9 +61,16 @@ describe('gateway do preload de eventos', () => {
         title: 'Evento',
         links: [
           { entityId, role: 'participant' },
-          { entityId, role: 'participant', sortOrder: 1 },
+          { entityId, role: 'participant' },
         ],
       }),
+    ).toThrow();
+    expect(() =>
+      gateway.events.create({
+        campaignId,
+        title: 'Evento',
+        links: [{ entityId, role: 'participant', sortOrder: 0 }],
+      } as never),
     ).toThrow();
     expect(invocations).toHaveLength(0);
   });

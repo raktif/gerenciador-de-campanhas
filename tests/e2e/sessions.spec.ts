@@ -35,7 +35,15 @@ test('planeja, executa e preserva uma sessão com participantes e intenções', 
     await window.getByRole('button', { name: 'Planejar sessão', exact: true }).click();
 
     await window.getByRole('button', { name: 'Adicionar participante' }).click();
+    await expect(window.getByText('Ordem', { exact: true })).toHaveCount(0);
     await window.getByLabel('Entidade participante').selectOption({ label: 'Aris' });
+    await expect(window.getByRole('button', { name: /Mover .* para/ })).toHaveCount(0);
+    await window.getByRole('button', { name: 'Adicionar participante' }).click();
+    await window.getByLabel('Entidade participante').nth(1).selectOption({ label: 'Brena' });
+    const participantList = window.getByRole('list', { name: 'Ordenar participantes' });
+    const brenaParticipant = participantList.getByRole('listitem').filter({ hasText: 'Brena' });
+    await brenaParticipant.focus();
+    await brenaParticipant.press('Alt+ArrowUp');
     await window.getByRole('button', { name: 'Salvar participantes' }).click();
     await window.getByLabel('Intenção').fill('Encontrar a chave da passagem');
     await window.getByLabel('Entidade relacionada (opcional)').selectOption({ label: 'Aris' });
@@ -94,6 +102,17 @@ test('planeja, executa e preserva uma sessão com participantes e intenções', 
       'Revelar a passagem apenas à noite.',
     );
     await expect(window.getByLabel('Entidade participante')).toHaveValue(/.+/);
+    await expect
+      .poll(() =>
+        window
+          .getByLabel('Entidade participante')
+          .evaluateAll((selects) =>
+            selects.map(
+              (select) => (select as HTMLSelectElement).selectedOptions[0]?.textContent ?? '',
+            ),
+          ),
+      )
+      .toEqual(['Brena', 'Aris']);
     await expect(window.getByLabel('Lista de intenções')).toContainText(
       'Encontrar a chave da passagem',
     );
@@ -119,6 +138,9 @@ async function prepareCampaign(window: Page): Promise<void> {
   await window.getByRole('button', { name: 'Ver entidades' }).click();
   await window.getByRole('button', { name: 'Nova entidade', exact: true }).click();
   await window.getByLabel('Nome *').fill('Aris');
+  await window.getByRole('button', { name: 'Criar entidade' }).click();
+  await window.getByRole('button', { name: 'Nova entidade', exact: true }).click();
+  await window.getByLabel('Nome *').fill('Brena');
   await window.getByRole('button', { name: 'Criar entidade' }).click();
   await window.getByRole('button', { name: 'Voltar para detalhes da campanha' }).click();
 }

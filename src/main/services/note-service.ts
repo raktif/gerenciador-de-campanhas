@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { Campaign } from '../../core/contracts/campaigns';
 import type { Entity } from '../../core/contracts/entities';
+import type { Session } from '../../core/contracts/sessions';
 import type {
   CreateNoteInput,
   GetNoteInput,
@@ -34,6 +35,10 @@ export interface CampaignLookupPort {
   findById(id: string): Campaign | null;
 }
 
+export interface NoteSessionLookupPort {
+  findById(campaignId: string, id: string): Session | null;
+}
+
 export class NoteService {
   private readonly createId: () => string;
   private readonly now: () => string;
@@ -43,6 +48,7 @@ export class NoteService {
       repository: NoteRepositoryPort;
       campaigns: CampaignLookupPort;
       entities: NoteEntityLookupPort;
+      sessions?: NoteSessionLookupPort;
       createId?: () => string;
       now?: () => string;
     },
@@ -53,15 +59,19 @@ export class NoteService {
 
   public create(input: CreateNoteInput): NoteDetails {
     this.requireCampaign(input.campaignId);
-    const { links: linksInput, ...noteInput } = input;
+    const { links: linksInput, sessionId, ...noteInput } = input;
     const links = this.normalizeLinks(linksInput);
     this.validateLinks(input.campaignId, links, true);
-    this.validateSource(input.campaignId, input.originKind, input.sourceId);
+    const sourceId =
+      input.originKind === 'session' ? this.requireSession(input.campaignId, sessionId).id : null;
+    if (input.originKind !== 'session')
+      this.validateSource(input.campaignId, input.originKind, sourceId);
     const timestamp = this.now();
     return this.dependencies.repository.insert(
       {
         id: this.createId(),
         ...noteInput,
+        sourceId,
         createdAt: timestamp,
         updatedAt: timestamp,
         archivedAt: null,
@@ -72,34 +82,43 @@ export class NoteService {
   }
 
   public get(input: GetNoteInput): NoteDetails {
-    return this.requireNote(input.campaignId, input.id);
+    return this.withSessionId(this.requireNote(input.campaignId, input.id));
   }
 
   public list(input: NotePageRequest): NotePageResult {
     this.requireCampaign(input.campaignId);
     if (input.filters.entityId !== undefined)
       this.requireEntity(input.campaignId, input.filters.entityId);
-    return this.dependencies.repository.list(input);
+    const page = this.dependencies.repository.list(input);
+    return {
+      ...page,
+      items: page.items.map((note) => this.withSessionId({ note, links: [] }).note),
+    };
   }
 
   public update(input: UpdateNoteInput): NoteDetails {
     const current = this.requireNote(input.campaignId, input.id);
     this.requireRevision(current.note, input.revision);
-    const patch = input.patch ?? {};
+    const { sessionId, ...patch } = input.patch ?? {};
     const originKind = patch.originKind ?? current.note.originKind;
-    const sourceId = patch.sourceId === undefined ? current.note.sourceId : patch.sourceId;
-    this.validateSource(input.campaignId, originKind, sourceId);
+    if (originKind === 'session') {
+      if (sessionId !== undefined) this.requireSession(input.campaignId, sessionId);
+      else this.validateSource(input.campaignId, originKind, current.note.sourceId);
+    } else this.validateSource(input.campaignId, originKind, null);
     const links = input.links === undefined ? undefined : this.normalizeLinks(input.links);
     if (links !== undefined) this.validateLinks(input.campaignId, links, true);
-    return this.dependencies.repository.update(
-      {
-        campaignId: input.campaignId,
-        id: input.id,
-        revision: input.revision,
-        patch,
-        ...(links === undefined ? {} : { links }),
-      },
-      this.now(),
+    return this.withSessionId(
+      this.dependencies.repository.update(
+        {
+          campaignId: input.campaignId,
+          id: input.id,
+          revision: input.revision,
+          patch,
+          ...(sessionId === undefined ? {} : { sessionId }),
+          ...(links === undefined ? {} : { links }),
+        },
+        this.now(),
+      ),
     );
   }
 
@@ -229,6 +248,25 @@ export class NoteService {
         id,
       });
     return entity;
+  }
+
+  private withSessionId(details: NoteDetails): NoteDetails {
+    if (details.note.originKind !== 'session' || details.note.sourceId === null) return details;
+    const source = this.dependencies.repository.findSourceContext(details.note.sourceId);
+    if (source?.sessionId === null || source?.sessionId === undefined) return details;
+    return { ...details, note: { ...details.note, sessionId: source.sessionId } };
+  }
+
+  private requireSession(campaignId: string, id: string | undefined): Session {
+    if (id === undefined)
+      throw new AppError('SESSION_NOT_FOUND', 'A sessão não foi encontrada.', { campaignId });
+    const session = this.dependencies.sessions?.findById(campaignId, id) ?? null;
+    if (session === null)
+      throw new AppError('SESSION_NOT_FOUND', 'A sessão não foi encontrada nesta campanha.', {
+        campaignId,
+        id,
+      });
+    return session;
   }
 
   private requireRevision(note: Note, revision: number): void {

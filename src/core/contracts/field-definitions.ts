@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { relativePlacements } from '../ordering/move-relative';
 import { defaultPageLimit, maximumPageLimit, type PageResult } from './pagination';
 import type { Result } from './result';
 
@@ -12,6 +13,7 @@ export const fieldDataTypes = [
   'multi_select',
   'entity_reference',
   'entity_reference_list',
+  'image',
   'progress',
   'structured',
 ] as const;
@@ -45,6 +47,13 @@ const keySchema = z
   .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Use letras minúsculas, números e hífens simples.');
 const labelSchema = z.string().trim().min(1).max(120);
 const descriptionSchema = z.string().trim().min(1).max(2000);
+const contextualHelpTextSchema = z.string().trim().min(1).max(2000);
+const helpArticleIdSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(120)
+  .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Use letras minúsculas, números e hífens simples.');
 const jsonValueSchema = z.json();
 
 export const fieldDefinitionSchema = z
@@ -54,6 +63,9 @@ export const fieldDefinitionSchema = z
     key: keySchema,
     label: labelSchema,
     description: z.string().max(2000).nullable(),
+    helpText: contextualHelpTextSchema.nullable(),
+    exampleText: contextualHelpTextSchema.nullable(),
+    helpArticleId: helpArticleIdSchema.nullable(),
     dataType: z.enum(fieldDataTypes),
     semanticRole: z.enum(fieldSemanticRoles).nullable(),
     required: z.boolean(),
@@ -72,13 +84,16 @@ export const fieldDefinitionSchema = z
     updatedAt: z.iso.datetime(),
     revision: z.number().int().positive(),
   })
-  .strict();
+  .strict()
+  .superRefine(validateImageFieldConfiguration);
 export type FieldDefinition = z.infer<typeof fieldDefinitionSchema>;
 
 const editableFieldsSchema = z.object({
-  key: keySchema,
   label: labelSchema,
   description: descriptionSchema.nullable(),
+  helpText: contextualHelpTextSchema.nullable(),
+  exampleText: contextualHelpTextSchema.nullable(),
+  helpArticleId: helpArticleIdSchema.nullable(),
   dataType: z.enum(fieldDataTypes),
   semanticRole: z.enum(fieldSemanticRoles).nullable(),
   required: z.boolean(),
@@ -91,16 +106,17 @@ const editableFieldsSchema = z.object({
   referenceDirection: z.enum(referenceDirections).nullable(),
   allowedTargetTypeIds: z.array(z.uuid()).nullable(),
   onDeleteBehavior: z.enum(referenceDeleteBehaviors).nullable(),
-  sortOrder: z.number().int().nonnegative(),
 });
 
 export const createFieldDefinitionInputSchema = z
   .object({
     campaignId: z.uuid(),
     entityTypeId: z.uuid(),
-    key: keySchema,
     label: labelSchema,
     description: descriptionSchema.nullable().default(null),
+    helpText: contextualHelpTextSchema.nullable().default(null),
+    exampleText: contextualHelpTextSchema.nullable().default(null),
+    helpArticleId: helpArticleIdSchema.nullable().default(null),
     dataType: z.enum(fieldDataTypes),
     semanticRole: z.enum(fieldSemanticRoles).nullable().default(null),
     required: z.boolean().default(false),
@@ -113,9 +129,10 @@ export const createFieldDefinitionInputSchema = z
     referenceDirection: z.enum(referenceDirections).nullable().default(null),
     allowedTargetTypeIds: z.array(z.uuid()).nullable().default(null),
     onDeleteBehavior: z.enum(referenceDeleteBehaviors).nullable().default(null),
-    sortOrder: z.number().int().nonnegative().default(0),
   })
-  .strict();
+  .strict()
+  .superRefine(validateImageFieldConfiguration)
+  .transform((input) => ({ ...input, sortOrder: 0 }));
 export type CreateFieldDefinitionInput = z.output<typeof createFieldDefinitionInputSchema>;
 export type CreateFieldDefinitionInputRequest = z.input<typeof createFieldDefinitionInputSchema>;
 
@@ -151,6 +168,24 @@ export const fieldDefinitionLifecycleInputSchema = z
   .strict();
 export type FieldDefinitionLifecycleInput = z.infer<typeof fieldDefinitionLifecycleInputSchema>;
 
+export const moveFieldDefinitionInputSchema = z
+  .object({
+    campaignId: z.uuid(),
+    entityTypeId: z.uuid(),
+    sourceId: z.uuid(),
+    sourceRevision: z.number().int().positive(),
+    targetId: z.uuid(),
+    targetRevision: z.number().int().positive(),
+    placement: z.enum(relativePlacements),
+  })
+  .strict()
+  .refine((input) => input.sourceId !== input.targetId, {
+    message: 'A origem e o destino devem ser diferentes.',
+    path: ['targetId'],
+  });
+export type MoveFieldDefinitionInput = z.infer<typeof moveFieldDefinitionInputSchema>;
+export const fieldDefinitionOrderSchema = z.array(fieldDefinitionSchema);
+
 export const fieldDefinitionPageRequestSchema = z
   .object({
     campaignId: z.uuid(),
@@ -183,4 +218,42 @@ export interface FieldDefinitionGateway {
   update(input: UpdateFieldDefinitionInput): Promise<Result<FieldDefinition>>;
   archive(input: FieldDefinitionLifecycleInput): Promise<Result<FieldDefinition>>;
   restore(input: FieldDefinitionLifecycleInput): Promise<Result<FieldDefinition>>;
+  move(input: MoveFieldDefinitionInput): Promise<Result<FieldDefinition[]>>;
+}
+
+function validateImageFieldConfiguration(
+  field: {
+    dataType: (typeof fieldDataTypes)[number];
+    required: boolean;
+    searchable: boolean;
+    defaultValue: unknown | null;
+    options: unknown | null;
+    validation: unknown | null;
+    referenceRelationshipTypeId: string | null;
+    referenceDirection: (typeof referenceDirections)[number] | null;
+    allowedTargetTypeIds: string[] | null;
+    onDeleteBehavior: (typeof referenceDeleteBehaviors)[number] | null;
+  },
+  context: z.RefinementCtx,
+): void {
+  if (field.dataType !== 'image') return;
+  const incompatibleFields = [
+    ['required', field.required],
+    ['searchable', field.searchable],
+    ['defaultValue', field.defaultValue !== null],
+    ['options', field.options !== null],
+    ['validation', field.validation !== null],
+    ['referenceRelationshipTypeId', field.referenceRelationshipTypeId !== null],
+    ['referenceDirection', field.referenceDirection !== null],
+    ['allowedTargetTypeIds', field.allowedTargetTypeIds !== null],
+    ['onDeleteBehavior', field.onDeleteBehavior !== null],
+  ] as const;
+  for (const [path, incompatible] of incompatibleFields) {
+    if (!incompatible) continue;
+    context.addIssue({
+      code: 'custom',
+      path: [path],
+      message: 'Campos de imagem não aceitam esta configuração.',
+    });
+  }
 }

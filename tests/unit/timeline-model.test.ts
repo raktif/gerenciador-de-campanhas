@@ -18,7 +18,7 @@ describe('modelo de apresentação da cronologia', () => {
   it('preserva papéis e ordem dos vínculos e destaca os papéis da entidade consultada', () => {
     const item = entry(1);
     expect(rolesForEntity(item, entityId)).toEqual(['Participante', 'Testemunha']);
-    expect(linkSummary(item)).toBe('Participante (ordem 1) · Testemunha (ordem 2)');
+    expect(linkSummary(item)).toBe('Participante · Testemunha');
     expect(originLabel(item.event.originKind)).toBe('Manual');
   });
 });

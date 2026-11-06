@@ -126,11 +126,17 @@ export const sessionParticipantInputSchema = z
     entityId: z.uuid(),
     role: z.enum(sessionParticipantRoles),
     attended: z.boolean().default(true),
-    sortOrder: z.number().int().nonnegative().default(0),
   })
   .strict();
 export type SessionParticipantInput = z.output<typeof sessionParticipantInputSchema>;
 export type SessionParticipantInputRequest = z.input<typeof sessionParticipantInputSchema>;
+
+export const sessionParticipantPersistenceInputSchema = sessionParticipantInputSchema
+  .extend({ sortOrder: z.number().int().nonnegative() })
+  .strict();
+export type SessionParticipantPersistenceInput = z.output<
+  typeof sessionParticipantPersistenceInputSchema
+>;
 
 export const sessionParticipantsSchema = z
   .array(sessionParticipantSchema)

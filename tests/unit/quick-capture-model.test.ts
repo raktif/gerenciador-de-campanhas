@@ -3,6 +3,7 @@ import type { InboxItem } from '../../src/core/contracts/inbox';
 import type { Result } from '../../src/core/contracts/result';
 import type { Session } from '../../src/core/contracts/sessions';
 import {
+  createQuickCaptureFeedback,
   inProgressSessions,
   isQuickCaptureShortcut,
   quickCaptureAriaShortcut,
@@ -59,7 +60,24 @@ describe('modelo de captura rápida', () => {
       'Texto preservado.',
       sessionId,
     );
-    expect(failure).toEqual({ ok: false, message: 'Sessão indisponível.' });
+    expect(failure).toMatchObject({
+      ok: false,
+      error: {
+        code: 'SESSION_NOT_FOUND',
+        title: 'A sessão de origem não foi encontrada nesta campanha',
+        canCopyDiagnostics: true,
+      },
+    });
+  });
+
+  it('cria um feedback único identificado pela captura mais recente', () => {
+    expect(createQuickCaptureFeedback(inboxItem())).toEqual({
+      captureId: '80000000-0000-4000-8000-000000000001',
+      message: 'Captura salva na Caixa de Entrada.',
+    });
+    expect(
+      createQuickCaptureFeedback({ id: '80000000-0000-4000-8000-000000000002' }),
+    ).toMatchObject({ captureId: '80000000-0000-4000-8000-000000000002' });
   });
 });
 

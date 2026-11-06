@@ -5,6 +5,16 @@ export const phaseZeroChannels = {
   openDataDirectory: 'storage:open-data-directory',
 } as const;
 
+export const appearanceChannels = {
+  getTheme: 'appearance:get-theme',
+  setTheme: 'appearance:set-theme',
+  themeChanged: 'appearance:theme-changed',
+} as const;
+
+export const diagnosticsChannels = {
+  copyStartupDiagnostic: 'diagnostics:copy-startup',
+} as const;
+
 export const campaignChannels = {
   create: 'campaigns:create',
   get: 'campaigns:get',
@@ -15,6 +25,37 @@ export const campaignChannels = {
   moveToTrash: 'campaigns:move-to-trash',
 } as const;
 
+export const imageImportChannels = {
+  selectLocal: 'images:select',
+  importBytes: 'images:import-bytes',
+  importUrl: 'images:import-url',
+  getCover: 'images:get-cover',
+  getCoverPreview: 'images:get-cover-preview',
+  setCover: 'images:set-cover',
+  removeCover: 'images:remove-cover',
+  deleteAttachment: 'images:delete-attachment',
+  selectEntityReferenceLocal: 'images:select-entity-reference',
+  importEntityReferenceBytes: 'images:import-entity-reference-bytes',
+  importEntityReferenceUrl: 'images:import-entity-reference-url',
+  getEntityReference: 'images:get-entity-reference',
+  getEntityReferencePreview: 'images:get-entity-reference-preview',
+  getEntityReferenceDisplay: 'images:get-entity-reference-display',
+  setEntityReference: 'images:set-entity-reference',
+  removeEntityReference: 'images:remove-entity-reference',
+} as const;
+
+export const imageFieldValueChannels = {
+  selectLocal: 'image-field-values:select-local',
+  importBytes: 'image-field-values:import-bytes',
+  importUrl: 'image-field-values:import-url',
+  list: 'image-field-values:list',
+  getPreview: 'image-field-values:get-preview',
+  getDisplay: 'image-field-values:get-display',
+  update: 'image-field-values:update',
+  remove: 'image-field-values:remove',
+  move: 'image-field-values:move',
+} as const;
+
 export const entityTypeChannels = {
   create: 'entity-types:create',
   get: 'entity-types:get',
@@ -22,6 +63,7 @@ export const entityTypeChannels = {
   update: 'entity-types:update',
   archive: 'entity-types:archive',
   restore: 'entity-types:restore',
+  move: 'entity-types:move',
 } as const;
 
 export const relationshipTypeChannels = {
@@ -31,6 +73,7 @@ export const relationshipTypeChannels = {
   update: 'relationship-types:update',
   archive: 'relationship-types:archive',
   restore: 'relationship-types:restore',
+  move: 'relationship-types:move',
 } as const;
 
 export const relationshipChannels = {
@@ -50,6 +93,7 @@ export const fieldDefinitionChannels = {
   update: 'field-definitions:update',
   archive: 'field-definitions:archive',
   restore: 'field-definitions:restore',
+  move: 'field-definitions:move',
 } as const;
 
 export const entityChannels = {

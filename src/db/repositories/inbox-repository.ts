@@ -44,7 +44,7 @@ import { assertionSchema, type Assertion } from '../../core/contracts/assertions
 import {
   eventDetailsSchema,
   type Event,
-  type EventEntityLinkInput,
+  type EventEntityLinkPersistenceInput,
 } from '../../core/contracts/events';
 import { noteDetailsSchema, type Note, type NoteEntityLinkInput } from '../../core/contracts/notes';
 import type {
@@ -421,7 +421,7 @@ export class InboxRepository {
   public convertToEvent(
     input: { campaignId: string; id: string; revision: number },
     event: Event,
-    links: EventEntityLinkInput[],
+    links: EventEntityLinkPersistenceInput[],
     sourceId: string,
     timestamp: string,
   ): InboxEventConversionResult {

@@ -20,7 +20,7 @@ import type {
 } from '../../core/contracts/inbox';
 import type { Entity } from '../../core/contracts/entities';
 import type { Assertion } from '../../core/contracts/assertions';
-import type { Event, EventEntityLinkInput } from '../../core/contracts/events';
+import type { Event, EventEntityLinkPersistenceInput } from '../../core/contracts/events';
 import type { Note, NoteEntityLinkInput } from '../../core/contracts/notes';
 import type { Relationship } from '../../core/contracts/relationships';
 import type { EntityType } from '../../core/contracts/entity-types';
@@ -66,7 +66,7 @@ export interface InboxRepositoryPort {
   convertToEvent?(
     input: { campaignId: string; id: string; revision: number },
     event: Event,
-    links: EventEntityLinkInput[],
+    links: EventEntityLinkPersistenceInput[],
     sourceId: string,
     timestamp: string,
   ): InboxEventConversionResult;
@@ -192,6 +192,7 @@ export class InboxService {
       id: this.createId(),
       campaignId: input.campaignId,
       entityTypeId: input.destination.entityTypeId,
+      referenceImageAttachmentId: null,
       name: input.destination.name,
       summary: input.destination.summary,
       canonState: input.destination.canonState,
@@ -412,7 +413,7 @@ export class InboxService {
     return this.dependencies.repository.convertToEvent(
       input,
       event,
-      input.destination.links,
+      input.destination.links.map((link, sortOrder) => ({ ...link, sortOrder })),
       sourceId,
       timestamp,
     );
@@ -445,6 +446,7 @@ export class InboxService {
       id: this.createId(),
       campaignId,
       entityTypeId: endpoint.entityTypeId,
+      referenceImageAttachmentId: null,
       name: endpoint.name,
       summary: endpoint.summary,
       canonState: 'accepted',

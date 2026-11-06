@@ -3,6 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { _electron as electron, expect, test, type ElectronApplication } from '@playwright/test';
+import type { CampaignManagerGateway } from '../../src/core/contracts/gateway';
 
 const repositoryRoot = process.cwd();
 const requireFromRepository = createRequire(path.join(repositoryRoot, 'package.json'));
@@ -194,6 +195,7 @@ test('configura tipos de entidade isolados na campanha e os recupera após reini
     await expect(window.getByRole('heading', { name: 'Tipos de entidade' })).toBeVisible();
     await expect(window.getByText('Nenhum tipo de entidade criado')).toBeVisible();
     await window.getByRole('button', { name: 'Criar primeiro tipo' }).click();
+    await expect(window.getByLabel('Ordem', { exact: true })).toHaveCount(0);
     await window.getByLabel('Nome plural').fill('Personagens');
     await window.getByLabel('Nome singular').fill('Personagem');
     await window.getByLabel('Identificador (slug)').fill('Personagens');
@@ -204,8 +206,8 @@ test('configura tipos de entidade isolados na campanha e os recupera após reini
     await expect(window.getByRole('button', { name: 'Criar tipo de entidade' })).toBeEnabled();
     await window.getByLabel('Identificador (slug)').fill('personagens');
     await window.getByLabel('Descrição').fill('Pessoas que movem a história.');
-    await window.getByLabel('Ícone ou símbolo').fill('P');
-    await window.getByLabel('Cor').fill('#92400e');
+    await window.getByRole('radio', { name: 'Pessoa' }).check();
+    await window.getByRole('radiogroup', { name: 'Paleta de cores' }).getByLabel('Marrom').check();
     await window.getByRole('button', { name: 'Criar tipo de entidade' }).click();
 
     await expect(window.getByRole('heading', { name: 'Personagens' })).toBeVisible();
@@ -214,8 +216,10 @@ test('configura tipos de entidade isolados na campanha e os recupera após reini
     await window.getByLabel('Nome singular').fill('Protagonista');
     await window.getByLabel('Descrição').fill('Pessoas centrais para a história.');
     await window.getByRole('button', { name: 'Salvar tipo de entidade' }).click();
-    await expect(window.getByTestId('entity-type-list')).toContainText('Protagonista');
-    await expect(window.getByTestId('entity-type-list')).toContainText(
+    await expect(window.getByRole('list', { name: 'Ordenar tipos de entidade' })).toContainText(
+      'Protagonista',
+    );
+    await expect(window.getByRole('list', { name: 'Ordenar tipos de entidade' })).toContainText(
       'Pessoas centrais para a história.',
     );
 
@@ -225,44 +229,110 @@ test('configura tipos de entidade isolados na campanha e os recupera após reini
     await expect(window.getByText('Nenhum tipo de entidade criado')).toBeVisible();
     await window.getByRole('button', { name: 'Arquivados' }).click();
     await expect(window.getByRole('heading', { name: 'Personagens' })).toBeVisible();
+    const archivedEntityTypes = window.getByRole('list', {
+      name: 'Tipos de entidade arquivados',
+    });
+    await expect(archivedEntityTypes.getByRole('button', { name: /^Mover / })).toHaveCount(0);
+    await expect(archivedEntityTypes).not.toContainText(/Ordem \d/);
     await window.getByRole('button', { name: 'Restaurar tipo Personagens' }).click();
     await window.getByRole('button', { name: 'Confirmar restauração do tipo' }).click();
     await window.getByRole('button', { name: 'Ativos' }).click();
     await expect(window.getByRole('heading', { name: 'Personagens' })).toBeVisible();
 
+    await window.getByRole('button', { name: 'Novo tipo' }).click();
+    await expect(window.getByLabel('Ordem', { exact: true })).toHaveCount(0);
+    await window.getByLabel('Nome plural').fill('Locais');
+    await window.getByLabel('Nome singular').fill('Local');
+    await window.getByLabel('Identificador (slug)').fill('locais');
+    await window.getByRole('button', { name: 'Criar tipo de entidade' }).click();
+    const entityTypeList = window.getByRole('list', { name: 'Ordenar tipos de entidade' });
+    await expect(entityTypeList).not.toContainText(/Ordem \d/);
+    await expect(entityTypeList.getByRole('heading')).toHaveText(['Personagens', 'Locais']);
+    const locaisItem = entityTypeList.getByRole('listitem').filter({ hasText: 'Locais' });
+    await locaisItem.focus();
+    await locaisItem.press('Alt+ArrowUp');
+    await expect(entityTypeList.getByRole('heading')).toHaveText(['Locais', 'Personagens']);
+    await expect(window.getByRole('status')).toContainText('Tipo “Locais” reposicionado.');
+    const personagensItem = entityTypeList.getByRole('listitem').filter({ hasText: 'Personagens' });
+    await personagensItem.dragTo(locaisItem, { targetPosition: { x: 5, y: 1 } });
+    await expect(entityTypeList.getByRole('heading')).toHaveText(['Personagens', 'Locais']);
+    await window.getByRole('button', { name: 'Voltar para detalhes da campanha' }).click();
+    await window.getByRole('button', { name: 'Gerenciar tipos de entidade' }).click();
+    const reopenedEntityTypes = window.getByRole('list', { name: 'Ordenar tipos de entidade' });
+    await expect(reopenedEntityTypes.getByRole('heading')).toHaveText(['Personagens', 'Locais']);
+    await window.getByRole('button', { name: 'Mover Locais para cima' }).click();
+    await expect(reopenedEntityTypes.getByRole('heading')).toHaveText(['Locais', 'Personagens']);
+
     await window.getByRole('button', { name: 'Gerenciar campos de Personagens' }).click();
     await expect(window.getByRole('heading', { name: 'Definições de campo' })).toBeVisible();
     await expect(window.getByText('Nenhuma definição de campo criada')).toBeVisible();
     await window.getByRole('button', { name: 'Criar primeiro campo' }).click();
-    await window.getByLabel('Rótulo *').fill('Nome');
-    await window.getByLabel('Chave *').fill('nome_completo');
-    await window.getByRole('button', { name: 'Criar definição de campo' }).click();
-    await expect(window.getByRole('alert')).toContainText(
-      'A chave deve usar apenas letras minúsculas sem acentos, números e hífens simples.',
-    );
-    await expect(window.getByRole('button', { name: 'Criar definição de campo' })).toBeEnabled();
-    await window.getByLabel('Chave *').fill('nome');
+    await expect(window.getByLabel('Ordem', { exact: true })).toHaveCount(0);
+    const fieldLabel = window.getByLabel('Rótulo *');
+    await expect(fieldLabel).toBeFocused();
+    await expect(window.getByLabel('Chave', { exact: true })).toHaveCount(0);
+    await expect(fieldLabel).toHaveAttribute('aria-describedby', 'field-key-generation-help');
+    await expect(
+      window.getByText('A chave técnica será gerada automaticamente ao criar o campo.'),
+    ).toBeVisible();
+    await window.getByRole('button', { name: 'Cancelar' }).click();
+    await expect(window.getByRole('button', { name: 'Criar primeiro campo' })).toBeFocused();
+    await window.getByRole('button', { name: 'Criar primeiro campo' }).click();
+    await expect(fieldLabel).toBeFocused();
+    await fieldLabel.fill('Nome');
     await window.getByLabel('Descrição').fill('Nome pelo qual a pessoa é conhecida.');
     await window.getByLabel('Papel semântico').selectOption('name');
     await window.getByLabel('Obrigatório').check();
     await window.getByLabel('Pesquisável').check();
     await window.getByRole('button', { name: 'Criar definição de campo' }).click();
-    await expect(window.getByTestId('field-definition-list')).toContainText('Nome');
+    await expect(window.getByRole('list', { name: 'Ordenar definições de campo' })).toContainText(
+      'Nome',
+    );
     await expect(window.getByRole('status')).toContainText('Campo “Nome” criado.');
+    await expect(window.getByRole('button', { name: 'Novo campo' })).toBeFocused();
+    const keyBeforeRename = await readFieldKey(window, 'Nome');
+    expect(keyBeforeRename).toBe('protagonista-nome');
 
     await window.getByRole('button', { name: 'Editar campo Nome' }).click();
+    await expect(window.getByLabel('Rótulo *')).toBeFocused();
+    await window.getByRole('button', { name: 'Cancelar' }).click();
+    await expect(window.getByRole('button', { name: 'Editar campo Nome' })).toBeFocused();
+    await window.getByRole('button', { name: 'Editar campo Nome' }).click();
+    await expect(window.getByLabel('Rótulo *')).toBeFocused();
     await window.getByLabel('Rótulo *').fill('Nome completo');
     await window.getByLabel('Valor padrão (JSON)').fill('"Desconhecido"');
     await window.getByRole('button', { name: 'Salvar definição de campo' }).click();
-    await expect(window.getByTestId('field-definition-list')).toContainText('Nome completo');
+    await expect(window.getByRole('list', { name: 'Ordenar definições de campo' })).toContainText(
+      'Nome completo',
+    );
+    await expect(window.getByRole('button', { name: 'Editar campo Nome completo' })).toBeFocused();
+    expect(await readFieldKey(window, 'Nome completo')).toBe(keyBeforeRename);
     await window.getByRole('button', { name: 'Arquivar campo Nome completo' }).click();
     await window.getByRole('button', { name: 'Confirmar arquivamento do campo' }).click();
     await expect(window.getByText('Nenhuma definição de campo criada')).toBeVisible();
     await window.getByRole('button', { name: 'Arquivadas' }).click();
+    const archivedFields = window.getByRole('list', {
+      name: 'Definições de campo arquivadas',
+    });
+    await expect(archivedFields.getByRole('button', { name: /^Mover / })).toHaveCount(0);
+    await expect(archivedFields).not.toContainText(/Ordem \d/);
     await window.getByRole('button', { name: 'Restaurar campo Nome completo' }).click();
     await window.getByRole('button', { name: 'Confirmar restauração do campo' }).click();
     await window.getByRole('button', { name: 'Ativas' }).click();
-    await expect(window.getByTestId('field-definition-list')).toContainText('Nome completo');
+    await expect(window.getByRole('list', { name: 'Ordenar definições de campo' })).toContainText(
+      'Nome completo',
+    );
+
+    await window.getByRole('button', { name: 'Novo campo' }).click();
+    await expect(window.getByLabel('Ordem', { exact: true })).toHaveCount(0);
+    await window.getByLabel('Rótulo *').fill('Apelido');
+    await window.getByRole('button', { name: 'Criar definição de campo' }).click();
+    const fieldList = window.getByRole('list', { name: 'Ordenar definições de campo' });
+    await expect(fieldList).not.toContainText(/Ordem \d/);
+    await expect(fieldList.getByRole('heading')).toHaveText(['Nome completo', 'Apelido']);
+    await window.getByRole('button', { name: 'Mover Apelido para cima' }).click();
+    await expect(fieldList.getByRole('heading')).toHaveText(['Apelido', 'Nome completo']);
+    await expect(window.getByRole('status')).toContainText('Campo “Apelido” reposicionado.');
 
     await application.close();
     application = null;
@@ -271,14 +341,15 @@ test('configura tipos de entidade isolados na campanha e os recupera após reini
     await window.getByRole('button', { name: 'Abrir campanha Cidade das Pontes' }).click();
     await window.getByRole('button', { name: 'Gerenciar tipos de entidade' }).click();
     await expect(window.getByRole('heading', { name: 'Personagens' })).toBeVisible();
-    await expect(window.getByTestId('entity-type-list')).toContainText('Protagonista');
-    await expect(window.getByTestId('entity-type-list')).toContainText(
-      'Pessoas centrais para a história.',
-    );
+    const persistedEntityTypes = window.getByRole('list', { name: 'Ordenar tipos de entidade' });
+    await expect(persistedEntityTypes.getByRole('heading')).toHaveText(['Locais', 'Personagens']);
+    await expect(persistedEntityTypes).toContainText('Protagonista');
+    await expect(persistedEntityTypes).toContainText('Pessoas centrais para a história.');
     await window.getByRole('button', { name: 'Gerenciar campos de Personagens' }).click();
-    await expect(window.getByTestId('field-definition-list')).toContainText('Nome completo');
-    await expect(window.getByTestId('field-definition-list')).toContainText('Obrigatório');
-    await expect(window.getByTestId('field-definition-list')).toContainText('Pesquisável');
+    const persistedFields = window.getByRole('list', { name: 'Ordenar definições de campo' });
+    await expect(persistedFields.getByRole('heading')).toHaveText(['Apelido', 'Nome completo']);
+    await expect(persistedFields).toContainText('Obrigatório');
+    await expect(persistedFields).toContainText('Pesquisável');
   } finally {
     await application?.close();
     await rm(dataDirectory, { recursive: true, force: true });
@@ -301,4 +372,30 @@ async function launch(dataDirectory: string): Promise<ElectronApplication> {
       NODE_ENV: 'test',
     },
   });
+}
+
+async function readFieldKey(
+  window: Awaited<ReturnType<ElectronApplication['firstWindow']>>,
+  label: string,
+): Promise<string> {
+  return window.evaluate(async (requestedLabel) => {
+    const gateway = (globalThis as unknown as { campaignManager: CampaignManagerGateway })
+      .campaignManager;
+    const campaigns = await gateway.campaigns.list({});
+    if (!campaigns.ok) throw new Error('Não foi possível consultar a campanha do teste.');
+    const campaign = campaigns.data.items[0];
+    if (campaign === undefined) throw new Error('Campanha do teste ausente.');
+    const entityTypes = await gateway.entityTypes.list({ campaignId: campaign.id });
+    if (!entityTypes.ok) throw new Error('Não foi possível consultar os grupos do teste.');
+    const entityType = entityTypes.data.items[0];
+    if (entityType === undefined) throw new Error('Grupo do teste ausente.');
+    const fields = await gateway.fieldDefinitions.list({
+      campaignId: campaign.id,
+      entityTypeId: entityType.id,
+    });
+    if (!fields.ok) throw new Error('Não foi possível consultar os campos do teste.');
+    const field = fields.data.items.find((item) => item.label === requestedLabel);
+    if (field === undefined) throw new Error(`Campo ausente: ${requestedLabel}`);
+    return field.key;
+  }, label);
 }

@@ -21,7 +21,7 @@ describe('fluxo de edi\u00e7\u00e3o de eventos', () => {
       validateEventInput(
         {
           ...details().event,
-          links: [{ entityId: otherEntityId, role: 'participant', sortOrder: 0 }],
+          links: [{ entityId: otherEntityId, role: 'participant' }],
         },
         new Set([entityId]),
       ),
@@ -32,14 +32,14 @@ describe('fluxo de edi\u00e7\u00e3o de eventos', () => {
     const current = details();
     const input = {
       ...current.event,
-      links: current.links.map(({ entityId, role, sortOrder }) => ({ entityId, role, sortOrder })),
+      links: current.links.map(({ entityId, role }) => ({ entityId, role })),
     };
     expect(eventPatch(input, current.event)).toEqual({});
     expect(linksChanged(input.links, current.links)).toBe(false);
     const changed = {
       ...input,
       eventOrder: 2,
-      links: [{ entityId, role: 'witness' as const, sortOrder: 1 }],
+      links: [{ entityId, role: 'witness' as const }],
     };
     expect(eventPatch(changed, current.event)).toEqual({ eventOrder: 2 });
     expect(linksChanged(changed.links, current.links)).toBe(true);
@@ -61,8 +61,8 @@ describe('fluxo de edi\u00e7\u00e3o de eventos', () => {
         {
           ...details().event,
           links: [
-            { entityId, role: 'participant', sortOrder: 0 },
-            { entityId, role: 'participant', sortOrder: 1 },
+            { entityId, role: 'participant' },
+            { entityId, role: 'participant' },
           ],
         },
         new Set([entityId]),
@@ -118,6 +118,7 @@ function entity(id: string, archivedAt: string | null = null): Entity {
     id,
     campaignId,
     entityTypeId: '10000000-0000-4000-8000-000000000001',
+    referenceImageAttachmentId: null,
     name: id,
     summary: null,
     canonState: 'accepted',

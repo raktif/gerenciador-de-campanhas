@@ -9,12 +9,18 @@ import {
   inputClass,
   knowledgeLabel,
   knowledgeOptions,
-  primaryClass,
-  secondaryClass,
   visibilityLabel,
   visibilityOptions,
   type NarrativeMetadataValues,
 } from '../narrative/narrative-metadata-fields';
+import { useSessionSourceOptions } from '../narrative/session-source-options';
+import {
+  presentUserFacingError,
+  userFacingErrorMessage,
+  type UserFacingError,
+} from '../../../core/errors/user-facing-error';
+import { UserFacingErrorNotice } from '../../components/user-facing-error-notice';
+import { Button, ButtonGroup, FormActions, ToolbarActions } from '../../components/actions';
 
 type View = 'list' | 'create' | 'edit';
 export interface NarrativeContext {
@@ -42,7 +48,7 @@ export function AssertionManager({
   const [cursor, setCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<UserFacingError | null>(null);
   const [announcement, setAnnouncement] = useState<string | null>(null);
   const [pending, setPending] = useState<Assertion | null>(null);
 
@@ -67,9 +73,9 @@ export function AssertionManager({
         if (result.ok) {
           setItems((current) => (append ? [...current, ...result.data.items] : result.data.items));
           setCursor(result.data.nextCursor);
-        } else setError(result.error.message);
+        } else setError(presentUserFacingError(result.error, 'assertions.list'));
       } catch {
-        setError(unexpectedGatewayError);
+        setError(presentUserFacingError(undefined, 'assertions.list'));
       } finally {
         setLoading(false);
       }
@@ -85,7 +91,7 @@ export function AssertionManager({
   useEffect(() => {
     void loadAllEntities(campaign.id)
       .then(setEntities)
-      .catch(() => setError(unexpectedGatewayError));
+      .catch(() => setError(presentUserFacingError(undefined, 'entities.list')));
   }, [campaign.id]);
 
   async function beginEdit(item: Assertion): Promise<void> {
@@ -98,13 +104,13 @@ export function AssertionManager({
         id: item.id,
       });
       if (!result.ok) {
-        setError(result.error.message);
+        setError(presentUserFacingError(result.error, 'assertions.mutate'));
         return;
       }
       setEditing(result.data);
       setView('edit');
     } catch {
-      setError(unexpectedGatewayError);
+      setError(presentUserFacingError(undefined, 'assertions.mutate'));
     } finally {
       setBusy(false);
     }
@@ -131,7 +137,7 @@ export function AssertionManager({
                 knowledgeState: input.knowledgeState,
                 visibility: input.visibility,
                 originKind: input.originKind,
-                sourceId: input.sourceId,
+                ...(input.sessionId === undefined ? {} : { sessionId: input.sessionId }),
               },
             });
       if (result.ok) {
@@ -139,9 +145,9 @@ export function AssertionManager({
         setEditing(null);
         setView('list');
         await load(false);
-      } else setError(result.error.message);
+      } else setError(presentUserFacingError(result.error, 'assertions.mutate'));
     } catch {
-      setError(unexpectedGatewayError);
+      setError(presentUserFacingError(undefined, 'assertions.mutate'));
     } finally {
       setBusy(false);
     }
@@ -159,9 +165,9 @@ export function AssertionManager({
         setAnnouncement(restore ? 'Afirmação restaurada.' : 'Afirmação arquivada.');
         setPending(null);
         await load(false);
-      } else setError(result.error.message);
+      } else setError(presentUserFacingError(result.error, 'assertions.mutate'));
     } catch {
-      setError(unexpectedGatewayError);
+      setError(presentUserFacingError(undefined, 'assertions.mutate'));
     } finally {
       setBusy(false);
     }
@@ -169,53 +175,60 @@ export function AssertionManager({
 
   if (view !== 'list')
     return (
-      <AssertionForm
-        campaign={campaign}
-        {...(context === undefined ? {} : { context })}
-        entities={entities}
-        assertion={editing}
-        busy={busy}
-        error={error}
-        onCancel={() => {
-          setEditing(null);
-          setView('list');
-          setError(null);
-        }}
-        onSubmit={submit}
-      />
+      <>
+        <AssertionForm
+          campaign={campaign}
+          {...(context === undefined ? {} : { context })}
+          entities={entities}
+          assertion={editing}
+          busy={busy}
+          error={null}
+          onCancel={() => {
+            setEditing(null);
+            setView('list');
+            setError(null);
+          }}
+          onSubmit={submit}
+        />
+        {error === null ? null : (
+          <div className="mx-auto mt-5 max-w-5xl">
+            <UserFacingErrorNotice error={error} operation="assertions.mutate" />
+          </div>
+        )}
+      </>
     );
   return (
     <section aria-labelledby="assertions-title">
-      <button className={secondaryClass} onClick={onBack} type="button">
+      <Button onClick={onBack} size="small" variant="ghost">
         ← {context === undefined ? 'Voltar para detalhes da campanha' : `Voltar para entidades`}
-      </button>
-      <header className="mt-6 flex flex-wrap items-end justify-between gap-5 border-b border-stone-200 pb-6">
+      </Button>
+      <header className="mt-6 flex flex-wrap items-end justify-between gap-5 border-b semantic-border pb-6">
         <div>
-          <p className="text-xs font-bold tracking-[0.18em] text-amber-800 uppercase">
+          <p className="text-xs font-bold tracking-[0.18em] semantic-accent-text uppercase">
             {campaign.name}
           </p>
           <h1 className="mt-2 text-4xl font-semibold" id="assertions-title">
             Afirmações
           </h1>
-          <p className="mt-2 text-slate-600">
+          <p className="mt-2 semantic-text-secondary">
             {context === undefined
               ? 'Fatos, rumores e possibilidades com proveniência explícita.'
               : `Contexto: ${context.entityName}`}
           </p>
         </div>
-        <button
-          className={primaryClass}
+        <Button
           disabled={busy || entities.length === 0}
           onClick={() => {
             setEditing(null);
             setView('create');
           }}
-          type="button"
+          size="large"
+          variant="primary"
         >
           Nova afirmação
-        </button>
+        </Button>
       </header>
-      <div className="mt-5 flex flex-wrap gap-3">
+      <ToolbarActions aria-label="Filtros de afirmações" className="mt-5">
         <Filter
           label="Natureza"
           value={knowledge}
@@ -229,64 +242,45 @@ export function AssertionManager({
           options={visibilityOptions}
           onChange={setVisibility}
         />
-        <button
-          aria-pressed={!archived}
-          className={secondaryClass}
-          onClick={() => setArchived(false)}
-          type="button"
-        >
+        <Button aria-pressed={!archived} onClick={() => setArchived(false)}>
           Ativas
-        </button>
-        <button
-          aria-pressed={archived}
-          className={secondaryClass}
-          onClick={() => setArchived(true)}
-          type="button"
-        >
+        </Button>
+        <Button aria-pressed={archived} onClick={() => setArchived(true)}>
           Arquivadas
-        </button>
-      </div>
+        </Button>
+      </ToolbarActions>
       {announcement === null ? null : (
         <p
           aria-live="polite"
-          className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-800"
+          className="mt-5 rounded-xl border semantic-success-border semantic-success-surface p-4 semantic-success-text"
           role="status"
         >
           {announcement}
         </p>
       )}
       {error === null ? null : (
-        <div
-          className="mt-5 rounded-xl border border-red-200 bg-red-50 p-4 text-red-800"
-          role="alert"
-        >
-          {error}
-          <button className="ml-3 underline" onClick={() => void load(false)} type="button">
-            Tentar novamente
-          </button>
+        <div className="mt-5">
+          <UserFacingErrorNotice
+            error={error}
+            operation="assertions.list"
+            onRetry={() => void load(false)}
+          />
         </div>
       )}
       {pending === null ? null : (
-        <div className="mt-5 rounded-xl border border-amber-300 bg-amber-50 p-5" role="alert">
+        <div
+          className="mt-5 rounded-xl border semantic-warning-border semantic-warning-surface p-5"
+          role="alert"
+        >
           <p className="font-semibold">Arquivar esta afirmação?</p>
-          <div className="mt-3 flex gap-3">
-            <button
-              className={secondaryClass}
-              disabled={busy}
-              onClick={() => setPending(null)}
-              type="button"
-            >
+          <ButtonGroup aria-label="Ações de confirmação" className="mt-3">
+            <Button disabled={busy} onClick={() => setPending(null)}>
               Cancelar ação
-            </button>
-            <button
-              className={primaryClass}
-              disabled={busy}
-              onClick={() => void lifecycle(pending, false)}
-              type="button"
-            >
+            </Button>
+            <Button busy={busy} onClick={() => void lifecycle(pending, false)} variant="primary">
               Confirmar arquivamento da afirmação
-            </button>
-          </div>
+            </Button>
+          </ButtonGroup>
         </div>
       )}
       {loading && items.length === 0 ? (
@@ -294,13 +288,16 @@ export function AssertionManager({
           Carregando afirmações…
         </p>
       ) : items.length === 0 ? (
-        <div className="mt-8 rounded-2xl border border-dashed border-stone-300 bg-white p-12 text-center">
+        <div className="mt-8 rounded-2xl border border-dashed semantic-border semantic-surface p-12 text-center">
           <h2 className="text-xl font-semibold">Nenhuma afirmação encontrada</h2>
         </div>
       ) : (
         <div className="mt-7 grid gap-4" data-testid="assertion-list">
           {items.map((item) => (
-            <article className="rounded-2xl border border-stone-200 bg-white p-6" key={item.id}>
+            <article
+              className="rounded-2xl border semantic-border semantic-surface p-6"
+              key={item.id}
+            >
               <div className="flex flex-wrap gap-2 text-xs font-semibold">
                 <Badge>{canonLabel(item.canonState)}</Badge>
                 <Badge>{knowledgeLabel(item.knowledgeState)}</Badge>
@@ -308,52 +305,32 @@ export function AssertionManager({
               </div>
               <p className="mt-4 text-lg font-medium">{assertionText(item, entities)}</p>
               {item.knowledgeState === 'possibility' ? (
-                <p className="mt-2 font-semibold text-amber-800">
+                <p className="mt-2 font-semibold semantic-accent-text">
                   Possibilidade — não confirmada como fato
                 </p>
               ) : null}
-              <div className="mt-5 flex justify-end gap-3">
-                <button
-                  className={secondaryClass}
-                  disabled={busy}
-                  onClick={() => void beginEdit(item)}
-                  type="button"
-                >
+              <ToolbarActions aria-label="Ações da afirmação" className="mt-5 justify-end">
+                <Button disabled={busy} onClick={() => void beginEdit(item)}>
                   Editar afirmação
-                </button>
+                </Button>
                 {item.archivedAt === null ? (
-                  <button
-                    className={secondaryClass}
-                    disabled={busy}
-                    onClick={() => setPending(item)}
-                    type="button"
-                  >
+                  <Button disabled={busy} onClick={() => setPending(item)}>
                     Arquivar afirmação
-                  </button>
+                  </Button>
                 ) : (
-                  <button
-                    className={secondaryClass}
-                    disabled={busy}
-                    onClick={() => void lifecycle(item, true)}
-                    type="button"
-                  >
+                  <Button disabled={busy} onClick={() => void lifecycle(item, true)}>
                     Restaurar afirmação
-                  </button>
+                  </Button>
                 )}
-              </div>
+              </ToolbarActions>
             </article>
           ))}
         </div>
       )}
       {cursor === null ? null : (
-        <button
-          className={`${secondaryClass} mt-6`}
-          disabled={loading}
-          onClick={() => void load(true)}
-          type="button"
-        >
+        <Button busy={loading} className="mt-6" onClick={() => void load(true)}>
           {loading ? 'Carregando…' : 'Carregar mais afirmações'}
-        </button>
+        </Button>
       )}
     </section>
   );
@@ -396,6 +373,9 @@ function AssertionForm({
     sourceId: assertion?.sourceId ?? null,
   });
   const [validation, setValidation] = useState<string | null>(null);
+  const [sessionId, setSessionId] = useState(assertion?.sessionId ?? '');
+  const sessionSource = useSessionSourceOptions(campaign.id);
+  const sessionUnavailable = metadata.originKind === 'session' && !sessionSource.available;
   function submit(event: React.SyntheticEvent<HTMLFormElement, SubmitEvent>): void {
     event.preventDefault();
     setValidation(null);
@@ -407,11 +387,25 @@ function AssertionForm({
       if (structured && object === '' && value.trim() === '')
         throw new Error('Informe uma entidade objeto ou um valor JSON.');
       if (!structured && statement.trim() === '') throw new Error('Informe a afirmação textual.');
+      if (sessionUnavailable)
+        throw new Error(
+          sessionSource.loading
+            ? 'Aguarde o carregamento das sessões de origem.'
+            : 'A origem por sessão não está disponível. Escolha outra origem ou recarregue as sessões.',
+        );
+      if (metadata.originKind === 'session' && sessionId === '')
+        throw new Error('Escolha a sessão de origem.');
       if (!structured && statement.trim().length > 10000)
         throw new Error('A afirmação textual deve ter no máximo 10000 caracteres.');
       let parsed: CreateAssertionInput['value'] = null;
       if (structured && value.trim() !== '')
         parsed = JSON.parse(value) as CreateAssertionInput['value'];
+      const metadataInput = {
+        canonState: metadata.canonState,
+        knowledgeState: metadata.knowledgeState,
+        visibility: metadata.visibility,
+        originKind: metadata.originKind,
+      };
       void onSubmit({
         campaignId: campaign.id,
         subjectEntityId: subject,
@@ -419,7 +413,8 @@ function AssertionForm({
         objectEntityId: structured ? object || null : null,
         statement: structured ? null : statement.trim() || null,
         value: structured ? parsed : null,
-        ...metadata,
+        ...metadataInput,
+        ...(metadata.originKind === 'session' ? { sessionId } : {}),
       });
     } catch (reason) {
       setValidation(message(reason));
@@ -427,10 +422,10 @@ function AssertionForm({
   }
   return (
     <section className="mx-auto max-w-4xl">
-      <button className={secondaryClass} disabled={busy} onClick={onCancel} type="button">
+      <Button disabled={busy} onClick={onCancel} size="small" variant="ghost">
         ← Voltar para afirmações
-      </button>
-      <div className="mt-6 rounded-3xl border border-stone-200 bg-white p-8">
+      </Button>
+      <div className="mt-6 rounded-3xl border semantic-border semantic-surface p-8">
         <h1 className="text-3xl font-semibold">
           {assertion === null ? 'Nova afirmação' : 'Editar afirmação'}
         </h1>
@@ -455,24 +450,14 @@ function AssertionForm({
           </label>
           <fieldset>
             <legend className="font-semibold">Formato</legend>
-            <div className="mt-2 flex gap-3">
-              <button
-                aria-pressed={!structured}
-                className={secondaryClass}
-                onClick={() => setStructured(false)}
-                type="button"
-              >
+            <ButtonGroup aria-label="Formato da afirmação" className="mt-2">
+              <Button aria-pressed={!structured} onClick={() => setStructured(false)}>
                 Textual
-              </button>
-              <button
-                aria-pressed={structured}
-                className={secondaryClass}
-                onClick={() => setStructured(true)}
-                type="button"
-              >
+              </Button>
+              <Button aria-pressed={structured} onClick={() => setStructured(true)}>
                 Estruturada
-              </button>
-            </div>
+              </Button>
+            </ButtonGroup>
           </fieldset>
           {structured ? (
             <div className="grid gap-5 md:grid-cols-2">
@@ -526,20 +511,26 @@ function AssertionForm({
               />
             </label>
           )}
-          <NarrativeMetadataFields disabled={busy} values={metadata} onChange={setMetadata} />
+          <NarrativeMetadataFields
+            disabled={busy}
+            hideSourceIdentifier
+            sessionSource={{ ...sessionSource, value: sessionId, onChange: setSessionId }}
+            values={metadata}
+            onChange={setMetadata}
+          />
           {error === null && validation === null ? null : (
-            <p className="rounded-xl bg-red-50 p-4 text-red-800" role="alert">
+            <p className="rounded-xl semantic-danger-surface p-4 semantic-error-text" role="alert">
               {error ?? validation}
             </p>
           )}
-          <div className="flex justify-end gap-3">
-            <button className={secondaryClass} disabled={busy} onClick={onCancel} type="button">
+          <FormActions>
+            <Button disabled={busy} onClick={onCancel}>
               Cancelar
-            </button>
-            <button className={primaryClass} disabled={busy} type="submit">
+            </Button>
+            <Button busy={busy} disabled={sessionUnavailable} type="submit" variant="primary">
               {busy ? 'Salvando…' : assertion === null ? 'Criar afirmação' : 'Salvar afirmação'}
-            </button>
-          </div>
+            </Button>
+          </FormActions>
         </form>
       </div>
     </section>
@@ -556,7 +547,7 @@ async function loadAllEntities(campaignId: string): Promise<Entity[]> {
       ...(cursor === undefined ? {} : { cursor }),
       filters: { archived: false },
     });
-    if (!result.ok) throw new Error(result.error.message);
+    if (!result.ok) throw new Error(userFacingErrorMessage(result.error, 'entities.list'));
     items.push(...result.data.items);
     cursor = result.data.nextCursor ?? undefined;
   } while (cursor !== undefined);
@@ -604,10 +595,8 @@ function Filter({
   );
 }
 function Badge({ children }: { children: React.ReactNode }): React.JSX.Element {
-  return <span className="rounded-full bg-stone-100 px-3 py-1">{children}</span>;
+  return <span className="rounded-full semantic-surface-muted px-3 py-1">{children}</span>;
 }
 function message(error: unknown): string {
   return error instanceof Error ? error.message : 'Não foi possível concluir a operação.';
 }
-const unexpectedGatewayError =
-  'Não foi possível concluir a operação. Revise os dados e tente novamente.';

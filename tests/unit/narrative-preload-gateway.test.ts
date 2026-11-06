@@ -51,20 +51,10 @@ describe('gateways narrativos do preload', () => {
       ...Object.values(assertionChannels),
       ...Object.values(noteChannels),
     ]);
-    expect(invocations[0]?.input).toMatchObject({
-      statement: 'Pista.',
-      canonState: 'accepted',
-      sourceId: null,
-    });
-    expect(invocations[2]?.input).toEqual({
-      campaignId,
-      limit: 50,
-      filters: { archived: false },
-      sort: 'updatedAt',
-      order: 'desc',
-    });
-    expect(invocations[6]?.input).toMatchObject({ title: 'Nota', noteType: 'general', links: [] });
-    expect(invocations[9]?.input).toMatchObject({ links: [{ entityId, role: 'alvo' }] });
+    expect(invocations[0]?.input).toMatchObject({ statement: '  Pista.  ' });
+    expect(invocations[2]?.input).toEqual({ campaignId });
+    expect(invocations[6]?.input).toMatchObject({ title: '  Nota  ' });
+    expect(invocations[9]?.input).toMatchObject({ links: [{ entityId, role: '  alvo  ' }] });
   });
 
   it('bloqueia entradas inválidas antes de invocar o IPC', () => {
@@ -76,8 +66,7 @@ describe('gateways narrativos do preload', () => {
         campaignId,
         subjectEntityId: entityId,
         statement: 'Conteúdo válido.',
-        originKind: 'document',
-        sourceId: 'fonte-inválida',
+        originKind: 'session',
       }),
     ).toThrow();
     expect(() => gateway.notes.create({ campaignId, title: ' ', bodyMarkdown: ' ' })).toThrow();
@@ -86,8 +75,7 @@ describe('gateways narrativos do preload', () => {
         campaignId,
         title: 'Nota válida',
         bodyMarkdown: 'Conteúdo válido.',
-        originKind: 'document',
-        sourceId: 'fonte-inválida',
+        originKind: 'session',
       }),
     ).toThrow();
     expect(invocations).toHaveLength(0);

@@ -29,7 +29,6 @@ describe('contratos de notas', () => {
       knowledgeState: 'fact',
       visibility: 'gm',
       originKind: 'manual',
-      sourceId: null,
       links: [{ entityId, role: 'alvo' }],
     });
   });

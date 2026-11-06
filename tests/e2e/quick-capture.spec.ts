@@ -65,6 +65,65 @@ test('captura anotações pelo botão e atalho, associa sessão opcional e prese
   }
 });
 
+test('exibe um único feedback descartável da captura sem roubar foco', async () => {
+  const dataDirectory = await mkdtemp(path.join(os.tmpdir(), 'rpg-quick-capture-feedback-e2e-'));
+  let application: ElectronApplication | null = null;
+  try {
+    application = await launch(dataDirectory);
+    const window = await application.firstWindow();
+    await prepareCampaign(window, 'Feedback da captura');
+
+    const trigger = window.getByRole('button', { name: 'Captura rápida' });
+    const feedback = window.getByTestId('quick-capture-feedback');
+    await saveQuickCapture(window, 'Primeira captura.');
+    await expect(feedback).toHaveCount(1);
+    await expect(feedback).toContainText('Captura salva na Caixa de Entrada.');
+    await expect(trigger).toBeFocused();
+    const dismissFeedback = feedback.getByRole('button', { name: 'Fechar aviso de captura' });
+    const dismissBounds = await dismissFeedback.boundingBox();
+    expect(dismissBounds?.width ?? 0).toBeGreaterThanOrEqual(44);
+    expect(dismissBounds?.height ?? 0).toBeGreaterThanOrEqual(44);
+
+    await window.keyboard.press('Escape');
+    await expect(feedback).toHaveCount(0);
+
+    await saveQuickCapture(window, 'Segunda captura.');
+    await expect(feedback).toHaveCount(1);
+    await window.locator('main').click({ position: { x: 8, y: 8 } });
+    await expect(feedback).toHaveCount(0);
+
+    await saveQuickCapture(window, 'Terceira captura.');
+    await expect(feedback).toHaveCount(1);
+    await trigger.click();
+    await expect(feedback).toHaveCount(0);
+    const dialog = window.getByRole('dialog', { name: 'Captura rápida' });
+    await dialog.getByLabel('Texto *').fill('Quarta captura.');
+    await dialog.getByRole('button', { name: 'Salvar captura' }).click();
+    await expect(feedback).toHaveCount(1);
+
+    await feedback.getByRole('button', { name: 'Abrir Caixa de Entrada' }).click();
+    await expect(window.getByRole('heading', { name: 'Caixa de Entrada' })).toBeVisible();
+    await expect(feedback).toHaveCount(0);
+  } finally {
+    await application?.close();
+    await rm(dataDirectory, { recursive: true, force: true });
+  }
+});
+
+async function saveQuickCapture(window: Page, text: string): Promise<void> {
+  await window.getByRole('button', { name: 'Captura rápida' }).click();
+  const dialog = window.getByRole('dialog', { name: 'Captura rápida' });
+  await dialog.getByLabel('Texto *').fill(text);
+  await dialog.getByRole('button', { name: 'Salvar captura' }).click();
+}
+
+async function prepareCampaign(window: Page, name: string): Promise<void> {
+  await window.getByRole('button', { name: 'Criar primeira campanha' }).click();
+  await window.getByLabel('Nome da campanha').fill(name);
+  await window.getByRole('button', { name: 'Criar campanha', exact: true }).click();
+  await window.getByRole('button', { name: `Abrir campanha ${name}` }).click();
+}
+
 async function prepareCampaignAndInProgressSession(window: Page): Promise<void> {
   await window.getByRole('button', { name: 'Criar primeira campanha' }).click();
   await window.getByLabel('Nome da campanha').fill(campaignName);

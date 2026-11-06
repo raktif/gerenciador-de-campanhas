@@ -5,12 +5,15 @@ import type { TimelineEntry } from '../../../core/contracts/timeline';
 import {
   canonLabel,
   knowledgeLabel,
-  secondaryClass,
   visibilityLabel,
 } from '../narrative/narrative-metadata-fields';
 import { linkSummary, originLabel, rolesForEntity, timelineGroupLabel } from './timeline-model';
-
-const gatewayError = 'Não foi possível carregar a cronologia. Tente novamente.';
+import {
+  presentUserFacingError,
+  type UserFacingError,
+} from '../../../core/errors/user-facing-error';
+import { UserFacingErrorNotice } from '../../components/user-facing-error-notice';
+import { Button, ToolbarActions } from '../../components/actions';
 
 export function TimelineManager({
   campaign,
@@ -25,7 +28,7 @@ export function TimelineManager({
   const [cursor, setCursor] = useState<string | null>(null);
   const [archived, setArchived] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<UserFacingError | null>(null);
   const [announcement, setAnnouncement] = useState<string | null>(null);
   const heading = useRef<HTMLHeadingElement>(null);
 
@@ -52,9 +55,9 @@ export function TimelineManager({
           setCursor(result.data.nextCursor);
           if (append)
             setAnnouncement(`${String(result.data.items.length)} eventos adicionais carregados.`);
-        } else setError(result.error.message);
+        } else setError(presentUserFacingError(result.error, 'timeline.list'));
       } catch {
-        setError(gatewayError);
+        setError(presentUserFacingError(undefined, 'timeline.list'));
       } finally {
         setLoading(false);
       }
@@ -78,58 +81,42 @@ export function TimelineManager({
       : 'Nenhum evento vinculado a esta entidade.';
   return (
     <section aria-labelledby="timeline-title">
-      <button className={secondaryClass} onClick={onBack} type="button">
+      <Button onClick={onBack} size="small" variant="ghost">
         ← {entity === undefined ? 'Voltar para detalhes da campanha' : 'Voltar para entidades'}
-      </button>
-      <header className="mt-6 border-b border-stone-200 pb-6">
-        <p className="text-xs font-bold tracking-[0.18em] text-amber-800 uppercase">
+      </Button>
+      <header className="mt-6 border-b semantic-border pb-6">
+        <p className="text-xs font-bold tracking-[0.18em] semantic-accent-text uppercase">
           {campaign.name}
         </p>
         <h1 className="mt-2 text-4xl font-semibold" id="timeline-title" ref={heading} tabIndex={-1}>
           {title}
         </h1>
-        <p className="mt-2 text-slate-600">
+        <p className="mt-2 semantic-text-secondary">
           {entity === undefined
             ? 'Eventos são apresentados na ordem narrativa registrada.'
             : 'Consulta histórica dos eventos vinculados a esta entidade.'}
         </p>
       </header>
-      <div className="mt-5 flex flex-wrap gap-2" role="group" aria-label="Filtrar cronologia">
-        <button
-          aria-pressed={!archived}
-          className={secondaryClass}
-          disabled={loading}
-          onClick={() => setArchived(false)}
-          type="button"
-        >
+      <ToolbarActions aria-label="Filtrar cronologia" className="mt-5 gap-2">
+        <Button aria-pressed={!archived} disabled={loading} onClick={() => setArchived(false)}>
           Eventos ativos
-        </button>
-        <button
-          aria-pressed={archived}
-          className={secondaryClass}
-          disabled={loading}
-          onClick={() => setArchived(true)}
-          type="button"
-        >
+        </Button>
+        <Button aria-pressed={archived} disabled={loading} onClick={() => setArchived(true)}>
           Eventos arquivados
-        </button>
-      </div>
+        </Button>
+      </ToolbarActions>
       {announcement === null ? null : (
-        <p aria-live="polite" className="mt-5 text-sm text-emerald-800" role="status">
+        <p aria-live="polite" className="mt-5 text-sm semantic-success-text" role="status">
           {announcement}
         </p>
       )}
       {error === null ? null : (
-        <div className="mt-5 rounded-xl bg-red-50 p-4 text-red-800" role="alert">
-          <p>{error}</p>
-          <button
-            className={`${secondaryClass} mt-3`}
-            disabled={loading}
-            onClick={() => void load(false)}
-            type="button"
-          >
-            Tentar novamente
-          </button>
+        <div className="mt-5">
+          <UserFacingErrorNotice
+            error={error}
+            operation="timeline.list"
+            onRetry={() => void load(false)}
+          />
         </div>
       )}
       {loading && items.length === 0 ? (
@@ -137,24 +124,27 @@ export function TimelineManager({
           Carregando cronologia…
         </p>
       ) : items.length === 0 ? (
-        <div className="mt-8 rounded-2xl border border-dashed border-stone-300 bg-white p-12 text-center">
+        <div className="mt-8 rounded-2xl border border-dashed semantic-border semantic-surface p-12 text-center">
           <h2 className="text-xl font-semibold">{empty}</h2>
         </div>
       ) : (
         <ol className="mt-8 grid gap-4" data-testid="timeline-list">
           {items.map((entry) => (
-            <li className="rounded-2xl border border-stone-200 bg-white p-6" key={entry.event.id}>
-              <p className="text-sm font-semibold text-amber-800">
-                {timelineGroupLabel(entry)} · Ordem {entry.event.eventOrder}
+            <li
+              className="rounded-2xl border semantic-border semantic-surface p-6"
+              key={entry.event.id}
+            >
+              <p className="text-sm font-semibold semantic-accent-text">
+                {timelineGroupLabel(entry)} · Ordem narrativa {entry.event.eventOrder}
               </p>
               <h2 className="mt-1 text-xl font-semibold">{entry.event.title}</h2>
               {entry.event.occurredAtLabel === null ? null : (
-                <p className="mt-2 text-sm text-slate-600">
+                <p className="mt-2 text-sm semantic-text-secondary">
                   Referência temporal: {entry.event.occurredAtLabel}
                 </p>
               )}
               {entry.event.descriptionMarkdown === null ? null : (
-                <p className="mt-4 whitespace-pre-wrap text-slate-700">
+                <p className="mt-4 whitespace-pre-wrap semantic-text-secondary">
                   {entry.event.descriptionMarkdown}
                 </p>
               )}
@@ -165,9 +155,11 @@ export function TimelineManager({
                 <Badge>Origem: {originLabel(entry.event.originKind)}</Badge>
               </div>
               {entity === undefined ? (
-                <p className="mt-4 text-sm text-slate-600">Vínculos: {linkSummary(entry)}</p>
+                <p className="mt-4 text-sm semantic-text-secondary">
+                  Vínculos: {linkSummary(entry)}
+                </p>
               ) : (
-                <p className="mt-4 text-sm text-slate-600">
+                <p className="mt-4 text-sm semantic-text-secondary">
                   Papel nesta entidade:{' '}
                   {rolesForEntity(entry, entity.id).join(' · ') || 'Vínculo registrado'}
                 </p>
@@ -177,19 +169,14 @@ export function TimelineManager({
         </ol>
       )}
       {cursor === null ? null : (
-        <button
-          className={`${secondaryClass} mt-6`}
-          disabled={loading}
-          onClick={() => void load(true)}
-          type="button"
-        >
+        <Button busy={loading} className="mt-6" onClick={() => void load(true)}>
           {loading ? 'Carregando…' : 'Carregar mais eventos'}
-        </button>
+        </Button>
       )}
     </section>
   );
 }
 
 function Badge({ children }: { children: React.ReactNode }): React.JSX.Element {
-  return <span className="rounded-full bg-stone-100 px-3 py-1">{children}</span>;
+  return <span className="rounded-full semantic-surface-muted px-3 py-1">{children}</span>;
 }

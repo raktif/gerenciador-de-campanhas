@@ -42,7 +42,7 @@ describe('handlers IPC de eventos', () => {
       title: 'A ponte desaba',
       eventOrder: 0,
       sourceSessionId: sessionId,
-      links: [{ entityId, role: 'location', sortOrder: 0 }],
+      links: [{ entityId, role: 'location' }],
     });
     expect(service.listInput).toEqual({
       campaignId,

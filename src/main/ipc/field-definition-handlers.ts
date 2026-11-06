@@ -2,10 +2,12 @@ import type { IpcMain, IpcMainInvokeEvent } from 'electron';
 import {
   createFieldDefinitionInputSchema,
   fieldDefinitionLifecycleInputSchema,
+  fieldDefinitionOrderSchema,
   fieldDefinitionPageRequestSchema,
   fieldDefinitionPageResultSchema,
   fieldDefinitionSchema,
   getFieldDefinitionInputSchema,
+  moveFieldDefinitionInputSchema,
   updateFieldDefinitionInputSchema,
 } from '../../core/contracts/field-definitions';
 import { fieldDefinitionChannels } from '../../core/contracts/ipc-channels';
@@ -98,6 +100,18 @@ export function registerFieldDefinitionIpcHandlers(
           fieldDefinitionSchema,
           dependencies,
           (validated) => dependencies.service.restore(validated),
+        ),
+    },
+    {
+      channel: fieldDefinitionChannels.move,
+      handler: (event, input) =>
+        executeIpcHandler(
+          event,
+          input,
+          moveFieldDefinitionInputSchema,
+          fieldDefinitionOrderSchema,
+          dependencies,
+          (validated) => dependencies.service.move(validated),
         ),
     },
   ];

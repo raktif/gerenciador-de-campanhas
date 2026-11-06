@@ -13,8 +13,6 @@ import {
   canonLabel,
   inputClass,
   knowledgeLabel,
-  primaryClass,
-  secondaryClass,
   visibilityLabel,
   type NarrativeMetadataValues,
 } from '../narrative/narrative-metadata-fields';
@@ -24,19 +22,28 @@ import {
   linksChanged,
   validateEventInput,
 } from './event-manager-model';
+import {
+  presentUserFacingError,
+  userFacingErrorMessage,
+  type UserFacingError as UserFacingErrorPresentation,
+} from '../../../core/errors/user-facing-error';
+import { UserFacingErrorNotice } from '../../components/user-facing-error-notice';
+import { ReorderableList } from '../../components/reorderable-list';
+import { Button, ButtonGroup, FormActions, ToolbarActions } from '../../components/actions';
+import { moveRelative } from '../../../core/ordering/move-relative';
 
 type View = 'list' | 'create' | 'edit';
+interface EventLinkDraft extends EventEntityLinkInput {
+  id: string;
+}
 interface PendingLifecycle {
   event: Event;
   restore: boolean;
 }
-interface UserFacingError {
-  message: string;
+interface EventError extends UserFacingErrorPresentation {
   field?: 'sourceSession';
 }
 
-const gatewayError =
-  'N\u00e3o foi poss\u00edvel concluir a opera\u00e7\u00e3o. Revise os dados e tente novamente.';
 const eventRoleLabels: Record<EventEntityLinkInput['role'], string> = {
   participant: 'Participante',
   location: 'Local',
@@ -48,28 +55,37 @@ const eventRoleLabels: Record<EventEntityLinkInput['role'], string> = {
   related: 'Relacionado',
 };
 
-function eventFailure(code: string, message: string): UserFacingError {
+function eventFailure(error: { code: string }): EventError {
+  const presentation = presentUserFacingError(error, 'events.mutate');
+  const { code } = error;
   if (code === 'EVENT_SESSION_SOURCE_REQUIRED')
-    return { message: 'Selecione a sessão que originou este evento.', field: 'sourceSession' };
+    return {
+      ...presentation,
+      message: 'Selecione a sessão que originou este evento.',
+      field: 'sourceSession',
+    };
   if (code === 'EVENT_SESSION_SOURCE_AMBIGUOUS')
     return {
+      ...presentation,
       message: 'Escolha novamente a sessão desta campanha que originou o evento.',
       field: 'sourceSession',
     };
   if (code === 'SESSION_NOT_FOUND')
     return {
+      ...presentation,
       message: 'A sessão selecionada não está disponível nesta campanha. Escolha outra.',
       field: 'sourceSession',
     };
   if (code === 'VALIDATION_ERROR')
     return {
+      ...presentation,
       message: 'Revise os campos destacados e tente novamente.',
     };
-  return { message };
+  return presentation;
 }
 
 function sourceSessionError(
-  error: UserFacingError | null,
+  error: EventError | null,
   validation: string | null,
 ): Record<string, never> | { error: string } {
   if (error?.field === 'sourceSession') return { error: error.message };
@@ -94,7 +110,7 @@ export function EventManager({
   const [loading, setLoading] = useState(true);
   const [referencesLoading, setReferencesLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<UserFacingError | null>(null);
+  const [error, setError] = useState<EventError | null>(null);
   const [announcement, setAnnouncement] = useState<string | null>(null);
   const [pending, setPending] = useState<PendingLifecycle | null>(null);
 
@@ -112,9 +128,9 @@ export function EventManager({
         if (result.ok) {
           setItems((current) => (append ? [...current, ...result.data.items] : result.data.items));
           setCursor(result.data.nextCursor);
-        } else setError({ message: result.error.message });
+        } else setError(presentUserFacingError(result.error, 'events.list'));
       } catch {
-        setError({ message: gatewayError });
+        setError(presentUserFacingError(undefined, 'events.list'));
       } finally {
         setLoading(false);
       }
@@ -132,7 +148,7 @@ export function EventManager({
       setSessions(loadedSessions);
       setEntities(loadedEntities);
     } catch {
-      setError({ message: gatewayError });
+      setError(presentUserFacingError(undefined, 'events.list'));
     } finally {
       setReferencesLoading(false);
     }
@@ -159,9 +175,9 @@ export function EventManager({
       if (result.ok) {
         setEditing(result.data);
         setView('edit');
-      } else setError({ message: result.error.message });
+      } else setError(presentUserFacingError(result.error, 'events.mutate'));
     } catch {
-      setError({ message: gatewayError });
+      setError(presentUserFacingError(undefined, 'events.mutate'));
     } finally {
       setBusy(false);
     }
@@ -181,9 +197,9 @@ export function EventManager({
         setEditing(null);
         setView('list');
         await load(false);
-      } else setError(eventFailure(result.error.code, result.error.message));
+      } else setError(eventFailure(result.error));
     } catch {
-      setError({ message: gatewayError });
+      setError(presentUserFacingError(undefined, 'events.mutate'));
     } finally {
       setBusy(false);
     }
@@ -221,9 +237,9 @@ export function EventManager({
         setAnnouncement(pending.restore ? 'Evento restaurado.' : 'Evento arquivado.');
         setPending(null);
         await load(false);
-      } else setError({ message: result.error.message });
+      } else setError(presentUserFacingError(result.error, 'events.mutate'));
     } catch {
-      setError({ message: gatewayError });
+      setError(presentUserFacingError(undefined, 'events.mutate'));
     } finally {
       setBusy(false);
     }
@@ -249,91 +265,78 @@ export function EventManager({
 
   return (
     <section aria-labelledby="events-title">
-      <button
+      <Button
         aria-label={'Voltar para sess\u00f5es'}
-        className={secondaryClass}
         disabled={busy}
         onClick={onBack}
-        type="button"
+        size="small"
+        variant="ghost"
       >
         ← Voltar para sessões
-      </button>
-      <header className="mt-6 flex flex-wrap items-end justify-between gap-5 border-b border-stone-200 pb-6">
+      </Button>
+      <header className="mt-6 flex flex-wrap items-end justify-between gap-5 border-b semantic-border pb-6">
         <div>
-          <p className="text-xs font-bold tracking-[0.18em] text-amber-800 uppercase">
+          <p className="text-xs font-bold tracking-[0.18em] semantic-accent-text uppercase">
             {campaign.name}
           </p>
           <h1 className="mt-2 text-4xl font-semibold" id="events-title">
             Eventos
           </h1>
-          <p className="mt-2 text-slate-600">
+          <p className="mt-2 semantic-text-secondary">
             Registre acontecimentos, a sessão associada e as entidades envolvidas.
           </p>
         </div>
-        <button
-          className={primaryClass}
+        <Button
           disabled={busy || referencesLoading}
           onClick={() => {
             setEditing(null);
             setView('create');
           }}
-          type="button"
+          size="large"
+          variant="primary"
         >
           Registrar evento
-        </button>
+        </Button>
       </header>
       {referencesLoading ? (
-        <p aria-live="polite" className="mt-4 text-sm text-slate-600" role="status">
+        <p aria-live="polite" className="mt-4 text-sm semantic-text-secondary" role="status">
           Carregando sessões e entidades para o evento…
         </p>
       ) : null}
-      <div className="mt-5 flex gap-2" role="group" aria-label="Filtrar eventos por estado">
-        <button
-          aria-pressed={!archived}
-          className={secondaryClass}
-          disabled={busy}
-          onClick={() => setArchived(false)}
-          type="button"
-        >
+      <ToolbarActions aria-label="Filtrar eventos por estado" className="mt-5 gap-2">
+        <Button aria-pressed={!archived} disabled={busy} onClick={() => setArchived(false)}>
           Ativos
-        </button>
-        <button
-          aria-pressed={archived}
-          className={secondaryClass}
-          disabled={busy}
-          onClick={() => setArchived(true)}
-          type="button"
-        >
+        </Button>
+        <Button aria-pressed={archived} disabled={busy} onClick={() => setArchived(true)}>
           Arquivados
-        </button>
-      </div>
+        </Button>
+      </ToolbarActions>
       {announcement === null ? null : (
         <p
           aria-live="polite"
-          className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-800"
+          className="mt-5 rounded-xl border semantic-success-border semantic-success-surface p-4 semantic-success-text"
           role="status"
         >
           {announcement}
         </p>
       )}
       {error === null ? null : (
-        <div className="mt-5 rounded-xl bg-red-50 p-4 text-red-800" role="alert">
-          <p>{error.message}</p>
-          <button
-            className={`${secondaryClass} mt-3`}
-            disabled={busy || loading}
-            onClick={() => {
+        <div className="mt-5">
+          <UserFacingErrorNotice
+            error={error}
+            operation="events.list"
+            onRetry={() => {
               void load(false);
               void loadReferences();
             }}
-            type="button"
-          >
-            Tentar novamente
-          </button>
+          />
         </div>
       )}
       {pending === null ? null : (
-        <div className="mt-5 rounded-xl border border-amber-300 bg-amber-50 p-5" role="alert">
+        <div
+          className="mt-5 rounded-xl border semantic-warning-border semantic-warning-surface p-5"
+          role="alert"
+        >
           <p className="font-semibold">
             {pending.restore ? 'Restaurar' : 'Arquivar'} “{pending.event.title}”?
           </p>
@@ -342,24 +345,14 @@ export function EventManager({
               ? 'Os vínculos serão validados novamente antes da restauração.'
               : 'O evento e seus vínculos permanecerão preservados.'}
           </p>
-          <div className="mt-3 flex gap-3">
-            <button
-              className={secondaryClass}
-              disabled={busy}
-              onClick={() => setPending(null)}
-              type="button"
-            >
+          <ButtonGroup aria-label="Ações de confirmação" className="mt-3">
+            <Button disabled={busy} onClick={() => setPending(null)}>
               Cancelar ação
-            </button>
-            <button
-              className={primaryClass}
-              disabled={busy}
-              onClick={() => void lifecycle()}
-              type="button"
-            >
+            </Button>
+            <Button busy={busy} onClick={() => void lifecycle()} variant="primary">
               Confirmar {pending.restore ? 'restauração' : 'arquivamento'}
-            </button>
-          </div>
+            </Button>
+          </ButtonGroup>
         </div>
       )}
       {loading && items.length === 0 ? (
@@ -367,24 +360,24 @@ export function EventManager({
           Carregando eventos…
         </p>
       ) : items.length === 0 ? (
-        <div className="mt-8 rounded-2xl border border-dashed border-stone-300 bg-white p-12 text-center">
+        <div className="mt-8 rounded-2xl border border-dashed semantic-border semantic-surface p-12 text-center">
           <h2 className="text-xl font-semibold">Nenhum evento encontrado</h2>
-          <p className="mt-2 text-slate-600">
+          <p className="mt-2 semantic-text-secondary">
             Registre um acontecimento para começar a cronologia.
           </p>
         </div>
       ) : (
         <ul className="mt-7 grid gap-4" data-testid="event-list">
           {items.map((item) => (
-            <li className="rounded-2xl border border-stone-200 bg-white p-6" key={item.id}>
+            <li className="rounded-2xl border semantic-border semantic-surface p-6" key={item.id}>
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <p className="text-sm font-semibold text-amber-800">
-                    {sessionLabel(item.sessionId, sessions)} · Ordem {item.eventOrder}
+                  <p className="text-sm font-semibold semantic-accent-text">
+                    {sessionLabel(item.sessionId, sessions)} · Ordem narrativa {item.eventOrder}
                   </p>
                   <h2 className="mt-1 text-xl font-semibold">{item.title}</h2>
                   {item.occurredAtLabel === null ? null : (
-                    <p className="mt-2 text-sm text-slate-600">{item.occurredAtLabel}</p>
+                    <p className="mt-2 text-sm semantic-text-secondary">{item.occurredAtLabel}</p>
                   )}
                   <div className="mt-3 flex flex-wrap gap-2 text-xs">
                     <Badge>{canonLabel(item.canonState)}</Badge>
@@ -392,39 +385,30 @@ export function EventManager({
                     <Badge>{visibilityLabel(item.visibility)}</Badge>
                   </div>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  <button
+                <ToolbarActions aria-label={`Ações de ${item.title}`} className="gap-2">
+                  <Button
                     aria-label={`Editar ${item.title}`}
-                    className={secondaryClass}
                     disabled={busy}
                     onClick={() => void beginEdit(item)}
-                    type="button"
                   >
                     Editar
-                  </button>
-                  <button
-                    className={secondaryClass}
+                  </Button>
+                  <Button
                     disabled={busy}
                     onClick={() => setPending({ event: item, restore: item.archivedAt !== null })}
-                    type="button"
                   >
                     {item.archivedAt === null ? 'Arquivar' : 'Restaurar'}
-                  </button>
-                </div>
+                  </Button>
+                </ToolbarActions>
               </div>
             </li>
           ))}
         </ul>
       )}
       {cursor === null ? null : (
-        <button
-          className={`${secondaryClass} mt-6`}
-          disabled={busy || loading}
-          onClick={() => void load(true)}
-          type="button"
-        >
+        <Button busy={loading} className="mt-6" disabled={busy} onClick={() => void load(true)}>
           {loading ? 'Carregando…' : 'Carregar mais eventos'}
-        </button>
+        </Button>
       )}
     </section>
   );
@@ -445,7 +429,7 @@ function EventEditor({
   sessions: Session[];
   entities: Entity[];
   busy: boolean;
-  error: UserFacingError | null;
+  error: EventError | null;
   onCancel: () => void;
   onSubmit: (input: CreateEventInput) => Promise<void>;
 }): React.JSX.Element {
@@ -454,10 +438,14 @@ function EventEditor({
   const [sessionId, setSessionId] = useState(details?.event.sessionId ?? '');
   const [eventOrder, setEventOrder] = useState(String(details?.event.eventOrder ?? 0));
   const [occurredAtLabel, setOccurredAtLabel] = useState(details?.event.occurredAtLabel ?? '');
-  const [links, setLinks] = useState<EventEntityLinkInput[]>(() =>
+  const [links, setLinks] = useState<EventLinkDraft[]>(() =>
     details === null
       ? []
-      : details.links.map(({ entityId, role, sortOrder }) => ({ entityId, role, sortOrder })),
+      : details.links.map(({ entityId, role }, index) => ({
+          id: `event-link-${String(index)}-${entityId}-${role}`,
+          entityId,
+          role,
+        })),
   );
   const [metadata, setMetadata] = useState<NarrativeMetadataValues>({
     canonState: details?.event.canonState ?? 'accepted',
@@ -485,7 +473,7 @@ function EventEditor({
       descriptionMarkdown: description === '' ? null : description,
       eventOrder: Number(eventOrder),
       occurredAtLabel: occurredAtLabel.trim() === '' ? null : occurredAtLabel.trim(),
-      links,
+      links: links.map(({ entityId, role }) => ({ entityId, role })),
       ...metadata,
       ...(metadata.originKind === 'session' && sourceSessionId !== '' ? { sourceSessionId } : {}),
     };
@@ -498,19 +486,17 @@ function EventEditor({
     void onSubmit(input);
   }
 
-  function updateLink(index: number, patch: Partial<EventEntityLinkInput>): void {
-    setLinks((current) =>
-      current.map((link, position) => (position === index ? { ...link, ...patch } : link)),
-    );
+  function updateLink(id: string, patch: Partial<EventEntityLinkInput>): void {
+    setLinks((current) => current.map((link) => (link.id === id ? { ...link, ...patch } : link)));
   }
 
   return (
     <section className="mx-auto max-w-5xl" aria-labelledby="event-form-title">
-      <button className={secondaryClass} disabled={busy} onClick={onCancel} type="button">
+      <Button disabled={busy} onClick={onCancel} size="small" variant="ghost">
         ← Voltar para eventos
-      </button>
-      <div className="mt-6 rounded-3xl border border-stone-200 bg-white p-8">
-        <p className="text-xs font-bold tracking-[0.18em] text-amber-800 uppercase">
+      </Button>
+      <div className="mt-6 rounded-3xl border semantic-border semantic-surface p-8">
+        <p className="text-xs font-bold tracking-[0.18em] semantic-accent-text uppercase">
           {campaign.name}
         </p>
         <h1 className="mt-2 text-3xl font-semibold" id="event-form-title">
@@ -551,12 +537,12 @@ function EventEditor({
               </select>
             </label>
             <label className="block font-semibold" htmlFor="event-order">
-              Ordem *
+              Ordem narrativa *
               <input
                 className={inputClass}
                 disabled={busy}
                 id="event-order"
-                aria-label="Ordem do evento"
+                aria-label="Ordem narrativa"
                 min="0"
                 required
                 type="number"
@@ -616,21 +602,28 @@ function EventEditor({
           />
           <fieldset
             aria-label="Vínculos com entidades"
-            className="rounded-2xl border border-stone-200 p-5"
+            className="rounded-2xl border semantic-border p-5"
           >
             <legend className="px-2 font-semibold">Vínculos com entidades</legend>
-            <p className="mt-1 text-sm text-slate-600">
+            <p className="mt-1 text-sm semantic-text-secondary">
               Somente entidades ativas desta campanha podem ser vinculadas.
             </p>
-            <div className="mt-4 grid gap-4">
-              {links.map((link, index) => {
+            <ReorderableList
+              ariaLabel="Ordenar vínculos com entidades"
+              busy={busy}
+              className="mt-4 grid gap-4"
+              getLabel={(link) =>
+                availableEntities.find((entity) => entity.id === link.entityId)?.name ??
+                'Vínculo sem entidade'
+              }
+              items={links}
+              onMove={(move) => setLinks((current) => moveRelative(current, move))}
+              renderItem={(link) => {
+                const index = links.findIndex(({ id }) => id === link.id);
                 const isActiveEntity =
                   link.entityId === '' || availableEntityIds.has(link.entityId);
                 return (
-                  <div
-                    className="grid gap-3 rounded-xl bg-stone-50 p-4 md:grid-cols-[1fr_12rem_7rem_auto]"
-                    key={`${String(index)}:${link.entityId}:${link.role}`}
-                  >
+                  <div className="grid gap-3 rounded-xl semantic-surface-muted p-4 md:grid-cols-[1fr_12rem_auto]">
                     {isActiveEntity ? (
                       <label
                         className="text-sm font-semibold"
@@ -644,7 +637,9 @@ function EventEditor({
                           aria-label="Entidade vinculada"
                           required
                           value={link.entityId}
-                          onChange={(event) => updateLink(index, { entityId: event.target.value })}
+                          onChange={(event) =>
+                            updateLink(link.id, { entityId: event.target.value })
+                          }
                         >
                           <option value="">Selecione…</option>
                           {availableEntities.map((entity) => (
@@ -655,7 +650,7 @@ function EventEditor({
                         </select>
                       </label>
                     ) : (
-                      <div className="text-sm font-semibold text-red-800">
+                      <div className="text-sm font-semibold semantic-error-text">
                         Entidade indisponível
                         <p className="mt-2 font-normal">
                           Esta entidade foi arquivada; remova o vínculo antes de salvar.
@@ -674,7 +669,7 @@ function EventEditor({
                         aria-label="Papel da entidade vinculada"
                         value={link.role}
                         onChange={(event) =>
-                          updateLink(index, {
+                          updateLink(link.id, {
                             role: event.target.value as EventEntityLinkInput['role'],
                           })
                         }
@@ -686,69 +681,51 @@ function EventEditor({
                         ))}
                       </select>
                     </label>
-                    <label
-                      className="text-sm font-semibold"
-                      htmlFor={`event-link-${String(index)}-order`}
-                    >
-                      Ordem
-                      <input
-                        className={inputClass}
-                        disabled={busy}
-                        id={`event-link-${String(index)}-order`}
-                        aria-label="Ordem do vínculo da entidade"
-                        min="0"
-                        type="number"
-                        value={link.sortOrder}
-                        onChange={(event) =>
-                          updateLink(index, { sortOrder: Number(event.target.value) })
-                        }
-                      />
-                    </label>
-                    <button
-                      className={secondaryClass}
+                    <Button
                       disabled={busy}
                       onClick={() =>
-                        setLinks((current) => current.filter((_, position) => position !== index))
+                        setLinks((current) => current.filter((item) => item.id !== link.id))
                       }
-                      type="button"
                     >
                       Remover
-                    </button>
+                    </Button>
                   </div>
                 );
-              })}
-            </div>
+              }}
+            />
             {links.length === 0 ? (
-              <p className="mt-4 text-sm text-slate-600">Nenhuma entidade vinculada.</p>
+              <p className="mt-4 text-sm semantic-text-secondary">Nenhuma entidade vinculada.</p>
             ) : null}
-            <button
+            <Button
               aria-label="Adicionar vínculo"
-              className={`${secondaryClass} mt-4`}
+              className="mt-4"
               disabled={busy || availableEntities.length === 0}
               onClick={() =>
                 setLinks((current) => [
                   ...current,
-                  { entityId: '', role: 'related', sortOrder: current.length },
+                  { id: crypto.randomUUID(), entityId: '', role: 'related' },
                 ])
               }
-              type="button"
             >
               Adicionar vínculo
-            </button>
+            </Button>
           </fieldset>
-          {error === null && validation === null ? null : (
-            <p className="rounded-xl bg-red-50 p-4 text-red-800" role="alert">
-              {error?.message ?? validation}
+          {error === null ? null : (
+            <UserFacingErrorNotice error={error} operation="events.mutate" />
+          )}
+          {validation === null ? null : (
+            <p className="rounded-xl semantic-danger-surface p-4 semantic-error-text" role="alert">
+              {validation}
             </p>
           )}
-          <div className="flex justify-end gap-3">
-            <button className={secondaryClass} disabled={busy} onClick={onCancel} type="button">
+          <FormActions>
+            <Button disabled={busy} onClick={onCancel}>
               Cancelar
-            </button>
-            <button className={primaryClass} disabled={busy} type="submit">
+            </Button>
+            <Button busy={busy} type="submit" variant="primary">
               {busy ? 'Salvando…' : details === null ? 'Registrar evento' : 'Salvar evento'}
-            </button>
-          </div>
+            </Button>
+          </FormActions>
         </form>
       </div>
     </section>
@@ -765,7 +742,7 @@ async function loadAllSessions(campaignId: string): Promise<Session[]> {
       filters: {},
       ...(cursor === undefined ? {} : { cursor }),
     });
-    if (!result.ok) throw new Error(result.error.message);
+    if (!result.ok) throw new Error(userFacingErrorMessage(result.error, 'sessions.list'));
     items.push(...result.data.items);
     cursor = result.data.nextCursor ?? undefined;
   } while (cursor !== undefined);
@@ -782,7 +759,7 @@ async function loadAllActiveEntities(campaignId: string): Promise<Entity[]> {
       filters: { archived: false },
       ...(cursor === undefined ? {} : { cursor }),
     });
-    if (!result.ok) throw new Error(result.error.message);
+    if (!result.ok) throw new Error(userFacingErrorMessage(result.error, 'entities.list'));
     items.push(...result.data.items);
     cursor = result.data.nextCursor ?? undefined;
   } while (cursor !== undefined);
@@ -796,5 +773,5 @@ function sessionLabel(sessionId: string | null, sessions: Session[]): string {
 }
 
 function Badge({ children }: { children: React.ReactNode }): React.JSX.Element {
-  return <span className="rounded-full bg-stone-100 px-3 py-1">{children}</span>;
+  return <span className="rounded-full semantic-surface-muted px-3 py-1">{children}</span>;
 }

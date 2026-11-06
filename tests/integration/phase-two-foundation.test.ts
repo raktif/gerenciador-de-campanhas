@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readdir, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import Database from 'better-sqlite3';
@@ -96,6 +96,22 @@ describe('fundação narrativa da Fase 2', () => {
          VALUES (?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(entityId, campaignId, entityTypeId, 'Kabotya', 'caderno-da-mesa', now, now);
+    const secondEntityId = randomUUID();
+    legacyDatabase
+      .prepare(
+        `INSERT INTO entities
+          (id, campaign_id, entity_type_id, name, source_id, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        secondEntityId,
+        campaignId,
+        entityTypeId,
+        'Porto de Kabotya',
+        'caderno-da-mesa',
+        now,
+        now,
+      );
     legacyDatabase.close();
 
     const context = await openTestDatabase(directories);
@@ -112,8 +128,21 @@ describe('fundação narrativa da Fase 2', () => {
       /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
     );
     expect(source).toEqual({ kind: 'manual', description: 'Referência legada: caderno-da-mesa' });
+    expect(
+      context.native.prepare('SELECT source_id FROM entities WHERE id = ?').get(secondEntityId),
+    ).toEqual({ source_id: entity.source_id });
+    expect(
+      context.native
+        .prepare(
+          "SELECT count(*) AS total FROM sources WHERE description = 'Referência legada: caderno-da-mesa'",
+        )
+        .get(),
+    ).toEqual({ total: 1 });
     expect(context.native.pragma('foreign_key_check')).toEqual([]);
     context.close();
+    expect(
+      (await readdir(directories.automaticBackups)).filter((name) => name.endsWith('.db')),
+    ).toHaveLength(1);
   });
 
   it('valida fonte de sessão e impede seu uso por outra campanha', async () => {

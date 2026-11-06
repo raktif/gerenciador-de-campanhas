@@ -1,0 +1,155 @@
+import type { IpcMain, IpcMainInvokeEvent } from 'electron';
+import {
+  imageImportResultSchema,
+  importImageBytesInputSchema,
+  importImageUrlInputSchema,
+  selectLocalImageInputSchema,
+} from '../../core/contracts/image-imports';
+import {
+  entityReferenceImageImportResultSchema,
+  importEntityReferenceImageBytesInputSchema,
+  importEntityReferenceImageUrlInputSchema,
+  selectLocalEntityReferenceImageInputSchema,
+} from '../../core/contracts/entity-reference-images';
+import {
+  imageFieldValueImportResultSchema,
+  importImageFieldValueBytesInputSchema,
+  importImageFieldValueUrlInputSchema,
+  selectLocalImageFieldValueInputSchema,
+} from '../../core/contracts/image-field-values';
+import { imageFieldValueChannels, imageImportChannels } from '../../core/contracts/ipc-channels';
+import type { Result } from '../../core/contracts/result';
+import type { Logger } from '../../core/logging/logger';
+import type { ImageImportService } from '../services/image-import-service';
+import { executeIpcHandler } from './ipc-handler';
+
+export interface ImageImportHandlerDependencies {
+  service: ImageImportService;
+  logger: Logger;
+  authorizedWebContentsId: number;
+}
+
+export function registerImageImportIpcHandlers(
+  ipcMain: IpcMain,
+  dependencies: ImageImportHandlerDependencies,
+): () => void {
+  const registrations: {
+    channel: string;
+    handler: (event: IpcMainInvokeEvent, input: unknown) => Promise<Result<unknown>>;
+  }[] = [
+    {
+      channel: imageImportChannels.selectLocal,
+      handler: (event, input) =>
+        executeIpcHandler(
+          event,
+          input,
+          selectLocalImageInputSchema,
+          imageImportResultSchema,
+          dependencies,
+          (validatedInput) => dependencies.service.selectLocal(validatedInput),
+        ),
+    },
+    {
+      channel: imageImportChannels.importBytes,
+      handler: (event, input) =>
+        executeIpcHandler(
+          event,
+          input,
+          importImageBytesInputSchema,
+          imageImportResultSchema,
+          dependencies,
+          (validatedInput) => dependencies.service.importBytes(validatedInput),
+        ),
+    },
+    {
+      channel: imageImportChannels.importUrl,
+      handler: (event, input) =>
+        executeIpcHandler(
+          event,
+          input,
+          importImageUrlInputSchema,
+          imageImportResultSchema,
+          dependencies,
+          (validatedInput) => dependencies.service.importUrl(validatedInput),
+        ),
+    },
+    {
+      channel: imageImportChannels.selectEntityReferenceLocal,
+      handler: (event, input) =>
+        executeIpcHandler(
+          event,
+          input,
+          selectLocalEntityReferenceImageInputSchema,
+          entityReferenceImageImportResultSchema,
+          dependencies,
+          (validatedInput) => dependencies.service.selectEntityReferenceLocal(validatedInput),
+        ),
+    },
+    {
+      channel: imageImportChannels.importEntityReferenceBytes,
+      handler: (event, input) =>
+        executeIpcHandler(
+          event,
+          input,
+          importEntityReferenceImageBytesInputSchema,
+          entityReferenceImageImportResultSchema,
+          dependencies,
+          (validatedInput) => dependencies.service.importEntityReferenceBytes(validatedInput),
+        ),
+    },
+    {
+      channel: imageImportChannels.importEntityReferenceUrl,
+      handler: (event, input) =>
+        executeIpcHandler(
+          event,
+          input,
+          importEntityReferenceImageUrlInputSchema,
+          entityReferenceImageImportResultSchema,
+          dependencies,
+          (validatedInput) => dependencies.service.importEntityReferenceUrl(validatedInput),
+        ),
+    },
+    {
+      channel: imageFieldValueChannels.selectLocal,
+      handler: (event, input) =>
+        executeIpcHandler(
+          event,
+          input,
+          selectLocalImageFieldValueInputSchema,
+          imageFieldValueImportResultSchema,
+          dependencies,
+          (validatedInput) => dependencies.service.selectImageFieldLocal(validatedInput),
+        ),
+    },
+    {
+      channel: imageFieldValueChannels.importBytes,
+      handler: (event, input) =>
+        executeIpcHandler(
+          event,
+          input,
+          importImageFieldValueBytesInputSchema,
+          imageFieldValueImportResultSchema,
+          dependencies,
+          (validatedInput) => dependencies.service.importImageFieldBytes(validatedInput),
+        ),
+    },
+    {
+      channel: imageFieldValueChannels.importUrl,
+      handler: (event, input) =>
+        executeIpcHandler(
+          event,
+          input,
+          importImageFieldValueUrlInputSchema,
+          imageFieldValueImportResultSchema,
+          dependencies,
+          (validatedInput) => dependencies.service.importImageFieldUrl(validatedInput),
+        ),
+    },
+  ];
+
+  for (const registration of registrations)
+    ipcMain.handle(registration.channel, registration.handler);
+  return () => {
+    for (const registration of registrations) ipcMain.removeHandler(registration.channel);
+  };
+}

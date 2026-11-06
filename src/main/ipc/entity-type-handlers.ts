@@ -2,10 +2,12 @@ import type { IpcMain, IpcMainInvokeEvent } from 'electron';
 import {
   createEntityTypeInputSchema,
   entityTypeLifecycleInputSchema,
+  entityTypeOrderSchema,
   entityTypePageRequestSchema,
   entityTypePageResultSchema,
   entityTypeSchema,
   getEntityTypeInputSchema,
+  moveEntityTypeInputSchema,
   updateEntityTypeInputSchema,
 } from '../../core/contracts/entity-types';
 import { entityTypeChannels } from '../../core/contracts/ipc-channels';
@@ -98,6 +100,18 @@ export function registerEntityTypeIpcHandlers(
           entityTypeSchema,
           dependencies,
           (validatedInput) => dependencies.service.restore(validatedInput),
+        ),
+    },
+    {
+      channel: entityTypeChannels.move,
+      handler: (event, input) =>
+        executeIpcHandler(
+          event,
+          input,
+          moveEntityTypeInputSchema,
+          entityTypeOrderSchema,
+          dependencies,
+          (validatedInput) => dependencies.service.move(validatedInput),
         ),
     },
   ];

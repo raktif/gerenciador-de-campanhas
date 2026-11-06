@@ -78,7 +78,7 @@ describe('contratos de sessões', () => {
     ).toMatchObject({ filters: { status: 'completed' }, sort: 'playedAt', order: 'asc' });
   });
 
-  it('valida papéis, presença, ordem e entidades participantes não repetidas', () => {
+  it('valida papéis e presença sem expor a ordem técnica nos participantes', () => {
     const entityId = '30000000-0000-4000-8000-000000000001';
     expect(
       replaceSessionParticipantsInputSchema.parse({
@@ -88,7 +88,7 @@ describe('contratos de sessões', () => {
         participants: [{ entityId, role: 'player_character' }],
       }),
     ).toMatchObject({
-      participants: [{ entityId, role: 'player_character', attended: true, sortOrder: 0 }],
+      participants: [{ entityId, role: 'player_character', attended: true }],
     });
     expect(() =>
       replaceSessionParticipantsInputSchema.parse({
@@ -97,8 +97,16 @@ describe('contratos de sessões', () => {
         revision: 1,
         participants: [
           { entityId, role: 'npc' },
-          { entityId, role: 'observer', attended: false, sortOrder: 1 },
+          { entityId, role: 'observer', attended: false },
         ],
+      }),
+    ).toThrow();
+    expect(() =>
+      replaceSessionParticipantsInputSchema.parse({
+        campaignId,
+        sessionId,
+        revision: 1,
+        participants: [{ entityId, role: 'npc', sortOrder: 0 }],
       }),
     ).toThrow();
     expect(() =>

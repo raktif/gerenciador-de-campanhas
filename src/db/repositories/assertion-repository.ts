@@ -47,20 +47,25 @@ export interface AssertionRepositoryUpdate {
   campaignId: string;
   id: string;
   revision: number;
-  patch: AssertionPatch | { archivedAt: string | null };
+  patch: Omit<AssertionPatch, 'sessionId'> | { archivedAt: string | null };
+  sessionId?: string;
 }
 
 export interface AssertionSourceContext {
   kind: Assertion['originKind'];
   sessionCampaignId: string | null;
+  sessionId: string | null;
 }
 
 export class AssertionRepository {
   public constructor(private readonly database: BetterSQLite3Database<typeof schema>) {}
 
   public insert(assertion: Assertion): Assertion {
-    this.database.insert(assertions).values(assertion).run();
-    return assertion;
+    return this.database.transaction((transaction) => {
+      const persisted = ensureSessionSource(transaction, assertion);
+      transaction.insert(assertions).values(persisted).run();
+      return persisted;
+    });
   }
 
   public findById(campaignId: string, id: string): Assertion | null {
@@ -74,7 +79,11 @@ export class AssertionRepository {
 
   public findSourceContext(id: string): AssertionSourceContext | null {
     const row = this.database
-      .select({ kind: sources.kind, sessionCampaignId: sessions.campaignId })
+      .select({
+        kind: sources.kind,
+        sessionCampaignId: sessions.campaignId,
+        sessionId: sources.sessionId,
+      })
       .from(sources)
       .leftJoin(sessions, eq(sources.sessionId, sessions.id))
       .where(eq(sources.id, id))
@@ -120,30 +129,105 @@ export class AssertionRepository {
   }
 
   public update(input: AssertionRepositoryUpdate, updatedAt: string): Assertion {
-    const result = this.database
-      .update(assertions)
-      .set({ ...input.patch, updatedAt, revision: sql`${assertions.revision} + 1` })
-      .where(
-        and(
-          eq(assertions.campaignId, input.campaignId),
-          eq(assertions.id, input.id),
-          eq(assertions.revision, input.revision),
-        ),
-      )
-      .run();
-    if (result.changes === 0) {
-      const current = this.findById(input.campaignId, input.id);
-      if (current === null) throw notFound(input.campaignId, input.id);
-      throw new AppError('REVISION_CONFLICT', 'A afirmação foi alterada em outra operação.', {
-        expectedRevision: input.revision,
-        currentRevision: current.revision,
-        current,
-      });
-    }
-    const updated = this.findById(input.campaignId, input.id);
-    if (updated === null) throw notFound(input.campaignId, input.id);
-    return updated;
+    return this.database.transaction((transaction) => {
+      const sourceId =
+        input.sessionId === undefined
+          ? undefined
+          : ensureSessionSourceId(transaction, input.campaignId, input.sessionId, updatedAt);
+      const result = transaction
+        .update(assertions)
+        .set({
+          ...input.patch,
+          ...(sourceId === undefined ? {} : { sourceId }),
+          updatedAt,
+          revision: sql`${assertions.revision} + 1`,
+        })
+        .where(
+          and(
+            eq(assertions.campaignId, input.campaignId),
+            eq(assertions.id, input.id),
+            eq(assertions.revision, input.revision),
+          ),
+        )
+        .run();
+      if (result.changes === 0) {
+        const current = this.findById(input.campaignId, input.id);
+        if (current === null) throw notFound(input.campaignId, input.id);
+        throw new AppError('REVISION_CONFLICT', 'A afirmação foi alterada em outra operação.', {
+          expectedRevision: input.revision,
+          currentRevision: current.revision,
+          current,
+        });
+      }
+      const updated = this.findById(input.campaignId, input.id);
+      if (updated === null) throw notFound(input.campaignId, input.id);
+      return updated;
+    });
   }
+}
+
+function ensureSessionSourceId(
+  transaction: Parameters<Parameters<BetterSQLite3Database<typeof schema>['transaction']>[0]>[0],
+  campaignId: string,
+  sessionId: string,
+  createdAt: string,
+): string {
+  const session = transaction
+    .select({ id: sessions.id })
+    .from(sessions)
+    .where(and(eq(sessions.id, sessionId), eq(sessions.campaignId, campaignId)))
+    .get();
+  if (session === undefined)
+    throw new AppError('SESSION_NOT_FOUND', 'Sessão não encontrada nesta campanha.', {
+      campaignId,
+      id: sessionId,
+    });
+  const current = transaction
+    .select({ id: sources.id })
+    .from(sources)
+    .where(and(eq(sources.kind, 'session'), eq(sources.sessionId, session.id)))
+    .get();
+  const sourceId = current?.id ?? session.id;
+  if (current === undefined)
+    transaction
+      .insert(sources)
+      .values({ id: sourceId, kind: 'session', sessionId: session.id, createdAt })
+      .run();
+  return sourceId;
+}
+
+function ensureSessionSource(
+  transaction: Parameters<Parameters<BetterSQLite3Database<typeof schema>['transaction']>[0]>[0],
+  assertion: Assertion,
+): Assertion {
+  if (assertion.originKind !== 'session' || assertion.sourceId === null) return assertion;
+  const session = transaction
+    .select({ id: sessions.id })
+    .from(sessions)
+    .where(and(eq(sessions.id, assertion.sourceId), eq(sessions.campaignId, assertion.campaignId)))
+    .get();
+  if (session === undefined)
+    throw new AppError('SESSION_NOT_FOUND', 'A sessão não foi encontrada nesta campanha.', {
+      campaignId: assertion.campaignId,
+      id: assertion.sourceId,
+    });
+  const current = transaction
+    .select({ id: sources.id })
+    .from(sources)
+    .where(and(eq(sources.kind, 'session'), eq(sources.sessionId, session.id)))
+    .get();
+  const sourceId = current?.id ?? assertion.sourceId;
+  if (current === undefined)
+    transaction
+      .insert(sources)
+      .values({
+        id: sourceId,
+        kind: 'session',
+        sessionId: session.id,
+        createdAt: assertion.createdAt,
+      })
+      .run();
+  return { ...assertion, sourceId };
 }
 
 function createBaseFilters(request: AssertionPageRequest): SQL[] {

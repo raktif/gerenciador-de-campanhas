@@ -32,15 +32,8 @@ export function linksChanged(
   submitted: EventEntityLinkInput[],
   current: EventDetails['links'],
 ): boolean {
-  const normalize = (links: readonly EventEntityLinkInput[]) =>
-    [...links]
-      .sort(
-        (left, right) =>
-          left.sortOrder - right.sortOrder ||
-          left.entityId.localeCompare(right.entityId) ||
-          left.role.localeCompare(right.role),
-      )
-      .map(({ entityId, role, sortOrder }) => ({ entityId, role, sortOrder }));
+  const normalize = (links: readonly { entityId: string; role: string }[]) =>
+    links.map(({ entityId, role }) => ({ entityId, role }));
   return JSON.stringify(normalize(submitted)) !== JSON.stringify(normalize(current));
 }
 
@@ -72,8 +65,6 @@ export function validateEventInput(
   for (const link of input.links) {
     if (!activeEntityIds.has(link.entityId))
       return 'Selecione somente entidades ativas desta campanha.';
-    if (!Number.isInteger(link.sortOrder) || link.sortOrder < 0)
-      return 'A ordem de cada v\u00ednculo deve ser um n\u00famero inteiro n\u00e3o negativo.';
     const key = `${link.entityId}\u0000${link.role}`;
     if (seen.has(key)) return 'Remova v\u00ednculos com a mesma entidade e papel.';
     seen.add(key);

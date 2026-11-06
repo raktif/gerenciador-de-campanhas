@@ -30,7 +30,6 @@ describe('contratos de afirmações', () => {
       knowledgeState: 'fact',
       visibility: 'gm',
       originKind: 'manual',
-      sourceId: null,
     });
     expect(assertionPageRequestSchema.parse({ campaignId })).toEqual({
       campaignId,

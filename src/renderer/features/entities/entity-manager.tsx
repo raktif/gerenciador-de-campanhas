@@ -1,10 +1,18 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Campaign } from '../../../core/contracts/campaigns';
 import type { Entity, EntityDetails, EntityLifecycleInput } from '../../../core/contracts/entities';
 import type { EntityType } from '../../../core/contracts/entity-types';
 import { EntityForm, type EntityFormSubmitValues } from './entity-form';
+import { EntityDetailsView } from './entity-details';
+import {
+  presentUserFacingError,
+  type UserFacingError,
+} from '../../../core/errors/user-facing-error';
+import { UserFacingErrorNotice } from '../../components/user-facing-error-notice';
+import { Button, ButtonGroup, ToolbarActions } from '../../components/actions';
+import { EntityReferenceImagePreview } from './entity-reference-image';
 
-type View = 'list' | 'create' | 'edit';
+type View = 'list' | 'create' | 'details' | 'edit';
 type LifecycleAction = 'archive' | 'restore';
 
 export function EntityManager({
@@ -13,12 +21,18 @@ export function EntityManager({
   onOpenAssertions,
   onOpenNotes,
   onOpenTimeline,
+  onOpenRelationships,
+  initialDetailEntity,
+  focusRelationshipButton = false,
 }: {
   campaign: Campaign;
   onBack: () => void;
   onOpenAssertions: (entity: Entity) => void;
   onOpenNotes: (entity: Entity) => void;
   onOpenTimeline: (entity: Entity) => void;
+  onOpenRelationships: (entity: Entity) => void;
+  initialDetailEntity?: Entity;
+  focusRelationshipButton?: boolean;
 }): React.JSX.Element {
   const [entityTypes, setEntityTypes] = useState<EntityType[]>([]);
   const [entities, setEntities] = useState<Entity[]>([]);
@@ -26,11 +40,15 @@ export function EntityManager({
   const [showArchived, setShowArchived] = useState(false);
   const [view, setView] = useState<View>('list');
   const [editing, setEditing] = useState<EntityDetails | null>(null);
+  const [viewing, setViewing] = useState<EntityDetails | null>(null);
   const [pending, setPending] = useState<{ action: LifecycleAction; entity: Entity } | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<UserFacingError | null>(null);
   const [announcement, setAnnouncement] = useState<string | null>(null);
+  const listFocusTargetRef = useRef<string | null>(null);
+  const [pendingListFocusTarget, setPendingListFocusTarget] = useState<string | null>(null);
+  const loadedInitialDetailEntityId = useRef<string | null>(null);
 
   const loadEntityTypes = useCallback(async (): Promise<void> => {
     const result = await window.campaignManager.entityTypes.list({
@@ -51,7 +69,7 @@ export function EntityManager({
       },
     });
     if (result.ok) setEntities(result.data.items);
-    else setError(result.error.message);
+    else setError(presentUserFacingError(result.error, 'entities.list'));
     setLoading(false);
   }, [campaign.id, showArchived, typeFilter]);
 
@@ -61,14 +79,36 @@ export function EntityManager({
   useEffect(() => {
     void loadEntities();
   }, [loadEntities]);
+  useEffect(() => {
+    if (view !== 'list' || pendingListFocusTarget === null) return;
+    document
+      .querySelector<HTMLElement>(`[data-entity-focus-id="${pendingListFocusTarget}"]`)
+      ?.focus();
+    setPendingListFocusTarget(null);
+  }, [entities, pendingListFocusTarget, view]);
+  useEffect(() => {
+    if (
+      initialDetailEntity?.campaignId !== campaign.id ||
+      loadedInitialDetailEntityId.current === initialDetailEntity.id
+    )
+      return;
+    loadedInitialDetailEntityId.current = initialDetailEntity.id;
+    void loadDetails(initialDetailEntity, 'details');
+  }, [campaign.id, initialDetailEntity]);
+
+  function restoreListFocus(): void {
+    if (listFocusTargetRef.current !== null) setPendingListFocusTarget(listFocusTargetRef.current);
+  }
 
   function returnToList(): void {
+    restoreListFocus();
     setEditing(null);
+    setViewing(null);
     setError(null);
     setView('list');
   }
 
-  async function beginEdit(entity: Entity): Promise<void> {
+  async function loadDetails(entity: Entity, destination: 'details' | 'edit'): Promise<void> {
     setBusy(true);
     setError(null);
     const details = await window.campaignManager.entities.get({
@@ -77,11 +117,31 @@ export function EntityManager({
     });
     setBusy(false);
     if (!details.ok) {
-      setError(details.error.message);
+      setError(presentUserFacingError(details.error, 'entities.mutate'));
       return;
     }
-    setEditing(details.data);
+    if (destination === 'details') setViewing(details.data);
+    else setEditing(details.data);
+    setView(destination);
+  }
+
+  function openDetails(entity: Entity, focusTarget: string): void {
+    listFocusTargetRef.current = focusTarget;
+    void loadDetails(entity, 'details');
+  }
+
+  function beginEditFromDetails(): void {
+    if (viewing === null) return;
+    setEditing(viewing);
+    setViewing(null);
     setView('edit');
+  }
+
+  function updateViewingDetails(details: EntityDetails): void {
+    setViewing(details);
+    setEntities((current) =>
+      current.map((entity) => (entity.id === details.entity.id ? details.entity : entity)),
+    );
   }
 
   async function createEntity(
@@ -103,11 +163,12 @@ export function EntityManager({
       referenceValues: values.referenceValues,
     });
     if (!result.ok) {
-      setError(result.error.message);
+      setError(presentUserFacingError(result.error, 'entities.mutate'));
       setBusy(false);
       return;
     }
     setAnnouncement(`Entidade “${result.data.entity.name}” criada.`);
+    listFocusTargetRef.current = null;
     setView('list');
     setBusy(false);
     await loadEntities();
@@ -136,11 +197,12 @@ export function EntityManager({
       referenceValues: values.referenceValues,
     });
     if (!result.ok) {
-      setError(result.error.message);
+      setError(presentUserFacingError(result.error, 'entities.mutate'));
       setBusy(false);
       return;
     }
     setAnnouncement(`Entidade “${result.data.entity.name}” atualizada.`);
+    restoreListFocus();
     setEditing(null);
     setView('list');
     setBusy(false);
@@ -169,79 +231,113 @@ export function EntityManager({
       setPending(null);
       await loadEntities();
     } else {
-      setError(result.error.message);
+      setError(presentUserFacingError(result.error, 'entities.mutate'));
     }
     setBusy(false);
   }
 
   if (view === 'create') {
     return (
-      <EntityForm
-        busy={busy}
-        campaign={campaign}
-        entityTypes={entityTypes}
-        error={error}
-        mode="create"
-        onCancel={returnToList}
-        onSubmit={createEntity}
-      />
+      <>
+        <EntityForm
+          busy={busy}
+          campaign={campaign}
+          entityTypes={entityTypes}
+          error={null}
+          mode="create"
+          onCancel={returnToList}
+          onSubmit={createEntity}
+        />
+        {error === null ? null : (
+          <div className="mx-auto mt-5 max-w-5xl">
+            <UserFacingErrorNotice error={error} operation="entities.mutate" />
+          </div>
+        )}
+      </>
     );
   }
   if (view === 'edit' && editing !== null) {
     return (
-      <EntityForm
-        busy={busy}
+      <>
+        <EntityForm
+          busy={busy}
+          campaign={campaign}
+          entity={editing.entity}
+          entityTypes={entityTypes}
+          error={null}
+          fieldValues={editing.fieldValues}
+          key={`${editing.entity.id}:${String(editing.entity.revision)}`}
+          mode="edit"
+          onCancel={returnToList}
+          onSubmit={updateEntity}
+        />
+        {error === null ? null : (
+          <div className="mx-auto mt-5 max-w-5xl">
+            <UserFacingErrorNotice error={error} operation="entities.mutate" />
+          </div>
+        )}
+      </>
+    );
+  }
+  if (view === 'details' && viewing !== null) {
+    return (
+      <EntityDetailsView
         campaign={campaign}
-        entity={editing.entity}
+        details={viewing}
         entityTypes={entityTypes}
-        error={error}
-        fieldValues={editing.fieldValues}
-        key={`${editing.entity.id}:${String(editing.entity.revision)}`}
-        mode="edit"
-        onCancel={returnToList}
-        onSubmit={updateEntity}
+        onBack={returnToList}
+        onEdit={beginEditFromDetails}
+        onOpenAssertions={() => onOpenAssertions(viewing.entity)}
+        onOpenNotes={() => onOpenNotes(viewing.entity)}
+        onOpenTimeline={() => onOpenTimeline(viewing.entity)}
+        onOpenRelationships={onOpenRelationships}
+        onDetailsChange={updateViewingDetails}
+        focusRelationshipButton={
+          focusRelationshipButton && initialDetailEntity?.id === viewing.entity.id
+        }
       />
     );
   }
   return (
     <section aria-labelledby="entities-title">
-      <button className={backClass} onClick={onBack} type="button">
+      <Button className="mb-6" onClick={onBack} size="small" variant="ghost">
         ← Voltar para detalhes da campanha
-      </button>
-      <header className="flex flex-wrap items-end justify-between gap-6 border-b border-stone-200 pb-7">
+      </Button>
+      <header className="flex flex-wrap items-end justify-between gap-6 border-b semantic-border pb-7">
         <div>
-          <p className="text-xs font-bold tracking-[0.18em] text-amber-800 uppercase">
+          <p className="text-xs font-bold tracking-[0.18em] semantic-accent-text uppercase">
             {campaign.name}
           </p>
           <h1 className="mt-2 text-4xl font-semibold" id="entities-title">
             Entidades
           </h1>
-          <p className="mt-3 text-slate-600">
+          <p className="mt-3 semantic-text-secondary">
             Personagens, locais e outros elementos cadastrados nesta campanha.
           </p>
         </div>
-        <div className="flex gap-3">
-          <button
-            className={primaryClass}
+        <ToolbarActions aria-label="Ações de entidades">
+          <Button
             disabled={entityTypes.length === 0}
             onClick={() => {
+              listFocusTargetRef.current = null;
               setError(null);
               setView('create');
             }}
-            type="button"
+            size="large"
+            variant="primary"
           >
             Nova entidade
-          </button>
-        </div>
+          </Button>
+        </ToolbarActions>
       </header>
 
       {entityTypes.length === 0 ? (
-        <p className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+        <p className="mt-6 rounded-xl border semantic-warning-border semantic-warning-surface p-4 text-sm semantic-accent-text">
           Crie ao menos um tipo de entidade antes de cadastrar entidades.
         </p>
       ) : null}
 
-      <div className="mt-6 flex flex-wrap items-center gap-3">
+      <ToolbarActions aria-label="Filtros de entidades" className="mt-6">
         <select
           aria-label="Filtrar por tipo"
           className={inputClass}
@@ -261,12 +357,12 @@ export function EntityManager({
         <FilterButton active={showArchived} onClick={() => setShowArchived(true)}>
           Arquivadas
         </FilterButton>
-      </div>
+      </ToolbarActions>
 
       {announcement === null ? null : (
         <p
           aria-live="polite"
-          className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800"
+          className="mt-6 rounded-xl border semantic-success-border semantic-success-surface px-4 py-3 text-sm semantic-success-text"
           role="status"
         >
           {announcement}
@@ -274,51 +370,41 @@ export function EntityManager({
       )}
 
       {pending === null ? null : (
-        <div className="mt-6 rounded-2xl border border-amber-300 bg-amber-50 p-5" role="alert">
+        <div
+          className="mt-6 rounded-2xl border semantic-warning-border semantic-warning-surface p-5"
+          role="alert"
+        >
           <h2 className="font-semibold">
             {pending.action === 'archive' ? 'Arquivar' : 'Restaurar'} “{pending.entity.name}”?
           </h2>
-          <div className="mt-4 flex gap-3">
-            <button
-              className={secondaryClass}
-              disabled={busy}
-              onClick={() => setPending(null)}
-              type="button"
-            >
+          <ButtonGroup aria-label="Ações de confirmação" className="mt-4">
+            <Button disabled={busy} onClick={() => setPending(null)}>
               Cancelar ação
-            </button>
-            <button
-              className="rounded-xl bg-slate-900 px-5 py-3 font-semibold text-white disabled:opacity-60"
-              disabled={busy}
-              onClick={() => void applyLifecycle()}
-              type="button"
-            >
+            </Button>
+            <Button busy={busy} onClick={() => void applyLifecycle()} variant="primary">
               Confirmar {pending.action === 'archive' ? 'arquivamento' : 'restauração'}
-            </button>
-          </div>
+            </Button>
+          </ButtonGroup>
         </div>
       )}
 
       {error === null ? null : (
-        <div className="mt-6 rounded-xl border border-red-200 bg-red-50 p-4" role="alert">
-          <p className="text-sm text-red-800">{error}</p>
-          <button
-            className="mt-2 text-sm font-semibold underline"
-            onClick={() => void loadEntities()}
-            type="button"
-          >
-            Tentar novamente
-          </button>
+        <div className="mt-6">
+          <UserFacingErrorNotice
+            error={error}
+            operation="entities.list"
+            onRetry={() => void loadEntities()}
+          />
         </div>
       )}
 
       {loading ? (
         <div
           aria-label="Carregando entidades"
-          className="mt-8 h-32 animate-pulse rounded-2xl bg-stone-200"
+          className="mt-8 h-32 animate-pulse rounded-2xl semantic-skeleton"
         />
       ) : entities.length === 0 ? (
-        <div className="mt-8 rounded-2xl border border-dashed border-stone-300 bg-white px-8 py-14 text-center">
+        <div className="mt-8 rounded-2xl border border-dashed semantic-border semantic-surface px-8 py-14 text-center">
           <h2 className="text-xl font-semibold">
             {showArchived ? 'Nenhuma entidade arquivada' : 'Nenhuma entidade cadastrada'}
           </h2>
@@ -327,79 +413,85 @@ export function EntityManager({
         <div className="mt-8 grid gap-4" data-testid="entity-list">
           {entities.map((entity) => (
             <article
-              className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm"
+              className="rounded-2xl border semantic-border semantic-surface p-6 shadow-sm"
               key={entity.id}
             >
-              <div className="flex justify-between gap-5">
-                <div>
-                  <h2 className="text-xl font-semibold">{entity.name}</h2>
-                  <div className="mt-2 flex flex-wrap gap-2 text-xs font-semibold text-slate-600">
-                    <span className="rounded-full bg-stone-100 px-3 py-1">
+              <div className="flex items-start gap-5">
+                <EntityReferenceImagePreview className="size-24 shrink-0" entity={entity} />
+                <div className="min-w-0 flex-1">
+                  <h2 className="text-xl font-semibold">
+                    <Button
+                      aria-label={`Abrir detalhes de ${entity.name}`}
+                      className="justify-start text-left"
+                      data-entity-focus-id={`${entity.id}:title`}
+                      onClick={() => openDetails(entity, `${entity.id}:title`)}
+                      size="inline"
+                      variant="link"
+                    >
+                      {entity.name}
+                    </Button>
+                  </h2>
+                  <div className="mt-2 flex flex-wrap gap-2 text-xs font-semibold semantic-text-secondary">
+                    <span className="rounded-full semantic-surface-muted px-3 py-1">
                       {entityTypes.find((type) => type.id === entity.entityTypeId)?.singularName ??
                         'Tipo desconhecido'}
                     </span>
-                    <span className="rounded-full bg-stone-100 px-3 py-1">
+                    <span className="rounded-full semantic-surface-muted px-3 py-1">
                       {canonStateLabel(entity.canonState)}
                     </span>
-                    <span className="rounded-full bg-stone-100 px-3 py-1">
+                    <span className="rounded-full semantic-surface-muted px-3 py-1">
                       {knowledgeStateLabel(entity.knowledgeState)}
                     </span>
-                    <span className="rounded-full bg-stone-100 px-3 py-1">
+                    <span className="rounded-full semantic-surface-muted px-3 py-1">
                       {visibilityLabel(entity.visibility)}
                     </span>
                   </div>
                   {entity.summary === null ? null : (
-                    <p className="mt-2 text-slate-600">{entity.summary}</p>
+                    <p className="mt-2 semantic-text-secondary">{entity.summary}</p>
                   )}
                 </div>
               </div>
-              <div className="mt-5 flex justify-end gap-3 border-t border-stone-100 pt-4">
-                <button
+              <ToolbarActions
+                aria-label={`Ações de ${entity.name}`}
+                className="mt-5 justify-end border-t semantic-border pt-4"
+              >
+                <Button
                   aria-label={`Ver afirmações de ${entity.name}`}
-                  className={secondaryClass}
                   onClick={() => onOpenAssertions(entity)}
-                  type="button"
                 >
                   Afirmações
-                </button>
-                <button
+                </Button>
+                <Button
                   aria-label={`Ver notas de ${entity.name}`}
-                  className={secondaryClass}
                   onClick={() => onOpenNotes(entity)}
-                  type="button"
                 >
                   Notas
-                </button>
-                <button
+                </Button>
+                <Button
                   aria-label={`Ver cronologia de ${entity.name}`}
-                  className={secondaryClass}
                   onClick={() => onOpenTimeline(entity)}
-                  type="button"
                 >
                   Cronologia
-                </button>
-                <button
-                  aria-label={`Editar ${entity.name}`}
-                  className={secondaryClass}
-                  onClick={() => void beginEdit(entity)}
-                  type="button"
+                </Button>
+                <Button
+                  aria-label={`Abrir detalhes de ${entity.name}`}
+                  data-entity-focus-id={`${entity.id}:details`}
+                  onClick={() => openDetails(entity, `${entity.id}:details`)}
                 >
-                  Editar
-                </button>
-                <button
+                  Ver detalhes
+                </Button>
+                <Button
                   aria-label={`${entity.archivedAt !== null ? 'Restaurar' : 'Arquivar'} ${entity.name}`}
-                  className={secondaryClass}
                   onClick={() =>
                     setPending({
                       action: entity.archivedAt !== null ? 'restore' : 'archive',
                       entity,
                     })
                   }
-                  type="button"
                 >
                   {entity.archivedAt !== null ? 'Restaurar' : 'Arquivar'}
-                </button>
-              </div>
+                </Button>
+              </ToolbarActions>
             </article>
           ))}
         </div>
@@ -439,21 +531,16 @@ function FilterButton({
   children: React.ReactNode;
 }): React.JSX.Element {
   return (
-    <button
+    <Button
       aria-pressed={active}
-      className={`rounded-full px-4 py-2 text-sm font-semibold ${active ? 'bg-slate-900 text-white' : 'border border-stone-300 bg-white text-slate-600'}`}
+      className={`rounded-full ${active ? 'semantic-selected-surface semantic-selected-text' : ''}`}
       onClick={onClick}
-      type="button"
+      size="small"
     >
       {children}
-    </button>
+    </Button>
   );
 }
 
 const inputClass =
-  'mt-2 w-full rounded-xl border border-stone-300 px-4 py-2.5 text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700';
-const primaryClass =
-  'rounded-xl bg-amber-700 px-5 py-3 font-semibold text-white disabled:opacity-60';
-const secondaryClass =
-  'rounded-xl border border-stone-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 disabled:opacity-60';
-const backClass = 'mb-6 rounded-lg px-2 py-1 text-sm font-semibold text-slate-600';
+  'mt-2 w-full rounded-xl border semantic-border px-4 py-2.5 semantic-text-primary focus-visible:outline-2 focus-visible:outline-offset-2 semantic-focus-outline';

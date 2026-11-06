@@ -1,9 +1,11 @@
 import { useState } from 'react';
+import type { ReactNode } from 'react';
 import type {
   Campaign,
   CampaignPatch,
   CreateCampaignInput,
 } from '../../../core/contracts/campaigns';
+import { Button, ButtonGroup, FormActions } from '../../components/actions';
 
 interface CommonCampaignFormProps {
   busy: boolean;
@@ -22,6 +24,7 @@ type CampaignFormProps = CommonCampaignFormProps &
     | {
         mode: 'edit';
         campaign: Campaign;
+        coverManager?: ReactNode;
         onLifecycle: (action: LifecycleAction) => Promise<void>;
         onSubmit: (patch: CampaignPatch) => Promise<void>;
       }
@@ -34,7 +37,6 @@ interface FormValues {
   genre: string;
   tone: string;
   summary: string;
-  imagePath: string;
 }
 
 const emptyValues: FormValues = {
@@ -44,7 +46,6 @@ const emptyValues: FormValues = {
   genre: '',
   tone: '',
   summary: '',
-  imagePath: '',
 };
 
 export function CampaignForm(props: CampaignFormProps): React.JSX.Element {
@@ -80,40 +81,40 @@ export function CampaignForm(props: CampaignFormProps): React.JSX.Element {
 
   return (
     <section aria-labelledby="campaign-form-title" className="mx-auto w-full max-w-4xl">
-      <button
-        className="mb-6 inline-flex items-center gap-2 rounded-lg px-2 py-1 text-sm font-semibold text-slate-600 hover:text-slate-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700"
-        disabled={busy}
-        onClick={onCancel}
-        type="button"
-      >
+      <Button className="mb-6" disabled={busy} onClick={onCancel} size="small" variant="ghost">
         <span aria-hidden="true">←</span>
         Voltar para campanhas
-      </button>
+      </Button>
 
-      <div className="overflow-hidden rounded-3xl border border-stone-200 bg-white shadow-[0_20px_60px_-35px_rgba(15,23,42,0.35)]">
-        <header className="border-b border-stone-200 bg-stone-50 px-8 py-7 sm:px-10">
-          <p className="text-xs font-bold tracking-[0.2em] text-amber-800 uppercase">
+      <div className="overflow-hidden rounded-3xl border semantic-border semantic-surface semantic-domain-card">
+        <header className="border-b semantic-border semantic-surface-muted px-8 py-7 sm:px-10">
+          <p className="text-xs font-bold tracking-[0.2em] semantic-accent-text uppercase">
             {editing ? 'Detalhes da campanha' : 'Nova campanha'}
           </p>
           <h1 id="campaign-form-title" className="mt-2 text-3xl font-semibold tracking-tight">
             {editing ? campaign?.name : 'Comece pelo essencial'}
           </h1>
-          <p className="mt-3 max-w-2xl leading-7 text-slate-600">
+          <p className="mt-3 max-w-2xl leading-7 semantic-text-secondary">
             {editing
               ? 'Revise e atualize as informações centrais deste mundo.'
               : 'Apenas o nome é obrigatório. Você poderá ampliar e reorganizar tudo depois.'}
           </p>
           {campaign === null ? null : (
-            <p className="mt-4 text-sm font-semibold text-slate-500">
+            <p className="mt-4 text-sm font-semibold semantic-text-secondary">
               Status: {campaignStatusLabel(campaign.status)}
             </p>
           )}
         </header>
 
+        {props.mode === 'edit' ? props.coverManager : null}
+
         <form className="space-y-8 px-8 py-8 sm:px-10" onSubmit={submit}>
           <div>
-            <label className="block text-sm font-semibold text-slate-800" htmlFor="campaign-name">
-              Nome da campanha <span className="text-amber-800">*</span>
+            <label
+              className="block text-sm font-semibold semantic-text-primary"
+              htmlFor="campaign-name"
+            >
+              Nome da campanha <span className="semantic-accent-text">*</span>
             </label>
             <input
               autoFocus
@@ -154,19 +155,11 @@ export function CampaignForm(props: CampaignFormProps): React.JSX.Element {
               placeholder="Ex.: esperançoso e misterioso"
               value={values.tone}
             />
-            <TextField
-              disabled={busy}
-              id="campaign-image"
-              label="Referência da imagem"
-              onChange={(value) => update('imagePath', value)}
-              placeholder="Caminho local ou referência"
-              value={values.imagePath}
-            />
           </fieldset>
 
           <div>
             <label
-              className="block text-sm font-semibold text-slate-800"
+              className="block text-sm font-semibold semantic-text-primary"
               htmlFor="campaign-concept"
             >
               Conceito
@@ -183,7 +176,7 @@ export function CampaignForm(props: CampaignFormProps): React.JSX.Element {
 
           <div>
             <label
-              className="block text-sm font-semibold text-slate-800"
+              className="block text-sm font-semibold semantic-text-primary"
               htmlFor="campaign-summary"
             >
               Resumo
@@ -201,7 +194,7 @@ export function CampaignForm(props: CampaignFormProps): React.JSX.Element {
           {error === null && validationError === null ? null : (
             <p
               aria-live="assertive"
-              className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
+              className="rounded-xl border semantic-danger-border semantic-danger-surface px-4 py-3 text-sm semantic-error-text"
               role="alert"
             >
               {error ?? validationError}
@@ -211,56 +204,45 @@ export function CampaignForm(props: CampaignFormProps): React.JSX.Element {
           {props.mode === 'edit' && pendingAction !== null ? (
             <div
               aria-labelledby="lifecycle-confirmation-title"
-              className="rounded-2xl border border-amber-300 bg-amber-50 p-5"
+              className="rounded-2xl border semantic-warning-border semantic-warning-surface p-5"
               role="alert"
             >
-              <h2 id="lifecycle-confirmation-title" className="font-semibold text-slate-950">
+              <h2 id="lifecycle-confirmation-title" className="font-semibold semantic-text-primary">
                 {confirmationTitle(pendingAction)}
               </h2>
-              <p className="mt-2 text-sm leading-6 text-slate-700">
+              <p className="mt-2 text-sm leading-6 semantic-text-secondary">
                 {confirmationDescription(pendingAction)}
               </p>
-              <div className="mt-4 flex flex-wrap gap-3">
-                <button
-                  className="rounded-lg border border-stone-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700"
-                  disabled={busy}
-                  onClick={() => setPendingAction(null)}
-                  type="button"
-                >
+              <ButtonGroup
+                align="end"
+                aria-label="Ações de confirmação da campanha"
+                className="mt-4"
+              >
+                <Button disabled={busy} onClick={() => setPendingAction(null)}>
                   Cancelar ação
-                </button>
-                <button
-                  className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
-                  disabled={busy}
+                </Button>
+                <Button
+                  busy={busy}
                   onClick={() => void props.onLifecycle(pendingAction)}
-                  type="button"
+                  variant={pendingAction === 'moveToTrash' ? 'danger' : 'primary'}
                 >
                   {confirmationButtonLabel(pendingAction)}
-                </button>
-              </div>
+                </Button>
+              </ButtonGroup>
             </div>
           ) : null}
 
-          <div className="flex flex-wrap items-center justify-between gap-4 border-t border-stone-200 pt-7">
+          <FormActions layout="between">
             {props.mode === 'edit' ? (
               <LifecycleButtons busy={busy} campaign={props.campaign} onSelect={setPendingAction} />
             ) : (
               <span />
             )}
-            <div className="flex flex-wrap justify-end gap-3">
-              <button
-                className="rounded-xl border border-stone-300 bg-white px-5 py-3 font-semibold text-slate-700 hover:bg-stone-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 disabled:opacity-60"
-                disabled={busy}
-                onClick={onCancel}
-                type="button"
-              >
+            <ButtonGroup align="end" aria-label="Ações principais da campanha">
+              <Button disabled={busy} onClick={onCancel}>
                 Cancelar
-              </button>
-              <button
-                className="rounded-xl bg-amber-700 px-6 py-3 font-semibold text-white shadow-sm hover:bg-amber-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 disabled:cursor-wait disabled:opacity-60"
-                disabled={busy}
-                type="submit"
-              >
+              </Button>
+              <Button busy={busy} type="submit" variant="primary">
                 {busy
                   ? editing
                     ? 'Salvando alterações…'
@@ -268,9 +250,9 @@ export function CampaignForm(props: CampaignFormProps): React.JSX.Element {
                   : editing
                     ? 'Salvar alterações'
                     : 'Criar campanha'}
-              </button>
-            </div>
-          </div>
+              </Button>
+            </ButtonGroup>
+          </FormActions>
         </form>
       </div>
     </section>
@@ -287,37 +269,22 @@ function LifecycleButtons({
   onSelect: (action: LifecycleAction) => void;
 }): React.JSX.Element {
   return (
-    <div className="flex flex-wrap gap-3">
+    <ButtonGroup aria-label="Ações de ciclo de vida da campanha">
       {campaign.status === 'active' ? (
-        <button
-          className={secondaryActionClassName}
-          disabled={busy}
-          onClick={() => onSelect('archive')}
-          type="button"
-        >
+        <Button disabled={busy} onClick={() => onSelect('archive')}>
           Arquivar
-        </button>
+        </Button>
       ) : (
-        <button
-          className={secondaryActionClassName}
-          disabled={busy}
-          onClick={() => onSelect('restore')}
-          type="button"
-        >
+        <Button disabled={busy} onClick={() => onSelect('restore')}>
           Restaurar
-        </button>
+        </Button>
       )}
       {campaign.status === 'deleted' ? null : (
-        <button
-          className="rounded-xl border border-red-300 bg-white px-5 py-3 font-semibold text-red-700 hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700 disabled:opacity-60"
-          disabled={busy}
-          onClick={() => onSelect('moveToTrash')}
-          type="button"
-        >
+        <Button disabled={busy} onClick={() => onSelect('moveToTrash')} variant="danger">
           Mover para lixeira
-        </button>
+        </Button>
       )}
-    </div>
+    </ButtonGroup>
   );
 }
 
@@ -362,7 +329,7 @@ function TextField({
 }): React.JSX.Element {
   return (
     <div>
-      <label className="block text-sm font-semibold text-slate-800" htmlFor={id}>
+      <label className="block text-sm font-semibold semantic-text-primary" htmlFor={id}>
         {label}
       </label>
       <input
@@ -385,7 +352,6 @@ export function toCreateCampaignInput(values: FormValues): CreateCampaignInput {
     ...optionalValue('genre', values.genre),
     ...optionalValue('tone', values.tone),
     ...optionalValue('summary', values.summary),
-    ...optionalValue('imagePath', values.imagePath),
   };
 }
 
@@ -399,7 +365,6 @@ export function toCampaignPatch(values: FormValues, campaign: Campaign): Campaig
   assignNullableChange(patch, 'genre', values.genre, campaign.genre);
   assignNullableChange(patch, 'tone', values.tone, campaign.tone);
   assignNullableChange(patch, 'summary', values.summary, campaign.summary);
-  assignNullableChange(patch, 'imagePath', values.imagePath, campaign.imagePath);
 
   return Object.keys(patch).length === 0 ? null : patch;
 }
@@ -412,7 +377,6 @@ function toFormValues(campaign: Campaign): FormValues {
     genre: campaign.genre ?? '',
     tone: campaign.tone ?? '',
     summary: campaign.summary ?? '',
-    imagePath: campaign.imagePath ?? '',
   };
 }
 
@@ -436,7 +400,4 @@ function optionalValue<Field extends Exclude<keyof CreateCampaignInput, 'name'>>
 }
 
 const inputClassName =
-  'mt-2 w-full rounded-xl border border-stone-300 bg-white px-4 py-3 text-slate-950 shadow-sm outline-none placeholder:text-slate-400 focus:border-amber-700 focus:ring-3 focus:ring-amber-700/15 disabled:bg-stone-100 disabled:text-slate-500';
-
-const secondaryActionClassName =
-  'rounded-xl border border-stone-300 bg-white px-5 py-3 font-semibold text-slate-700 hover:bg-stone-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 disabled:opacity-60';
+  'mt-2 w-full rounded-xl border semantic-border semantic-surface px-4 py-3 semantic-text-primary shadow-sm outline-none semantic-placeholder semantic-focus-border focus:ring-3 semantic-focus-ring semantic-disabled-surface semantic-disabled-text';

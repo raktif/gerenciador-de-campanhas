@@ -1,10 +1,26 @@
-import { app, dialog, ipcMain, shell, type BrowserWindow } from 'electron';
+import {
+  app,
+  clipboard,
+  dialog,
+  ipcMain,
+  Menu,
+  nativeTheme,
+  shell,
+  type BrowserWindow,
+} from 'electron';
+import type { CampaignPageRequest, CampaignPageResult } from '../../core/contracts/campaigns';
+import { appearanceSettingSchema } from '../../core/contracts/appearance';
+import { appearanceChannels } from '../../core/contracts/ipc-channels';
+import { AppError } from '../../core/errors/app-error';
 import { readEnvironment, resolveDataRoot } from '../../core/config/environment';
 import { FileLogger } from '../../core/logging/logger';
 import { ensureDataDirectories, getDataDirectories } from '../../core/storage/data-directories';
 import { openApplicationDatabase, type DatabaseContext } from '../../db/connection';
 import { AssertionRepository } from '../../db/repositories/assertion-repository';
+import { AppearanceRepository } from '../../db/repositories/appearance-repository';
 import { CampaignRepository } from '../../db/repositories/campaign-repository';
+import { AttachmentRepository } from '../../db/repositories/attachment-repository';
+import { ImageFieldValueRepository } from '../../db/repositories/image-field-value-repository';
 import { EntityRepository } from '../../db/repositories/entity-repository';
 import { EventRepository } from '../../db/repositories/event-repository';
 import { EntityTypeRepository } from '../../db/repositories/entity-type-repository';
@@ -18,6 +34,12 @@ import { TimelineRepository } from '../../db/repositories/timeline-repository';
 import { SessionIntentionRepository } from '../../db/repositories/session-intention-repository';
 import { SessionRepository } from '../../db/repositories/session-repository';
 import { registerCampaignIpcHandlers } from '../ipc/campaign-handlers';
+import { registerCampaignCoverIpcHandlers } from '../ipc/campaign-cover-handlers';
+import { registerImageImportIpcHandlers } from '../ipc/image-import-handlers';
+import { registerImageFieldValueIpcHandlers } from '../ipc/image-field-value-handlers';
+import { registerEntityReferenceImageIpcHandlers } from '../ipc/entity-reference-image-handlers';
+import { registerAppearanceIpcHandlers } from '../ipc/appearance-handlers';
+import { registerDiagnosticsIpcHandlers } from '../ipc/diagnostics-handlers';
 import { registerAssertionIpcHandlers } from '../ipc/assertion-handlers';
 import { registerEntityIpcHandlers } from '../ipc/entity-handlers';
 import { registerEntityTypeIpcHandlers } from '../ipc/entity-type-handlers';
@@ -28,9 +50,21 @@ import { registerNoteIpcHandlers } from '../ipc/note-handlers';
 import { registerInboxIpcHandlers } from '../ipc/inbox-handlers';
 import { registerRelationshipTypeIpcHandlers } from '../ipc/relationship-type-handlers';
 import { registerRelationshipIpcHandlers } from '../ipc/relationship-handlers';
-import { registerSessionIpcHandlers } from '../ipc/session-handlers';
+import {
+  registerSessionIpcHandlers,
+  type SessionHandlerDependencies,
+} from '../ipc/session-handlers';
 import { registerTimelineIpcHandlers } from '../ipc/timeline-handlers';
 import { CampaignService } from '../services/campaign-service';
+import { CampaignCoverService } from '../services/campaign-cover-service';
+import { recoverPendingAttachmentDeletions } from '../services/attachment-deletion-journal';
+import { ImageImportService } from '../services/image-import-service';
+import { ImageFieldValueService } from '../services/image-field-value-service';
+import { EntityReferenceImageService } from '../services/entity-reference-image-service';
+import { ImageProcessingService } from '../services/image-processing-service';
+import { SecureImageDownloadService } from '../services/secure-image-download-service';
+import { AppearanceService } from '../services/appearance-service';
+import { StartupDiagnosticsService } from '../services/startup-diagnostics-service';
 import { AssertionService } from '../services/assertion-service';
 import { EntityService } from '../services/entity-service';
 import { EntityTypeService } from '../services/entity-type-service';
@@ -45,6 +79,12 @@ import { SessionIntentionService } from '../services/session-intention-service';
 import { SessionParticipantService } from '../services/session-participant-service';
 import { SessionService } from '../services/session-service';
 import { TimelineService } from '../services/timeline-service';
+import {
+  AppearanceController,
+  createWindowWithInitialTheme,
+} from '../appearance/appearance-controller';
+import { showAppearanceChangeFailure } from '../appearance/appearance-failure-dialog';
+import { installApplicationMenu, type AppearanceMenuPort } from '../appearance/application-menu';
 import { createMainWindow, loadMainWindow } from '../windows/main-window';
 
 export interface RunningApplication {
@@ -69,8 +109,27 @@ export async function bootstrapApplication(): Promise<RunningApplication> {
     });
     throw error;
   }
+  const appearanceRepository = new AppearanceRepository(database.orm);
   const phaseZeroRepository = new PhaseZeroRepository(database.orm);
   const campaignRepository = new CampaignRepository(database.orm);
+  const attachmentRepository = new AttachmentRepository(database.native);
+  const imageFieldValueRepository = new ImageFieldValueRepository(database.native);
+  try {
+    const recovery = await recoverPendingAttachmentDeletions(attachmentRepository, directories);
+    if (recovery.restored > 0 || recovery.purged > 0) {
+      await logger.info('Exclusões de anexos interrompidas foram reconciliadas.', {
+        restored: recovery.restored,
+        purged: recovery.purged,
+      });
+    }
+  } catch (error) {
+    await logger.error('Falha ao reconciliar exclusões de anexos interrompidas.', {
+      errorName: error instanceof Error ? error.name : 'UnknownError',
+      errorMessage: error instanceof Error ? error.message : 'Unknown error',
+    });
+    database.close();
+    throw error;
+  }
   const entityTypeRepository = new EntityTypeRepository(database.orm);
   const fieldDefinitionRepository = new FieldDefinitionRepository(database.orm);
   const entityRepository = new EntityRepository(database.orm);
@@ -83,7 +142,49 @@ export async function bootstrapApplication(): Promise<RunningApplication> {
   const inboxRepository = new InboxRepository(database.orm);
   const sessionRepository = new SessionRepository(database.orm);
   const sessionIntentionRepository = new SessionIntentionRepository(database.orm);
-  const window = createMainWindow();
+  const appearanceService = new AppearanceService({ repository: appearanceRepository });
+  const initialAppearance = appearanceService.get();
+  const window = createWindowWithInitialTheme(
+    initialAppearance.theme,
+    nativeTheme,
+    createMainWindow,
+  );
+  let appearanceMenu: AppearanceMenuPort | null = null;
+  const appearanceController = new AppearanceController(appearanceService, {
+    notifyThemeChanged: (setting) =>
+      window.webContents.send(
+        appearanceChannels.themeChanged,
+        appearanceSettingSchema.parse(setting),
+      ),
+    setMenuTheme: (theme) => appearanceMenu?.setTheme(theme),
+    setNativeTheme: (theme) => {
+      nativeTheme.themeSource = theme;
+    },
+    setWindowBackground: (color) => window.setBackgroundColor(color),
+  });
+  appearanceMenu = installApplicationMenu(Menu, {
+    applicationName: app.name,
+    platform: process.platform,
+    onThemeSelected: (theme) => {
+      try {
+        appearanceController.setThemeFromMenu(theme);
+      } catch (error) {
+        void showAppearanceChangeFailure(dialog, window).catch(() => undefined);
+        void logger
+          .error('Falha ao alterar o tema pelo menu nativo.', {
+            errorName: error instanceof Error ? error.name : 'UnknownError',
+            errorMessage: error instanceof Error ? error.message : 'Unknown error',
+          })
+          .catch(() => undefined);
+      }
+    },
+  });
+  appearanceController.initialize(initialAppearance);
+  const unregisterAppearanceIpc = registerAppearanceIpcHandlers(ipcMain, {
+    controller: appearanceController,
+    logger,
+    authorizedWebContentsId: window.webContents.id,
+  });
   const service = new PhaseZeroService({
     applicationVersion: app.getVersion(),
     dataDirectory: dataRoot,
@@ -99,9 +200,64 @@ export async function bootstrapApplication(): Promise<RunningApplication> {
     logger,
     authorizedWebContentsId: window.webContents.id,
   });
-  const campaignService = new CampaignService({ repository: campaignRepository });
+  const campaignService = createCampaignService(campaignRepository);
   const unregisterCampaignIpc = registerCampaignIpcHandlers(ipcMain, {
     service: campaignService,
+    logger,
+    authorizedWebContentsId: window.webContents.id,
+  });
+  const imageImportService = new ImageImportService({
+    repository: attachmentRepository,
+    imageFieldValues: imageFieldValueRepository,
+    processor: new ImageProcessingService(),
+    downloader: new SecureImageDownloadService(),
+    directories,
+    selectImageFile: async () => {
+      const selection = await dialog.showOpenDialog(window, {
+        properties: ['openFile'],
+        filters: [{ name: 'Imagens', extensions: ['png', 'jpg', 'jpeg', 'webp'] }],
+      });
+      return selection.canceled ? null : (selection.filePaths[0] ?? null);
+    },
+  });
+  const unregisterImageImportIpc = registerImageImportIpcHandlers(ipcMain, {
+    service: imageImportService,
+    logger,
+    authorizedWebContentsId: window.webContents.id,
+  });
+  const imageFieldValueService = new ImageFieldValueService({
+    repository: imageFieldValueRepository,
+    attachments: attachmentRepository,
+    directories,
+  });
+  const unregisterImageFieldValueIpc = registerImageFieldValueIpcHandlers(ipcMain, {
+    service: imageFieldValueService,
+    logger,
+    authorizedWebContentsId: window.webContents.id,
+  });
+  const campaignCoverService = new CampaignCoverService({
+    repository: attachmentRepository,
+    directories,
+  });
+  const unregisterCampaignCoverIpc = registerCampaignCoverIpcHandlers(ipcMain, {
+    service: campaignCoverService,
+    logger,
+    authorizedWebContentsId: window.webContents.id,
+  });
+  const entityReferenceImageService = new EntityReferenceImageService({
+    repository: attachmentRepository,
+    directories,
+  });
+  const unregisterEntityReferenceImageIpc = registerEntityReferenceImageIpcHandlers(ipcMain, {
+    service: entityReferenceImageService,
+    logger,
+    authorizedWebContentsId: window.webContents.id,
+  });
+  const startupDiagnosticsService = new StartupDiagnosticsService((text) =>
+    clipboard.writeText(text),
+  );
+  const unregisterDiagnosticsIpc = registerDiagnosticsIpcHandlers(ipcMain, {
+    service: startupDiagnosticsService,
     logger,
     authorizedWebContentsId: window.webContents.id,
   });
@@ -160,6 +316,7 @@ export async function bootstrapApplication(): Promise<RunningApplication> {
     repository: assertionRepository,
     campaigns: campaignRepository,
     entities: entityRepository,
+    sessions: sessionRepository,
   });
   const unregisterAssertionIpc = registerAssertionIpcHandlers(ipcMain, {
     service: assertionService,
@@ -170,6 +327,7 @@ export async function bootstrapApplication(): Promise<RunningApplication> {
     repository: noteRepository,
     campaigns: campaignRepository,
     entities: entityRepository,
+    sessions: sessionRepository,
   });
   const unregisterNoteIpc = registerNoteIpcHandlers(ipcMain, {
     service: noteService,
@@ -214,6 +372,7 @@ export async function bootstrapApplication(): Promise<RunningApplication> {
     repository: sessionRepository,
     campaigns: campaignRepository,
   });
+  const sessionHandlerService = createSessionHandlerService(sessionService);
   const sessionParticipantService = new SessionParticipantService({
     repository: sessionRepository,
     campaigns: campaignRepository,
@@ -226,7 +385,7 @@ export async function bootstrapApplication(): Promise<RunningApplication> {
     entities: entityRepository,
   });
   const unregisterSessionIpc = registerSessionIpcHandlers(ipcMain, {
-    sessions: sessionService,
+    sessions: sessionHandlerService,
     participants: sessionParticipantService,
     intentions: sessionIntentionService,
     logger,
@@ -242,8 +401,14 @@ export async function bootstrapApplication(): Promise<RunningApplication> {
     dispose: () => {
       if (disposed) return;
       disposed = true;
+      unregisterAppearanceIpc();
       unregisterIpc();
       unregisterCampaignIpc();
+      unregisterImageImportIpc();
+      unregisterImageFieldValueIpc();
+      unregisterCampaignCoverIpc();
+      unregisterEntityReferenceImageIpc();
+      unregisterDiagnosticsIpc();
       unregisterEntityTypeIpc();
       unregisterFieldDefinitionIpc();
       unregisterEntityIpc();
@@ -255,6 +420,7 @@ export async function bootstrapApplication(): Promise<RunningApplication> {
       unregisterEventIpc();
       unregisterTimelineIpc();
       unregisterSessionIpc();
+      appearanceMenu.dispose();
       database.close();
     },
   };
@@ -266,4 +432,54 @@ export function showBootstrapError(error: unknown): void {
     'Não foi possível iniciar o Gerenciador de Campanhas de RPG',
     `${message}\n\nNenhum dado foi removido. Consulte a pasta de logs para diagnóstico.`,
   );
+}
+
+function createCampaignService(repository: CampaignRepository): CampaignService {
+  if (
+    process.env.NODE_ENV === 'test' &&
+    process.env.CAMPAIGN_MANAGER_TEST_FAIL_INITIAL_CAMPAIGN_LIST === '1'
+  )
+    return new InitialCampaignListFailureService({ repository });
+  return new CampaignService({ repository });
+}
+
+class InitialCampaignListFailureService extends CampaignService {
+  private shouldFail = true;
+
+  public override list(input: CampaignPageRequest): CampaignPageResult {
+    if (this.shouldFail) {
+      this.shouldFail = false;
+      throw new AppError('DATABASE_UNAVAILABLE', 'Falha de teste na leitura de campanhas.');
+    }
+    return super.list(input);
+  }
+}
+
+function createSessionHandlerService(
+  service: SessionService,
+): SessionHandlerDependencies['sessions'] {
+  const shouldInjectFailure =
+    process.env.NODE_ENV === 'test' && process.env.E2E_SESSION_LIST_FAIL_ONCE === '1';
+  const configuredDelay =
+    process.env.NODE_ENV === 'test' ? Number(process.env.E2E_SESSION_LIST_DELAY_MS ?? 0) : 0;
+  const delayMilliseconds =
+    Number.isFinite(configuredDelay) && configuredDelay > 0 ? configuredDelay : 0;
+
+  if (!shouldInjectFailure && delayMilliseconds === 0) return service;
+
+  let shouldFail = shouldInjectFailure;
+  return {
+    create: (input) => service.create(input),
+    get: (input) => service.get(input),
+    list: async (input) => {
+      if (shouldFail) {
+        shouldFail = false;
+        throw new AppError('TEST_SESSION_LIST_FAILURE', 'Falha de teste ao carregar sessões.');
+      }
+      if (delayMilliseconds > 0)
+        await new Promise<void>((resolve) => setTimeout(resolve, delayMilliseconds));
+      return service.list(input);
+    },
+    update: (input) => service.update(input),
+  };
 }

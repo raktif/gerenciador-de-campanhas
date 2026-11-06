@@ -1,10 +1,16 @@
 import type { AssertionGateway } from './assertions';
+import type { AppearanceGateway } from './appearance';
 import type { CampaignGateway } from './campaigns';
+import type { CampaignCoverGateway } from './campaign-covers';
+import type { DiagnosticsGateway } from './diagnostics';
 import type { EntityGateway } from './entities';
+import type { EntityReferenceImageGateway } from './entity-reference-images';
 import type { EntityTypeGateway } from './entity-types';
 import type { EventGateway } from './events';
 import type { FieldDefinitionGateway } from './field-definitions';
 import type { InboxGateway } from './inbox';
+import type { ImageImportGateway } from './image-imports';
+import type { ImageFieldValueGateway } from './image-field-values';
 import type { PhaseZeroGateway } from './phase-zero';
 import type { NoteGateway } from './notes';
 import type { RelationshipTypeGateway } from './relationship-types';
@@ -17,8 +23,12 @@ import type {
 } from './sessions';
 
 export interface CampaignManagerGateway {
+  appearance: AppearanceGateway;
+  diagnostics: DiagnosticsGateway;
   phaseZero: PhaseZeroGateway;
   campaigns: CampaignGateway;
+  images: ImageImportGateway & CampaignCoverGateway & EntityReferenceImageGateway;
+  imageFieldValues: ImageFieldValueGateway;
   entityTypes: EntityTypeGateway;
   relationshipTypes: RelationshipTypeGateway;
   relationships: RelationshipGateway;

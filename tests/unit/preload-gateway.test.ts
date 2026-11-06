@@ -1,15 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import {
+  appearanceChannels,
   campaignChannels,
+  diagnosticsChannels,
   entityChannels,
   entityTypeChannels,
   fieldDefinitionChannels,
+  imageImportChannels,
   relationshipChannels,
   relationshipTypeChannels,
 } from '../../src/core/contracts/ipc-channels';
 import {
   createCampaignManagerGateway,
   type IpcInvoker,
+  type IpcSubscriber,
 } from '../../src/preload/gateways/campaign-manager-gateway';
 
 describe('gateway do preload', () => {
@@ -17,12 +21,16 @@ describe('gateway do preload', () => {
     const gateway = createCampaignManagerGateway(createInvoker([]));
 
     expect(Object.keys(gateway).sort()).toEqual([
+      'appearance',
       'assertions',
       'campaigns',
+      'diagnostics',
       'entities',
       'entityTypes',
       'events',
       'fieldDefinitions',
+      'imageFieldValues',
+      'images',
       'inbox',
       'notes',
       'phaseZero',
@@ -42,6 +50,40 @@ describe('gateway do preload', () => {
       'restore',
       'update',
     ]);
+    expect(Object.keys(gateway.images).sort()).toEqual([
+      'deleteAttachment',
+      'getCover',
+      'getCoverPreview',
+      'getEntityReference',
+      'getEntityReferenceDisplay',
+      'getEntityReferencePreview',
+      'importBytes',
+      'importEntityReferenceBytes',
+      'importEntityReferenceUrl',
+      'importUrl',
+      'removeCover',
+      'removeEntityReference',
+      'selectEntityReferenceLocal',
+      'selectLocal',
+      'setCover',
+      'setEntityReference',
+    ]);
+    expect(Object.keys(gateway.imageFieldValues).sort()).toEqual([
+      'getDisplay',
+      'getPreview',
+      'importBytes',
+      'importUrl',
+      'list',
+      'move',
+      'remove',
+      'selectLocal',
+      'update',
+    ]);
+    expect(Object.keys(gateway.appearance).sort()).toEqual([
+      'getTheme',
+      'onThemeChanged',
+      'setTheme',
+    ]);
     expect('ipcRenderer' in gateway).toBe(false);
     expect('invoke' in gateway).toBe(false);
     expect(Object.keys(gateway.entityTypes).sort()).toEqual([
@@ -49,6 +91,7 @@ describe('gateway do preload', () => {
       'create',
       'get',
       'list',
+      'move',
       'restore',
       'update',
     ]);
@@ -57,6 +100,7 @@ describe('gateway do preload', () => {
       'create',
       'get',
       'list',
+      'move',
       'restore',
       'update',
     ]);
@@ -65,6 +109,7 @@ describe('gateway do preload', () => {
       'create',
       'get',
       'list',
+      'move',
       'restore',
       'update',
     ]);
@@ -87,7 +132,51 @@ describe('gateway do preload', () => {
     ]);
   });
 
-  it('normaliza entradas e mapeia cada operação ao canal permitido', async () => {
+  it('expõe somente get/set de aparência e bloqueia payloads fora do contrato', async () => {
+    const invocations: Invocation[] = [];
+    const gateway = createCampaignManagerGateway(createInvoker(invocations));
+
+    await gateway.appearance.getTheme();
+    await gateway.appearance.setTheme({ theme: 'dark', revision: 2 });
+
+    expect(invocations).toEqual([
+      { channel: appearanceChannels.getTheme, input: {} },
+      {
+        channel: appearanceChannels.setTheme,
+        input: { theme: 'dark', revision: 2 },
+      },
+    ]);
+    expect(() =>
+      gateway.appearance.setTheme({ theme: 'dark', revision: 2, rawChannel: true } as never),
+    ).toThrow();
+    expect(invocations).toHaveLength(2);
+  });
+
+  it('valida eventos de tema e oferece unsubscribe idempotente sem expor o listener bruto', () => {
+    const listeners = new Map<string, (payload: unknown) => void>();
+    const removed: string[] = [];
+    const gateway = createCampaignManagerGateway(
+      createInvoker([]),
+      createSubscriber(listeners, removed),
+    );
+    const received: unknown[] = [];
+    const unsubscribe = gateway.appearance.onThemeChanged((setting) => received.push(setting));
+    const listener = listeners.get(appearanceChannels.themeChanged);
+    if (listener === undefined) throw new Error('Listener de tema não registrado.');
+
+    listener({ theme: 'dark', revision: 2, rawChannel: true });
+    listener({ theme: 'system', revision: 2 });
+    expect(received).toEqual([]);
+
+    listener({ theme: 'dark', revision: 2 });
+    expect(received).toEqual([{ theme: 'dark', revision: 2 }]);
+
+    unsubscribe();
+    unsubscribe();
+    expect(removed).toEqual([appearanceChannels.themeChanged]);
+  });
+
+  it('valida entradas públicas e as encaminha sem aplicar transforms do main', async () => {
     const invocations: Invocation[] = [];
     const gateway = createCampaignManagerGateway(createInvoker(invocations));
     const identity = { id: '00000000-0000-4000-8000-000000000001' };
@@ -122,6 +211,15 @@ describe('gateway do preload', () => {
     });
     await gateway.entityTypes.archive(entityTypeLifecycle);
     await gateway.entityTypes.restore(entityTypeLifecycle);
+    const entityTypeMove = {
+      campaignId: identity.id,
+      sourceId: entityTypeIdentity.id,
+      sourceRevision: 1,
+      targetId: '10000000-0000-4000-8000-000000000002',
+      targetRevision: 2,
+      placement: 'before' as const,
+    };
+    await gateway.entityTypes.move(entityTypeMove);
     const relationshipTypeIdentity = {
       campaignId: identity.id,
       id: '15000000-0000-4000-8000-000000000001',
@@ -140,6 +238,15 @@ describe('gateway do preload', () => {
     });
     await gateway.relationshipTypes.archive(relationshipTypeLifecycle);
     await gateway.relationshipTypes.restore(relationshipTypeLifecycle);
+    const relationshipTypeMove = {
+      campaignId: identity.id,
+      sourceId: relationshipTypeIdentity.id,
+      sourceRevision: 1,
+      targetId: '15000000-0000-4000-8000-000000000002',
+      targetRevision: 2,
+      placement: 'after' as const,
+    };
+    await gateway.relationshipTypes.move(relationshipTypeMove);
     const fieldIdentity = {
       campaignId: identity.id,
       entityTypeId: entityTypeIdentity.id,
@@ -149,7 +256,6 @@ describe('gateway do preload', () => {
     await gateway.fieldDefinitions.create({
       campaignId: identity.id,
       entityTypeId: entityTypeIdentity.id,
-      key: 'nome',
       label: '  Nome  ',
       dataType: 'short_text',
     });
@@ -164,6 +270,16 @@ describe('gateway do preload', () => {
     });
     await gateway.fieldDefinitions.archive(fieldLifecycle);
     await gateway.fieldDefinitions.restore(fieldLifecycle);
+    const fieldMove = {
+      campaignId: identity.id,
+      entityTypeId: entityTypeIdentity.id,
+      sourceId: fieldIdentity.id,
+      sourceRevision: 1,
+      targetId: '20000000-0000-4000-8000-000000000002',
+      targetRevision: 2,
+      placement: 'before' as const,
+    };
+    await gateway.fieldDefinitions.move(fieldMove);
     const entityIdentity = { campaignId: identity.id, id: '30000000-0000-4000-8000-000000000001' };
     const entityLifecycle = { ...entityIdentity, revision: 1 };
     await gateway.entities.create({
@@ -181,20 +297,15 @@ describe('gateway do preload', () => {
     await gateway.entities.restore(entityLifecycle);
 
     expect(invocations).toEqual([
-      { channel: campaignChannels.create, input: { name: 'Ethéria' } },
+      { channel: campaignChannels.create, input: { name: '  Ethéria  ' } },
       { channel: campaignChannels.get, input: identity },
       {
         channel: campaignChannels.list,
-        input: {
-          limit: 50,
-          filters: { statuses: ['active'] },
-          sort: 'updatedAt',
-          order: 'desc',
-        },
+        input: {},
       },
       {
         channel: campaignChannels.update,
-        input: { ...lifecycle, patch: { name: 'Nova Ethéria' } },
+        input: { ...lifecycle, patch: { name: '  Nova Ethéria  ' } },
       },
       { channel: campaignChannels.archive, input: lifecycle },
       { channel: campaignChannels.restore, input: lifecycle },
@@ -203,134 +314,80 @@ describe('gateway do preload', () => {
         channel: entityTypeChannels.create,
         input: {
           campaignId: identity.id,
-          name: 'Personagens',
-          singularName: 'Personagem',
+          name: '  Personagens  ',
+          singularName: '  Personagem  ',
           slug: 'personagens',
-          sortOrder: 0,
         },
       },
       { channel: entityTypeChannels.get, input: entityTypeIdentity },
       {
         channel: entityTypeChannels.list,
-        input: {
-          campaignId: identity.id,
-          limit: 50,
-          filters: { isArchived: false },
-          sort: 'sortOrder',
-          order: 'asc',
-        },
+        input: { campaignId: identity.id },
       },
       {
         channel: entityTypeChannels.update,
-        input: { ...entityTypeLifecycle, patch: { name: 'Protagonistas' } },
+        input: { ...entityTypeLifecycle, patch: { name: '  Protagonistas  ' } },
       },
       { channel: entityTypeChannels.archive, input: entityTypeLifecycle },
       { channel: entityTypeChannels.restore, input: entityTypeLifecycle },
+      { channel: entityTypeChannels.move, input: entityTypeMove },
       {
         channel: relationshipTypeChannels.create,
         input: {
           campaignId: identity.id,
-          name: 'Trabalha em',
+          name: '  Trabalha em  ',
           slug: 'trabalha-em',
-          inverseName: null,
-          description: null,
-          semanticRole: null,
-          isSymmetric: false,
-          allowedSourceTypeIds: null,
-          allowedTargetTypeIds: null,
-          icon: null,
-          color: null,
-          sortOrder: 0,
         },
       },
       { channel: relationshipTypeChannels.get, input: relationshipTypeIdentity },
       {
         channel: relationshipTypeChannels.list,
-        input: {
-          campaignId: identity.id,
-          limit: 50,
-          filters: { isArchived: false },
-          sort: 'sortOrder',
-          order: 'asc',
-        },
+        input: { campaignId: identity.id },
       },
       {
         channel: relationshipTypeChannels.update,
-        input: { ...relationshipTypeLifecycle, patch: { inverseName: 'Emprega' } },
+        input: { ...relationshipTypeLifecycle, patch: { inverseName: '  Emprega  ' } },
       },
       { channel: relationshipTypeChannels.archive, input: relationshipTypeLifecycle },
       { channel: relationshipTypeChannels.restore, input: relationshipTypeLifecycle },
+      { channel: relationshipTypeChannels.move, input: relationshipTypeMove },
       {
         channel: fieldDefinitionChannels.create,
         input: {
           campaignId: identity.id,
           entityTypeId: entityTypeIdentity.id,
-          key: 'nome',
-          label: 'Nome',
+          label: '  Nome  ',
           dataType: 'short_text',
-          description: null,
-          semanticRole: null,
-          required: false,
-          searchable: false,
-          secretByDefault: false,
-          defaultValue: null,
-          options: null,
-          validation: null,
-          referenceRelationshipTypeId: null,
-          referenceDirection: null,
-          allowedTargetTypeIds: null,
-          onDeleteBehavior: null,
-          sortOrder: 0,
         },
       },
       { channel: fieldDefinitionChannels.get, input: fieldIdentity },
       {
         channel: fieldDefinitionChannels.list,
-        input: {
-          campaignId: identity.id,
-          entityTypeId: entityTypeIdentity.id,
-          limit: 50,
-          filters: { isArchived: false },
-          sort: 'sortOrder',
-          order: 'asc',
-        },
+        input: { campaignId: identity.id, entityTypeId: entityTypeIdentity.id },
       },
       {
         channel: fieldDefinitionChannels.update,
-        input: { ...fieldLifecycle, patch: { label: 'Nome completo' } },
+        input: { ...fieldLifecycle, patch: { label: '  Nome completo  ' } },
       },
       { channel: fieldDefinitionChannels.archive, input: fieldLifecycle },
       { channel: fieldDefinitionChannels.restore, input: fieldLifecycle },
+      { channel: fieldDefinitionChannels.move, input: fieldMove },
       {
         channel: entityChannels.create,
         input: {
           campaignId: identity.id,
           entityTypeId: entityTypeIdentity.id,
-          name: 'Aris',
-          summary: null,
-          canonState: 'accepted',
-          knowledgeState: 'fact',
-          visibility: 'gm',
-          originKind: 'manual',
-          sourceId: null,
-          fieldValues: [],
-          referenceValues: [],
+          name: '  Aris  ',
         },
       },
       { channel: entityChannels.get, input: entityIdentity },
       {
         channel: entityChannels.list,
-        input: {
-          campaignId: identity.id,
-          limit: 50,
-          filters: { archived: false },
-          sort: 'name',
-          order: 'asc',
-        },
+        input: { campaignId: identity.id },
       },
       {
         channel: entityChannels.update,
-        input: { ...entityLifecycle, patch: { name: 'Aris, a Capitã' } },
+        input: { ...entityLifecycle, patch: { name: '  Aris, a Capitã  ' } },
       },
       { channel: entityChannels.archive, input: entityLifecycle },
       { channel: entityChannels.restore, input: entityLifecycle },
@@ -346,7 +403,57 @@ describe('gateway do preload', () => {
     expect(invocations).toHaveLength(0);
   });
 
-  it('normaliza a consulta de vizinhança antes de invocar o IPC', async () => {
+  it('não transmite defaults nem propriedades geradas pelo schema de criação', async () => {
+    const invocations: Invocation[] = [];
+    const gateway = createCampaignManagerGateway(createInvoker(invocations));
+    const input = {
+      campaignId: '00000000-0000-4000-8000-000000000001',
+      entityTypeId: '10000000-0000-4000-8000-000000000001',
+      label: '  Aliados  ',
+      helpText: '  Escolha aliados relevantes.  ',
+      dataType: 'entity_reference_list' as const,
+    };
+
+    await gateway.fieldDefinitions.create(input);
+
+    expect(invocations).toEqual([{ channel: fieldDefinitionChannels.create, input }]);
+    expect(invocations[0]?.input).not.toHaveProperty('sortOrder');
+    expect(invocations[0]?.input).not.toHaveProperty('required');
+  });
+
+  it('expõe somente a cópia de diagnóstico de inicialização validada', async () => {
+    const invocations: Invocation[] = [];
+    const gateway = createCampaignManagerGateway(createInvoker(invocations));
+
+    await gateway.diagnostics.copyStartupDiagnostic({
+      version: 1,
+      screen: 'campaigns',
+      operation: 'campaigns.list',
+      code: 'DATABASE_UNAVAILABLE',
+    });
+
+    expect(invocations).toEqual([
+      {
+        channel: diagnosticsChannels.copyStartupDiagnostic,
+        input: {
+          version: 1,
+          screen: 'campaigns',
+          operation: 'campaigns.list',
+          code: 'DATABASE_UNAVAILABLE',
+        },
+      },
+    ]);
+    expect(() =>
+      gateway.diagnostics.copyStartupDiagnostic({
+        version: 1,
+        screen: 'campaigns',
+        operation: 'campaigns.list',
+        code: 'INVALID\\PATH',
+      }),
+    ).toThrow();
+  });
+
+  it('deixa a normalização da consulta de vizinhança para o main', async () => {
     const invocations: Invocation[] = [];
     const gateway = createCampaignManagerGateway(createInvoker(invocations));
     await gateway.relationships.neighborhood({
@@ -359,18 +466,126 @@ describe('gateway do preload', () => {
         input: {
           campaignId: '00000000-0000-4000-8000-000000000001',
           entityId: '30000000-0000-4000-8000-000000000001',
-          depth: 1,
-          maxEntities: 100,
-          maxRelationships: 200,
-          filters: {
-            relationshipTypeIds: [],
-            canonStates: [],
-            knowledgeStates: [],
-            visibilities: [],
-          },
         },
       },
     ]);
+  });
+
+  it('limita o ingresso de imagens a bytes e metadados sem paths', async () => {
+    const invocations: Invocation[] = [];
+    const gateway = createCampaignManagerGateway(createInvoker(invocations));
+    const identity = {
+      campaignId: '00000000-0000-4000-8000-000000000001',
+      revision: 1,
+    };
+    await gateway.images.selectLocal(identity);
+    await gateway.images.importBytes({
+      ...identity,
+      bytes: new Uint8Array([1, 2, 3]),
+      metadata: { originalFilename: 'capa.png', sourceKind: 'clipboard' },
+    });
+    await gateway.images.importUrl({
+      ...identity,
+      url: 'https://images.example/capa.png',
+    });
+    expect(invocations.map(({ channel }) => channel)).toEqual([
+      imageImportChannels.selectLocal,
+      imageImportChannels.importBytes,
+      imageImportChannels.importUrl,
+    ]);
+    expect(() =>
+      gateway.images.selectLocal({ ...identity, path: 'C:\\capa.png' } as never),
+    ).toThrow();
+    expect(() =>
+      gateway.images.importBytes({
+        ...identity,
+        bytes: new Uint8Array([1]),
+        metadata: { originalFilename: 'capa.png', sourceKind: 'file' },
+      } as never),
+    ).toThrow();
+    expect(() =>
+      gateway.images.importUrl({
+        ...identity,
+        url: 'file:///C:/capa.png',
+      }),
+    ).toThrow();
+  });
+
+  it('expõe gestão de capa somente por contratos estritos e canais nomeados', async () => {
+    const invocations: Invocation[] = [];
+    const gateway = createCampaignManagerGateway(createInvoker(invocations));
+    const campaignId = '00000000-0000-4000-8000-000000000001';
+    const attachmentId = '10000000-0000-4000-8000-000000000001';
+    await gateway.images.getCover({ campaignId });
+    await gateway.images.getCoverPreview({ campaignId });
+    await gateway.images.setCover({ campaignId, attachmentId, revision: 1 });
+    await gateway.images.removeCover({ campaignId, revision: 2 });
+    await gateway.images.deleteAttachment({ campaignId, attachmentId, revision: 1 });
+    expect(invocations).toEqual([
+      { channel: imageImportChannels.getCover, input: { campaignId } },
+      { channel: imageImportChannels.getCoverPreview, input: { campaignId } },
+      {
+        channel: imageImportChannels.setCover,
+        input: { campaignId, attachmentId, revision: 1 },
+      },
+      { channel: imageImportChannels.removeCover, input: { campaignId, revision: 2 } },
+      {
+        channel: imageImportChannels.deleteAttachment,
+        input: { campaignId, attachmentId, revision: 1 },
+      },
+    ]);
+    expect(() =>
+      gateway.images.setCover({
+        campaignId,
+        attachmentId,
+        revision: 1,
+        sourceUrl: 'https://private.example/capa.png',
+      } as never),
+    ).toThrow();
+    expect(() => gateway.images.removeCover({ campaignId, revision: 0 })).toThrow();
+  });
+
+  it('encaminha imagem de entidade somente pelos canais e contratos públicos', async () => {
+    const invocations: Invocation[] = [];
+    const gateway = createCampaignManagerGateway(createInvoker(invocations));
+    const identity = {
+      campaignId: '00000000-0000-4000-8000-000000000001',
+      entityId: '20000000-0000-4000-8000-000000000001',
+    };
+    const attachmentId = '30000000-0000-4000-8000-000000000001';
+    await gateway.images.getEntityReference(identity);
+    await gateway.images.getEntityReferencePreview(identity);
+    await gateway.images.selectEntityReferenceLocal({ ...identity, revision: 1 });
+    await gateway.images.importEntityReferenceBytes({
+      ...identity,
+      revision: 1,
+      bytes: new Uint8Array([1, 2, 3]),
+      metadata: { originalFilename: 'retrato.png', sourceKind: 'clipboard' },
+    });
+    await gateway.images.importEntityReferenceUrl({
+      ...identity,
+      revision: 1,
+      url: 'https://images.example/retrato.png',
+    });
+    await gateway.images.setEntityReference({ ...identity, attachmentId, revision: 1 });
+    await gateway.images.removeEntityReference({ ...identity, revision: 2 });
+    expect(invocations.map(({ channel }) => channel)).toEqual([
+      imageImportChannels.getEntityReference,
+      imageImportChannels.getEntityReferencePreview,
+      imageImportChannels.selectEntityReferenceLocal,
+      imageImportChannels.importEntityReferenceBytes,
+      imageImportChannels.importEntityReferenceUrl,
+      imageImportChannels.setEntityReference,
+      imageImportChannels.removeEntityReference,
+    ]);
+    expect(() =>
+      gateway.images.setEntityReference({
+        ...identity,
+        attachmentId,
+        revision: 1,
+        path: 'C:\\privado\\retrato.webp',
+      } as never),
+    ).toThrow();
   });
 });
 
@@ -383,5 +598,21 @@ function createInvoker(invocations: Invocation[]): IpcInvoker {
   return (channel, input) => {
     invocations.push({ channel, input });
     return Promise.resolve({ ok: true, data: null, requestId: 'test-request' });
+  };
+}
+
+function createSubscriber(
+  listeners: Map<string, (payload: unknown) => void>,
+  removed: string[],
+): IpcSubscriber {
+  return (channel, listener) => {
+    listeners.set(channel, listener);
+    let subscribed = true;
+    return () => {
+      if (!subscribed) return;
+      subscribed = false;
+      listeners.delete(channel);
+      removed.push(channel);
+    };
   };
 }

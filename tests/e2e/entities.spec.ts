@@ -29,6 +29,52 @@ test('cadastra entidade com metadados, edita, arquiva e persiste após reiniciar
     await window.getByRole('button', { name: 'Criar tipo de entidade' }).click();
     await expect(window.getByRole('heading', { name: 'Personagens' })).toBeVisible();
 
+    await window.getByRole('button', { name: 'Tipos de relação' }).click();
+    await window.getByRole('button', { name: 'Novo tipo de relação' }).click();
+    await window.getByRole('textbox', { name: 'Nome *', exact: true }).fill('Aliado de');
+    await window.getByLabel('Slug').fill('aliado-de');
+    await window.getByRole('button', { name: 'Criar tipo' }).click();
+    await expect(window.getByRole('list', { name: 'Ordenar tipos de relação' })).toContainText(
+      'Aliado de',
+    );
+    await window.getByRole('button', { name: 'Gerenciar tipos de entidade' }).click();
+
+    await window.getByRole('button', { name: 'Gerenciar campos de Personagens' }).click();
+    await window.getByRole('button', { name: 'Criar primeiro campo' }).click();
+    await window.getByLabel('Rótulo *').fill('Título');
+    await window.getByLabel('Texto de ajuda').fill('Informe o título usado pelo personagem.');
+    await window.getByLabel('Exemplo').fill('Capataz de Kabotya');
+    await window.getByRole('button', { name: 'Criar definição de campo' }).click();
+    await expect(window.getByRole('list', { name: 'Ordenar definições de campo' })).toContainText(
+      'Título',
+    );
+    await window.getByRole('button', { name: 'Novo campo' }).click();
+    await window.getByLabel('Rótulo *').fill('Aliados');
+    await window.getByLabel('Texto de ajuda').fill('Escolha as pessoas aliadas deste personagem.');
+    await window.getByLabel('Exemplo').fill('Mara, Nilo');
+    await window
+      .getByRole('combobox', { name: 'Tipo de dado' })
+      .selectOption('entity_reference_list');
+    const relationshipType = window.getByLabel('Tipo de relacionamento');
+    await expect(relationshipType).toBeEnabled();
+    await relationshipType.selectOption({ label: 'Aliado de' });
+    await window.getByLabel('Direção').selectOption('outgoing');
+    await window.getByRole('checkbox', { name: 'Personagens' }).check();
+    await window.getByLabel('Ao excluir').selectOption('unlink');
+    await window.getByRole('button', { name: 'Criar definição de campo' }).click();
+    await expect(window.getByRole('list', { name: 'Ordenar definições de campo' })).toContainText(
+      'Aliados',
+    );
+    await window.getByRole('button', { name: 'Editar campo Aliados' }).click();
+    await expect(window.getByLabel('Texto de ajuda')).toHaveValue(
+      'Escolha as pessoas aliadas deste personagem.',
+    );
+    await expect(window.getByLabel('Exemplo')).toHaveValue('Mara, Nilo');
+    await expect(window.getByLabel('Tipo de relacionamento')).toHaveValue(/.+/);
+    await expect(window.getByRole('checkbox', { name: 'Personagens' })).toBeChecked();
+    await window.getByRole('button', { name: 'Cancelar' }).click();
+    await window.getByRole('button', { name: 'Voltar para tipos de entidade' }).click();
+
     await window.getByRole('button', { name: 'Voltar para detalhes da campanha' }).click();
     await window.getByRole('button', { name: 'Ver entidades' }).click();
     await expect(window.getByRole('heading', { name: 'Entidades' })).toBeVisible();
@@ -41,6 +87,15 @@ test('cadastra entidade com metadados, edita, arquiva e persiste após reiniciar
     await window.getByLabel('Natureza do conhecimento').selectOption('rumor');
     await window.getByLabel('Visibilidade').selectOption('players');
     await window.getByLabel('Origem').selectOption('document');
+    await expect(window.getByRole('button', { name: 'Ajuda sobre Título' })).toBeVisible();
+    await expect(window.getByRole('button', { name: 'Ajuda sobre Aliados' })).toBeVisible();
+    await window.getByRole('button', { name: 'Ajuda sobre Título' }).click();
+    await expect(window.getByRole('tooltip')).toContainText(
+      'Informe o título usado pelo personagem.',
+    );
+    await expect(window.getByRole('tooltip')).toContainText('Exemplo: Capataz de Kabotya');
+    await window.getByRole('button', { name: 'Ajuda sobre Título' }).press('Escape');
+    await window.getByRole('textbox', { name: 'Título' }).fill('Capataz de Kabotya');
     await window.getByRole('button', { name: 'Criar entidade' }).click();
 
     await expect(window.getByRole('status')).toContainText('Entidade “Gorel” criada.');
@@ -52,15 +107,133 @@ test('cadastra entidade com metadados, edita, arquiva e persiste após reiniciar
     await expect(window.getByTestId('entity-list')).toContainText('Rumor');
     await expect(window.getByTestId('entity-list')).toContainText('Jogadores');
 
-    await window.getByRole('button', { name: 'Editar Gorel' }).click();
+    await window.getByRole('button', { name: 'Nova entidade', exact: true }).click();
+    await window.getByLabel('Nome *').fill('Mara');
+    await window.getByRole('button', { name: 'Criar entidade' }).click();
+    await expect(window.getByTestId('entity-list')).toContainText('Mara');
+    await window.getByRole('button', { name: 'Nova entidade', exact: true }).click();
+    await window.getByLabel('Nome *').fill('Nilo');
+    await window.getByRole('button', { name: 'Criar entidade' }).click();
+    await expect(window.getByTestId('entity-list')).toContainText('Nilo');
+    await window.getByRole('button', { name: 'Relações' }).click();
+    await window.getByLabel('Tipo *').selectOption({ label: 'Aliado de' });
+    await window.getByLabel('Origem *').selectOption({ label: 'Gorel' });
+    await window.getByLabel('Destino *').selectOption({ label: 'Mara' });
+    await window.getByRole('button', { name: 'Salvar relação', exact: true }).click();
+    await expect(window.getByTestId('relationship-list')).toContainText('Gorel');
+    await window.getByRole('button', { name: 'Ver entidades' }).click();
+
+    await window.getByRole('button', { name: 'Abrir detalhes de Gorel' }).first().click();
+    await expect(window.getByRole('button', { name: 'Ajuda sobre Título' })).toBeVisible();
+    await expect(window.getByRole('button', { name: 'Ajuda sobre Aliados' })).toBeVisible();
+    await window.getByRole('button', { name: 'Ajuda sobre Título' }).click();
+    await expect(window.getByRole('tooltip')).toContainText(
+      'Informe o título usado pelo personagem.',
+    );
+    await expect(window.getByRole('tooltip')).toContainText('Exemplo: Capataz de Kabotya');
+    await window.getByRole('button', { name: 'Ajuda sobre Título' }).press('Escape');
+    await window.getByRole('button', { name: 'Ver relações' }).focus();
+    await window.keyboard.press('Enter');
+    await expect(window.getByLabel('Entidade central').locator('option:checked')).toHaveText(
+      'Gorel',
+    );
+    await expect(window.getByLabel('Profundidade')).toHaveValue('1');
+    await expect(window.getByTestId('neighborhood-text-list')).toContainText('Gorel');
+    await expect(window.getByTestId('neighborhood-text-list')).toContainText('Mara');
+    await window.getByRole('button', { name: 'Voltar para detalhes de Gorel' }).focus();
+    await window.keyboard.press('Enter');
+    await expect(window.getByRole('heading', { name: 'Gorel', exact: true })).toBeVisible();
+    await expect(window.getByRole('button', { name: 'Ver relações' })).toBeFocused();
+    await window.getByRole('button', { name: 'Voltar para entidades' }).click();
+
+    await window.getByRole('button', { name: 'Relações' }).click();
+    await window.getByLabel('Entidade central').selectOption({ label: 'Gorel' });
+    await window.getByLabel('Tipo *').selectOption({ label: 'Aliado de' });
+    await window.getByLabel('Origem *').selectOption({ label: 'Mara' });
+    await window.getByLabel('Destino *').selectOption({ label: 'Gorel' });
+    await window.getByRole('button', { name: 'Salvar relação', exact: true }).click();
+    await expect(window.getByLabel('Entidade central').locator('option:checked')).toHaveText(
+      'Gorel',
+    );
+    await expect(window.getByLabel('Profundidade')).toHaveValue('1');
+    await expect(window.getByTestId('neighborhood-text-list')).toContainText('Gorel');
+    await window.getByRole('button', { name: 'Ver entidades' }).click();
+
+    await window.getByRole('button', { name: 'Abrir detalhes de Nilo' }).first().click();
+    await window.getByRole('button', { name: 'Ver relações' }).click();
+    await expect(window.getByLabel('Entidade central').locator('option:checked')).toHaveText(
+      'Nilo',
+    );
+    await expect(window.getByRole('status')).toContainText(
+      'Nenhuma conexão corresponde aos filtros.',
+    );
+    await window.getByRole('button', { name: 'Ver entidades' }).click();
+
+    await window.getByRole('button', { name: 'Abrir detalhes de Gorel' }).first().click();
+    await expect(window.getByRole('heading', { name: 'Gorel', exact: true })).toBeVisible();
+    await expect(window.getByRole('heading', { name: 'Gorel', exact: true })).toBeFocused();
+    await expect(window.getByText('Descrição', { exact: true })).toBeVisible();
+    await expect(window.getByText('Informações narrativas', { exact: true })).toBeVisible();
+    await expect(window.getByText('Campos preenchidos', { exact: true })).toBeVisible();
+    await expect(window.getByText('Capataz de Kabotya', { exact: true })).toBeVisible();
+    await expect(window.getByText('Mara', { exact: true })).toBeVisible();
+    await expect(window.getByRole('heading', { name: 'Relações', exact: true })).toBeVisible();
+    await expect(window.getByRole('list', { name: 'Relações da entidade' })).toContainText(
+      'Aliado de: Mara',
+    );
+    await window.getByRole('button', { name: 'Editar', exact: true }).click();
     await expect(window.getByLabel('Nome *')).toHaveValue('Gorel');
     await expect(window.getByLabel('Estado canônico')).toHaveValue('draft');
     await expect(window.getByLabel('Natureza do conhecimento')).toHaveValue('rumor');
     await expect(window.getByLabel('Visibilidade')).toHaveValue('players');
     await expect(window.getByLabel('Origem')).toHaveValue('document');
     await window.getByLabel('Resumo').fill('Chefe respeitado dos mineradores');
+    await window.getByRole('button', { name: 'Cancelar', exact: true }).click();
+    const discardDialog = window.getByRole('dialog', { name: 'Descartar alterações?' });
+    await expect(discardDialog).toContainText('Você possui alterações que ainda não foram salvas.');
+    await expect(discardDialog.getByRole('button', { name: 'Continuar editando' })).toBeFocused();
+    await window.keyboard.press('Shift+Tab');
+    await expect(discardDialog.getByRole('button', { name: 'Descartar alterações' })).toBeFocused();
+    await window.keyboard.press('Tab');
+    await expect(discardDialog.getByRole('button', { name: 'Continuar editando' })).toBeFocused();
+    await window.keyboard.press('Escape');
+    await expect(discardDialog).toHaveCount(0);
+    await expect(window.getByRole('button', { name: 'Cancelar', exact: true })).toBeFocused();
+    await window.getByRole('button', { name: 'Cancelar', exact: true }).click();
+    await discardDialog.getByRole('button', { name: 'Continuar editando' }).click();
+    await expect(window.getByRole('button', { name: 'Cancelar', exact: true })).toBeFocused();
     await window.getByRole('button', { name: 'Salvar entidade' }).click();
     await expect(window.getByRole('status')).toContainText('Entidade “Gorel” atualizada.');
+
+    await window.getByRole('button', { name: 'Abrir detalhes de Gorel' }).first().click();
+    await window.getByRole('button', { name: 'Editar', exact: true }).click();
+    await window.getByLabel('Resumo').fill('Alteração descartada');
+    await window.getByRole('button', { name: 'Cancelar', exact: true }).click();
+    await window
+      .getByRole('dialog', { name: 'Descartar alterações?' })
+      .getByRole('button', { name: 'Descartar alterações' })
+      .click();
+    await expect(window.getByTestId('entity-list')).toContainText(
+      'Chefe respeitado dos mineradores',
+    );
+    await expect(window.getByTestId('entity-list')).not.toContainText('Alteração descartada');
+    await expect(
+      window.getByRole('button', { name: 'Abrir detalhes de Gorel' }).first(),
+    ).toBeFocused();
+
+    await window.getByRole('button', { name: 'Abrir detalhes de Gorel' }).nth(1).click();
+    await expect(window.getByRole('heading', { name: 'Gorel', exact: true })).toBeFocused();
+    await window.getByRole('button', { name: 'Voltar para entidades' }).click();
+    await expect(
+      window.getByRole('button', { name: 'Abrir detalhes de Gorel' }).nth(1),
+    ).toBeFocused();
+
+    await window.getByRole('button', { name: 'Abrir detalhes de Gorel' }).first().click();
+    await window.getByRole('button', { name: 'Editar', exact: true }).click();
+    await window.getByRole('button', { name: 'Cancelar', exact: true }).click();
+    await expect(
+      window.getByRole('button', { name: 'Abrir detalhes de Gorel' }).first(),
+    ).toBeFocused();
 
     await window.getByRole('button', { name: 'Arquivar Gorel' }).click();
     await window.getByRole('button', { name: 'Confirmar arquivamento' }).click();

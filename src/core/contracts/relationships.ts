@@ -142,6 +142,7 @@ export const relationshipNeighborhoodInputSchema = z
     campaignId: z.uuid(),
     entityId: z.uuid(),
     depth: z.number().int().min(1).max(3).default(1),
+    directOnly: z.boolean().default(false),
     maxEntities: z.number().int().positive().max(250).default(100),
     maxRelationships: z.number().int().positive().max(500).default(200),
     filters: z

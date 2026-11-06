@@ -43,7 +43,7 @@ export class CampaignService {
       genre: input.genre ?? null,
       tone: input.tone ?? null,
       summary: input.summary ?? null,
-      imagePath: input.imagePath ?? null,
+      coverAttachmentId: null,
       status: 'active',
       createdAt: timestamp,
       updatedAt: timestamp,

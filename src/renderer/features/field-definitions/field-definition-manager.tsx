@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Campaign } from '../../../core/contracts/campaigns';
 import type { EntityType } from '../../../core/contracts/entity-types';
 import type {
@@ -6,6 +6,14 @@ import type {
   FieldDefinitionPatch,
 } from '../../../core/contracts/field-definitions';
 import { FieldDefinitionForm, type FieldDefinitionCreateValues } from './field-definition-form';
+import {
+  presentUserFacingError,
+  type UserFacingError,
+} from '../../../core/errors/user-facing-error';
+import { UserFacingErrorNotice } from '../../components/user-facing-error-notice';
+import { ReorderableList } from '../../components/reorderable-list';
+import type { RelativeMove } from '../../../core/ordering/move-relative';
+import { Button, ButtonGroup, ToolbarActions } from '../../components/actions';
 
 type View = 'list' | 'create' | 'edit';
 
@@ -25,8 +33,12 @@ export function FieldDefinitionManager({
   const [pending, setPending] = useState<FieldDefinition | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<UserFacingError | null>(null);
   const [announcement, setAnnouncement] = useState<string | null>(null);
+  const createButtonRef = useRef<HTMLButtonElement | null>(null);
+  const editButtonRefs = useRef(new Map<string, HTMLButtonElement>());
+  const returnFocusTarget = useRef<{ kind: 'create' } | { kind: 'edit'; id: string } | null>(null);
+  const shouldRestoreFocus = useRef(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -37,12 +49,20 @@ export function FieldDefinitionManager({
       filters: { isArchived: showArchived },
     });
     if (result.ok) setFields(result.data.items);
-    else setError(result.error.message);
+    else setError(presentUserFacingError(result.error, 'field-definitions.list'));
     setLoading(false);
   }, [campaign.id, entityType.id, showArchived]);
   useEffect(() => {
     void load();
   }, [load]);
+  useEffect(() => {
+    if (view !== 'list' || !shouldRestoreFocus.current) return;
+    shouldRestoreFocus.current = false;
+    const target = returnFocusTarget.current;
+    returnFocusTarget.current = null;
+    if (target?.kind === 'edit') editButtonRefs.current.get(target.id)?.focus();
+    else createButtonRef.current?.focus();
+  }, [fields, view]);
 
   async function create(values: FieldDefinitionCreateValues): Promise<void> {
     setBusy(true);
@@ -55,11 +75,11 @@ export function FieldDefinitionManager({
       });
       if (result.ok) {
         setFields((items) => [...items, result.data].sort(compare));
-        setView('list');
+        closeForm();
         setAnnouncement(`Campo “${result.data.label}” criado.`);
-      } else setError(result.error.message);
+      } else setError(presentUserFacingError(result.error, 'field-definitions.mutate'));
     } catch {
-      setError(validationFailureMessage);
+      setError(presentUserFacingError({ code: 'VALIDATION_ERROR' }, 'field-definitions.mutate'));
     } finally {
       setBusy(false);
     }
@@ -81,11 +101,45 @@ export function FieldDefinitionManager({
           items.map((item) => (item.id === result.data.id ? result.data : item)).sort(compare),
         );
         setEditing(null);
-        setView('list');
+        closeForm();
         setAnnouncement(`Campo “${result.data.label}” atualizado.`);
-      } else setError(result.error.message);
+      } else setError(presentUserFacingError(result.error, 'field-definitions.mutate'));
     } catch {
-      setError(validationFailureMessage);
+      setError(presentUserFacingError({ code: 'VALIDATION_ERROR' }, 'field-definitions.mutate'));
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function moveField(move: RelativeMove): Promise<void> {
+    const source = fields.find(({ id }) => id === move.sourceId);
+    const target = fields.find(({ id }) => id === move.targetId);
+    if (source === undefined || target === undefined) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await window.campaignManager.fieldDefinitions.move({
+        campaignId: campaign.id,
+        entityTypeId: entityType.id,
+        sourceId: source.id,
+        sourceRevision: source.revision,
+        targetId: target.id,
+        targetRevision: target.revision,
+        placement: move.placement,
+      });
+      if (result.ok) {
+        setFields(result.data);
+        setAnnouncement(`Campo “${source.label}” reposicionado.`);
+        return;
+      }
+      const presented = presentUserFacingError(result.error, 'field-definitions.mutate');
+      const refreshed = await window.campaignManager.fieldDefinitions.list({
+        campaignId: campaign.id,
+        entityTypeId: entityType.id,
+        filters: { isArchived: false },
+      });
+      if (refreshed.ok) setFields(refreshed.data.items);
+      setError(presented);
+      throw new Error(presented.message);
     } finally {
       setBusy(false);
     }
@@ -109,69 +163,90 @@ export function FieldDefinitionManager({
         `Campo “${result.data.label}” ${pending.isArchived ? 'restaurado' : 'arquivado'}.`,
       );
       setPending(null);
-    } else setError(result.error.message);
+    } else setError(presentUserFacingError(result.error, 'field-definitions.mutate'));
     setBusy(false);
   }
-  function backToList(): void {
+  function closeForm(): void {
+    shouldRestoreFocus.current = true;
     setEditing(null);
     setError(null);
     setView('list');
   }
+  function openCreate(): void {
+    returnFocusTarget.current = { kind: 'create' };
+    setError(null);
+    setView('create');
+  }
+  function openEdit(field: FieldDefinition): void {
+    returnFocusTarget.current = { kind: 'edit', id: field.id };
+    setEditing(field);
+    setError(null);
+    setView('edit');
+  }
   if (view === 'create')
     return (
-      <FieldDefinitionForm
-        busy={busy}
-        error={error}
-        mode="create"
-        onCancel={backToList}
-        onSubmit={create}
-      />
+      <>
+        <FieldDefinitionForm
+          busy={busy}
+          campaignId={campaign.id}
+          error={null}
+          mode="create"
+          onCancel={closeForm}
+          onSubmit={create}
+        />
+        {error === null ? null : (
+          <div className="mx-auto mt-5 max-w-3xl">
+            <UserFacingErrorNotice error={error} operation="field-definitions.mutate" />
+          </div>
+        )}
+      </>
     );
   if (view === 'edit' && editing !== null)
     return (
-      <FieldDefinitionForm
-        busy={busy}
-        error={error}
-        field={editing}
-        key={`${editing.id}:${String(editing.revision)}`}
-        mode="edit"
-        onCancel={backToList}
-        onSubmit={update}
-      />
+      <>
+        <FieldDefinitionForm
+          busy={busy}
+          campaignId={campaign.id}
+          error={null}
+          field={editing}
+          key={`${editing.id}:${String(editing.revision)}`}
+          mode="edit"
+          onCancel={closeForm}
+          onSubmit={update}
+        />
+        {error === null ? null : (
+          <div className="mx-auto mt-5 max-w-3xl">
+            <UserFacingErrorNotice error={error} operation="field-definitions.mutate" />
+          </div>
+        )}
+      </>
     );
 
   return (
     <section aria-labelledby="fields-title">
-      <button className={backClass} onClick={onBack} type="button">
+      <Button className="mb-6" onClick={onBack} size="small" variant="ghost">
         ← Voltar para tipos de entidade
-      </button>
-      <header className="flex items-end justify-between gap-6 border-b border-stone-200 pb-7">
+      </Button>
+      <header className="flex items-end justify-between gap-6 border-b semantic-border pb-7">
         <div>
-          <p className="text-xs font-bold tracking-[0.18em] text-amber-800 uppercase">
+          <p className="text-xs font-bold tracking-[0.18em] semantic-accent-text uppercase">
             {campaign.name} · {entityType.name}
           </p>
           <h1 id="fields-title" className="mt-2 text-4xl font-semibold">
             Definições de campo
           </h1>
-          <p className="mt-3 text-slate-600">
+          <p className="mt-3 semantic-text-secondary">
             Configure os atributos usados por cada{' '}
             {entityType.singularName.toLocaleLowerCase('pt-BR')}.
           </p>
         </div>
         {!showArchived ? (
-          <button
-            className={primaryClass}
-            onClick={() => {
-              setError(null);
-              setView('create');
-            }}
-            type="button"
-          >
+          <Button onClick={openCreate} ref={createButtonRef} size="large" variant="primary">
             Novo campo
-          </button>
+          </Button>
         ) : null}
       </header>
-      <div className="mt-6 flex gap-2" role="group" aria-label="Estado das definições de campo">
+      <ToolbarActions aria-label="Estado das definições de campo" className="mt-6 gap-2">
         <Filter
           active={!showArchived}
           onClick={() => {
@@ -192,90 +267,88 @@ export function FieldDefinitionManager({
         >
           Arquivadas
         </Filter>
-      </div>
+      </ToolbarActions>
       {announcement === null ? null : (
         <p
-          className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800"
+          className="mt-6 rounded-xl border semantic-success-border semantic-success-surface p-4 text-sm semantic-success-text"
           role="status"
         >
           {announcement}
         </p>
       )}
       {pending === null ? null : (
-        <div className="mt-6 rounded-2xl border border-amber-300 bg-amber-50 p-5" role="alert">
+        <div
+          className="mt-6 rounded-2xl border semantic-warning-border semantic-warning-surface p-5"
+          role="alert"
+        >
           <h2 className="font-semibold">
             {pending.isArchived ? 'Restaurar' : 'Arquivar'} “{pending.label}”?
           </h2>
-          <p className="mt-2 text-sm text-slate-700">
+          <p className="mt-2 text-sm semantic-text-secondary">
             A definição e os valores associados permanecerão preservados.
           </p>
-          <div className="mt-4 flex gap-3">
-            <button
-              className={secondaryClass}
-              disabled={busy}
-              onClick={() => setPending(null)}
-              type="button"
-            >
+          <ButtonGroup aria-label="Ações de confirmação" className="mt-4">
+            <Button disabled={busy} onClick={() => setPending(null)}>
               Cancelar ação
-            </button>
-            <button
-              className="rounded-xl bg-slate-900 px-5 py-3 font-semibold text-white disabled:opacity-60"
-              disabled={busy}
-              onClick={() => void lifecycle()}
-              type="button"
-            >
+            </Button>
+            <Button busy={busy} onClick={() => void lifecycle()} variant="primary">
               Confirmar {pending.isArchived ? 'restauração' : 'arquivamento'} do campo
-            </button>
-          </div>
+            </Button>
+          </ButtonGroup>
         </div>
       )}
       {error === null ? null : (
-        <div className="mt-6 rounded-xl border border-red-200 bg-red-50 p-4" role="alert">
-          <p className="text-sm text-red-800">{error}</p>
-          <button
-            className="mt-2 text-sm font-semibold underline"
-            onClick={() => void load()}
-            type="button"
-          >
-            Tentar novamente
-          </button>
+        <div className="mt-6">
+          <UserFacingErrorNotice
+            error={error}
+            operation="field-definitions.list"
+            onRetry={() => void load()}
+          />
         </div>
       )}
       {loading ? (
         <div
-          className="mt-8 h-32 animate-pulse rounded-2xl bg-stone-200"
+          className="mt-8 h-32 animate-pulse rounded-2xl semantic-skeleton"
           aria-label="Carregando definições de campo"
         />
       ) : fields.length === 0 ? (
-        <div className="mt-8 rounded-2xl border border-dashed border-stone-300 bg-white px-8 py-14 text-center">
+        <div className="mt-8 rounded-2xl border border-dashed semantic-border semantic-surface px-8 py-14 text-center">
           <h2 className="text-xl font-semibold">
             {showArchived ? 'Nenhum campo arquivado' : 'Nenhuma definição de campo criada'}
           </h2>
           {!showArchived ? (
-            <button
-              className={`${primaryClass} mt-6`}
-              onClick={() => setView('create')}
-              type="button"
+            <Button
+              className="mt-6"
+              onClick={openCreate}
+              ref={createButtonRef}
+              size="large"
+              variant="primary"
             >
               Criar primeiro campo
-            </button>
+            </Button>
           ) : null}
         </div>
       ) : (
-        <div className="mt-8 grid gap-4" data-testid="field-definition-list">
-          {fields.map((field) => (
-            <article
-              className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm"
-              key={field.id}
-            >
+        <ReorderableList
+          ariaLabel={
+            showArchived ? 'Definições de campo arquivadas' : 'Ordenar definições de campo'
+          }
+          busy={busy}
+          className="mt-8 grid gap-4"
+          getLabel={(field) => field.label}
+          items={fields}
+          onMove={moveField}
+          reorderable={!showArchived}
+          renderItem={(field) => (
+            <article className="rounded-2xl border semantic-border semantic-surface p-6 shadow-sm">
               <div className="flex justify-between gap-5">
                 <div>
                   <h2 className="text-xl font-semibold">{field.label}</h2>
-                  <p className="mt-1 text-sm text-slate-500">
-                    {field.key} · {dataTypeLabel(field.dataType)}
+                  <p className="mt-1 text-sm semantic-text-secondary">
+                    {dataTypeLabel(field.dataType)}
                   </p>
                   {field.description === null ? null : (
-                    <p className="mt-3 text-slate-600">{field.description}</p>
+                    <p className="mt-3 semantic-text-secondary">{field.description}</p>
                   )}
                   <div className="mt-3 flex gap-2 text-xs">
                     {field.required ? <Badge>Obrigatório</Badge> : null}
@@ -283,33 +356,31 @@ export function FieldDefinitionManager({
                     {field.secretByDefault ? <Badge>Secreto</Badge> : null}
                   </div>
                 </div>
-                <span className="text-xs text-slate-500">Ordem {field.sortOrder}</span>
               </div>
-              <div className="mt-5 flex justify-end gap-3 border-t border-stone-100 pt-4">
-                <button
-                  className={secondaryClass}
+              <ToolbarActions
+                aria-label={`Ações do campo ${field.label}`}
+                className="mt-5 justify-end border-t semantic-border pt-4"
+              >
+                <Button
                   aria-label={`Editar campo ${field.label}`}
-                  onClick={() => {
-                    setEditing(field);
-                    setError(null);
-                    setView('edit');
+                  onClick={() => openEdit(field)}
+                  ref={(node) => {
+                    if (node === null) editButtonRefs.current.delete(field.id);
+                    else editButtonRefs.current.set(field.id, node);
                   }}
-                  type="button"
                 >
                   Editar
-                </button>
-                <button
-                  className={secondaryClass}
+                </Button>
+                <Button
                   aria-label={`${field.isArchived ? 'Restaurar' : 'Arquivar'} campo ${field.label}`}
                   onClick={() => setPending(field)}
-                  type="button"
                 >
                   {field.isArchived ? 'Restaurar' : 'Arquivar'}
-                </button>
-              </div>
+                </Button>
+              </ToolbarActions>
             </article>
-          ))}
-        </div>
+          )}
+        />
       )}
     </section>
   );
@@ -325,19 +396,19 @@ function Filter({
   children: React.ReactNode;
 }): React.JSX.Element {
   return (
-    <button
+    <Button
       aria-pressed={active}
-      className={`rounded-full px-4 py-2 text-sm font-semibold ${active ? 'bg-slate-900 text-white' : 'border border-stone-300 bg-white text-slate-600'}`}
+      className={`rounded-full ${active ? 'semantic-selected-surface semantic-selected-text' : ''}`}
       onClick={onClick}
-      type="button"
+      size="small"
     >
       {children}
-    </button>
+    </Button>
   );
 }
 function Badge({ children }: { children: React.ReactNode }): React.JSX.Element {
   return (
-    <span className="rounded-full bg-stone-100 px-2 py-1 font-semibold text-slate-600">
+    <span className="rounded-full semantic-surface-muted px-2 py-1 font-semibold semantic-text-secondary">
       {children}
     </span>
   );
@@ -346,12 +417,6 @@ function compare(left: FieldDefinition, right: FieldDefinition): number {
   return left.sortOrder - right.sortOrder || left.label.localeCompare(right.label, 'pt-BR');
 }
 function dataTypeLabel(value: string): string {
+  if (value === 'image') return 'Imagem';
   return value.replaceAll('_', ' ');
 }
-const primaryClass =
-  'rounded-xl bg-amber-700 px-5 py-3 font-semibold text-white disabled:opacity-60';
-const secondaryClass =
-  'rounded-xl border border-stone-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 disabled:opacity-60';
-const backClass = 'mb-6 rounded-lg px-2 py-1 text-sm font-semibold text-slate-600';
-const validationFailureMessage =
-  'Não foi possível validar os dados. Revise os campos e tente novamente.';

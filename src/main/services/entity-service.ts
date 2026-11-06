@@ -72,6 +72,7 @@ export class EntityService {
       id: this.createId(),
       campaignId: input.campaignId,
       entityTypeId: input.entityTypeId,
+      referenceImageAttachmentId: null,
       name: input.name,
       summary: input.summary,
       canonState: input.canonState,

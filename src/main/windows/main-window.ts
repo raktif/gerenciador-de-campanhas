@@ -1,15 +1,21 @@
 import path from 'node:path';
 import { BrowserWindow } from 'electron';
-import { loadMainWindowContent } from './main-window-navigation';
+import type { AppearanceTheme } from '../../core/contracts/appearance';
+import { appearanceWindowBackgrounds } from '../appearance/appearance-controller';
+import {
+  isMainWindowNavigationAllowed,
+  loadMainWindowContent,
+  selectMainWindowDevelopmentUrl,
+} from './main-window-navigation';
 
-export function createMainWindow(): BrowserWindow {
+export function createMainWindow(theme: AppearanceTheme = 'light'): BrowserWindow {
   const mainWindow = new BrowserWindow({
     width: 1440,
     height: 900,
     minWidth: 1024,
     minHeight: 700,
     show: false,
-    backgroundColor: '#f6f4ef',
+    backgroundColor: appearanceWindowBackgrounds[theme],
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
@@ -32,12 +38,9 @@ export function createMainWindow(): BrowserWindow {
   mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   mainWindow.webContents.on('will-attach-webview', (event) => event.preventDefault());
 
-  let initialNavigationComplete = false;
-  mainWindow.webContents.on('did-finish-load', () => {
-    initialNavigationComplete = true;
-  });
-  mainWindow.webContents.on('will-navigate', (event) => {
-    if (initialNavigationComplete) event.preventDefault();
+  mainWindow.webContents.on('will-navigate', (event, targetUrl) => {
+    if (!isMainWindowNavigationAllowed(mainWindow.webContents.getURL(), targetUrl))
+      event.preventDefault();
   });
 
   return mainWindow;
@@ -46,7 +49,14 @@ export function createMainWindow(): BrowserWindow {
 export function loadMainWindow(window: BrowserWindow): Promise<void> {
   return loadMainWindowContent(
     window,
-    MAIN_WINDOW_VITE_DEV_SERVER_URL,
+    selectMainWindowDevelopmentUrl(MAIN_WINDOW_VITE_DEV_SERVER_URL, process.env.NODE_ENV),
     path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`),
+    {
+      onRetry: (attempt, maximumAttempts) => {
+        console.warn(
+          `Renderer Vite ainda indisponível; repetindo carregamento inicial (${String(attempt)}/${String(maximumAttempts)}).`,
+        );
+      },
+    },
   );
 }

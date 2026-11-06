@@ -4,7 +4,7 @@ export default defineConfig({
   build: {
     sourcemap: true,
     rollupOptions: {
-      external: ['better-sqlite3'],
+      external: ['better-sqlite3', 'sharp'],
     },
   },
 });

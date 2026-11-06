@@ -233,8 +233,24 @@ describe('contratos de captura rápida', () => {
           links: duplicateLinks.map((link) => ({
             ...link,
             role: 'related' as const,
-            sortOrder: 0,
           })),
+        },
+      }),
+    ).toThrow();
+    expect(() =>
+      convertInboxItemToEventInputSchema.parse({
+        campaignId,
+        id: inboxItemId,
+        revision: 1,
+        destination: {
+          title: 'Evento',
+          links: [
+            {
+              entityId: '30000000-0000-4000-8000-000000000001',
+              role: 'related',
+              sortOrder: 0,
+            },
+          ],
         },
       }),
     ).toThrow();

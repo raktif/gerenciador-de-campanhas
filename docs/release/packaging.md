@@ -12,4 +12,6 @@ pnpm make
 
 O smoke test abre o binário empacotado com uma pasta temporária, aguarda a inicialização persistente, encerra o processo controlado pelo harness e inspeciona externamente o banco criado, schema e FTS5. Artefatos ficam em `out/` e não entram no Git.
 
+`better-sqlite3` e `sharp` permanecem externos ao bundle principal. O hook de empacotamento copia explicitamente seus pacotes de runtime e o namespace `@img`, que contém os binários pré-compilados do `sharp` para a plataforma atual. Por isso o pacote deve continuar sendo gerado e testado no sistema operacional e arquitetura de destino.
+
 Antes de uma release pública: atualizar a versão, executar a matriz de CI, testar instalação/atualização/desinstalação em máquina limpa, configurar assinatura e notarização e registrar checksums. Publicação permanece desabilitada até existirem repositório de distribuição e credenciais definidos.

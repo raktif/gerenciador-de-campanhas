@@ -1,5 +1,10 @@
 import type { z } from 'zod';
 import {
+  appearanceSettingSchema,
+  updateAppearanceThemeInputSchema,
+  type AppearanceSetting,
+} from '../../core/contracts/appearance';
+import {
   assertionLifecycleInputSchema,
   assertionPageRequestSchema,
   createAssertionInputSchema,
@@ -55,6 +60,51 @@ import {
 } from '../../core/contracts/inbox';
 import type { CampaignManagerGateway } from '../../core/contracts/gateway';
 import {
+  deleteAttachmentInputSchema,
+  getCampaignCoverInputSchema,
+  removeCampaignCoverInputSchema,
+  setCampaignCoverInputSchema,
+  type CampaignCover,
+  type CampaignCoverPreview,
+  type DeleteAttachmentResult,
+} from '../../core/contracts/campaign-covers';
+import {
+  importImageBytesInputSchema,
+  importImageUrlInputSchema,
+  selectLocalImageInputSchema,
+  type ImageImportResult,
+} from '../../core/contracts/image-imports';
+import {
+  getEntityReferenceImageInputSchema,
+  importEntityReferenceImageBytesInputSchema,
+  importEntityReferenceImageUrlInputSchema,
+  removeEntityReferenceImageInputSchema,
+  selectLocalEntityReferenceImageInputSchema,
+  setEntityReferenceImageInputSchema,
+  type EntityReferenceImage,
+  type EntityReferenceImageImportResult,
+  type EntityReferenceImagePreview,
+  type EntityReferenceImageDisplay,
+} from '../../core/contracts/entity-reference-images';
+import {
+  getImageFieldValueInputSchema,
+  importImageFieldValueBytesInputSchema,
+  importImageFieldValueUrlInputSchema,
+  listImageFieldValuesInputSchema,
+  moveImageFieldValueInputSchema,
+  removeImageFieldValueInputSchema,
+  selectLocalImageFieldValueInputSchema,
+  updateImageFieldValueInputSchema,
+  type ImageFieldValueDetails,
+  type ImageFieldValueImportResult,
+  type ImageFieldValuePreview,
+  type ImageFieldValueDisplay,
+} from '../../core/contracts/image-field-values';
+import {
+  copyStartupDiagnosticInputSchema,
+  type CopiedStartupDiagnostic,
+} from '../../core/contracts/diagnostics';
+import {
   createNoteInputSchema,
   getNoteInputSchema,
   noteLifecycleInputSchema,
@@ -78,6 +128,7 @@ import {
 import {
   createRelationshipTypeInputSchema,
   getRelationshipTypeInputSchema,
+  moveRelationshipTypeInputSchema,
   relationshipTypeLifecycleInputSchema,
   relationshipTypePageRequestSchema,
   updateRelationshipTypeInputSchema,
@@ -89,6 +140,7 @@ import {
   entityTypeLifecycleInputSchema,
   entityTypePageRequestSchema,
   getEntityTypeInputSchema,
+  moveEntityTypeInputSchema,
   updateEntityTypeInputSchema,
   type EntityType,
   type EntityTypePageResult,
@@ -98,18 +150,23 @@ import {
   fieldDefinitionLifecycleInputSchema,
   fieldDefinitionPageRequestSchema,
   getFieldDefinitionInputSchema,
+  moveFieldDefinitionInputSchema,
   updateFieldDefinitionInputSchema,
   type FieldDefinition,
   type FieldDefinitionPageResult,
 } from '../../core/contracts/field-definitions';
 import {
   assertionChannels,
+  appearanceChannels,
   campaignChannels,
+  diagnosticsChannels,
   entityChannels,
   entityTypeChannels,
   eventChannels,
   fieldDefinitionChannels,
   inboxChannels,
+  imageFieldValueChannels,
+  imageImportChannels,
   noteChannels,
   phaseZeroChannels,
   relationshipTypeChannels,
@@ -152,18 +209,46 @@ import {
 } from '../../core/contracts/timeline';
 
 export type IpcInvoker = (channel: string, input: unknown) => Promise<unknown>;
+export type IpcSubscriber = (channel: string, listener: (payload: unknown) => void) => () => void;
 
-export function createCampaignManagerGateway(invokeIpc: IpcInvoker): CampaignManagerGateway {
+export function createCampaignManagerGateway(
+  invokeIpc: IpcInvoker,
+  subscribeIpc: IpcSubscriber = () => () => undefined,
+): CampaignManagerGateway {
   const invoke = <TResult>(
     channel: string,
     input: unknown,
     schema: z.ZodType,
   ): Promise<Result<TResult>> => {
-    const validatedInput = schema.parse(input ?? {});
-    return invokeIpc(channel, validatedInput) as Promise<Result<TResult>>;
+    const publicInput = input ?? {};
+    schema.parse(publicInput);
+    return invokeIpc(channel, publicInput) as Promise<Result<TResult>>;
   };
 
   return {
+    appearance: {
+      getTheme: (input = {}) =>
+        invoke<AppearanceSetting>(appearanceChannels.getTheme, input, emptyInputSchema),
+      setTheme: (input) =>
+        invoke<AppearanceSetting>(
+          appearanceChannels.setTheme,
+          input,
+          updateAppearanceThemeInputSchema,
+        ),
+      onThemeChanged: (listener) =>
+        subscribeIpc(appearanceChannels.themeChanged, (payload) => {
+          const setting = appearanceSettingSchema.safeParse(payload);
+          if (setting.success) listener(setting.data);
+        }),
+    },
+    diagnostics: {
+      copyStartupDiagnostic: (input) =>
+        invoke<CopiedStartupDiagnostic>(
+          diagnosticsChannels.copyStartupDiagnostic,
+          input,
+          copyStartupDiagnosticInputSchema,
+        ),
+    },
     phaseZero: {
       getStatus: (input = {}) =>
         invoke<ApplicationStatus>(phaseZeroChannels.getStatus, input, emptyInputSchema),
@@ -193,6 +278,148 @@ export function createCampaignManagerGateway(invokeIpc: IpcInvoker): CampaignMan
       moveToTrash: (input) =>
         invoke<Campaign>(campaignChannels.moveToTrash, input, campaignLifecycleInputSchema),
     },
+    images: {
+      selectLocal: (input) =>
+        invoke<ImageImportResult>(
+          imageImportChannels.selectLocal,
+          input,
+          selectLocalImageInputSchema,
+        ),
+      importBytes: (input) =>
+        invoke<ImageImportResult>(
+          imageImportChannels.importBytes,
+          input,
+          importImageBytesInputSchema,
+        ),
+      importUrl: (input) =>
+        invoke<ImageImportResult>(imageImportChannels.importUrl, input, importImageUrlInputSchema),
+      getCover: (input) =>
+        invoke<CampaignCover>(imageImportChannels.getCover, input, getCampaignCoverInputSchema),
+      setCover: (input) =>
+        invoke<CampaignCover>(imageImportChannels.setCover, input, setCampaignCoverInputSchema),
+      removeCover: (input) =>
+        invoke<CampaignCover>(
+          imageImportChannels.removeCover,
+          input,
+          removeCampaignCoverInputSchema,
+        ),
+      getCoverPreview: (input) =>
+        invoke<CampaignCoverPreview>(
+          imageImportChannels.getCoverPreview,
+          input,
+          getCampaignCoverInputSchema,
+        ),
+      deleteAttachment: (input) =>
+        invoke<DeleteAttachmentResult>(
+          imageImportChannels.deleteAttachment,
+          input,
+          deleteAttachmentInputSchema,
+        ),
+      selectEntityReferenceLocal: (input) =>
+        invoke<EntityReferenceImageImportResult>(
+          imageImportChannels.selectEntityReferenceLocal,
+          input,
+          selectLocalEntityReferenceImageInputSchema,
+        ),
+      importEntityReferenceBytes: (input) =>
+        invoke<EntityReferenceImageImportResult>(
+          imageImportChannels.importEntityReferenceBytes,
+          input,
+          importEntityReferenceImageBytesInputSchema,
+        ),
+      importEntityReferenceUrl: (input) =>
+        invoke<EntityReferenceImageImportResult>(
+          imageImportChannels.importEntityReferenceUrl,
+          input,
+          importEntityReferenceImageUrlInputSchema,
+        ),
+      getEntityReference: (input) =>
+        invoke<EntityReferenceImage>(
+          imageImportChannels.getEntityReference,
+          input,
+          getEntityReferenceImageInputSchema,
+        ),
+      getEntityReferencePreview: (input) =>
+        invoke<EntityReferenceImagePreview>(
+          imageImportChannels.getEntityReferencePreview,
+          input,
+          getEntityReferenceImageInputSchema,
+        ),
+      getEntityReferenceDisplay: (input) =>
+        invoke<EntityReferenceImageDisplay>(
+          imageImportChannels.getEntityReferenceDisplay,
+          input,
+          getEntityReferenceImageInputSchema,
+        ),
+      setEntityReference: (input) =>
+        invoke<EntityReferenceImage>(
+          imageImportChannels.setEntityReference,
+          input,
+          setEntityReferenceImageInputSchema,
+        ),
+      removeEntityReference: (input) =>
+        invoke<EntityReferenceImage>(
+          imageImportChannels.removeEntityReference,
+          input,
+          removeEntityReferenceImageInputSchema,
+        ),
+    },
+    imageFieldValues: {
+      selectLocal: (input) =>
+        invoke<ImageFieldValueImportResult>(
+          imageFieldValueChannels.selectLocal,
+          input,
+          selectLocalImageFieldValueInputSchema,
+        ),
+      importBytes: (input) =>
+        invoke<ImageFieldValueImportResult>(
+          imageFieldValueChannels.importBytes,
+          input,
+          importImageFieldValueBytesInputSchema,
+        ),
+      importUrl: (input) =>
+        invoke<ImageFieldValueImportResult>(
+          imageFieldValueChannels.importUrl,
+          input,
+          importImageFieldValueUrlInputSchema,
+        ),
+      list: (input) =>
+        invoke<ImageFieldValueDetails[]>(
+          imageFieldValueChannels.list,
+          input,
+          listImageFieldValuesInputSchema,
+        ),
+      getPreview: (input) =>
+        invoke<ImageFieldValuePreview>(
+          imageFieldValueChannels.getPreview,
+          input,
+          getImageFieldValueInputSchema,
+        ),
+      getDisplay: (input) =>
+        invoke<ImageFieldValueDisplay>(
+          imageFieldValueChannels.getDisplay,
+          input,
+          getImageFieldValueInputSchema,
+        ),
+      update: (input) =>
+        invoke<ImageFieldValueDetails>(
+          imageFieldValueChannels.update,
+          input,
+          updateImageFieldValueInputSchema,
+        ),
+      remove: (input) =>
+        invoke<ImageFieldValueDetails>(
+          imageFieldValueChannels.remove,
+          input,
+          removeImageFieldValueInputSchema,
+        ),
+      move: (input) =>
+        invoke<ImageFieldValueDetails[]>(
+          imageFieldValueChannels.move,
+          input,
+          moveImageFieldValueInputSchema,
+        ),
+    },
     entityTypes: {
       create: (input) =>
         invoke<EntityType>(entityTypeChannels.create, input, createEntityTypeInputSchema),
@@ -205,6 +432,8 @@ export function createCampaignManagerGateway(invokeIpc: IpcInvoker): CampaignMan
         invoke<EntityType>(entityTypeChannels.archive, input, entityTypeLifecycleInputSchema),
       restore: (input) =>
         invoke<EntityType>(entityTypeChannels.restore, input, entityTypeLifecycleInputSchema),
+      move: (input) =>
+        invoke<EntityType[]>(entityTypeChannels.move, input, moveEntityTypeInputSchema),
     },
     relationshipTypes: {
       create: (input) =>
@@ -242,6 +471,12 @@ export function createCampaignManagerGateway(invokeIpc: IpcInvoker): CampaignMan
           relationshipTypeChannels.restore,
           input,
           relationshipTypeLifecycleInputSchema,
+        ),
+      move: (input) =>
+        invoke<RelationshipType[]>(
+          relationshipTypeChannels.move,
+          input,
+          moveRelationshipTypeInputSchema,
         ),
     },
     relationships: {
@@ -308,6 +543,12 @@ export function createCampaignManagerGateway(invokeIpc: IpcInvoker): CampaignMan
           fieldDefinitionChannels.restore,
           input,
           fieldDefinitionLifecycleInputSchema,
+        ),
+      move: (input) =>
+        invoke<FieldDefinition[]>(
+          fieldDefinitionChannels.move,
+          input,
+          moveFieldDefinitionInputSchema,
         ),
     },
     entities: {

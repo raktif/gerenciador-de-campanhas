@@ -7,6 +7,7 @@ import {
   type EntityType,
   type EntityTypePageRequest,
   type EntityTypePageResult,
+  type MoveEntityTypeInput,
 } from '../../src/core/contracts/entity-types';
 import { AppError } from '../../src/core/errors/app-error';
 import type { EntityTypeRepositoryUpdate } from '../../src/db/repositories/entity-type-repository';
@@ -46,7 +47,7 @@ describe('EntityTypeService', () => {
       slug: 'personagens',
       description: null,
       icon: null,
-      color: '#92400e',
+      color: '#92400E',
       sortOrder: 0,
       isSystem: false,
       isArchived: false,
@@ -105,7 +106,7 @@ class MemoryEntityTypeRepository implements EntityTypeRepositoryPort {
     for (const entityType of entityTypes) this.records.set(entityType.id, entityType);
   }
 
-  public insert(entityType: EntityType): EntityType {
+  public insertAtEnd(entityType: EntityType): EntityType {
     this.records.set(entityType.id, entityType);
     return entityType;
   }
@@ -139,6 +140,18 @@ class MemoryEntityTypeRepository implements EntityTypeRepositoryPort {
     });
     this.records.set(updated.id, updated);
     return updated;
+  }
+
+  public restoreAtEnd(
+    input: Omit<EntityTypeRepositoryUpdate, 'patch'>,
+    updatedAt: string,
+  ): EntityType {
+    return this.update({ ...input, patch: { isArchived: false } }, updatedAt);
+  }
+
+  public move(input: MoveEntityTypeInput): EntityType[] {
+    void input;
+    return [...this.records.values()];
   }
 }
 
@@ -187,7 +200,7 @@ function createCampaign(): Campaign {
     genre: null,
     tone: null,
     summary: null,
-    imagePath: null,
+    coverAttachmentId: null,
     status: 'active',
     createdAt: firstTimestamp,
     updatedAt: firstTimestamp,

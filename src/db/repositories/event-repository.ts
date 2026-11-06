@@ -22,7 +22,7 @@ import {
   eventSchema,
   type Event,
   type EventDetails,
-  type EventEntityLinkInput,
+  type EventEntityLinkPersistenceInput,
   type EventPageRequest,
   type EventPageResult,
   type EventPatch,
@@ -58,7 +58,7 @@ export interface EventRepositoryUpdate {
   id: string;
   revision: number;
   patch: EventPatch | { archivedAt: string | null };
-  links?: EventEntityLinkInput[];
+  links?: EventEntityLinkPersistenceInput[];
 }
 
 export interface EventSourceContext {
@@ -69,7 +69,7 @@ export interface EventSourceContext {
 export class EventRepository {
   public constructor(private readonly database: BetterSQLite3Database<typeof schema>) {}
 
-  public insert(event: Event, links: EventEntityLinkInput[]): EventDetails {
+  public insert(event: Event, links: EventEntityLinkPersistenceInput[]): EventDetails {
     this.database.transaction((transaction) => {
       transaction.insert(events).values(event).run();
       if (links.length > 0)

@@ -50,7 +50,9 @@ test('registra eventos acessíveis e isola cronologias entre campanhas', async (
     await expect(campaignTimeline).toContainText('A ponte responde ao retorno');
     await expect(campaignTimeline).toContainText('Rumor fora das sessões');
     await expect(campaignTimeline).toContainText('O farol acende');
-    await expect(campaignTimeline).toContainText('Testemunha (ordem 2)');
+    await expect(campaignTimeline).toContainText('Testemunha');
+    await expect(campaignTimeline).toContainText('Testemunha · Participante');
+    await expect(campaignTimeline).not.toContainText(/\(ordem \d+\)/);
     await expect(campaignTimeline).not.toContainText('Evento estrangeiro');
     const campaignTimelineText = await campaignTimeline.innerText();
     expect(campaignTimelineText.indexOf('O farol acende')).toBeLessThan(
@@ -129,14 +131,24 @@ async function createEventThroughForm(window: Page): Promise<void> {
   await window
     .getByLabel('Sessão associada ao evento', { exact: true })
     .selectOption({ label: 'Sessão 1: A primeira vigília' });
-  await window.getByLabel('Ordem do evento', { exact: true }).fill('1');
+  await window.getByLabel('Ordem narrativa', { exact: true }).fill('1');
   const links = window.getByRole('group', { name: 'Vínculos com entidades', exact: true });
   await links.getByRole('button', { name: 'Adicionar vínculo', exact: true }).click();
   await links.getByLabel('Entidade vinculada', { exact: true }).selectOption({ label: 'Aris' });
   await links
     .getByLabel('Papel da entidade vinculada', { exact: true })
     .selectOption({ label: 'Participante' });
-  await links.getByLabel('Ordem do vínculo da entidade', { exact: true }).fill('0');
+  await expect(links.getByText('Ordem', { exact: true })).toHaveCount(0);
+  await links.getByRole('button', { name: 'Adicionar vínculo', exact: true }).click();
+  await links
+    .getByLabel('Entidade vinculada', { exact: true })
+    .nth(1)
+    .selectOption({ label: 'Brena' });
+  await links
+    .getByLabel('Papel da entidade vinculada', { exact: true })
+    .nth(1)
+    .selectOption({ label: 'Testemunha' });
+  await links.getByRole('button', { name: 'Mover Brena para cima' }).click();
   await window.getByRole('button', { name: 'Registrar evento', exact: true }).click();
   await expect(window.getByRole('status')).toContainText('Evento registrado.');
   await expect(window.getByTestId('event-list')).toContainText('O farol acende');
@@ -164,7 +176,7 @@ async function createEventsThroughGateway(window: Page, campaignName: string): P
         sessionId: null,
         title: 'Evento estrangeiro',
         eventOrder: 0,
-        links: [{ entityId: intrusa.id, role: 'related', sortOrder: 0 }],
+        links: [{ entityId: intrusa.id, role: 'related' }],
       });
       if (!result.ok) throw new Error(result.error.message);
       return;
@@ -187,19 +199,19 @@ async function createEventsThroughGateway(window: Page, campaignName: string): P
         sessionId: firstSession.id,
         title: 'O eco da primeira vigília',
         eventOrder: 2,
-        links: [{ entityId: aris.id, role: 'witness' as const, sortOrder: 1 }],
+        links: [{ entityId: aris.id, role: 'witness' as const }],
       },
       {
         sessionId: secondSession.id,
         title: 'A ponte responde ao retorno',
         eventOrder: 0,
-        links: [{ entityId: aris.id, role: 'participant' as const, sortOrder: 0 }],
+        links: [{ entityId: aris.id, role: 'participant' as const }],
       },
       {
         sessionId: null,
         title: 'Rumor fora das sessões',
         eventOrder: 0,
-        links: [{ entityId: brena.id, role: 'related' as const, sortOrder: 0 }],
+        links: [{ entityId: brena.id, role: 'related' as const }],
       },
     ];
     for (const input of inputs) {

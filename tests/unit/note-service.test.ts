@@ -149,16 +149,9 @@ describe('NoteService', () => {
       title: 'Sessão',
       bodyMarkdown: 'Registro',
       originKind: 'session',
+      sessionId: sourceId,
     });
-    expect(capture(() => service.create(sessionNote)).code).toBe('NOTE_SOURCE_REQUIRED');
-    repository.sources.set(sourceId, { kind: 'session', sessionCampaignId: otherCampaignId });
-    expect(capture(() => service.create({ ...sessionNote, sourceId })).code).toBe(
-      'NOTE_SOURCE_CAMPAIGN_MISMATCH',
-    );
-    repository.sources.set(sourceId, { kind: 'manual', sessionCampaignId: null });
-    expect(capture(() => service.create({ ...sessionNote, sourceId })).code).toBe(
-      'NOTE_SOURCE_KIND_MISMATCH',
-    );
+    expect(capture(() => service.create(sessionNote)).code).toBe('SESSION_NOT_FOUND');
     expect(
       capture(() =>
         service.list(
@@ -170,6 +163,26 @@ describe('NoteService', () => {
       ).code,
     ).toBe('ENTITY_NOT_FOUND');
   });
+});
+
+it('projeta a sessionId real de fontes legadas ao consultar notas', () => {
+  const repository = new MemoryRepository([createDetails({ originKind: 'session', sourceId })]);
+  const legacySessionId = '70000000-0000-4000-8000-000000000001';
+  repository.sources.set(sourceId, {
+    kind: 'session',
+    sessionCampaignId: campaignId,
+    sessionId: legacySessionId,
+  });
+  const service = createService(repository);
+  expect(service.get({ campaignId, id: noteId }).note.sessionId).toBe(legacySessionId);
+  expect(
+    service.list(notePageRequestSchema.parse({ campaignId, filters: { archived: false } })).items[0]
+      ?.sessionId,
+  ).toBe(legacySessionId);
+  expect(
+    service.update({ campaignId, id: noteId, revision: 1, patch: { title: 'Revisada' } }).note
+      .sessionId,
+  ).toBe(legacySessionId);
 });
 
 class MemoryRepository implements NoteRepositoryPort {
@@ -265,7 +278,7 @@ function createCampaign(id: string): Campaign {
     genre: null,
     tone: null,
     summary: null,
-    imagePath: null,
+    coverAttachmentId: null,
     status: 'active',
     createdAt: timestamp,
     updatedAt: timestamp,
@@ -279,6 +292,7 @@ function createEntity(id: string, owner: string, archivedAt: string | null = nul
     id,
     campaignId: owner,
     entityTypeId: '10000000-0000-4000-8000-000000000001',
+    referenceImageAttachmentId: null,
     name: id,
     summary: null,
     canonState: 'accepted',

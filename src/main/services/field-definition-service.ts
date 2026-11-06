@@ -8,16 +8,25 @@ import type {
   FieldDefinitionPageRequest,
   FieldDefinitionPageResult,
   GetFieldDefinitionInput,
+  MoveFieldDefinitionInput,
   UpdateFieldDefinitionInput,
 } from '../../core/contracts/field-definitions';
 import { AppError } from '../../core/errors/app-error';
+import { createTechnicalKeyBase } from '../../core/identifiers/technical-key';
 import type { FieldDefinitionRepositoryUpdate } from '../../db/repositories/field-definition-repository';
 
+type NewFieldDefinition = Omit<FieldDefinition, 'key'>;
+
 export interface FieldDefinitionRepositoryPort {
-  insert(fieldDefinition: FieldDefinition): FieldDefinition;
+  insertWithGeneratedKey(fieldDefinition: NewFieldDefinition, baseKey: string): FieldDefinition;
   findById(campaignId: string, entityTypeId: string, id: string): FieldDefinition | null;
   list(request: FieldDefinitionPageRequest): FieldDefinitionPageResult;
   update(input: FieldDefinitionRepositoryUpdate, updatedAt: string): FieldDefinition;
+  restoreAtEnd(
+    input: Omit<FieldDefinitionRepositoryUpdate, 'patch'>,
+    updatedAt: string,
+  ): FieldDefinition;
+  move(input: MoveFieldDefinitionInput, updatedAt: string): FieldDefinition[];
 }
 
 export interface EntityTypeLookupPort {
@@ -42,33 +51,39 @@ export class FieldDefinitionService {
   }
 
   public create(input: CreateFieldDefinitionInput): FieldDefinition {
-    this.requireEntityType(input.campaignId, input.entityTypeId);
+    const entityType = this.requireEntityType(input.campaignId, input.entityTypeId);
+    this.validateImageConfiguration(input);
     this.validateReferenceConfiguration(input.campaignId, input.entityTypeId, input);
     const timestamp = this.now();
-    return this.dependencies.repository.insert({
-      id: this.createId(),
-      entityTypeId: input.entityTypeId,
-      key: input.key,
-      label: input.label,
-      description: input.description,
-      dataType: input.dataType,
-      semanticRole: input.semanticRole,
-      required: input.required,
-      searchable: input.searchable,
-      secretByDefault: input.secretByDefault,
-      defaultValue: input.defaultValue,
-      options: input.options,
-      validation: input.validation,
-      referenceRelationshipTypeId: input.referenceRelationshipTypeId,
-      referenceDirection: input.referenceDirection,
-      allowedTargetTypeIds: input.allowedTargetTypeIds,
-      onDeleteBehavior: input.onDeleteBehavior,
-      sortOrder: input.sortOrder,
-      isArchived: false,
-      createdAt: timestamp,
-      updatedAt: timestamp,
-      revision: 1,
-    });
+    return this.dependencies.repository.insertWithGeneratedKey(
+      {
+        id: this.createId(),
+        entityTypeId: input.entityTypeId,
+        label: input.label,
+        description: input.description,
+        helpText: input.helpText,
+        exampleText: input.exampleText,
+        helpArticleId: input.helpArticleId,
+        dataType: input.dataType,
+        semanticRole: input.semanticRole,
+        required: input.required,
+        searchable: input.searchable,
+        secretByDefault: input.secretByDefault,
+        defaultValue: input.defaultValue,
+        options: input.options,
+        validation: input.validation,
+        referenceRelationshipTypeId: input.referenceRelationshipTypeId,
+        referenceDirection: input.referenceDirection,
+        allowedTargetTypeIds: input.allowedTargetTypeIds,
+        onDeleteBehavior: input.onDeleteBehavior,
+        sortOrder: input.sortOrder,
+        isArchived: false,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        revision: 1,
+      },
+      createTechnicalKeyBase(entityType.singularName, input.label),
+    );
   }
 
   public get(input: GetFieldDefinitionInput): FieldDefinition {
@@ -82,6 +97,32 @@ export class FieldDefinitionService {
 
   public update(input: UpdateFieldDefinitionInput): FieldDefinition {
     const current = this.requireFieldDefinition(input);
+    this.validateImageConfiguration({
+      dataType: input.patch.dataType ?? current.dataType,
+      required: input.patch.required ?? current.required,
+      searchable: input.patch.searchable ?? current.searchable,
+      defaultValue:
+        input.patch.defaultValue === undefined ? current.defaultValue : input.patch.defaultValue,
+      options: input.patch.options === undefined ? current.options : input.patch.options,
+      validation:
+        input.patch.validation === undefined ? current.validation : input.patch.validation,
+      referenceRelationshipTypeId:
+        input.patch.referenceRelationshipTypeId === undefined
+          ? current.referenceRelationshipTypeId
+          : input.patch.referenceRelationshipTypeId,
+      referenceDirection:
+        input.patch.referenceDirection === undefined
+          ? current.referenceDirection
+          : input.patch.referenceDirection,
+      allowedTargetTypeIds:
+        input.patch.allowedTargetTypeIds === undefined
+          ? current.allowedTargetTypeIds
+          : input.patch.allowedTargetTypeIds,
+      onDeleteBehavior:
+        input.patch.onDeleteBehavior === undefined
+          ? current.onDeleteBehavior
+          : input.patch.onDeleteBehavior,
+    });
     this.validateReferenceConfiguration(input.campaignId, input.entityTypeId, {
       dataType: input.patch.dataType ?? current.dataType,
       referenceRelationshipTypeId:
@@ -102,6 +143,11 @@ export class FieldDefinitionService {
           : input.patch.onDeleteBehavior,
     });
     return this.dependencies.repository.update(input, this.now());
+  }
+
+  public move(input: MoveFieldDefinitionInput): FieldDefinition[] {
+    this.requireEntityType(input.campaignId, input.entityTypeId);
+    return this.dependencies.repository.move(input, this.now());
   }
 
   public archive(input: FieldDefinitionLifecycleInput): FieldDefinition {
@@ -130,10 +176,7 @@ export class FieldDefinitionService {
         id: current.id,
       });
     }
-    return this.dependencies.repository.update(
-      { ...input, patch: { isArchived: false } },
-      this.now(),
-    );
+    return this.dependencies.repository.restoreAtEnd(input, this.now());
   }
 
   private requireEntityType(campaignId: string, entityTypeId: string): EntityType {
@@ -248,6 +291,40 @@ export class FieldDefinitionService {
           { campaignId, targetTypeId },
         );
       }
+    }
+  }
+
+  private validateImageConfiguration(
+    field: Pick<
+      FieldDefinition,
+      | 'dataType'
+      | 'required'
+      | 'searchable'
+      | 'defaultValue'
+      | 'options'
+      | 'validation'
+      | 'referenceRelationshipTypeId'
+      | 'referenceDirection'
+      | 'allowedTargetTypeIds'
+      | 'onDeleteBehavior'
+    >,
+  ): void {
+    if (field.dataType !== 'image') return;
+    if (
+      field.required ||
+      field.searchable ||
+      field.defaultValue !== null ||
+      field.options !== null ||
+      field.validation !== null ||
+      field.referenceRelationshipTypeId !== null ||
+      field.referenceDirection !== null ||
+      field.allowedTargetTypeIds !== null ||
+      field.onDeleteBehavior !== null
+    ) {
+      throw new AppError(
+        'INVALID_IMAGE_FIELD_CONFIG',
+        'Campos de imagem não aceitam obrigatoriedade, busca, valor padrão, opções, validação ou configuração de referência.',
+      );
     }
   }
 }

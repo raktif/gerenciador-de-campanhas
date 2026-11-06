@@ -10,6 +10,7 @@ import type {
   UpdateAssertionInput,
 } from '../../core/contracts/assertions';
 import type { Entity } from '../../core/contracts/entities';
+import type { Session } from '../../core/contracts/sessions';
 import { AppError } from '../../core/errors/app-error';
 import type {
   AssertionRepositoryUpdate,
@@ -32,6 +33,10 @@ export interface AssertionCampaignLookupPort {
   findById(id: string): Campaign | null;
 }
 
+export interface AssertionSessionLookupPort {
+  findById(campaignId: string, id: string): Session | null;
+}
+
 export class AssertionService {
   private readonly createId: () => string;
   private readonly now: () => string;
@@ -41,6 +46,7 @@ export class AssertionService {
       repository: AssertionRepositoryPort;
       campaigns: AssertionCampaignLookupPort;
       entities: AssertionEntityLookupPort;
+      sessions?: AssertionSessionLookupPort;
       createId?: () => string;
       now?: () => string;
     },
@@ -53,11 +59,16 @@ export class AssertionService {
     this.requireCampaign(input.campaignId);
     this.validateEntities(input.campaignId, input.subjectEntityId, input.objectEntityId, true);
     this.validateContent(input);
-    this.validateSource(input.campaignId, input.originKind, input.sourceId);
+    const { sessionId, ...assertionInput } = input;
+    const sourceId =
+      input.originKind === 'session' ? this.requireSession(input.campaignId, sessionId).id : null;
+    if (input.originKind !== 'session')
+      this.validateSource(input.campaignId, input.originKind, sourceId);
     const timestamp = this.now();
     return this.dependencies.repository.insert({
       id: this.createId(),
-      ...input,
+      ...assertionInput,
+      sourceId,
       createdAt: timestamp,
       updatedAt: timestamp,
       archivedAt: null,
@@ -66,19 +77,21 @@ export class AssertionService {
   }
 
   public get(input: GetAssertionInput): Assertion {
-    return this.requireAssertion(input.campaignId, input.id);
+    return this.withSessionId(this.requireAssertion(input.campaignId, input.id));
   }
 
   public list(input: AssertionPageRequest): AssertionPageResult {
     this.requireCampaign(input.campaignId);
     if (input.filters.entityId !== undefined)
       this.requireEntity(input.campaignId, input.filters.entityId);
-    return this.dependencies.repository.list(input);
+    const page = this.dependencies.repository.list(input);
+    return { ...page, items: page.items.map((assertion) => this.withSessionId(assertion)) };
   }
 
   public update(input: UpdateAssertionInput): Assertion {
     const current = this.requireAssertion(input.campaignId, input.id);
     this.requireRevision(current, input.revision);
+    const { sessionId, ...patch } = input.patch;
     const updatedContent = {
       subjectEntityId: input.patch.subjectEntityId ?? current.subjectEntityId,
       predicate: input.patch.predicate === undefined ? current.predicate : input.patch.predicate,
@@ -89,7 +102,7 @@ export class AssertionService {
       statement: input.patch.statement === undefined ? current.statement : input.patch.statement,
       value: input.patch.value === undefined ? current.value : input.patch.value,
       originKind: input.patch.originKind ?? current.originKind,
-      sourceId: input.patch.sourceId === undefined ? current.sourceId : input.patch.sourceId,
+      sourceId: sessionId ?? current.sourceId,
     };
     this.validateEntities(
       input.campaignId,
@@ -98,8 +111,16 @@ export class AssertionService {
       true,
     );
     this.validateContent(updatedContent);
-    this.validateSource(input.campaignId, updatedContent.originKind, updatedContent.sourceId);
-    return this.dependencies.repository.update(input, this.now());
+    if (updatedContent.originKind === 'session') {
+      if (sessionId !== undefined) this.requireSession(input.campaignId, sessionId);
+      else this.validateSource(input.campaignId, updatedContent.originKind, current.sourceId);
+    } else this.validateSource(input.campaignId, updatedContent.originKind, null);
+    return this.withSessionId(
+      this.dependencies.repository.update(
+        { ...input, patch, ...(sessionId === undefined ? {} : { sessionId }) },
+        this.now(),
+      ),
+    );
   }
 
   public archive(input: AssertionLifecycleInput): Assertion {
@@ -215,6 +236,25 @@ export class AssertionService {
         id,
       });
     return entity;
+  }
+
+  private withSessionId(assertion: Assertion): Assertion {
+    if (assertion.originKind !== 'session' || assertion.sourceId === null) return assertion;
+    const source = this.dependencies.repository.findSourceContext(assertion.sourceId);
+    if (source?.sessionId === null || source?.sessionId === undefined) return assertion;
+    return { ...assertion, sessionId: source.sessionId };
+  }
+
+  private requireSession(campaignId: string, id: string | undefined): Session {
+    if (id === undefined)
+      throw new AppError('SESSION_NOT_FOUND', 'A sessão não foi encontrada.', { campaignId });
+    const session = this.dependencies.sessions?.findById(campaignId, id) ?? null;
+    if (session === null)
+      throw new AppError('SESSION_NOT_FOUND', 'A sessão não foi encontrada nesta campanha.', {
+        campaignId,
+        id,
+      });
+    return session;
   }
 
   private requireActiveEntity(entity: Entity, role: 'sujeito' | 'objeto'): void {

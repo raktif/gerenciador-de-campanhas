@@ -15,18 +15,17 @@ const config: ForgeConfig = {
     asar: true,
     executableName: 'gerenciador-de-campanhas',
   },
-  // better-sqlite3 13 distributes universal Node-API binaries. Rebuilding it
-  // locally is unnecessary and would make development depend on node-gyp.
+  // Os mÃ³dulos nativos distribuem binÃ¡rios prÃ©-compilados compatÃ­veis. Rebuild
+  // local Ã© desnecessÃ¡rio e faria o desenvolvimento depender de node-gyp.
   rebuildConfig: { onlyModules: [] },
   hooks: {
     packageAfterPrune: async (_forgeConfig, buildPath) => {
-      // Forge's production-prune step does not currently retain external
-      // packages from pnpm 11's hoisted layout. The Vite main bundle keeps
-      // this native driver external, so copy its runtime package explicitly.
-      const source = path.join(process.cwd(), 'node_modules', 'better-sqlite3');
-      const destination = path.join(buildPath, 'node_modules', 'better-sqlite3');
-      await mkdir(path.dirname(destination), { recursive: true });
-      await cp(source, destination, { recursive: true });
+      // O production-prune do Forge nÃ£o preserva os externos do layout hoisted
+      // do pnpm 11. Copiamos o driver SQLite, o processador e os binÃ¡rios sharp
+      // instalados para a plataforma do build.
+      await copyRuntimePackage(buildPath, 'better-sqlite3');
+      await copyRuntimePackage(buildPath, 'sharp');
+      await copyRuntimePackage(buildPath, '@img');
     },
   },
   makers: [
@@ -68,5 +67,12 @@ const config: ForgeConfig = {
     }),
   ],
 };
+
+async function copyRuntimePackage(buildPath: string, packageName: string): Promise<void> {
+  const source = path.join(process.cwd(), 'node_modules', packageName);
+  const destination = path.join(buildPath, 'node_modules', packageName);
+  await mkdir(path.dirname(destination), { recursive: true });
+  await cp(source, destination, { recursive: true });
+}
 
 export default config;

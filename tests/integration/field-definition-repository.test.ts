@@ -43,6 +43,9 @@ describe('FieldDefinitionRepository', () => {
       defaultValue: { prefixo: 'Capitão' },
       options: ['A', 'B'],
       validation: { minLength: 2 },
+      helpText: 'Nome usado para identificar a personagem.',
+      exampleText: 'Capitã Aris',
+      helpArticleId: 'campos-de-entidade',
     });
     const otherName = createField(
       '20000000-0000-4000-8000-000000000002',
@@ -62,6 +65,36 @@ describe('FieldDefinitionRepository', () => {
         fields.insert(createField('20000000-0000-4000-8000-000000000003', entityTypeId, 'nome')),
       ).code,
     ).toBe('FIELD_DEFINITION_KEY_CONFLICT');
+    context.close();
+  });
+
+  it('aloca colisões atomicamente incluindo campos arquivados e isolando o tipo pai', async () => {
+    const { context, fields } = await createRepositories();
+    const first = withoutKey(
+      createField('20000000-0000-4000-8000-000000000001', entityTypeId, 'temporaria'),
+    );
+    const archived = withoutKey(
+      createField('20000000-0000-4000-8000-000000000002', entityTypeId, 'temporaria', {
+        isArchived: true,
+      }),
+    );
+    const third = withoutKey(
+      createField('20000000-0000-4000-8000-000000000003', entityTypeId, 'temporaria'),
+    );
+    const otherCampaign = withoutKey(
+      createField('20000000-0000-4000-8000-000000000004', otherEntityTypeId, 'temporaria'),
+    );
+
+    expect(fields.insertWithGeneratedKey(first, 'vilao-habilidades').key).toBe('vilao-habilidades');
+    expect(fields.insertWithGeneratedKey(archived, 'vilao-habilidades').key).toBe(
+      'vilao-habilidades-2',
+    );
+    expect(fields.insertWithGeneratedKey(third, 'vilao-habilidades').key).toBe(
+      'vilao-habilidades-3',
+    );
+    expect(fields.insertWithGeneratedKey(otherCampaign, 'vilao-habilidades').key).toBe(
+      'vilao-habilidades',
+    );
     context.close();
   });
 
@@ -144,11 +177,23 @@ describe('FieldDefinitionRepository', () => {
         entityTypeId,
         id: name.id,
         revision: 1,
-        patch: { label: 'Nome completo', key: 'nome-completo' },
+        patch: {
+          label: 'Nome completo',
+          helpText: 'Nome completo usado em registros oficiais.',
+          exampleText: 'Aris Valedouro',
+          helpArticleId: 'nomes-de-personagem',
+        },
       },
       '2026-08-28T13:00:00.000Z',
     );
-    expect(updated).toMatchObject({ label: 'Nome completo', key: 'nome-completo', revision: 2 });
+    expect(updated).toMatchObject({
+      label: 'Nome completo',
+      key: 'nome',
+      helpText: 'Nome completo usado em registros oficiais.',
+      exampleText: 'Aris Valedouro',
+      helpArticleId: 'nomes-de-personagem',
+      revision: 2,
+    });
     expect(
       captureAppError(() =>
         fields.update(
@@ -157,7 +202,7 @@ describe('FieldDefinitionRepository', () => {
             entityTypeId,
             id: name.id,
             revision: 1,
-            patch: { label: 'Sobrescrito' },
+            patch: { helpText: 'Ajuda sobrescrita por revisão obsoleta.' },
           },
           '2026-08-28T14:00:00.000Z',
         ),
@@ -171,7 +216,7 @@ describe('FieldDefinitionRepository', () => {
             entityTypeId,
             id: name.id,
             revision: 2,
-            patch: { label: 'Vazamento' },
+            patch: { helpText: 'Ajuda vazada para outra campanha.' },
           },
           '2026-08-28T14:00:00.000Z',
         ),
@@ -218,6 +263,113 @@ describe('FieldDefinitionRepository', () => {
     expect(fields.listActive(otherCampaignId, entityTypeId)).toEqual([]);
     context.close();
   });
+  it('anexa, move e restaura atomicamente no tipo pai correto', async () => {
+    const { context, fields } = await createRepositories();
+    const first = fields.insertWithGeneratedKey(
+      withoutKey(
+        createField('20000000-0000-4000-8000-000000000011', entityTypeId, 'primeiro', {
+          sortOrder: 99,
+        }),
+      ),
+      'primeiro',
+    );
+    const second = fields.insertWithGeneratedKey(
+      withoutKey(createField('20000000-0000-4000-8000-000000000012', entityTypeId, 'segundo')),
+      'segundo',
+    );
+    const archived = fields.insert(
+      createField('20000000-0000-4000-8000-000000000013', entityTypeId, 'arquivado', {
+        isArchived: true,
+      }),
+    );
+    const external = fields.insertWithGeneratedKey(
+      withoutKey(createField('20000000-0000-4000-8000-000000000014', otherEntityTypeId, 'externo')),
+      'externo',
+    );
+
+    expect([first.sortOrder, second.sortOrder, external.sortOrder]).toEqual([0, 1, 0]);
+    context.native.exec(`CREATE TRIGGER reject_field_move BEFORE UPDATE OF sort_order
+      ON field_definitions WHEN OLD.id = '${first.id}' BEGIN SELECT RAISE(IGNORE); END`);
+    expect(
+      captureAppError(() =>
+        fields.move(
+          {
+            campaignId,
+            entityTypeId,
+            sourceId: second.id,
+            sourceRevision: second.revision,
+            targetId: first.id,
+            targetRevision: first.revision,
+            placement: 'before',
+          },
+          '2026-08-28T12:30:00.000Z',
+        ),
+      ).code,
+    ).toBe('REVISION_CONFLICT');
+    expect(fields.findById(campaignId, entityTypeId, second.id)?.sortOrder).toBe(1);
+    expect(fields.findById(campaignId, entityTypeId, first.id)?.sortOrder).toBe(0);
+    context.native.exec('DROP TRIGGER reject_field_move');
+    const moved = fields.move(
+      {
+        campaignId,
+        entityTypeId,
+        sourceId: second.id,
+        sourceRevision: second.revision,
+        targetId: first.id,
+        targetRevision: first.revision,
+        placement: 'before',
+      },
+      '2026-08-28T13:00:00.000Z',
+    );
+    expect(moved.map(({ key, sortOrder }) => [key, sortOrder])).toEqual([
+      ['segundo', 0],
+      ['primeiro', 1],
+    ]);
+    expect(fields.findById(otherCampaignId, otherEntityTypeId, external.id)).toEqual(external);
+
+    expect(
+      captureAppError(() =>
+        fields.move(
+          {
+            campaignId,
+            entityTypeId,
+            sourceId: second.id,
+            sourceRevision: second.revision,
+            targetId: first.id,
+            targetRevision: first.revision,
+            placement: 'after',
+          },
+          '2026-08-28T14:00:00.000Z',
+        ),
+      ).code,
+    ).toBe('REVISION_CONFLICT');
+    expect(fields.listActive(campaignId, entityTypeId).map(({ key }) => key)).toEqual([
+      'segundo',
+      'primeiro',
+    ]);
+
+    context.native.exec(`CREATE TRIGGER reject_field_restore BEFORE UPDATE OF is_archived
+      ON field_definitions WHEN OLD.id = '${archived.id}' BEGIN SELECT RAISE(IGNORE); END`);
+    expect(
+      captureAppError(() =>
+        fields.restoreAtEnd(
+          { campaignId, entityTypeId, id: archived.id, revision: archived.revision },
+          '2026-08-28T14:30:00.000Z',
+        ),
+      ).code,
+    ).toBe('REVISION_CONFLICT');
+    expect(fields.findById(campaignId, entityTypeId, archived.id)).toMatchObject({
+      isArchived: true,
+      revision: 1,
+    });
+    context.native.exec('DROP TRIGGER reject_field_restore');
+    const restored = fields.restoreAtEnd(
+      { campaignId, entityTypeId, id: archived.id, revision: archived.revision },
+      '2026-08-28T15:00:00.000Z',
+    );
+    expect(restored).toMatchObject({ isArchived: false, sortOrder: 2, revision: 2 });
+    context.close();
+  });
 });
 
 async function createRepositories(): Promise<{
@@ -248,7 +400,7 @@ function createCampaign(id: string, name: string): Campaign {
     genre: null,
     tone: null,
     summary: null,
-    imagePath: null,
+    coverAttachmentId: null,
     status: 'active',
     createdAt: timestamp,
     updatedAt: timestamp,
@@ -289,6 +441,9 @@ function createField(
     key,
     label: key,
     description: null,
+    helpText: null,
+    exampleText: null,
+    helpArticleId: null,
     dataType: 'short_text',
     semanticRole: null,
     required: false,
@@ -308,6 +463,12 @@ function createField(
     revision: 1,
     ...overrides,
   });
+}
+
+function withoutKey(field: FieldDefinition): Omit<FieldDefinition, 'key'> {
+  const { key: _key, ...fieldWithoutKey } = field;
+  void _key;
+  return fieldWithoutKey;
 }
 
 function captureAppError(operation: () => unknown): AppError {

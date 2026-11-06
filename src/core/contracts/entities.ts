@@ -18,6 +18,7 @@ export const entitySchema = z
     id: z.uuid(),
     campaignId: z.uuid(),
     entityTypeId: z.uuid(),
+    referenceImageAttachmentId: z.uuid().nullable(),
     name: z.string().trim().min(1).max(200),
     summary: z.string().max(10000).nullable(),
     canonState: z.enum(canonStates),

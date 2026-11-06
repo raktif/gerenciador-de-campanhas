@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { Button, FormActions, ToolbarActions } from '../../components/actions';
 import type { Campaign } from '../../../core/contracts/campaigns';
 import type { Entity } from '../../../core/contracts/entities';
 import type { RelationshipType } from '../../../core/contracts/relationship-types';
@@ -6,6 +7,11 @@ import type { Relationship } from '../../../core/contracts/relationships';
 import type { PageResult } from '../../../core/contracts/pagination';
 import type { Result } from '../../../core/contracts/result';
 import { RelationshipNeighborhood } from './relationship-neighborhood';
+import {
+  presentUserFacingError,
+  type UserFacingError,
+} from '../../../core/errors/user-facing-error';
+import { UserFacingErrorNotice } from '../../components/user-facing-error-notice';
 
 interface FormState {
   relationshipTypeId: string;
@@ -25,9 +31,11 @@ const emptyForm: FormState = {
 export function RelationshipManager({
   campaign,
   onBack,
+  centralEntity,
 }: {
   campaign: Campaign;
   onBack: () => void;
+  centralEntity?: Entity;
 }): React.JSX.Element {
   const [relationships, setRelationships] = useState<Relationship[]>([]);
   const [types, setTypes] = useState<RelationshipType[]>([]);
@@ -37,7 +45,10 @@ export function RelationshipManager({
   const [showArchived, setShowArchived] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<UserFacingError | null>(null);
+  const [errorOperation, setErrorOperation] = useState<
+    'relationships.list' | 'relationships.mutate'
+  >('relationships.list');
   const [announcement, setAnnouncement] = useState<string | null>(null);
 
   const load = useCallback(async (): Promise<void> => {
@@ -91,9 +102,8 @@ export function RelationshipManager({
       setTypes([...activeTypes, ...archivedTypes]);
       setEntities([...activeEntities, ...archivedEntities]);
     } catch (loadError) {
-      setError(
-        loadError instanceof Error ? loadError.message : 'Não foi possível carregar as relações.',
-      );
+      setError(presentUserFacingError(loadError, 'relationships.list'));
+      setErrorOperation('relationships.list');
     } finally {
       setLoading(false);
     }
@@ -127,8 +137,10 @@ export function RelationshipManager({
               revision: editing.revision,
               patch: values,
             });
-      if (!result.ok) setError(result.error.message);
-      else {
+      if (!result.ok) {
+        setError(presentUserFacingError(result.error, 'relationships.mutate'));
+        setErrorOperation('relationships.mutate');
+      } else {
         setAnnouncement(
           result.data.warnings[0]?.message ??
             (editing === null ? 'Relação criada.' : 'Relação atualizada.'),
@@ -138,7 +150,8 @@ export function RelationshipManager({
         await load();
       }
     } catch {
-      setError('Não foi possível concluir a operação. Revise os dados e tente novamente.');
+      setError(presentUserFacingError(undefined, 'relationships.mutate'));
+      setErrorOperation('relationships.mutate');
     } finally {
       setBusy(false);
     }
@@ -152,10 +165,13 @@ export function RelationshipManager({
         item.archivedAt === null
           ? await window.campaignManager.relationships.archive(input)
           : await window.campaignManager.relationships.restore(input);
-      if (!result.ok) setError(result.error.message);
-      else await load();
+      if (!result.ok) {
+        setError(presentUserFacingError(result.error, 'relationships.mutate'));
+        setErrorOperation('relationships.mutate');
+      } else await load();
     } catch {
-      setError('Não foi possível concluir a operação. Revise os dados e tente novamente.');
+      setError(presentUserFacingError(undefined, 'relationships.mutate'));
+      setErrorOperation('relationships.mutate');
     } finally {
       setBusy(false);
     }
@@ -181,32 +197,42 @@ export function RelationshipManager({
   };
   const activeTypes = types.filter((item) => !item.isArchived);
   const activeEntities = entities.filter((item) => item.archivedAt === null);
+  const contextualEntity = centralEntity?.campaignId === campaign.id ? centralEntity : undefined;
   return (
     <section aria-busy={loading || busy} aria-labelledby="relationships-title">
-      <button className={backClass} onClick={onBack} type="button">
-        ← Voltar para detalhes da campanha
-      </button>
-      <header className="border-b border-stone-200 pb-7">
-        <p className="text-xs font-bold tracking-[0.18em] text-amber-800 uppercase">
+      <Button className="mb-6" onClick={onBack} size="small" variant="ghost">
+        {contextualEntity === undefined
+          ? '← Voltar para detalhes da campanha'
+          : `← Voltar para detalhes de ${contextualEntity.name}`}
+      </Button>
+      <header className="border-b semantic-border pb-7">
+        <p className="text-xs font-bold tracking-[0.18em] semantic-accent-text uppercase">
           {campaign.name}
         </p>
         <h1 className="mt-2 text-4xl font-semibold" id="relationships-title">
           Relações
         </h1>
-        <p className="mt-3 text-slate-600">
+        <p className="mt-3 semantic-text-secondary">
           Conecte os elementos do mundo usando os tipos de relação da campanha.
         </p>
       </header>
       {loading ? (
-        <p aria-live="polite" className="mt-6 text-sm text-slate-600" role="status">
+        <p aria-live="polite" className="mt-6 text-sm semantic-text-secondary" role="status">
           Carregando relações…
         </p>
       ) : (
-        <RelationshipNeighborhood campaign={campaign} entities={entities} types={types} />
+        <RelationshipNeighborhood
+          campaign={campaign}
+          entities={entities}
+          types={types}
+          {...(contextualEntity === undefined
+            ? {}
+            : { centralEntityId: contextualEntity.id, directOnly: true })}
+        />
       )}
       {!loading && !showArchived && activeTypes.length > 0 && activeEntities.length > 0 ? (
         <form
-          className="mt-6 grid gap-4 rounded-2xl border border-stone-200 bg-white p-6 md:grid-cols-2"
+          className="mt-6 grid gap-4 rounded-2xl border semantic-border semantic-surface p-6 md:grid-cols-2"
           onSubmit={(event) => void save(event)}
         >
           <h2 className="text-xl font-semibold md:col-span-2">
@@ -254,26 +280,24 @@ export function RelationshipManager({
               onChange={(event) => setForm({ ...form, strength: event.target.value })}
             />
           </label>
-          <div className="flex justify-end gap-3 md:col-span-2">
+          <FormActions className="md:col-span-2">
             {editing === null ? null : (
-              <button
-                className={secondaryClass}
-                type="button"
+              <Button
                 onClick={() => {
                   setEditing(null);
                   setForm(emptyForm);
                 }}
               >
                 Cancelar
-              </button>
+              </Button>
             )}
-            <button className={primaryClass} disabled={busy} type="submit">
+            <Button busy={busy} type="submit" variant="primary">
               Salvar relação
-            </button>
-          </div>
+            </Button>
+          </FormActions>
         </form>
       ) : null}
-      <div className="mt-6 flex gap-2">
+      <ToolbarActions aria-label="Estado das relações" className="mt-6 gap-2">
         <Filter
           active={!showArchived}
           disabled={busy || loading}
@@ -288,35 +312,28 @@ export function RelationshipManager({
         >
           Arquivadas
         </Filter>
-      </div>
+      </ToolbarActions>
       {announcement === null ? null : (
         <p
-          className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800"
+          className="mt-6 rounded-xl border semantic-success-border semantic-success-surface p-4 text-sm semantic-success-text"
           role="status"
         >
           {announcement}
         </p>
       )}
       {error === null ? null : (
-        <div
-          className="mt-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800"
-          role="alert"
-        >
-          <p>{error}</p>
-          <button
-            className="mt-3 text-sm font-semibold underline"
-            disabled={busy || loading}
-            onClick={() => void load()}
-            type="button"
-          >
-            Tentar novamente
-          </button>
+        <div className="mt-6">
+          <UserFacingErrorNotice
+            error={error}
+            operation={errorOperation}
+            onRetry={() => void load()}
+          />
         </div>
       )}
       {loading || error !== null ? null : relationships.length === 0 ? (
-        <div className="mt-6 rounded-2xl border border-dashed border-stone-300 bg-white p-12 text-center">
+        <div className="mt-6 rounded-2xl border border-dashed semantic-border semantic-surface p-12 text-center">
           <h2 className="text-xl font-semibold">Nenhuma relação encontrada</h2>
-          <p className="mt-2 text-slate-600">
+          <p className="mt-2 semantic-text-secondary">
             {showArchived
               ? 'Relações arquivadas aparecerão aqui.'
               : 'Crie tipos e entidades para registrar a primeira conexão.'}
@@ -325,31 +342,27 @@ export function RelationshipManager({
       ) : (
         <div className="mt-6 grid gap-4" data-testid="relationship-list">
           {relationships.map((item) => (
-            <article className="rounded-2xl border border-stone-200 bg-white p-6" key={item.id}>
+            <article
+              className="rounded-2xl border semantic-border semantic-surface p-6"
+              key={item.id}
+            >
               <h2 className="text-lg font-semibold">{relationshipLabel(item)}</h2>
               {item.description === null ? null : (
-                <p className="mt-2 text-slate-600">{item.description}</p>
+                <p className="mt-2 semantic-text-secondary">{item.description}</p>
               )}
-              <div className="mt-4 flex justify-end gap-3">
+              <ToolbarActions
+                aria-label={`Ações da relação ${relationshipLabel(item)}`}
+                className="mt-4 justify-end"
+              >
                 {item.archivedAt === null ? (
-                  <button
-                    className={secondaryClass}
-                    disabled={busy}
-                    onClick={() => beginEdit(item)}
-                    type="button"
-                  >
+                  <Button disabled={busy} onClick={() => beginEdit(item)}>
                     Editar
-                  </button>
+                  </Button>
                 ) : null}
-                <button
-                  className={secondaryClass}
-                  disabled={busy}
-                  onClick={() => void lifecycle(item)}
-                  type="button"
-                >
+                <Button disabled={busy} onClick={() => void lifecycle(item)}>
                   {item.archivedAt === null ? 'Arquivar' : 'Restaurar'}
-                </button>
-              </div>
+                </Button>
+              </ToolbarActions>
             </article>
           ))}
         </div>
@@ -365,7 +378,9 @@ export async function collectPages<T>(
   let cursor: string | undefined;
   do {
     const result = await fetchPage(cursor);
-    if (!result.ok) throw new Error(result.error.message);
+    if (!result.ok) {
+      throw Object.assign(new Error(result.error.message, { cause: result.error }), result.error);
+    }
     items.push(...result.data.items);
     cursor = result.data.nextCursor ?? undefined;
   } while (cursor !== undefined);
@@ -417,21 +432,16 @@ function Filter({
   children: React.ReactNode;
 }): React.JSX.Element {
   return (
-    <button
+    <Button
       aria-pressed={active}
-      className={`rounded-full px-4 py-2 text-sm font-semibold ${active ? 'bg-slate-900 text-white' : 'border border-stone-300 bg-white text-slate-600'}`}
+      className={`rounded-full ${active ? 'semantic-selected-surface semantic-selected-text' : ''}`}
       disabled={disabled}
       onClick={onClick}
-      type="button"
+      size="small"
     >
       {children}
-    </button>
+    </Button>
   );
 }
-const labelClass = 'block text-sm font-semibold text-slate-800';
-const inputClass = 'mt-2 w-full rounded-xl border border-stone-300 px-4 py-2.5';
-const primaryClass =
-  'rounded-xl bg-amber-700 px-5 py-3 font-semibold text-white disabled:opacity-60';
-const secondaryClass =
-  'rounded-xl border border-stone-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700';
-const backClass = 'mb-6 rounded-lg px-2 py-1 text-sm font-semibold text-slate-600';
+const labelClass = 'block text-sm font-semibold semantic-text-primary';
+const inputClass = 'mt-2 w-full rounded-xl border semantic-border px-4 py-2.5';

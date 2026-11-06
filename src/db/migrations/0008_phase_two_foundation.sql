@@ -105,16 +105,19 @@ CREATE TEMP TABLE legacy_source_map (
 );
 
 INSERT INTO legacy_source_map (old_id, new_id)
-SELECT DISTINCT
-  source_id,
+SELECT
+  old_id,
   lower(hex(randomblob(4))) || '-' ||
   lower(hex(randomblob(2))) || '-4' ||
   substr(lower(hex(randomblob(2))), 2) || '-' ||
   '8' ||
   substr(lower(hex(randomblob(2))), 2) || '-' ||
   lower(hex(randomblob(6)))
-FROM entities
-WHERE source_id IS NOT NULL;
+FROM (
+  SELECT DISTINCT source_id AS old_id
+  FROM entities
+  WHERE source_id IS NOT NULL
+);
 
 INSERT INTO sources (id, kind, description, created_at)
 SELECT new_id, 'manual', 'Referência legada: ' || old_id, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')

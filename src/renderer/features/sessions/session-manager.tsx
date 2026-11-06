@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Campaign } from '../../../core/contracts/campaigns';
 import type { Entity } from '../../../core/contracts/entities';
 import type {
@@ -7,8 +7,23 @@ import type {
   SessionIntention,
   SessionParticipantInput,
 } from '../../../core/contracts/sessions';
-import { inputClass, primaryClass, secondaryClass } from '../narrative/narrative-metadata-fields';
+import { inputClass } from '../narrative/narrative-metadata-fields';
 import { EventManager } from './event-manager';
+import {
+  presentUserFacingError,
+  type UserFacingError,
+  type UserFacingErrorOperation,
+} from '../../../core/errors/user-facing-error';
+import { UserFacingErrorNotice } from '../../components/user-facing-error-notice';
+import { ReorderableList } from '../../components/reorderable-list';
+import {
+  Button,
+  ButtonGroup,
+  DialogActions,
+  FormActions,
+  ToolbarActions,
+} from '../../components/actions';
+import { moveRelative } from '../../../core/ordering/move-relative';
 
 type View = 'list' | 'create' | 'edit';
 type SessionStatus = Session['status'];
@@ -17,10 +32,14 @@ interface PendingTransition {
   status: Extract<SessionStatus, 'in_progress' | 'completed' | 'cancelled'>;
 }
 interface ParticipantDraft extends SessionParticipantInput {
-  key: number;
+  id: string;
+}
+type SessionOperation = Extract<UserFacingErrorOperation, 'sessions.list' | 'sessions.mutate'>;
+interface SessionOperationFailure {
+  error: UserFacingError;
+  operation: SessionOperation;
 }
 
-const errorMessage = 'Não foi possível concluir a operação. Revise os dados e tente novamente.';
 const roleLabels: Record<SessionParticipantInput['role'], string> = {
   player_character: 'Personagem jogador',
   ally: 'Aliado',
@@ -44,7 +63,7 @@ export function SessionManager({
   const [editing, setEditing] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<UserFacingError | null>(null);
   const [announcement, setAnnouncement] = useState<string | null>(null);
   const [pending, setPending] = useState<PendingTransition | null>(null);
   const [section, setSection] = useState<'sessions' | 'events'>('sessions');
@@ -63,9 +82,9 @@ export function SessionManager({
         if (result.ok) {
           setItems((current) => (append ? [...current, ...result.data.items] : result.data.items));
           setCursor(result.data.nextCursor);
-        } else setError(result.error.message);
+        } else setError(presentUserFacingError(result.error, 'sessions.list'));
       } catch {
-        setError(errorMessage);
+        setError(presentUserFacingError(undefined, 'sessions.list'));
       } finally {
         setLoading(false);
       }
@@ -81,7 +100,7 @@ export function SessionManager({
   useEffect(() => {
     void loadAllEntities(campaign.id)
       .then(setEntities)
-      .catch(() => setError(errorMessage));
+      .catch((loadError: unknown) => setError(presentUserFacingError(loadError, 'entities.list')));
   }, [campaign.id]);
 
   async function beginEdit(item: Session): Promise<void> {
@@ -96,9 +115,9 @@ export function SessionManager({
       if (result.ok) {
         setEditing(result.data);
         setView('edit');
-      } else setError(result.error.message);
+      } else setError(presentUserFacingError(result.error, 'sessions.mutate'));
     } catch {
-      setError(errorMessage);
+      setError(presentUserFacingError(undefined, 'sessions.mutate'));
     } finally {
       setBusy(false);
     }
@@ -122,9 +141,9 @@ export function SessionManager({
         setView('edit');
         setAnnouncement(editing === null ? 'Sessão planejada.' : 'Sessão atualizada.');
         await load(false);
-      } else setError(result.error.message);
+      } else setError(presentUserFacingError(result.error, 'sessions.mutate'));
     } catch {
-      setError(errorMessage);
+      setError(presentUserFacingError(undefined, 'sessions.mutate'));
     } finally {
       setBusy(false);
     }
@@ -145,9 +164,9 @@ export function SessionManager({
         setPending(null);
         setAnnouncement(`Sessão ${statusLabel(result.data.status).toLowerCase()}.`);
         await load(false);
-      } else setError(result.error.message);
+      } else setError(presentUserFacingError(result.error, 'sessions.mutate'));
     } catch {
-      setError(errorMessage);
+      setError(presentUserFacingError(undefined, 'sessions.mutate'));
     } finally {
       setBusy(false);
     }
@@ -178,38 +197,37 @@ export function SessionManager({
     );
   return (
     <section aria-labelledby="sessions-title">
-      <button className={secondaryClass} onClick={onBack} type="button">
+      <Button onClick={onBack} size="small" variant="ghost">
         ← Voltar para detalhes da campanha
-      </button>
-      <header className="mt-6 flex flex-wrap items-end justify-between gap-5 border-b border-stone-200 pb-6">
+      </Button>
+      <header className="mt-6 flex flex-wrap items-end justify-between gap-5 border-b semantic-border pb-6">
         <div>
-          <p className="text-xs font-bold tracking-[0.18em] text-amber-800 uppercase">
+          <p className="text-xs font-bold tracking-[0.18em] semantic-accent-text uppercase">
             {campaign.name}
           </p>
           <h1 className="mt-2 text-4xl font-semibold" id="sessions-title">
             Sessões
           </h1>
-          <p className="mt-2 text-slate-600">Planeje e acompanhe o ciclo de vida de cada sessão.</p>
+          <p className="mt-2 semantic-text-secondary">
+            Planeje e acompanhe o ciclo de vida de cada sessão.
+          </p>
         </div>
-        <button
-          className={primaryClass}
-          disabled={busy}
-          onClick={() => {
-            setEditing(null);
-            setView('create');
-          }}
-          type="button"
-        >
-          Planejar sessão
-        </button>
-        <button
-          className={secondaryClass}
-          disabled={busy}
-          onClick={() => setSection('events')}
-          type="button"
-        >
-          Gerenciar eventos
-        </button>
+        <ToolbarActions aria-label="Ações de sessões">
+          <Button
+            disabled={busy}
+            onClick={() => {
+              setEditing(null);
+              setView('create');
+            }}
+            size="large"
+            variant="primary"
+          >
+            Planejar sessão
+          </Button>
+          <Button disabled={busy} onClick={() => setSection('events')} size="large">
+            Gerenciar eventos
+          </Button>
+        </ToolbarActions>
       </header>
       <div
         className="mt-5 flex flex-wrap gap-2"
@@ -222,66 +240,62 @@ export function SessionManager({
         <p
           role="status"
           aria-live="polite"
-          className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-800"
+          className="mt-5 rounded-xl border semantic-success-border semantic-success-surface p-4 semantic-success-text"
         >
           {announcement}
         </p>
       )}
       {error === null ? null : (
-        <div role="alert" className="mt-5 rounded-xl bg-red-50 p-4 text-red-800">
-          <p>{error}</p>
-          <button
-            className={`${secondaryClass} mt-3`}
-            disabled={loading}
-            onClick={() => void load(false)}
-            type="button"
-          >
-            Tentar novamente
-          </button>
+        <div className="mt-5">
+          <UserFacingErrorNotice
+            error={error}
+            operation="sessions.list"
+            onRetry={() => void load(false)}
+          />
         </div>
       )}
       {loading ? (
         <div aria-busy="true" aria-label="Carregando sessões" className="mt-8 animate-pulse">
-          <div className="h-24 rounded-2xl bg-stone-200" />
+          <div className="h-24 rounded-2xl semantic-skeleton" />
         </div>
       ) : items.length === 0 ? (
-        <div className="mt-8 rounded-2xl border border-dashed border-stone-300 bg-white p-10 text-center">
+        <div className="mt-8 rounded-2xl border border-dashed semantic-border semantic-surface p-10 text-center">
           <h2 className="text-xl font-semibold">Nenhuma sessão encontrada</h2>
-          <p className="mt-2 text-slate-600">Planeje a próxima sessão para começar.</p>
+          <p className="mt-2 semantic-text-secondary">Planeje a próxima sessão para começar.</p>
         </div>
       ) : (
         <ul className="mt-8 grid gap-4" data-testid="session-list">
           {items.map((item) => (
             <li
-              className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm"
+              className="rounded-2xl border semantic-border semantic-surface p-5 shadow-sm"
               key={item.id}
             >
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <p className="text-sm font-semibold text-amber-800">
+                  <p className="text-sm font-semibold semantic-accent-text">
                     Sessão {item.sequenceNumber} · {statusLabel(item.status)}
                   </p>
                   <h2 className="mt-1 text-xl font-semibold">{item.title}</h2>
-                  <p className="mt-2 text-sm text-slate-600">{formatDate(item.playedAt)}</p>
+                  <p className="mt-2 text-sm semantic-text-secondary">
+                    {formatDate(item.playedAt)}
+                  </p>
                 </div>
-                <button
-                  className={secondaryClass}
+                <Button
                   disabled={busy}
                   onClick={() => void beginEdit(item)}
-                  type="button"
                   aria-label={`Editar ${item.title}`}
                 >
                   Abrir sessão
-                </button>
+                </Button>
               </div>
             </li>
           ))}
         </ul>
       )}
       {cursor === null || loading ? null : (
-        <button className={`${secondaryClass} mt-5`} onClick={() => void load(true)} type="button">
+        <Button className="mt-5" onClick={() => void load(true)}>
           Carregar mais sessões
-        </button>
+        </Button>
       )}
     </section>
   );
@@ -306,7 +320,7 @@ function SessionEditor({
   entities: Entity[];
   session: Session | null;
   busy: boolean;
-  error: string | null;
+  error: UserFacingError | null;
   pending: PendingTransition | null;
   onBack: () => void;
   onSave: (input: CreateSessionInput) => Promise<void>;
@@ -325,12 +339,14 @@ function SessionEditor({
   const [intentions, setIntentions] = useState<SessionIntention[]>([]);
   const [intentionCursor, setIntentionCursor] = useState<string | null>(null);
   const [participantsLoading, setParticipantsLoading] = useState(false);
-  const [participantError, setParticipantError] = useState<string | null>(null);
+  const [participantError, setParticipantError] = useState<SessionOperationFailure | null>(null);
   const [intentionsLoading, setIntentionsLoading] = useState(false);
   const [intentionText, setIntentionText] = useState('');
   const [intentionEntityId, setIntentionEntityId] = useState('');
   const [editingIntention, setEditingIntention] = useState<SessionIntention | null>(null);
   const [intentionError, setIntentionError] = useState<string | null>(null);
+  const [intentionOperationError, setIntentionOperationError] =
+    useState<SessionOperationFailure | null>(null);
   const loadParticipants = useCallback(async () => {
     if (session === null) return;
     setParticipantsLoading(true);
@@ -340,10 +356,26 @@ function SessionEditor({
         campaignId: campaign.id,
         sessionId: session.id,
       });
-      if (result.ok) setParticipants(result.data.map((item, index) => ({ ...item, key: index })));
-      else setParticipantError(result.error.message);
+      if (result.ok) {
+        setParticipants(
+          result.data.map(({ entityId, role, attended }, index) => ({
+            entityId,
+            role,
+            attended,
+            id: `participant-${String(index)}-${entityId}`,
+          })),
+        );
+        setParticipantError(null);
+      } else
+        setParticipantError({
+          error: presentUserFacingError(result.error, 'sessions.list'),
+          operation: 'sessions.list',
+        });
     } catch {
-      setParticipantError(errorMessage);
+      setParticipantError({
+        error: presentUserFacingError(undefined, 'sessions.list'),
+        operation: 'sessions.list',
+      });
     } finally {
       setParticipantsLoading(false);
     }
@@ -352,7 +384,7 @@ function SessionEditor({
     async (append = false, nextCursor?: string) => {
       if (session === null) return;
       setIntentionsLoading(true);
-      setIntentionError(null);
+      setIntentionOperationError(null);
       try {
         const result = await window.campaignManager.sessionIntentions.list({
           campaignId: campaign.id,
@@ -366,9 +398,16 @@ function SessionEditor({
             append ? mergeIntentions(current, result.data.items) : result.data.items,
           );
           setIntentionCursor(result.data.nextCursor);
-        } else setIntentionError(result.error.message);
+        } else
+          setIntentionOperationError({
+            error: presentUserFacingError(result.error, 'sessions.list'),
+            operation: 'sessions.list',
+          });
       } catch {
-        setIntentionError(errorMessage);
+        setIntentionOperationError({
+          error: presentUserFacingError(undefined, 'sessions.list'),
+          operation: 'sessions.list',
+        });
       } finally {
         setIntentionsLoading(false);
       }
@@ -417,13 +456,19 @@ function SessionEditor({
           entityId: item.entityId,
           role: item.role,
           attended: item.attended,
-          sortOrder: item.sortOrder,
         })),
       });
       if (result.ok) onReplace({ ...session, revision: session.revision + 1 });
-      else setParticipantError(result.error.message);
+      else
+        setParticipantError({
+          error: presentUserFacingError(result.error, 'sessions.mutate'),
+          operation: 'sessions.mutate',
+        });
     } catch {
-      setParticipantError(errorMessage);
+      setParticipantError({
+        error: presentUserFacingError(undefined, 'sessions.mutate'),
+        operation: 'sessions.mutate',
+      });
     } finally {
       onBusyChange(false);
     }
@@ -431,7 +476,7 @@ function SessionEditor({
   async function saveIntention(): Promise<void> {
     if (session === null || intentionText.trim() === '') return;
     onBusyChange(true);
-    setIntentionError(null);
+    setIntentionOperationError(null);
     try {
       const result =
         editingIntention === null
@@ -456,9 +501,16 @@ function SessionEditor({
         setIntentionEntityId('');
         setEditingIntention(null);
         await loadIntentions();
-      } else setIntentionError(result.error.message);
+      } else
+        setIntentionOperationError({
+          error: presentUserFacingError(result.error, 'sessions.mutate'),
+          operation: 'sessions.mutate',
+        });
     } catch {
-      setIntentionError(errorMessage);
+      setIntentionOperationError({
+        error: presentUserFacingError(undefined, 'sessions.mutate'),
+        operation: 'sessions.mutate',
+      });
     } finally {
       onBusyChange(false);
     }
@@ -469,7 +521,7 @@ function SessionEditor({
   ): Promise<void> {
     if (session === null) return;
     onBusyChange(true);
-    setIntentionError(null);
+    setIntentionOperationError(null);
     try {
       const result = await window.campaignManager.sessionIntentions.update({
         campaignId: campaign.id,
@@ -479,20 +531,27 @@ function SessionEditor({
         patch: { status },
       });
       if (result.ok) await loadIntentions();
-      else setIntentionError(result.error.message);
+      else
+        setIntentionOperationError({
+          error: presentUserFacingError(result.error, 'sessions.mutate'),
+          operation: 'sessions.mutate',
+        });
     } catch {
-      setIntentionError(errorMessage);
+      setIntentionOperationError({
+        error: presentUserFacingError(undefined, 'sessions.mutate'),
+        operation: 'sessions.mutate',
+      });
     } finally {
       onBusyChange(false);
     }
   }
   return (
     <section aria-labelledby="session-form-title" className="mx-auto max-w-5xl">
-      <button className={secondaryClass} disabled={busy} onClick={onBack} type="button">
+      <Button disabled={busy} onClick={onBack} size="small" variant="ghost">
         ← Voltar para sessões
-      </button>
-      <header className="mt-6 border-b border-stone-200 pb-6">
-        <p className="text-xs font-bold tracking-[0.18em] text-amber-800 uppercase">
+      </Button>
+      <header className="mt-6 border-b semantic-border pb-6">
+        <p className="text-xs font-bold tracking-[0.18em] semantic-accent-text uppercase">
           {campaign.name}
         </p>
         <h1 className="mt-2 text-3xl font-semibold" id="session-form-title">
@@ -500,7 +559,7 @@ function SessionEditor({
         </h1>
       </header>
       <form
-        className="mt-6 space-y-5 rounded-2xl border border-stone-200 bg-white p-6"
+        className="mt-6 space-y-5 rounded-2xl border semantic-border semantic-surface p-6"
         onSubmit={submit}
       >
         <div className="grid gap-5 md:grid-cols-[10rem_1fr_12rem]">
@@ -544,44 +603,40 @@ function SessionEditor({
           onChange={setNotes}
           disabled={busy}
         />
-        {error === null && intentionError === null ? null : (
-          <p role="alert" className="rounded-xl bg-red-50 p-4 text-red-800">
-            {error ?? intentionError}
+        {error === null ? null : (
+          <UserFacingErrorNotice error={error} operation="sessions.mutate" />
+        )}
+        {intentionError === null ? null : (
+          <p role="alert" className="rounded-xl semantic-danger-surface p-4 semantic-error-text">
+            {intentionError}
           </p>
         )}
         {pending === null ? null : (
-          <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+          <div
+            role="alert"
+            className="rounded-xl border semantic-warning-border semantic-warning-surface p-4"
+          >
             <p>Confirmar: {transitionLabel(pending.status)} esta sessão?</p>
-            <div className="mt-3 flex gap-3">
-              <button
-                className={secondaryClass}
-                disabled={busy}
-                onClick={onCancelTransition}
-                type="button"
-              >
+            <DialogActions className="mt-3">
+              <Button disabled={busy} onClick={onCancelTransition}>
                 Cancelar
-              </button>
-              <button
-                className={primaryClass}
-                disabled={busy}
-                onClick={() => void onConfirmTransition()}
-                type="button"
-              >
+              </Button>
+              <Button busy={busy} onClick={() => void onConfirmTransition()} variant="primary">
                 Confirmar {transitionLabel(pending.status).toLowerCase()}
-              </button>
-            </div>
+              </Button>
+            </DialogActions>
           </div>
         )}
-        <div className="flex flex-wrap justify-between gap-3">
-          <div className="flex gap-2">
-            {session === null ? null : (
+        <FormActions layout="between">
+          {session === null ? null : (
+            <ButtonGroup aria-label="Ações de ciclo de vida da sessão">
               <LifecycleButtons session={session} busy={busy} onTransition={onTransition} />
-            )}
-          </div>
-          <button className={primaryClass} disabled={busy} type="submit">
+            </ButtonGroup>
+          )}
+          <Button busy={busy} type="submit" variant="primary">
             {busy ? 'Salvando…' : session === null ? 'Planejar sessão' : 'Salvar sessão'}
-          </button>
-        </div>
+          </Button>
+        </FormActions>
       </form>
       {session === null ? null : (
         <>
@@ -591,7 +646,8 @@ function SessionEditor({
             setParticipants={setParticipants}
             busy={busy}
             loading={participantsLoading}
-            error={participantError}
+            error={participantError?.error ?? null}
+            operation={participantError?.operation ?? 'sessions.list'}
             onSave={() => void replaceParticipants()}
             onRetry={() => void loadParticipants()}
           />
@@ -604,7 +660,8 @@ function SessionEditor({
             editing={editingIntention}
             busy={busy}
             loading={intentionsLoading}
-            error={intentionError}
+            error={intentionOperationError?.error ?? null}
+            operation={intentionOperationError?.operation ?? 'sessions.list'}
             onText={setIntentionText}
             onEntity={setIntentionEntityId}
             onSave={() => void saveIntention()}
@@ -637,6 +694,7 @@ function ParticipantEditor({
   busy,
   loading,
   error,
+  operation,
   onSave,
   onRetry,
 }: {
@@ -645,56 +703,78 @@ function ParticipantEditor({
   setParticipants: React.Dispatch<React.SetStateAction<ParticipantDraft[]>>;
   busy: boolean;
   loading: boolean;
-  error: string | null;
+  error: UserFacingError | null;
+  operation: SessionOperation;
   onSave: () => void;
   onRetry: () => void;
 }): React.JSX.Element {
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  const retryButtonRef = useRef<HTMLButtonElement>(null);
+  const [retrying, setRetrying] = useState(false);
+  useEffect(() => {
+    if (!retrying || loading) return;
+    if (error === null) titleRef.current?.focus();
+    else retryButtonRef.current?.focus();
+    setRetrying(false);
+  }, [error, loading, retrying]);
+
+  function retry(): void {
+    setRetrying(true);
+    onRetry();
+  }
+
   const add = () =>
     setParticipants((current) => [
       ...current,
       {
-        key: Date.now(),
+        id: crypto.randomUUID(),
         entityId: '',
         role: 'player_character',
         attended: true,
-        sortOrder: current.length,
       },
     ]);
-  const update = (key: number, patch: Partial<ParticipantDraft>) =>
+  const update = (id: string, patch: Partial<ParticipantDraft>) =>
     setParticipants((current) =>
-      current.map((item) => (item.key === key ? { ...item, ...patch } : item)),
+      current.map((item) => (item.id === id ? { ...item, ...patch } : item)),
     );
   return (
     <section
-      className="mt-6 rounded-2xl border border-stone-200 bg-white p-6"
+      className="mt-6 rounded-2xl border semantic-border semantic-surface p-6"
       aria-labelledby="participants-title"
     >
-      <h2 className="text-xl font-semibold" id="participants-title">
+      <h2 className="text-xl font-semibold" id="participants-title" ref={titleRef} tabIndex={-1}>
         Participantes
       </h2>
       {error === null ? null : (
-        <div role="alert" className="mt-4 rounded-xl bg-red-50 p-4 text-red-800">
-          <p>{error}</p>
-          <button
-            className={`${secondaryClass} mt-3`}
-            disabled={busy || loading}
-            onClick={onRetry}
-            type="button"
-          >
-            Tentar novamente
-          </button>
+        <div className="mt-4">
+          <UserFacingErrorNotice
+            compact
+            error={error}
+            operation={operation}
+            onRetry={retry}
+            retryButtonRef={retryButtonRef}
+            retryDisabled={busy || loading}
+          />
         </div>
       )}
-      <p className="mt-1 text-sm text-slate-600">
+      <p className="mt-1 text-sm semantic-text-secondary">
         Salvar substitui integralmente a lista de participantes desta sessão.
       </p>
-      <div aria-busy={loading} className="mt-4 grid gap-3">
-        {loading ? <p className="text-sm text-slate-600">Carregando participantes…</p> : null}
-        {participants.map((item) => (
-          <div
-            className="grid gap-3 rounded-xl bg-stone-50 p-3 md:grid-cols-[1fr_11rem_8rem_6rem_auto]"
-            key={item.key}
-          >
+      {loading ? (
+        <p className="mt-4 text-sm semantic-text-secondary">Carregando participantes…</p>
+      ) : null}
+      <ReorderableList
+        ariaLabel="Ordenar participantes"
+        busy={busy || loading}
+        className="mt-4 grid gap-3"
+        getLabel={(item) =>
+          entities.find((entity) => entity.id === item.entityId)?.name ??
+          'Participante sem entidade'
+        }
+        items={participants}
+        onMove={(move) => setParticipants((current) => moveRelative(current, move))}
+        renderItem={(item) => (
+          <div className="grid gap-3 rounded-xl semantic-surface-muted p-3 md:grid-cols-[1fr_11rem_8rem_auto]">
             <label className="text-sm font-semibold">
               Entidade
               <select
@@ -702,7 +782,7 @@ function ParticipantEditor({
                 className={inputClass}
                 value={item.entityId}
                 required
-                onChange={(e) => update(item.key, { entityId: e.target.value })}
+                onChange={(e) => update(item.id, { entityId: e.target.value })}
                 disabled={busy}
               >
                 <option value="">Selecione…</option>
@@ -719,7 +799,7 @@ function ParticipantEditor({
                 className={inputClass}
                 value={item.role}
                 onChange={(e) =>
-                  update(item.key, { role: e.target.value as SessionParticipantInput['role'] })
+                  update(item.id, { role: e.target.value as SessionParticipantInput['role'] })
                 }
                 disabled={busy}
               >
@@ -735,66 +815,43 @@ function ParticipantEditor({
               <select
                 className={inputClass}
                 value={String(item.attended)}
-                onChange={(e) => update(item.key, { attended: e.target.value === 'true' })}
+                onChange={(e) => update(item.id, { attended: e.target.value === 'true' })}
                 disabled={busy}
               >
                 <option value="true">Presente</option>
                 <option value="false">Ausente</option>
               </select>
             </label>
-            <label className="text-sm font-semibold">
-              Ordem
-              <input
-                className={inputClass}
-                type="number"
-                min="0"
-                value={item.sortOrder}
-                onChange={(e) => update(item.key, { sortOrder: Number(e.target.value) })}
-                disabled={busy}
-              />
-            </label>
-            <button
-              className={secondaryClass}
+            <Button
               disabled={busy}
               onClick={() =>
-                setParticipants((current) => current.filter((entry) => entry.key !== item.key))
+                setParticipants((current) => current.filter((entry) => entry.id !== item.id))
               }
-              type="button"
             >
               Remover
-            </button>
+            </Button>
           </div>
-        ))}
-      </div>
+        )}
+      />
       {!loading && participants.length === 0 ? (
-        <p className="mt-4 text-sm text-slate-600">Nenhum participante registrado.</p>
+        <p className="mt-4 text-sm semantic-text-secondary">Nenhum participante registrado.</p>
       ) : null}
-      <div className="mt-4 flex gap-3">
-        <button
-          className={secondaryClass}
-          disabled={busy || entities.length === 0}
-          onClick={add}
-          type="button"
-        >
+      <ButtonGroup aria-label="Ações dos participantes" className="mt-4">
+        <Button disabled={busy || entities.length === 0} onClick={add}>
           Adicionar participante
-        </button>
-        <button
-          className={primaryClass}
+        </Button>
+        <Button
+          busy={busy}
           disabled={busy || participants.some((item) => item.entityId === '')}
           onClick={onSave}
-          type="button"
+          variant="primary"
         >
           Salvar participantes
-        </button>
-        <button
-          className={secondaryClass}
-          disabled={busy || loading}
-          onClick={onRetry}
-          type="button"
-        >
+        </Button>
+        <Button disabled={busy || loading} onClick={retry}>
           Atualizar participantes
-        </button>
-      </div>
+        </Button>
+      </ButtonGroup>
     </section>
   );
 }
@@ -809,6 +866,7 @@ function IntentionEditor({
   busy,
   loading,
   error,
+  operation,
   onText,
   onEntity,
   onSave,
@@ -826,7 +884,8 @@ function IntentionEditor({
   editing: SessionIntention | null;
   busy: boolean;
   loading: boolean;
-  error: string | null;
+  error: UserFacingError | null;
+  operation: SessionOperation;
   onText: (value: string) => void;
   onEntity: (value: string) => void;
   onSave: () => void;
@@ -836,12 +895,27 @@ function IntentionEditor({
   onLoadMore: () => void;
   onRetry: () => void;
 }): React.JSX.Element {
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  const retryButtonRef = useRef<HTMLButtonElement>(null);
+  const [retrying, setRetrying] = useState(false);
+  useEffect(() => {
+    if (!retrying || loading) return;
+    if (error === null) titleRef.current?.focus();
+    else retryButtonRef.current?.focus();
+    setRetrying(false);
+  }, [error, loading, retrying]);
+
+  function retry(): void {
+    setRetrying(true);
+    onRetry();
+  }
+
   return (
     <section
-      className="mt-6 rounded-2xl border border-stone-200 bg-white p-6"
+      className="mt-6 rounded-2xl border semantic-border semantic-surface p-6"
       aria-labelledby="intentions-title"
     >
-      <h2 className="text-xl font-semibold" id="intentions-title">
+      <h2 className="text-xl font-semibold" id="intentions-title" ref={titleRef} tabIndex={-1}>
         Intenções
       </h2>
       <div className="mt-4 grid gap-3 md:grid-cols-[1fr_15rem_auto]">
@@ -871,84 +945,66 @@ function IntentionEditor({
             ))}
           </select>
         </label>
-        <div className="flex self-end gap-2">
+        <ButtonGroup aria-label="Ações da intenção" className="self-end">
           {editing === null ? null : (
-            <button className={secondaryClass} disabled={busy} onClick={onCancelEdit} type="button">
+            <Button disabled={busy} onClick={onCancelEdit}>
               Cancelar edição
-            </button>
+            </Button>
           )}
-          <button
-            className={primaryClass}
-            disabled={busy || text.trim() === ''}
-            onClick={onSave}
-            type="button"
-          >
+          <Button busy={busy} disabled={text.trim() === ''} onClick={onSave} variant="primary">
             {editing === null ? 'Registrar intenção' : 'Salvar intenção'}
-          </button>
-        </div>
+          </Button>
+        </ButtonGroup>
       </div>
       {error === null ? null : (
-        <div role="alert" className="mt-4 rounded-xl bg-red-50 p-4 text-red-800">
-          <p>{error}</p>
-          <button
-            className={`${secondaryClass} mt-3`}
-            disabled={busy || loading}
-            onClick={onRetry}
-            type="button"
-          >
-            Tentar novamente
-          </button>
+        <div className="mt-4">
+          <UserFacingErrorNotice
+            compact
+            error={error}
+            operation={operation}
+            onRetry={retry}
+            retryButtonRef={retryButtonRef}
+            retryDisabled={busy || loading}
+          />
         </div>
       )}
       <div aria-busy={loading}>
-        {loading ? <p className="mt-5 text-sm text-slate-600">Carregando intenções…</p> : null}
+        {loading ? (
+          <p className="mt-5 text-sm semantic-text-secondary">Carregando intenções…</p>
+        ) : null}
         <ul className="mt-5 grid gap-3" aria-label="Lista de intenções">
           {items.map((item) => (
-            <li className="rounded-xl bg-stone-50 p-4" key={item.id}>
+            <li className="rounded-xl semantic-surface-muted p-4" key={item.id}>
               <div className="flex flex-wrap justify-between gap-3">
                 <div>
                   <p className="font-semibold">{item.text}</p>
-                  <p className="mt-1 text-sm text-slate-600">{intentionStatusLabel(item.status)}</p>
+                  <p className="mt-1 text-sm semantic-text-secondary">
+                    {intentionStatusLabel(item.status)}
+                  </p>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    className={secondaryClass}
-                    disabled={busy}
-                    onClick={() => onEdit(item)}
-                    type="button"
-                  >
+                <ToolbarActions aria-label={`Ações da intenção ${item.text}`} className="gap-2">
+                  <Button disabled={busy} onClick={() => onEdit(item)}>
                     Editar intenção
-                  </button>
+                  </Button>
                   {item.status === 'open'
                     ? (['completed', 'abandoned', 'transformed'] as const).map((status) => (
-                        <button
-                          className={secondaryClass}
-                          disabled={busy}
-                          key={status}
-                          onClick={() => onStatus(item, status)}
-                          type="button"
-                        >
+                        <Button disabled={busy} key={status} onClick={() => onStatus(item, status)}>
                           {intentionActionLabel(status)}
-                        </button>
+                        </Button>
                       ))
                     : null}
-                </div>
+                </ToolbarActions>
               </div>
             </li>
           ))}
         </ul>
         {cursor === null || loading ? null : (
-          <button
-            className={`${secondaryClass} mt-4`}
-            disabled={busy || loading}
-            onClick={onLoadMore}
-            type="button"
-          >
+          <Button busy={loading} className="mt-4" disabled={busy} onClick={onLoadMore}>
             Carregar mais intenções
-          </button>
+          </Button>
         )}
         {!loading && items.length === 0 ? (
-          <p className="mt-4 text-sm text-slate-600">Nenhuma intenção registrada.</p>
+          <p className="mt-4 text-sm semantic-text-secondary">Nenhuma intenção registrada.</p>
         ) : null}
       </div>
     </section>
@@ -967,47 +1023,27 @@ function LifecycleButtons({
   if (session.status === 'planned')
     return (
       <>
-        <button
-          className={secondaryClass}
-          disabled={busy}
-          onClick={() => onTransition({ session, status: 'in_progress' })}
-          type="button"
-        >
+        <Button disabled={busy} onClick={() => onTransition({ session, status: 'in_progress' })}>
           Iniciar sessão
-        </button>
-        <button
-          className={secondaryClass}
-          disabled={busy}
-          onClick={() => onTransition({ session, status: 'cancelled' })}
-          type="button"
-        >
+        </Button>
+        <Button disabled={busy} onClick={() => onTransition({ session, status: 'cancelled' })}>
           Cancelar sessão
-        </button>
+        </Button>
       </>
     );
   if (session.status === 'in_progress')
     return (
       <>
-        <button
-          className={secondaryClass}
-          disabled={busy}
-          onClick={() => onTransition({ session, status: 'completed' })}
-          type="button"
-        >
+        <Button disabled={busy} onClick={() => onTransition({ session, status: 'completed' })}>
           Concluir sessão
-        </button>
-        <button
-          className={secondaryClass}
-          disabled={busy}
-          onClick={() => onTransition({ session, status: 'cancelled' })}
-          type="button"
-        >
+        </Button>
+        <Button disabled={busy} onClick={() => onTransition({ session, status: 'cancelled' })}>
           Cancelar sessão
-        </button>
+        </Button>
       </>
     );
   return (
-    <span className="text-sm font-semibold text-slate-500">
+    <span className="text-sm font-semibold semantic-text-secondary">
       Status final: {statusLabel(session.status)}
     </span>
   );
@@ -1030,15 +1066,13 @@ function StatusFilter({
           { value: 'cancelled', label: 'Canceladas' },
         ] as const
       ).map((option) => (
-        <button
-          className={secondaryClass}
+        <Button
           aria-pressed={value === option.value}
           key={option.value || 'all'}
           onClick={() => onChange(option.value)}
-          type="button"
         >
           {option.label}
-        </button>
+        </Button>
       ))}
     </>
   );
@@ -1174,7 +1208,9 @@ async function loadAllEntities(campaignId: string): Promise<Entity[]> {
       ...(cursor === undefined ? {} : { cursor }),
       filters: { archived: false },
     });
-    if (!result.ok) throw new Error(result.error.message);
+    if (!result.ok) {
+      throw Object.assign(new Error(result.error.message, { cause: result.error }), result.error);
+    }
     items.push(...result.data.items);
     cursor = result.data.nextCursor ?? undefined;
   } while (cursor !== undefined);

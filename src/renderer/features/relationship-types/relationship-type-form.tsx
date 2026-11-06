@@ -1,4 +1,7 @@
 import { useState } from 'react';
+import { Button, FormActions } from '../../components/actions';
+import { ColorPicker } from '../../components/color-picker';
+import { normalizeHexColor } from '../../../core/contracts/colors';
 import type { EntityType } from '../../../core/contracts/entity-types';
 import type {
   CreateRelationshipTypeInput,
@@ -6,7 +9,10 @@ import type {
   RelationshipTypePatch,
 } from '../../../core/contracts/relationship-types';
 
-export type RelationshipTypeCreateValues = Omit<CreateRelationshipTypeInput, 'campaignId'>;
+export type RelationshipTypeCreateValues = Omit<
+  CreateRelationshipTypeInput,
+  'campaignId' | 'sortOrder'
+>;
 
 interface FormValues {
   name: string;
@@ -19,7 +25,6 @@ interface FormValues {
   allowedTargetTypeIds: string[];
   icon: string;
   color: string;
-  sortOrder: string;
 }
 
 type Props = {
@@ -49,10 +54,6 @@ export function RelationshipTypeForm(props: Props): React.JSX.Element {
 
   function submit(event: React.SyntheticEvent<HTMLFormElement, SubmitEvent>): void {
     event.preventDefault();
-    if (!Number.isInteger(Number(values.sortOrder)) || Number(values.sortOrder) < 0) {
-      setValidationError('A ordem deve ser um número inteiro maior ou igual a zero.');
-      return;
-    }
     if (props.mode === 'create') {
       void props.onSubmit(toCreateValues(values));
       return;
@@ -67,12 +68,18 @@ export function RelationshipTypeForm(props: Props): React.JSX.Element {
 
   return (
     <section aria-labelledby="relationship-type-form-title" className="mx-auto w-full max-w-5xl">
-      <button className={backClass} disabled={props.busy} onClick={props.onCancel} type="button">
+      <Button
+        className="mb-6"
+        disabled={props.busy}
+        onClick={props.onCancel}
+        size="small"
+        variant="ghost"
+      >
         ← Voltar para tipos de relação
-      </button>
-      <div className="overflow-hidden rounded-3xl border border-stone-200 bg-white shadow-sm">
-        <header className="border-b border-stone-200 bg-stone-50 px-8 py-7">
-          <p className="text-xs font-bold tracking-[0.2em] text-amber-800 uppercase">
+      </Button>
+      <div className="overflow-hidden rounded-3xl border semantic-border semantic-surface shadow-sm">
+        <header className="border-b semantic-border semantic-surface-muted px-8 py-7">
+          <p className="text-xs font-bold tracking-[0.2em] semantic-accent-text uppercase">
             Estrutura do grafo
           </p>
           <h1 id="relationship-type-form-title" className="mt-2 text-3xl font-semibold">
@@ -80,14 +87,14 @@ export function RelationshipTypeForm(props: Props): React.JSX.Element {
               ? 'Novo tipo de relação'
               : `Editar ${props.relationshipType.name}`}
           </h1>
-          <p className="mt-3 text-slate-600">
+          <p className="mt-3 semantic-text-secondary">
             Defina como a conexão será apresentada em cada direção e quais entidades poderão usá-la.
           </p>
         </header>
         <form className="space-y-8 px-8 py-8" onSubmit={submit}>
           {props.error === null && validationError === null ? null : (
             <p
-              className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800"
+              className="rounded-xl border semantic-danger-border semantic-danger-surface p-4 text-sm semantic-error-text"
               role="alert"
             >
               {validationError ?? props.error}
@@ -131,23 +138,15 @@ export function RelationshipTypeForm(props: Props): React.JSX.Element {
               onChange={(value) => update('icon', value)}
               value={values.icon}
             />
-            <TextField
+            <ColorPicker
               disabled={props.busy}
-              label="Cor"
-              onChange={(value) => update('color', value)}
-              placeholder="#92400e"
-              value={values.color}
-            />
-            <TextField
-              disabled={props.busy}
-              label="Ordem"
-              onChange={(value) => update('sortOrder', value)}
-              type="number"
-              value={values.sortOrder}
+              id="relationship-type-color"
+              onChange={(value) => update('color', value ?? '')}
+              value={values.color === '' ? null : values.color}
             />
           </div>
 
-          <label className="block text-sm font-semibold text-slate-800">
+          <label className="block text-sm font-semibold semantic-text-primary">
             Descrição
             <textarea
               className={`${inputClass} min-h-28 resize-y`}
@@ -158,17 +157,17 @@ export function RelationshipTypeForm(props: Props): React.JSX.Element {
             />
           </label>
 
-          <label className="flex items-start gap-3 rounded-2xl border border-stone-200 p-5">
+          <label className="flex items-start gap-3 rounded-2xl border semantic-border p-5">
             <input
               checked={values.isSymmetric}
-              className="mt-1 size-4 accent-amber-700"
+              className="mt-1 size-4 semantic-accent-control"
               disabled={props.busy}
               onChange={(event) => update('isSymmetric', event.target.checked)}
               type="checkbox"
             />
             <span>
-              <span className="block font-semibold text-slate-900">Relação simétrica</span>
-              <span className="mt-1 block text-sm text-slate-600">
+              <span className="block font-semibold semantic-text-primary">Relação simétrica</span>
+              <span className="mt-1 block text-sm semantic-text-secondary">
                 A conexão representa o mesmo vínculo nos dois sentidos. O nome inverso é opcional.
               </span>
             </span>
@@ -191,23 +190,18 @@ export function RelationshipTypeForm(props: Props): React.JSX.Element {
             />
           </div>
 
-          <div className="flex justify-end gap-3 border-t border-stone-200 pt-6">
-            <button
-              className={secondaryClass}
-              disabled={props.busy}
-              onClick={props.onCancel}
-              type="button"
-            >
+          <FormActions>
+            <Button disabled={props.busy} onClick={props.onCancel}>
               Cancelar
-            </button>
-            <button className={primaryClass} disabled={props.busy} type="submit">
+            </Button>
+            <Button busy={props.busy} type="submit" variant="primary">
               {props.busy
                 ? 'Salvando…'
                 : props.mode === 'create'
                   ? 'Criar tipo'
                   : 'Salvar alterações'}
-            </button>
-          </div>
+            </Button>
+          </FormActions>
         </form>
       </div>
     </section>
@@ -228,11 +222,13 @@ function EntityTypeChoices({
   selected: string[];
 }): React.JSX.Element {
   return (
-    <fieldset className="rounded-2xl border border-stone-200 p-5">
-      <legend className="px-2 font-semibold text-slate-900">{label}</legend>
-      <p className="mb-4 text-sm text-slate-600">Nenhuma seleção significa sem restrição.</p>
+    <fieldset className="rounded-2xl border semantic-border p-5">
+      <legend className="px-2 font-semibold semantic-text-primary">{label}</legend>
+      <p className="mb-4 text-sm semantic-text-secondary">
+        Nenhuma seleção significa sem restrição.
+      </p>
       {entityTypes.length === 0 ? (
-        <p className="text-sm text-slate-500">Nenhum tipo de entidade ativo.</p>
+        <p className="text-sm semantic-text-secondary">Nenhum tipo de entidade ativo.</p>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
           {entityTypes.map((entityType) => (
@@ -278,8 +274,8 @@ function TextField({
   value: string;
 }): React.JSX.Element {
   return (
-    <label className="block text-sm font-semibold text-slate-800">
-      {label} {required ? <span className="text-amber-800">*</span> : null}
+    <label className="block text-sm font-semibold semantic-text-primary">
+      {label} {required ? <span className="semantic-accent-text">*</span> : null}
       <input
         autoFocus={autoFocus}
         className={inputClass}
@@ -307,7 +303,6 @@ function emptyValues(): FormValues {
     allowedTargetTypeIds: [],
     icon: '',
     color: '',
-    sortOrder: '0',
   };
 }
 function toFormValues(type: RelationshipType): FormValues {
@@ -322,7 +317,6 @@ function toFormValues(type: RelationshipType): FormValues {
     allowedTargetTypeIds: type.allowedTargetTypeIds ?? [],
     icon: type.icon ?? '',
     color: type.color ?? '',
-    sortOrder: String(type.sortOrder),
   };
 }
 export function toCreateValues(values: FormValues): RelationshipTypeCreateValues {
@@ -336,15 +330,14 @@ export function toCreateValues(values: FormValues): RelationshipTypeCreateValues
     allowedSourceTypeIds: nullableIds(values.allowedSourceTypeIds),
     allowedTargetTypeIds: nullableIds(values.allowedTargetTypeIds),
     icon: nullable(values.icon),
-    color: nullable(values.color),
-    sortOrder: Number(values.sortOrder),
+    color: nullableColor(values.color),
   };
 }
 export function toPatch(
   values: FormValues,
   current: RelationshipType,
 ): RelationshipTypePatch | null {
-  const next = toCreateValues(values);
+  const next = toCreateValues({ ...values, color: '' });
   const patch: RelationshipTypePatch = {};
   for (const field of [
     'name',
@@ -354,10 +347,12 @@ export function toPatch(
     'semanticRole',
     'isSymmetric',
     'icon',
-    'color',
-    'sortOrder',
   ] as const)
     if (next[field] !== current[field]) Object.assign(patch, { [field]: next[field] });
+  if (values.color !== current.color) {
+    const nextColor = nullable(values.color);
+    patch.color = nextColor === null ? null : normalizeHexColor(nextColor);
+  }
   if (!sameIds(next.allowedSourceTypeIds, current.allowedSourceTypeIds))
     patch.allowedSourceTypeIds = next.allowedSourceTypeIds;
   if (!sameIds(next.allowedTargetTypeIds, current.allowedTargetTypeIds))
@@ -367,6 +362,10 @@ export function toPatch(
 function nullable(value: string): string | null {
   const trimmed = value.trim();
   return trimmed === '' ? null : trimmed;
+}
+function nullableColor(value: string): string | null {
+  const normalized = nullable(value);
+  return normalized === null ? null : normalizeHexColor(normalized);
 }
 function nullableIds(ids: string[]): string[] | null {
   return ids.length === 0 ? null : [...ids].sort();
@@ -379,10 +378,4 @@ function sameIds(left: string[] | null, right: string[] | null): boolean {
 }
 
 const inputClass =
-  'mt-2 w-full rounded-xl border border-stone-300 bg-white px-4 py-3 text-slate-950 shadow-sm outline-none focus:border-amber-700 focus:ring-3 focus:ring-amber-700/15 disabled:bg-stone-100';
-const primaryClass =
-  'rounded-xl bg-amber-700 px-6 py-3 font-semibold text-white hover:bg-amber-800 disabled:opacity-60';
-const secondaryClass =
-  'rounded-xl border border-stone-300 bg-white px-5 py-3 font-semibold text-slate-700 hover:bg-stone-50 disabled:opacity-60';
-const backClass =
-  'mb-6 inline-flex rounded-lg px-2 py-1 text-sm font-semibold text-slate-600 hover:text-slate-950';
+  'mt-2 w-full rounded-xl border semantic-border semantic-surface px-4 py-3 semantic-text-primary shadow-sm outline-none semantic-focus-border focus:ring-3 semantic-focus-ring semantic-disabled-surface';

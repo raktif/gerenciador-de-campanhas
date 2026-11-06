@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Campaign } from '../../../core/contracts/campaigns';
 import type { Entity } from '../../../core/contracts/entities';
 import type { RelationshipType } from '../../../core/contracts/relationship-types';
@@ -6,6 +6,12 @@ import type {
   Relationship,
   RelationshipNeighborhoodResult,
 } from '../../../core/contracts/relationships';
+import {
+  presentUserFacingError,
+  type UserFacingError,
+} from '../../../core/errors/user-facing-error';
+import { UserFacingErrorNotice } from '../../components/user-facing-error-notice';
+import { Button } from '../../components/actions';
 
 interface NeighborhoodFilters {
   relationshipTypeId: string;
@@ -24,17 +30,33 @@ export function RelationshipNeighborhood({
   campaign,
   entities,
   types,
+  centralEntityId,
+  directOnly = false,
 }: {
   campaign: Campaign;
   entities: Entity[];
   types: RelationshipType[];
+  centralEntityId?: string;
+  directOnly?: boolean;
 }): React.JSX.Element {
   const [entityId, setEntityId] = useState('');
   const [depth, setDepth] = useState<1 | 2 | 3>(1);
   const [filters, setFilters] = useState(emptyFilters);
   const [result, setResult] = useState<RelationshipNeighborhoodResult | null>(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<UserFacingError | null>(null);
+  const initializedCentralContext = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (centralEntityId === undefined) return;
+    const validCentralEntityId = resolveCentralEntityId(centralEntityId, campaign.id, entities);
+    if (validCentralEntityId === '') return;
+    const contextKey = `${campaign.id}:${validCentralEntityId}`;
+    if (initializedCentralContext.current === contextKey) return;
+    initializedCentralContext.current = contextKey;
+    setEntityId(validCentralEntityId);
+    setDepth(1);
+  }, [campaign.id, centralEntityId, entities]);
 
   useEffect(() => {
     let cancelled = false;
@@ -49,6 +71,7 @@ export function RelationshipNeighborhood({
         campaignId: campaign.id,
         entityId,
         depth,
+        directOnly,
         filters: {
           relationshipTypeIds:
             filters.relationshipTypeId === '' ? [] : [filters.relationshipTypeId],
@@ -67,14 +90,14 @@ export function RelationshipNeighborhood({
         if (response.ok) setResult(response.data);
         else {
           setResult(null);
-          setError(response.error.message);
+          setError(presentUserFacingError(response.error, 'relationships.list'));
         }
         setLoading(false);
       });
     return () => {
       cancelled = true;
     };
-  }, [campaign.id, depth, entityId, filters]);
+  }, [campaign.id, depth, directOnly, entityId, filters]);
 
   const entityNames = useMemo(
     () => new Map((result?.nodes ?? []).map((node) => [node.entity.id, node.entity.name])),
@@ -89,15 +112,17 @@ export function RelationshipNeighborhood({
 
   return (
     <section
-      className="mt-8 rounded-2xl border border-stone-200 bg-stone-50 p-6"
+      className="mt-8 rounded-2xl border semantic-border semantic-surface-muted p-6"
       aria-labelledby="neighborhood-title"
     >
       <div>
-        <p className="text-xs font-bold tracking-[0.16em] text-amber-800 uppercase">Exploração</p>
+        <p className="text-xs font-bold tracking-[0.16em] semantic-accent-text uppercase">
+          Exploração
+        </p>
         <h2 className="mt-1 text-2xl font-semibold" id="neighborhood-title">
           Vizinhança de uma entidade
         </h2>
-        <p className="mt-2 text-sm text-slate-600">
+        <p className="mt-2 text-sm semantic-text-secondary">
           Navegue pelas conexões sem carregar o grafo inteiro da campanha.
         </p>
       </div>
@@ -115,6 +140,7 @@ export function RelationshipNeighborhood({
           Profundidade
           <select
             className={inputClass}
+            disabled={directOnly}
             value={depth}
             onChange={(event) => setDepth(Number(event.target.value) as 1 | 2 | 3)}
           >
@@ -172,27 +198,29 @@ export function RelationshipNeighborhood({
         />
       </div>
       {loading ? (
-        <p className="mt-6 text-sm text-slate-500" aria-live="polite">
+        <p className="mt-6 text-sm semantic-text-secondary" aria-live="polite">
           Carregando vizinhança…
         </p>
       ) : null}
       {error === null ? null : (
-        <p
-          className="mt-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800"
-          role="alert"
-        >
-          {error}
-        </p>
+        <div className="mt-6">
+          <UserFacingErrorNotice
+            compact
+            error={error}
+            operation="relationships.list"
+            onRetry={() => setFilters((current) => ({ ...current }))}
+          />
+        </div>
       )}
       {result === null || loading ? null : (
         <>
           {result.truncated ? (
-            <p className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+            <p className="mt-6 rounded-xl border semantic-warning-border semantic-warning-surface p-4 text-sm semantic-accent-text">
               O resultado atingiu o limite seguro de entidades ou relações. Refine os filtros.
             </p>
           ) : null}
           <div
-            className="mt-6 overflow-x-auto rounded-2xl border border-stone-200 bg-white p-5"
+            className="mt-6 overflow-x-auto rounded-2xl border semantic-border semantic-surface p-5"
             aria-label="Mapa da vizinhança"
           >
             <svg
@@ -211,7 +239,7 @@ export function RelationshipNeighborhood({
                   refX="6"
                   refY="3.5"
                 >
-                  <path d="M 0 0 L 7 3.5 L 0 7 z" fill="#92400e" />
+                  <path d="M 0 0 L 7 3.5 L 0 7 z" fill="var(--accent)" />
                 </marker>
               </defs>
               {result.relationships.map((relationship) => {
@@ -231,13 +259,13 @@ export function RelationshipNeighborhood({
                         d={`M ${String(source.x - 30)} ${String(source.y - 25)} C ${String(source.x - 85)} ${String(source.y - 95)}, ${String(source.x + 85)} ${String(source.y - 95)}, ${String(source.x + 30)} ${String(source.y - 25)}`}
                         fill="none"
                         markerEnd={markerEnd}
-                        stroke="#92400e"
+                        stroke="var(--accent)"
                         strokeWidth="2"
                       />
                     ) : (
                       <line
                         markerEnd={markerEnd}
-                        stroke="#92400e"
+                        stroke="var(--accent)"
                         strokeWidth="2"
                         x1={source.x}
                         x2={target.x}
@@ -246,11 +274,11 @@ export function RelationshipNeighborhood({
                       />
                     )}
                     <text
-                      fill="#78350f"
+                      fill="var(--warning)"
                       fontSize="12"
                       fontWeight="600"
                       paintOrder="stroke"
-                      stroke="white"
+                      stroke="var(--surface)"
                       strokeWidth="4"
                       textAnchor="middle"
                       x={labelX}
@@ -268,17 +296,17 @@ export function RelationshipNeighborhood({
                 return (
                   <g key={node.entity.id}>
                     <rect
-                      fill={central ? '#fffbeb' : 'white'}
+                      fill={central ? 'var(--warning-surface)' : 'var(--surface)'}
                       height="56"
                       rx="12"
-                      stroke={central ? '#f59e0b' : '#d6d3d1'}
+                      stroke={central ? 'var(--accent)' : 'var(--border)'}
                       strokeWidth="2"
                       width="160"
                       x={point.x - 80}
                       y={point.y - 28}
                     />
                     <text
-                      fill="#1e293b"
+                      fill="var(--text-primary)"
                       fontSize="13"
                       fontWeight="600"
                       textAnchor="middle"
@@ -295,7 +323,7 @@ export function RelationshipNeighborhood({
           <div className="mt-6" data-testid="neighborhood-text-list">
             <h3 className="text-lg font-semibold">Lista textual acessível</h3>
             {result.relationships.length === 0 ? (
-              <p className="mt-3 text-sm text-slate-600">
+              <p aria-live="polite" className="mt-3 text-sm semantic-text-secondary" role="status">
                 Nenhuma conexão corresponde aos filtros.
               </p>
             ) : (
@@ -312,16 +340,17 @@ export function RelationshipNeighborhood({
                       : relationship.sourceEntityId;
                   return (
                     <li
-                      className="rounded-xl border border-stone-200 bg-white px-4 py-3 text-sm"
+                      className="rounded-xl border semantic-border semantic-surface px-4 py-3 text-sm"
                       key={relationship.id}
                     >
-                      <button
-                        className="font-semibold text-amber-800 underline"
+                      <Button
+                        className="align-baseline"
                         onClick={() => setEntityId(fromId)}
-                        type="button"
+                        size="inline"
+                        variant="link"
                       >
                         {entityNames.get(fromId) ?? 'Entidade'}
-                      </button>{' '}
+                      </Button>{' '}
                       <span>
                         {directionLabel(
                           relationship,
@@ -329,14 +358,15 @@ export function RelationshipNeighborhood({
                           typeById.get(relationship.relationshipTypeId),
                         )}
                       </span>{' '}
-                      <button
-                        className="font-semibold text-amber-800 underline"
+                      <Button
+                        className="align-baseline"
                         onClick={() => setEntityId(toId)}
-                        type="button"
+                        size="inline"
+                        variant="link"
                       >
                         {entityNames.get(toId) ?? 'Entidade'}
-                      </button>
-                      <span className="ml-2 text-xs text-slate-500">
+                      </Button>
+                      <span className="ml-2 text-xs semantic-text-secondary">
                         {relationship.canonState} · {relationship.knowledgeState} ·{' '}
                         {relationship.visibility}
                       </span>
@@ -350,6 +380,19 @@ export function RelationshipNeighborhood({
       )}
     </section>
   );
+}
+
+export function resolveCentralEntityId(
+  centralEntityId: string | undefined,
+  campaignId: string,
+  entities: Entity[],
+): string {
+  if (centralEntityId === undefined) return '';
+  return entities.some(
+    (entity) => entity.id === centralEntityId && entity.campaignId === campaignId,
+  )
+    ? centralEntityId
+    : '';
 }
 
 interface GraphPoint {
@@ -441,6 +484,6 @@ function Select({
     </label>
   );
 }
-const labelClass = 'block text-sm font-semibold text-slate-800';
+const labelClass = 'block text-sm font-semibold semantic-text-primary';
 const inputClass =
-  'mt-2 w-full rounded-xl border border-stone-300 bg-white px-3 py-2.5 text-slate-900';
+  'mt-2 w-full rounded-xl border semantic-border semantic-surface px-3 py-2.5 semantic-text-primary';

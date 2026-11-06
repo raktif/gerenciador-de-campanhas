@@ -146,6 +146,7 @@ function createEntityDetails(overrides: Partial<Entity> = {}): EntityDetails {
       id: entityId,
       campaignId,
       entityTypeId,
+      referenceImageAttachmentId: null,
       name: 'Aris',
       summary: null,
       canonState: 'accepted',

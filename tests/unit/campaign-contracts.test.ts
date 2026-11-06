@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  campaignSchema,
   campaignLifecycleInputSchema,
   campaignPageRequestSchema,
   createCampaignInputSchema,
@@ -19,6 +20,30 @@ describe('Contratos de campanhas', () => {
     expect(createCampaignInputSchema.safeParse({ name: 'Ethéria', unexpected: true }).success).toBe(
       false,
     );
+    expect(
+      createCampaignInputSchema.safeParse({ name: 'Ethéria', imagePath: 'C:\\capa.png' }).success,
+    ).toBe(false);
+  });
+
+  it('expõe somente a referência opaca da capa no registro público', () => {
+    const campaign = {
+      id: '00000000-0000-4000-8000-000000000001',
+      name: 'Ethéria',
+      systemName: null,
+      concept: null,
+      genre: null,
+      tone: null,
+      summary: null,
+      coverAttachmentId: '00000000-0000-4000-8000-000000000002',
+      status: 'active',
+      createdAt: '2026-10-26T12:00:00.000Z',
+      updatedAt: '2026-10-26T12:00:00.000Z',
+      archivedAt: null,
+      revision: 1,
+    };
+
+    expect(campaignSchema.parse(campaign)).toEqual(campaign);
+    expect(campaignSchema.safeParse({ ...campaign, imagePath: 'legado.png' }).success).toBe(false);
   });
 
   it('aplica paginação padrão e limita páginas a cem itens', () => {

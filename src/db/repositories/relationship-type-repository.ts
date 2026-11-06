@@ -5,8 +5,10 @@ import type {
   RelationshipType,
   RelationshipTypePageRequest,
   RelationshipTypePageResult,
+  MoveRelationshipTypeInput,
 } from '../../core/contracts/relationship-types';
 import { AppError } from '../../core/errors/app-error';
+import { moveRelative } from '../../core/ordering/move-relative';
 import { relationshipTypes } from '../schema';
 import type * as schema from '../schema';
 
@@ -56,6 +58,29 @@ export class RelationshipTypeRepository {
     } catch (error) {
       throw translateConstraintError(error, relationshipType.campaignId, relationshipType.slug);
     }
+  }
+
+  public insertAtEnd(relationshipType: RelationshipType): RelationshipType {
+    return this.database.transaction((transaction) => {
+      const last = transaction
+        .select({ sortOrder: relationshipTypes.sortOrder })
+        .from(relationshipTypes)
+        .where(
+          and(
+            eq(relationshipTypes.campaignId, relationshipType.campaignId),
+            eq(relationshipTypes.isArchived, false),
+          ),
+        )
+        .orderBy(desc(relationshipTypes.sortOrder))
+        .get();
+      const positioned = { ...relationshipType, sortOrder: (last?.sortOrder ?? -1) + 1 };
+      try {
+        transaction.insert(relationshipTypes).values(toPersistenceValues(positioned)).run();
+      } catch (error) {
+        throw translateConstraintError(error, positioned.campaignId, positioned.slug);
+      }
+      return positioned;
+    });
   }
 
   public findById(campaignId: string, id: string): RelationshipType | null {
@@ -137,6 +162,135 @@ export class RelationshipTypeRepository {
     const updated = this.findById(input.campaignId, input.id);
     if (updated === null) throw notFound(input.campaignId, input.id);
     return updated;
+  }
+
+  public restoreAtEnd(
+    input: Omit<RelationshipTypeRepositoryUpdate, 'patch'>,
+    updatedAt: string,
+  ): RelationshipType {
+    return this.database.transaction((transaction) => {
+      const row = transaction
+        .select()
+        .from(relationshipTypes)
+        .where(
+          and(
+            eq(relationshipTypes.campaignId, input.campaignId),
+            eq(relationshipTypes.id, input.id),
+          ),
+        )
+        .get();
+      if (row === undefined) throw notFound(input.campaignId, input.id);
+      const current = toContract(row);
+      if (current.revision !== input.revision) throw revisionConflict(current, input.revision);
+      if (!current.isArchived)
+        throw new AppError(
+          'INVALID_RELATIONSHIP_TYPE_STATE',
+          'O tipo de rela\u00e7\u00e3o j\u00e1 est\u00e1 ativo.',
+        );
+
+      const last = transaction
+        .select({ sortOrder: relationshipTypes.sortOrder })
+        .from(relationshipTypes)
+        .where(
+          and(
+            eq(relationshipTypes.campaignId, input.campaignId),
+            eq(relationshipTypes.isArchived, false),
+          ),
+        )
+        .orderBy(desc(relationshipTypes.sortOrder))
+        .get();
+      const restoredResult = transaction
+        .update(relationshipTypes)
+        .set({
+          isArchived: false,
+          sortOrder: (last?.sortOrder ?? -1) + 1,
+          updatedAt,
+          revision: sql`${relationshipTypes.revision} + 1`,
+        })
+        .where(
+          and(
+            eq(relationshipTypes.campaignId, input.campaignId),
+            eq(relationshipTypes.id, input.id),
+            eq(relationshipTypes.revision, input.revision),
+          ),
+        )
+        .run();
+      if (restoredResult.changes !== 1) throw revisionConflict(current, input.revision);
+      const restored = transaction
+        .select()
+        .from(relationshipTypes)
+        .where(
+          and(
+            eq(relationshipTypes.campaignId, input.campaignId),
+            eq(relationshipTypes.id, input.id),
+          ),
+        )
+        .get();
+      if (restored === undefined) throw notFound(input.campaignId, input.id);
+      return toContract(restored);
+    });
+  }
+
+  public move(input: MoveRelationshipTypeInput, updatedAt: string): RelationshipType[] {
+    return this.database.transaction((transaction) => {
+      const current = transaction
+        .select()
+        .from(relationshipTypes)
+        .where(
+          and(
+            eq(relationshipTypes.campaignId, input.campaignId),
+            eq(relationshipTypes.isArchived, false),
+          ),
+        )
+        .orderBy(
+          asc(relationshipTypes.sortOrder),
+          asc(relationshipTypes.name),
+          asc(relationshipTypes.id),
+        )
+        .all()
+        .map(toContract);
+      const source = current.find(({ id }) => id === input.sourceId);
+      const target = current.find(({ id }) => id === input.targetId);
+      if (source === undefined) throw notFound(input.campaignId, input.sourceId);
+      if (target === undefined) throw notFound(input.campaignId, input.targetId);
+      if (source.revision !== input.sourceRevision)
+        throw revisionConflict(source, input.sourceRevision);
+      if (target.revision !== input.targetRevision)
+        throw revisionConflict(target, input.targetRevision);
+
+      const ordered = moveRelative(current, input);
+      ordered.forEach((item, sortOrder) => {
+        if (item.sortOrder === sortOrder) return;
+        const result = transaction
+          .update(relationshipTypes)
+          .set({ sortOrder, updatedAt, revision: sql`${relationshipTypes.revision} + 1` })
+          .where(
+            and(
+              eq(relationshipTypes.campaignId, input.campaignId),
+              eq(relationshipTypes.id, item.id),
+              eq(relationshipTypes.revision, item.revision),
+            ),
+          )
+          .run();
+        if (result.changes !== 1) throw revisionConflict(item, item.revision);
+      });
+      return transaction
+        .select()
+        .from(relationshipTypes)
+        .where(
+          and(
+            eq(relationshipTypes.campaignId, input.campaignId),
+            eq(relationshipTypes.isArchived, false),
+          ),
+        )
+        .orderBy(
+          asc(relationshipTypes.sortOrder),
+          asc(relationshipTypes.name),
+          asc(relationshipTypes.id),
+        )
+        .all()
+        .map(toContract);
+    });
   }
 
   private throwUpdateFailure(input: RelationshipTypeRepositoryUpdate): never {
@@ -242,6 +396,14 @@ function findSqliteCode(error: unknown): string | undefined {
   if (typeof error !== 'object' || error === null) return undefined;
   if ('code' in error && typeof error.code === 'string') return error.code;
   return 'cause' in error ? findSqliteCode(error.cause) : undefined;
+}
+
+function revisionConflict(current: RelationshipType, expectedRevision: number): AppError {
+  return new AppError(
+    'REVISION_CONFLICT',
+    'O tipo de rela\u00e7\u00e3o foi alterado em outra opera\u00e7\u00e3o.',
+    { expectedRevision, currentRevision: current.revision, current },
+  );
 }
 function notFound(campaignId: string, id: string): AppError {
   return new AppError('RELATIONSHIP_TYPE_NOT_FOUND', 'O tipo de relação não foi encontrado.', {

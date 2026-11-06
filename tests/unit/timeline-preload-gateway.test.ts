@@ -19,11 +19,11 @@ describe('gateway do preload de cronologia', () => {
     expect(invocations).toEqual([
       {
         channel: timelineChannels.listCampaign,
-        input: { campaignId, limit: 50, filters: { archived: false } },
+        input: { campaignId },
       },
       {
         channel: timelineChannels.listEntity,
-        input: { campaignId, entityId, limit: 50, filters: { archived: true } },
+        input: { campaignId, entityId, filters: { archived: true } },
       },
     ]);
   });

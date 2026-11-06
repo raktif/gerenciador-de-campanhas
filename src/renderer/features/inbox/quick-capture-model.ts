@@ -5,6 +5,10 @@ import {
 } from '../../../core/contracts/inbox';
 import type { Result } from '../../../core/contracts/result';
 import type { Session } from '../../../core/contracts/sessions';
+import {
+  presentUserFacingError,
+  type UserFacingError,
+} from '../../../core/errors/user-facing-error';
 
 export interface ShortcutEvent {
   key: string;
@@ -43,7 +47,17 @@ export function inProgressSessions(sessions: readonly Session[]): Session[] {
 
 export type InboxCapture = (input: CaptureInboxItemInput) => Promise<Result<InboxItem>>;
 
-export type QuickCaptureResult = { ok: true; item: InboxItem } | { ok: false; message: string };
+export type QuickCaptureResult =
+  { ok: true; item: InboxItem } | { ok: false; message: string; error: UserFacingError };
+
+export interface QuickCaptureFeedback {
+  captureId: string;
+  message: string;
+}
+
+export function createQuickCaptureFeedback(item: Pick<InboxItem, 'id'>): QuickCaptureFeedback {
+  return { captureId: item.id, message: 'Captura salva na Caixa de Entrada.' };
+}
 
 export async function submitQuickCapture(
   capture: InboxCapture,
@@ -52,13 +66,17 @@ export async function submitQuickCapture(
   sessionId: string | null,
 ): Promise<QuickCaptureResult> {
   const parsed = captureInboxItemInputSchema.safeParse({ campaignId, sessionId, rawText });
-  if (!parsed.success) return { ok: false, message: 'Informe o texto da captura.' };
+  if (!parsed.success) {
+    const error = presentUserFacingError({ code: 'VALIDATION_ERROR' }, 'inbox.capture');
+    return { ok: false, message: error.message, error };
+  }
   try {
     const result = await capture(parsed.data);
-    return result.ok
-      ? { ok: true, item: result.data }
-      : { ok: false, message: result.error.message };
+    if (result.ok) return { ok: true, item: result.data };
+    const error = presentUserFacingError(result.error, 'inbox.capture');
+    return { ok: false, message: error.message, error };
   } catch {
-    return { ok: false, message: 'Não foi possível salvar a captura. Tente novamente.' };
+    const error = presentUserFacingError(undefined, 'inbox.capture');
+    return { ok: false, message: error.message, error };
   }
 }

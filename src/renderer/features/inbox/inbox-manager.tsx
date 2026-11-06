@@ -6,7 +6,12 @@ import type { Session } from '../../../core/contracts/sessions';
 import type { EntityType } from '../../../core/contracts/entity-types';
 import type { Entity } from '../../../core/contracts/entities';
 import type { RelationshipType } from '../../../core/contracts/relationship-types';
-import { primaryClass, secondaryClass } from '../narrative/narrative-metadata-fields';
+import {
+  presentUserFacingError,
+  type UserFacingError,
+} from '../../../core/errors/user-facing-error';
+import { UserFacingErrorNotice } from '../../components/user-facing-error-notice';
+import { Button, DialogActions, ToolbarActions } from '../../components/actions';
 
 type Filter = 'pending' | 'dismissed' | 'archived';
 type Action = 'beginReview' | 'dismiss' | 'archive' | 'restore';
@@ -37,7 +42,7 @@ export function InboxManager({
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<UserFacingError | null>(null);
   const [announcement, setAnnouncement] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<{
     item: InboxItem;
@@ -64,7 +69,7 @@ export function InboxManager({
   const [conversionVisibility, setConversionVisibility] = useState<'gm' | 'players' | 'public'>(
     'gm',
   );
-  const [conversionError, setConversionError] = useState<string | null>(null);
+  const [conversionError, setConversionError] = useState<UserFacingError | null>(null);
   const conversionDialogRef = useRef<HTMLFormElement>(null);
   const conversionNameRef = useRef<HTMLInputElement>(null);
   const [assertionConversion, setAssertionConversion] = useState<InboxItem | null>(null);
@@ -80,7 +85,7 @@ export function InboxManager({
     'fact' | 'rumor' | 'suspicion' | 'secret' | 'possibility' | 'disproved'
   >('fact');
   const [assertionVisibility, setAssertionVisibility] = useState<'gm' | 'players' | 'public'>('gm');
-  const [assertionError, setAssertionError] = useState<string | null>(null);
+  const [assertionError, setAssertionError] = useState<UserFacingError | null>(null);
   const assertionDialogRef = useRef<HTMLFormElement>(null);
   const assertionSubjectRef = useRef<HTMLSelectElement>(null);
   const [noteConversion, setNoteConversion] = useState<InboxItem | null>(null);
@@ -98,7 +103,7 @@ export function InboxManager({
   const [noteKnowledgeState, setNoteKnowledgeState] = useState<
     'fact' | 'rumor' | 'suspicion' | 'secret' | 'possibility' | 'disproved'
   >('fact');
-  const [noteError, setNoteError] = useState<string | null>(null);
+  const [noteError, setNoteError] = useState<UserFacingError | null>(null);
   const noteDialogRef = useRef<HTMLFormElement>(null);
   const noteTitleRef = useRef<HTMLInputElement>(null);
   const [eventConversion, setEventConversion] = useState<InboxItem | null>(null);
@@ -118,7 +123,6 @@ export function InboxManager({
     | 'victim'
     | 'related'
   >('related');
-  const [eventLinkSortOrder, setEventLinkSortOrder] = useState(0);
   const [eventVisibility, setEventVisibility] = useState<'gm' | 'players' | 'public'>('gm');
   const [eventCanonState, setEventCanonState] = useState<
     'draft' | 'accepted' | 'rejected' | 'archived'
@@ -126,7 +130,7 @@ export function InboxManager({
   const [eventKnowledgeState, setEventKnowledgeState] = useState<
     'fact' | 'rumor' | 'suspicion' | 'secret' | 'possibility' | 'disproved'
   >('fact');
-  const [eventError, setEventError] = useState<string | null>(null);
+  const [eventError, setEventError] = useState<UserFacingError | null>(null);
   const eventDialogRef = useRef<HTMLFormElement>(null);
   const eventTitleRef = useRef<HTMLInputElement>(null);
   const announcementRef = useRef<HTMLParagraphElement>(null);
@@ -154,7 +158,7 @@ export function InboxManager({
   const [relationshipVisibility, setRelationshipVisibility] = useState<'gm' | 'players' | 'public'>(
     'gm',
   );
-  const [relationshipError, setRelationshipError] = useState<string | null>(null);
+  const [relationshipError, setRelationshipError] = useState<UserFacingError | null>(null);
   const relationshipDialogRef = useRef<HTMLFormElement>(null);
   const relationshipTypeRef = useRef<HTMLSelectElement>(null);
   const selectedRelationshipType = relationshipTypes.find((type) => type.id === relationshipTypeId);
@@ -196,10 +200,10 @@ export function InboxManager({
         if (result.ok) {
           setItems((current) => (append ? [...current, ...result.data.items] : result.data.items));
           setCursor(result.data.nextCursor);
-        } else setError(result.error.message);
+        } else setError(presentUserFacingError(result.error, 'inbox.list'));
       } catch {
         if (requestId !== requestRef.current) return;
-        setError('Não foi possível carregar a Caixa de Entrada. Tente novamente.');
+        setError(presentUserFacingError(undefined, 'inbox.list'));
       } finally {
         if (requestId === requestRef.current) {
           setLoading(false);
@@ -338,9 +342,9 @@ export function InboxManager({
                 : 'Captura restaurada para novas pendências.',
         );
         await load(false);
-      } else setError(result.error.message);
+      } else setError(presentUserFacingError(result.error, 'inbox.convert'));
     } catch {
-      setError('Não foi possível concluir a ação. Tente novamente.');
+      setError(presentUserFacingError(undefined, 'inbox.convert'));
     } finally {
       setBusy(null);
     }
@@ -370,9 +374,9 @@ export function InboxManager({
         setAnnouncement(`Entidade “${result.data.entity.name}” criada a partir da captura.`);
         await load(false);
         requestAnimationFrame(() => announcementRef.current?.focus());
-      } else setConversionError(result.error.message);
+      } else setConversionError(presentUserFacingError(result.error, 'inbox.convert'));
     } catch {
-      setConversionError('Não foi possível converter a captura. Tente novamente.');
+      setConversionError(presentUserFacingError(undefined, 'inbox.convert'));
     } finally {
       setBusy(null);
     }
@@ -425,9 +429,9 @@ export function InboxManager({
         );
         await load(false);
         requestAnimationFrame(() => announcementRef.current?.focus());
-      } else setRelationshipError(result.error.message);
+      } else setRelationshipError(presentUserFacingError(result.error, 'inbox.convert'));
     } catch {
-      setRelationshipError('Não foi possível converter a captura em relação. Tente novamente.');
+      setRelationshipError(presentUserFacingError(undefined, 'inbox.convert'));
     } finally {
       setBusy(null);
     }
@@ -442,7 +446,7 @@ export function InboxManager({
       try {
         value = JSON.parse(assertionValue) as NonNullable<AssertionConversionValue>;
       } catch {
-        setAssertionError('O valor deve ser um JSON válido.');
+        setAssertionError(presentUserFacingError({ code: 'VALIDATION_ERROR' }, 'inbox.convert'));
         return;
       }
     }
@@ -450,7 +454,7 @@ export function InboxManager({
       statement === '' &&
       (predicate === '' || (assertionObjectEntityId === '' && value === null))
     ) {
-      setAssertionError('Informe uma declaração ou um predicado acompanhado de objeto ou valor.');
+      setAssertionError(presentUserFacingError({ code: 'VALIDATION_ERROR' }, 'inbox.convert'));
       return;
     }
     setBusy(assertionConversion.id);
@@ -478,9 +482,9 @@ export function InboxManager({
         );
         await load(false);
         requestAnimationFrame(() => announcementRef.current?.focus());
-      } else setAssertionError(result.error.message);
+      } else setAssertionError(presentUserFacingError(result.error, 'inbox.convert'));
     } catch {
-      setAssertionError('Não foi possível converter a captura em afirmação. Tente novamente.');
+      setAssertionError(presentUserFacingError(undefined, 'inbox.convert'));
     } finally {
       setBusy(null);
     }
@@ -513,9 +517,9 @@ export function InboxManager({
         );
         await load(false);
         requestAnimationFrame(() => announcementRef.current?.focus());
-      } else setNoteError(result.error.message);
+      } else setNoteError(presentUserFacingError(result.error, 'inbox.convert'));
     } catch {
-      setNoteError('Não foi possível converter a captura em nota. Tente novamente.');
+      setNoteError(presentUserFacingError(undefined, 'inbox.convert'));
     } finally {
       setBusy(null);
     }
@@ -543,7 +547,6 @@ export function InboxManager({
                   {
                     entityId: eventLinkEntityId,
                     role: eventLinkRole,
-                    sortOrder: eventLinkSortOrder,
                   },
                 ],
           canonState: eventCanonState,
@@ -558,9 +561,9 @@ export function InboxManager({
         );
         await load(false);
         requestAnimationFrame(() => announcementRef.current?.focus());
-      } else setEventError(result.error.message);
+      } else setEventError(presentUserFacingError(result.error, 'inbox.convert'));
     } catch {
-      setEventError('Não foi possível converter a captura em evento. Tente novamente.');
+      setEventError(presentUserFacingError(undefined, 'inbox.convert'));
     } finally {
       setBusy(null);
     }
@@ -568,21 +571,23 @@ export function InboxManager({
 
   return (
     <section aria-labelledby="inbox-title">
-      <button className={secondaryClass} disabled={busy !== null} onClick={onBack} type="button">
+      <Button disabled={busy !== null} onClick={onBack} size="small" variant="ghost">
         ← Voltar para detalhes da campanha
-      </button>
-      <header className="mt-6 flex flex-wrap items-end justify-between gap-5 border-b border-stone-200 pb-6">
+      </Button>
+      <header className="mt-6 flex flex-wrap items-end justify-between gap-5 border-b semantic-border pb-6">
         <div>
-          <p className="text-xs font-bold tracking-[0.18em] text-amber-800 uppercase">
+          <p className="text-xs font-bold tracking-[0.18em] semantic-accent-text uppercase">
             {campaign.name}
           </p>
           <h1 className="mt-2 text-4xl font-semibold" id="inbox-title">
             Caixa de Entrada
           </h1>
-          <p className="mt-2 text-slate-600">Revise capturas sem alterar seu texto original.</p>
+          <p className="mt-2 semantic-text-secondary">
+            Revise capturas sem alterar seu texto original.
+          </p>
         </div>
       </header>
-      <div aria-label="Filtrar capturas" className="mt-5 flex flex-wrap gap-2" role="group">
+      <ToolbarActions aria-label="Filtrar capturas" className="mt-5 gap-2">
         {(
           [
             ['pending', 'Pendentes'],
@@ -590,25 +595,26 @@ export function InboxManager({
             ['archived', 'Arquivadas'],
           ] as const
         ).map(([value, label]) => (
-          <button
+          <Button
             aria-pressed={filter === value}
-            className={filter === value ? primaryClass : secondaryClass}
+            className={
+              filter === value ? 'semantic-selected-surface semantic-selected-text' : undefined
+            }
             disabled={busy !== null || loading}
             key={value}
             onClick={() => {
               setAnnouncement(null);
               setFilter(value);
             }}
-            type="button"
           >
             {label}
-          </button>
+          </Button>
         ))}
-      </div>
+      </ToolbarActions>
       {announcement === null ? null : (
         <p
           aria-live="polite"
-          className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-800"
+          className="mt-5 rounded-xl border semantic-success-border semantic-success-surface p-4 semantic-success-text"
           role="status"
           ref={announcementRef}
           tabIndex={-1}
@@ -617,85 +623,77 @@ export function InboxManager({
         </p>
       )}
       {error === null ? null : (
-        <div className="mt-5 rounded-xl bg-red-50 p-4 text-red-800" role="alert">
-          <p>{error}</p>
-          <button
-            className={`${secondaryClass} mt-3`}
-            disabled={loading}
-            onClick={() => void load(false)}
-            type="button"
-          >
-            Tentar novamente
-          </button>
+        <div className="mt-5">
+          <UserFacingErrorNotice
+            error={error}
+            operation="inbox.list"
+            onRetry={() => void load(false)}
+          />
         </div>
       )}
       {loading ? (
         <div aria-busy="true" aria-label="Carregando capturas" className="mt-8 animate-pulse">
-          <div className="h-28 rounded-2xl bg-stone-200" />
+          <div className="h-28 rounded-2xl semantic-skeleton" />
         </div>
       ) : items.length === 0 ? (
-        <div className="mt-8 rounded-2xl border border-dashed border-stone-300 bg-white p-10 text-center">
+        <div className="mt-8 rounded-2xl border border-dashed semantic-border semantic-surface p-10 text-center">
           <h2 className="text-xl font-semibold">{emptyTitle(filter)}</h2>
-          <p className="mt-2 text-slate-600">{emptyDescription(filter)}</p>
+          <p className="mt-2 semantic-text-secondary">{emptyDescription(filter)}</p>
         </div>
       ) : (
         <ul className="mt-8 grid gap-4" data-testid="inbox-list">
           {items.map((item) => (
             <li
-              className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm"
+              className="rounded-2xl border semantic-border semantic-surface p-5 shadow-sm"
               key={item.id}
             >
               <article
                 aria-busy={busy === item.id}
                 aria-label={`Captura ${statusLabel(item.status)}`}
               >
-                <p className="break-words whitespace-pre-wrap leading-7 text-slate-800">
+                <p className="break-words whitespace-pre-wrap leading-7 semantic-text-primary">
                   {item.rawText}
                 </p>
-                <p className="mt-3 text-sm text-slate-500">
+                <p className="mt-3 text-sm semantic-text-secondary">
                   {statusLabel(item.status)} · {new Date(item.capturedAt).toLocaleString('pt-BR')}
                 </p>
                 {item.sessionId === null ? null : (
-                  <p className="mt-1 text-sm text-slate-500">
+                  <p className="mt-1 text-sm semantic-text-secondary">
                     Sessão: {sessionLabel(sessions.get(item.sessionId))}
                   </p>
                 )}
-                <div className="mt-4 flex flex-wrap gap-2">
+                <ToolbarActions aria-label="Ações da captura" className="mt-4 gap-2">
                   {item.status === 'new' || item.status === 'dismissed' ? (
-                    <button
-                      className={primaryClass}
+                    <Button
                       disabled={busy !== null}
                       onClick={(event) => {
                         triggerRef.current = event.currentTarget;
                         void execute(item, 'beginReview');
                       }}
-                      type="button"
+                      variant="primary"
                     >
                       Marcar como em revisão
-                    </button>
+                    </Button>
                   ) : null}
                   {item.status === 'new' || item.status === 'reviewing' ? (
-                    <button
-                      className={secondaryClass}
+                    <Button
                       disabled={busy !== null}
                       onClick={(event) => {
                         triggerRef.current = event.currentTarget;
                         setConfirming({ item, action: 'dismiss' });
                       }}
-                      type="button"
                     >
                       Descartar
-                    </button>
+                    </Button>
                   ) : null}
                   {item.status === 'reviewing' ? (
                     <>
-                      <button
+                      <Button
                         aria-describedby={
                           entityTypes.length === 0
                             ? `inbox-conversion-reason-${item.id}`
                             : undefined
                         }
-                        className={primaryClass}
                         disabled={busy !== null || entityTypes.length === 0}
                         onClick={(event) => {
                           triggerRef.current = event.currentTarget;
@@ -707,32 +705,32 @@ export function InboxManager({
                           setConversionKnowledgeState('fact');
                           setConversionVisibility('gm');
                         }}
-                        type="button"
+                        variant="primary"
                       >
                         Converter em entidade
-                      </button>
+                      </Button>
                       {entityTypes.length === 0 ? (
                         <span
-                          className="text-sm text-amber-900"
+                          className="text-sm semantic-accent-text"
                           id={`inbox-conversion-reason-${item.id}`}
                         >
                           Crie um tipo de entidade ativo para converter esta captura.
-                          <button
-                            className="ml-2 font-semibold underline"
+                          <Button
+                            className="ml-2"
                             disabled={busy !== null}
                             onClick={onManageEntityTypes}
-                            type="button"
+                            size="inline"
+                            variant="link"
                           >
                             Gerenciar tipos de entidade
-                          </button>
+                          </Button>
                         </span>
                       ) : null}
                     </>
                   ) : null}
                   {item.status === 'reviewing' ? (
                     <>
-                      <button
-                        className={secondaryClass}
+                      <Button
                         disabled={busy !== null}
                         onClick={(event) => {
                           triggerRef.current = event.currentTarget;
@@ -747,12 +745,10 @@ export function InboxManager({
                           setNoteVisibility('gm');
                           setNoteError(null);
                         }}
-                        type="button"
                       >
                         Converter em nota
-                      </button>
-                      <button
-                        className={secondaryClass}
+                      </Button>
+                      <Button
                         disabled={busy !== null}
                         onClick={(event) => {
                           triggerRef.current = event.currentTarget;
@@ -764,25 +760,22 @@ export function InboxManager({
                           setEventOccurredAtLabel('');
                           setEventLinkEntityId('');
                           setEventLinkRole('related');
-                          setEventLinkSortOrder(0);
                           setEventCanonState('accepted');
                           setEventKnowledgeState('fact');
                           setEventVisibility('gm');
                           setEventError(null);
                         }}
-                        type="button"
                       >
                         Converter em evento
-                      </button>
+                      </Button>
                     </>
                   ) : null}
                   {item.status === 'reviewing' ? (
                     <>
-                      <button
+                      <Button
                         aria-describedby={
                           entities.length === 0 ? `inbox-assertion-reason-${item.id}` : undefined
                         }
-                        className={secondaryClass}
                         disabled={busy !== null || entities.length === 0}
                         onClick={(event) => {
                           triggerRef.current = event.currentTarget;
@@ -797,32 +790,31 @@ export function InboxManager({
                           setAssertionVisibility('gm');
                           setAssertionError(null);
                         }}
-                        type="button"
                       >
                         Converter em afirmação
-                      </button>
+                      </Button>
                       {entities.length === 0 ? (
                         <span
-                          className="text-sm text-amber-900"
+                          className="text-sm semantic-accent-text"
                           id={`inbox-assertion-reason-${item.id}`}
                         >
                           Crie uma entidade ativa na campanha para definir o sujeito da afirmação.
-                          <button
-                            className="ml-2 font-semibold underline"
+                          <Button
+                            className="ml-2"
                             disabled={busy !== null}
                             onClick={onManageEntities}
-                            type="button"
+                            size="inline"
+                            variant="link"
                           >
                             Gerenciar entidades
-                          </button>
+                          </Button>
                         </span>
                       ) : null}
                     </>
                   ) : null}
                   {item.status === 'reviewing' ? (
                     <>
-                      <button
-                        className={secondaryClass}
+                      <Button
                         disabled={busy !== null || relationshipTypes.length === 0}
                         aria-describedby={
                           relationshipTypes.length === 0
@@ -868,69 +860,66 @@ export function InboxManager({
                           setRelationshipVisibility('gm');
                           setRelationshipError(null);
                         }}
-                        type="button"
                       >
                         Converter em relação
-                      </button>
+                      </Button>
                       {relationshipTypes.length === 0 ? (
                         <span
-                          className="text-sm text-amber-900"
+                          className="text-sm semantic-accent-text"
                           id={`inbox-relationship-reason-${item.id}`}
                         >
                           Crie um tipo de relação ativo para converter esta captura.
-                          <button
-                            className="ml-2 font-semibold underline"
+                          <Button
+                            className="ml-2"
                             disabled={busy !== null}
                             onClick={onManageRelationshipTypes}
-                            type="button"
+                            size="inline"
+                            variant="link"
                           >
                             Gerenciar tipos de relação
-                          </button>
+                          </Button>
                         </span>
                       ) : null}
                     </>
                   ) : null}
                   {item.status !== 'archived' && item.status !== 'converted' ? (
-                    <button
-                      className={secondaryClass}
+                    <Button
                       disabled={busy !== null}
                       onClick={(event) => {
                         triggerRef.current = event.currentTarget;
                         setConfirming({ item, action: 'archive' });
                       }}
-                      type="button"
                     >
                       Arquivar
-                    </button>
+                    </Button>
                   ) : null}
                   {item.status === 'archived' ? (
-                    <button
-                      className={primaryClass}
+                    <Button
                       disabled={busy !== null}
                       onClick={(event) => {
                         triggerRef.current = event.currentTarget;
                         void execute(item, 'restore');
                       }}
-                      type="button"
+                      variant="primary"
                     >
                       Restaurar
-                    </button>
+                    </Button>
                   ) : null}
-                </div>
+                </ToolbarActions>
               </article>
             </li>
           ))}
         </ul>
       )}
       {cursor === null || loading ? null : (
-        <button
-          className={`${secondaryClass} mt-5`}
-          disabled={busy !== null || loadingMore}
+        <Button
+          busy={loadingMore}
+          className="mt-5"
+          disabled={busy !== null}
           onClick={() => void load(true)}
-          type="button"
         >
           {loadingMore ? 'Carregando mais…' : 'Carregar mais'}
-        </button>
+        </Button>
       )}
       {confirming === null
         ? null
@@ -939,7 +928,7 @@ export function InboxManager({
               aria-describedby="inbox-confirmation-message"
               aria-labelledby="inbox-confirmation-title"
               aria-modal="true"
-              className="fixed inset-0 grid place-items-center bg-slate-950/40 p-4"
+              className="fixed inset-0 grid place-items-center semantic-overlay p-4"
               onKeyDown={(event) => {
                 if (event.key === 'Escape') {
                   event.preventDefault();
@@ -965,42 +954,39 @@ export function InboxManager({
               role="dialog"
             >
               <div
-                className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl"
+                className="w-full max-w-md rounded-2xl semantic-surface p-6 shadow-xl"
                 ref={dialogRef}
                 tabIndex={-1}
               >
                 <h2 className="text-xl font-semibold" id="inbox-confirmation-title">
                   Confirmar {confirming.action === 'dismiss' ? 'descarte' : 'arquivamento'}
                 </h2>
-                <p className="mt-3 text-slate-600" id="inbox-confirmation-message">
+                <p className="mt-3 semantic-text-secondary" id="inbox-confirmation-message">
                   {confirming.action === 'dismiss'
                     ? 'A captura será marcada como descartada, mas seu texto continuará preservado.'
                     : 'A captura será removida das pendências, mas continuará preservada.'}
                 </p>
-                <div className="mt-6 flex justify-end gap-3">
-                  <button
-                    className={secondaryClass}
+                <DialogActions className="mt-6">
+                  <Button
                     disabled={busy !== null}
                     onClick={() => {
                       setConfirming(null);
                       requestAnimationFrame(() => triggerRef.current?.focus());
                     }}
                     ref={cancelRef}
-                    type="button"
                   >
                     Cancelar
-                  </button>
-                  <button
-                    className={primaryClass}
-                    disabled={busy !== null}
+                  </Button>
+                  <Button
+                    busy={busy !== null}
                     onClick={() => void execute(confirming.item, confirming.action)}
-                    type="button"
+                    variant="primary"
                   >
                     {confirming.action === 'dismiss'
                       ? 'Confirmar descarte'
                       : 'Confirmar arquivamento'}
-                  </button>
-                </div>
+                  </Button>
+                </DialogActions>
               </div>
             </div>,
             document.body,
@@ -1011,7 +997,7 @@ export function InboxManager({
             <div
               aria-labelledby="inbox-conversion-title"
               aria-modal="true"
-              className="fixed inset-0 z-40 grid place-items-center overflow-y-auto bg-slate-950/40 p-4"
+              className="fixed inset-0 z-40 grid place-items-center overflow-y-auto semantic-overlay p-4"
               onKeyDown={(event) => {
                 if (event.key === 'Escape' && busy === null) {
                   setConversion(null);
@@ -1023,7 +1009,7 @@ export function InboxManager({
             >
               <form
                 aria-busy={busy === conversion.id}
-                className="max-h-[calc(100vh-2rem)] w-full max-w-xl overflow-y-auto rounded-2xl bg-white p-6 shadow-xl"
+                className="max-h-[calc(100vh-2rem)] w-full max-w-xl overflow-y-auto rounded-2xl semantic-surface p-6 shadow-xl"
                 onSubmit={(event) => {
                   event.preventDefault();
                   void convert();
@@ -1033,12 +1019,12 @@ export function InboxManager({
                 <h2 className="text-xl font-semibold" id="inbox-conversion-title">
                   Converter em entidade
                 </h2>
-                <p className="mt-2 text-sm text-slate-600">
+                <p className="mt-2 text-sm semantic-text-secondary">
                   O texto original continuará vinculado como fonte desta entidade.
                 </p>
                 <div
                   aria-labelledby="inbox-source-text-label"
-                  className="mt-4 max-h-32 overflow-y-auto rounded-xl bg-stone-100 p-3"
+                  className="mt-4 max-h-32 overflow-y-auto rounded-xl semantic-surface-muted p-3"
                 >
                   <p className="text-xs font-semibold" id="inbox-source-text-label">
                     Texto original da captura
@@ -1048,30 +1034,35 @@ export function InboxManager({
                   </p>
                 </div>
                 {entityTypes.length === 0 ? (
-                  <div className="mt-4 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">
+                  <div className="mt-4 rounded-xl semantic-warning-surface p-3 text-sm semantic-accent-text">
                     <p>Crie um tipo de entidade ativo antes de converter.</p>
-                    <button
-                      className="mt-2 font-semibold underline"
+                    <Button
+                      className="mt-2"
                       onClick={() => {
                         setConversion(null);
                         onManageEntityTypes();
                       }}
-                      type="button"
+                      size="small"
+                      variant="link"
                     >
                       Gerenciar tipos de entidade
-                    </button>
+                    </Button>
                   </div>
                 ) : null}
                 {conversionError === null ? null : (
-                  <p className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-800" role="alert">
-                    {conversionError}
-                  </p>
+                  <div className="mt-4">
+                    <UserFacingErrorNotice
+                      compact
+                      error={conversionError}
+                      operation="inbox.convert"
+                    />
+                  </div>
                 )}
                 <label className="mt-5 block text-sm font-semibold" htmlFor="inbox-entity-type">
                   Tipo de entidade
                 </label>
                 <select
-                  className="mt-2 w-full rounded-xl border border-stone-300 px-3 py-2"
+                  className="mt-2 w-full rounded-xl border semantic-border px-3 py-2"
                   disabled={busy !== null || entityTypes.length === 0}
                   id="inbox-entity-type"
                   onChange={(event) => setConversionTypeId(event.target.value)}
@@ -1088,7 +1079,7 @@ export function InboxManager({
                   Nome
                 </label>
                 <input
-                  className="mt-2 w-full rounded-xl border border-stone-300 px-3 py-2"
+                  className="mt-2 w-full rounded-xl border semantic-border px-3 py-2"
                   disabled={busy !== null}
                   id="inbox-entity-name"
                   maxLength={200}
@@ -1101,7 +1092,7 @@ export function InboxManager({
                   Resumo
                 </label>
                 <textarea
-                  className="mt-2 min-h-24 w-full rounded-xl border border-stone-300 px-3 py-2"
+                  className="mt-2 min-h-24 w-full rounded-xl border semantic-border px-3 py-2"
                   disabled={busy !== null}
                   id="inbox-entity-summary"
                   maxLength={10000}
@@ -1109,7 +1100,7 @@ export function InboxManager({
                   value={conversionSummary}
                 />
                 <fieldset
-                  className="mt-5 grid gap-4 rounded-xl border border-stone-200 p-4"
+                  className="mt-5 grid gap-4 rounded-xl border semantic-border p-4"
                   disabled={busy !== null}
                 >
                   <legend className="px-1 text-sm font-semibold">Metadados narrativos</legend>
@@ -1157,26 +1148,25 @@ export function InboxManager({
                     ]}
                   />
                 </fieldset>
-                <div className="mt-6 flex justify-end gap-3">
-                  <button
-                    className={secondaryClass}
+                <DialogActions className="mt-6">
+                  <Button
                     disabled={busy !== null}
                     onClick={() => {
                       setConversion(null);
                       requestAnimationFrame(() => triggerRef.current?.focus());
                     }}
-                    type="button"
                   >
                     Cancelar
-                  </button>
-                  <button
-                    className={primaryClass}
+                  </Button>
+                  <Button
+                    busy={busy === conversion.id}
                     disabled={busy !== null || entityTypes.length === 0}
                     type="submit"
+                    variant="primary"
                   >
                     {busy === conversion.id ? 'Convertendo…' : 'Confirmar conversão'}
-                  </button>
-                </div>
+                  </Button>
+                </DialogActions>
               </form>
             </div>,
             document.body,
@@ -1188,7 +1178,7 @@ export function InboxManager({
               aria-describedby="inbox-assertion-source-text inbox-assertion-help"
               aria-labelledby="inbox-assertion-conversion-title"
               aria-modal="true"
-              className="fixed inset-0 z-40 grid place-items-center overflow-y-auto bg-slate-950/40 p-4"
+              className="fixed inset-0 z-40 grid place-items-center overflow-y-auto semantic-overlay p-4"
               onKeyDown={(event) => {
                 if (event.key === 'Escape' && busy === null) {
                   setAssertionConversion(null);
@@ -1200,7 +1190,7 @@ export function InboxManager({
             >
               <form
                 aria-busy={busy === assertionConversion.id}
-                className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-xl"
+                className="w-full max-w-2xl rounded-2xl semantic-surface p-6 shadow-xl"
                 onSubmit={(event) => {
                   event.preventDefault();
                   void convertAssertion();
@@ -1210,12 +1200,12 @@ export function InboxManager({
                 <h2 className="text-xl font-semibold" id="inbox-assertion-conversion-title">
                   Converter em afirmação
                 </h2>
-                <p className="mt-2 text-sm text-slate-600" id="inbox-assertion-help">
+                <p className="mt-2 text-sm semantic-text-secondary" id="inbox-assertion-help">
                   A captura original será preservada como fonte rastreável da afirmação.
                 </p>
                 <div
                   aria-labelledby="inbox-assertion-source-label"
-                  className="mt-4 max-h-28 overflow-y-auto rounded-xl bg-stone-100 p-3"
+                  className="mt-4 max-h-28 overflow-y-auto rounded-xl semantic-surface-muted p-3"
                   id="inbox-assertion-source-text"
                 >
                   <p className="text-xs font-semibold" id="inbox-assertion-source-label">
@@ -1226,9 +1216,13 @@ export function InboxManager({
                   </p>
                 </div>
                 {assertionError === null ? null : (
-                  <p className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-800" role="alert">
-                    {assertionError}
-                  </p>
+                  <div className="mt-4">
+                    <UserFacingErrorNotice
+                      compact
+                      error={assertionError}
+                      operation="inbox.convert"
+                    />
+                  </div>
                 )}
                 <label
                   className="mt-5 block text-sm font-semibold"
@@ -1237,7 +1231,7 @@ export function InboxManager({
                   Sujeito
                 </label>
                 <select
-                  className="mt-1 w-full rounded-xl border border-stone-300 px-3 py-2"
+                  className="mt-1 w-full rounded-xl border semantic-border px-3 py-2"
                   disabled={busy !== null || entities.length === 0}
                   id="inbox-assertion-subject"
                   onChange={(event) => setAssertionSubjectEntityId(event.target.value)}
@@ -1261,7 +1255,7 @@ export function InboxManager({
                   Objeto (opcional)
                 </label>
                 <select
-                  className="mt-1 w-full rounded-xl border border-stone-300 px-3 py-2"
+                  className="mt-1 w-full rounded-xl border semantic-border px-3 py-2"
                   disabled={busy !== null}
                   id="inbox-assertion-object"
                   onChange={(event) => setAssertionObjectEntityId(event.target.value)}
@@ -1281,14 +1275,14 @@ export function InboxManager({
                   Declaração
                 </label>
                 <textarea
-                  className="mt-1 min-h-24 w-full rounded-xl border border-stone-300 px-3 py-2"
+                  className="mt-1 min-h-24 w-full rounded-xl border semantic-border px-3 py-2"
                   disabled={busy !== null}
                   id="inbox-assertion-statement"
                   maxLength={10000}
                   onChange={(event) => setAssertionStatement(event.target.value)}
                   value={assertionStatement}
                 />
-                <p className="mt-1 text-sm text-slate-600">
+                <p className="mt-1 text-sm semantic-text-secondary">
                   Informe uma declaração ou um predicado acompanhado de objeto ou valor.
                 </p>
                 <label
@@ -1298,7 +1292,7 @@ export function InboxManager({
                   Predicado
                 </label>
                 <input
-                  className="mt-1 w-full rounded-xl border border-stone-300 px-3 py-2"
+                  className="mt-1 w-full rounded-xl border semantic-border px-3 py-2"
                   disabled={busy !== null}
                   id="inbox-assertion-predicate"
                   maxLength={200}
@@ -1309,14 +1303,14 @@ export function InboxManager({
                   Valor JSON (opcional)
                 </label>
                 <textarea
-                  className="mt-1 min-h-20 w-full rounded-xl border border-stone-300 px-3 py-2 font-mono text-sm"
+                  className="mt-1 min-h-20 w-full rounded-xl border semantic-border px-3 py-2 font-mono text-sm"
                   disabled={busy !== null}
                   id="inbox-assertion-value"
                   onChange={(event) => setAssertionValue(event.target.value)}
                   value={assertionValue}
                 />
                 <fieldset
-                  className="mt-5 grid gap-4 rounded-xl border border-stone-200 p-4"
+                  className="mt-5 grid gap-4 rounded-xl border semantic-border p-4"
                   disabled={busy !== null}
                 >
                   <legend className="px-1 text-sm font-semibold">Metadados narrativos</legend>
@@ -1364,28 +1358,27 @@ export function InboxManager({
                     value={assertionVisibility}
                   />
                 </fieldset>
-                <div className="mt-6 flex justify-end gap-3">
-                  <button
-                    className={secondaryClass}
+                <DialogActions className="mt-6">
+                  <Button
                     disabled={busy !== null}
                     onClick={() => {
                       setAssertionConversion(null);
                       requestAnimationFrame(() => triggerRef.current?.focus());
                     }}
-                    type="button"
                   >
                     Cancelar
-                  </button>
-                  <button
-                    className={primaryClass}
+                  </Button>
+                  <Button
+                    busy={busy === assertionConversion.id}
                     disabled={
                       busy !== null || entities.length === 0 || assertionSubjectEntityId === ''
                     }
                     type="submit"
+                    variant="primary"
                   >
                     {busy === assertionConversion.id ? 'Convertendo…' : 'Confirmar conversão'}
-                  </button>
-                </div>
+                  </Button>
+                </DialogActions>
               </form>
             </div>,
             document.body,
@@ -1396,7 +1389,7 @@ export function InboxManager({
             <div
               aria-labelledby="inbox-note-conversion-title"
               aria-modal="true"
-              className="fixed inset-0 z-40 grid place-items-center overflow-y-auto bg-slate-950/40 p-4"
+              className="fixed inset-0 z-40 grid place-items-center overflow-y-auto semantic-overlay p-4"
               onKeyDown={(event) => {
                 if (event.key === 'Escape' && busy === null) {
                   setNoteConversion(null);
@@ -1408,7 +1401,7 @@ export function InboxManager({
             >
               <form
                 aria-busy={busy === noteConversion.id}
-                className="max-h-[calc(100vh-2rem)] w-full max-w-xl overflow-y-auto rounded-2xl bg-white p-6 shadow-xl"
+                className="max-h-[calc(100vh-2rem)] w-full max-w-xl overflow-y-auto rounded-2xl semantic-surface p-6 shadow-xl"
                 onSubmit={(event) => {
                   event.preventDefault();
                   void convertNote();
@@ -1418,22 +1411,22 @@ export function InboxManager({
                 <h2 className="text-xl font-semibold" id="inbox-note-conversion-title">
                   Converter em nota
                 </h2>
-                <p className="mt-2 text-sm text-slate-600">
+                <p className="mt-2 text-sm semantic-text-secondary">
                   O texto original será preservado como fonte rastreável.
                 </p>
-                <p className="mt-4 max-h-28 overflow-y-auto break-words whitespace-pre-wrap rounded-xl bg-stone-100 p-3 text-sm">
+                <p className="mt-4 max-h-28 overflow-y-auto break-words whitespace-pre-wrap rounded-xl semantic-surface-muted p-3 text-sm">
                   {noteConversion.rawText}
                 </p>
                 {noteError === null ? null : (
-                  <p className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-800" role="alert">
-                    {noteError}
-                  </p>
+                  <div className="mt-4">
+                    <UserFacingErrorNotice compact error={noteError} operation="inbox.convert" />
+                  </div>
                 )}
                 <label className="mt-4 block text-sm font-semibold" htmlFor="inbox-note-title">
                   Título
                 </label>
                 <input
-                  className="mt-1 w-full rounded-xl border border-stone-300 px-3 py-2"
+                  className="mt-1 w-full rounded-xl border semantic-border px-3 py-2"
                   disabled={busy !== null}
                   id="inbox-note-title"
                   maxLength={200}
@@ -1446,7 +1439,7 @@ export function InboxManager({
                   Corpo da nota
                 </label>
                 <textarea
-                  className="mt-1 min-h-32 w-full rounded-xl border border-stone-300 px-3 py-2"
+                  className="mt-1 min-h-32 w-full rounded-xl border semantic-border px-3 py-2"
                   disabled={busy !== null}
                   id="inbox-note-body"
                   maxLength={100000}
@@ -1458,7 +1451,7 @@ export function InboxManager({
                   Tipo de nota
                 </label>
                 <select
-                  className="mt-1 w-full rounded-xl border border-stone-300 px-3 py-2"
+                  className="mt-1 w-full rounded-xl border semantic-border px-3 py-2"
                   disabled={busy !== null}
                   id="inbox-note-type"
                   onChange={(event) => setNoteType(event.target.value as typeof noteType)}
@@ -1486,7 +1479,7 @@ export function InboxManager({
                   Vincular entidade (opcional)
                 </label>
                 <select
-                  className="mt-1 w-full rounded-xl border border-stone-300 px-3 py-2"
+                  className="mt-1 w-full rounded-xl border semantic-border px-3 py-2"
                   disabled={busy !== null}
                   id="inbox-note-link"
                   onChange={(event) => setNoteLinkEntityId(event.target.value)}
@@ -1503,7 +1496,7 @@ export function InboxManager({
                   Papel do vínculo
                 </label>
                 <input
-                  className="mt-1 w-full rounded-xl border border-stone-300 px-3 py-2"
+                  className="mt-1 w-full rounded-xl border semantic-border px-3 py-2"
                   disabled={busy !== null || noteLinkEntityId === ''}
                   id="inbox-note-role"
                   maxLength={100}
@@ -1511,7 +1504,7 @@ export function InboxManager({
                   value={noteLinkRole}
                 />
                 <fieldset
-                  className="mt-5 grid gap-4 rounded-xl border border-stone-200 p-4"
+                  className="mt-5 grid gap-4 rounded-xl border semantic-border p-4"
                   disabled={busy !== null}
                 >
                   <legend className="px-1 text-sm font-semibold">Metadados narrativos</legend>
@@ -1553,22 +1546,25 @@ export function InboxManager({
                     ]}
                   />
                 </fieldset>
-                <div className="mt-6 flex justify-end gap-3">
-                  <button
-                    className={secondaryClass}
+                <DialogActions className="mt-6">
+                  <Button
                     disabled={busy !== null}
                     onClick={() => {
                       setNoteConversion(null);
                       requestAnimationFrame(() => triggerRef.current?.focus());
                     }}
-                    type="button"
                   >
                     Cancelar
-                  </button>
-                  <button className={primaryClass} disabled={busy !== null} type="submit">
+                  </Button>
+                  <Button
+                    busy={busy === noteConversion.id}
+                    disabled={busy !== null}
+                    type="submit"
+                    variant="primary"
+                  >
                     {busy === noteConversion.id ? 'Convertendo…' : 'Confirmar conversão'}
-                  </button>
-                </div>
+                  </Button>
+                </DialogActions>
               </form>
             </div>,
             document.body,
@@ -1579,7 +1575,7 @@ export function InboxManager({
             <div
               aria-labelledby="inbox-event-conversion-title"
               aria-modal="true"
-              className="fixed inset-0 z-40 grid place-items-center overflow-y-auto bg-slate-950/40 p-4"
+              className="fixed inset-0 z-40 grid place-items-center overflow-y-auto semantic-overlay p-4"
               onKeyDown={(event) => {
                 if (event.key === 'Escape' && busy === null) {
                   setEventConversion(null);
@@ -1591,7 +1587,7 @@ export function InboxManager({
             >
               <form
                 aria-busy={busy === eventConversion.id}
-                className="max-h-[calc(100vh-2rem)] w-full max-w-xl overflow-y-auto rounded-2xl bg-white p-6 shadow-xl"
+                className="max-h-[calc(100vh-2rem)] w-full max-w-xl overflow-y-auto rounded-2xl semantic-surface p-6 shadow-xl"
                 onSubmit={(event) => {
                   event.preventDefault();
                   void convertEvent();
@@ -1601,22 +1597,22 @@ export function InboxManager({
                 <h2 className="text-xl font-semibold" id="inbox-event-conversion-title">
                   Converter em evento
                 </h2>
-                <p className="mt-2 text-sm text-slate-600">
+                <p className="mt-2 text-sm semantic-text-secondary">
                   O texto original será preservado como fonte rastreável.
                 </p>
-                <p className="mt-4 max-h-28 overflow-y-auto break-words whitespace-pre-wrap rounded-xl bg-stone-100 p-3 text-sm">
+                <p className="mt-4 max-h-28 overflow-y-auto break-words whitespace-pre-wrap rounded-xl semantic-surface-muted p-3 text-sm">
                   {eventConversion.rawText}
                 </p>
                 {eventError === null ? null : (
-                  <p className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-800" role="alert">
-                    {eventError}
-                  </p>
+                  <div className="mt-4">
+                    <UserFacingErrorNotice compact error={eventError} operation="inbox.convert" />
+                  </div>
                 )}
                 <label className="mt-4 block text-sm font-semibold" htmlFor="inbox-event-title">
                   Título
                 </label>
                 <input
-                  className="mt-1 w-full rounded-xl border border-stone-300 px-3 py-2"
+                  className="mt-1 w-full rounded-xl border semantic-border px-3 py-2"
                   disabled={busy !== null}
                   id="inbox-event-title"
                   maxLength={200}
@@ -1632,7 +1628,7 @@ export function InboxManager({
                   Descrição
                 </label>
                 <textarea
-                  className="mt-1 min-h-24 w-full rounded-xl border border-stone-300 px-3 py-2"
+                  className="mt-1 min-h-24 w-full rounded-xl border semantic-border px-3 py-2"
                   disabled={busy !== null}
                   id="inbox-event-description"
                   maxLength={100000}
@@ -1643,7 +1639,7 @@ export function InboxManager({
                   Sessão (opcional)
                 </label>
                 <select
-                  className="mt-1 w-full rounded-xl border border-stone-300 px-3 py-2"
+                  className="mt-1 w-full rounded-xl border semantic-border px-3 py-2"
                   disabled={busy !== null}
                   id="inbox-event-session"
                   onChange={(event) => setEventSessionId(event.target.value)}
@@ -1660,7 +1656,7 @@ export function InboxManager({
                   Ordem narrativa
                 </label>
                 <input
-                  className="mt-1 w-full rounded-xl border border-stone-300 px-3 py-2"
+                  className="mt-1 w-full rounded-xl border semantic-border px-3 py-2"
                   disabled={busy !== null}
                   id="inbox-event-order"
                   min={0}
@@ -1672,7 +1668,7 @@ export function InboxManager({
                   Rótulo temporal
                 </label>
                 <input
-                  className="mt-1 w-full rounded-xl border border-stone-300 px-3 py-2"
+                  className="mt-1 w-full rounded-xl border semantic-border px-3 py-2"
                   disabled={busy !== null}
                   id="inbox-event-occurred"
                   maxLength={200}
@@ -1683,7 +1679,7 @@ export function InboxManager({
                   Vincular entidade (opcional)
                 </label>
                 <select
-                  className="mt-1 w-full rounded-xl border border-stone-300 px-3 py-2"
+                  className="mt-1 w-full rounded-xl border semantic-border px-3 py-2"
                   disabled={busy !== null}
                   id="inbox-event-link"
                   onChange={(event) => setEventLinkEntityId(event.target.value)}
@@ -1700,7 +1696,7 @@ export function InboxManager({
                   Papel do vínculo
                 </label>
                 <select
-                  className="mt-1 w-full rounded-xl border border-stone-300 px-3 py-2"
+                  className="mt-1 w-full rounded-xl border semantic-border px-3 py-2"
                   disabled={busy !== null || eventLinkEntityId === ''}
                   id="inbox-event-role"
                   onChange={(event) => setEventLinkRole(event.target.value as typeof eventLinkRole)}
@@ -1732,23 +1728,8 @@ export function InboxManager({
                     </option>
                   ))}
                 </select>
-                <label
-                  className="mt-4 block text-sm font-semibold"
-                  htmlFor="inbox-event-link-order"
-                >
-                  Ordem do vínculo
-                </label>
-                <input
-                  className="mt-1 w-full rounded-xl border border-stone-300 px-3 py-2"
-                  disabled={busy !== null || eventLinkEntityId === ''}
-                  id="inbox-event-link-order"
-                  min={0}
-                  onChange={(event) => setEventLinkSortOrder(Number(event.target.value))}
-                  type="number"
-                  value={eventLinkSortOrder}
-                />
                 <fieldset
-                  className="mt-5 grid gap-4 rounded-xl border border-stone-200 p-4"
+                  className="mt-5 grid gap-4 rounded-xl border semantic-border p-4"
                   disabled={busy !== null}
                 >
                   <legend className="px-1 text-sm font-semibold">Metadados narrativos</legend>
@@ -1792,22 +1773,25 @@ export function InboxManager({
                     ]}
                   />
                 </fieldset>
-                <div className="mt-6 flex justify-end gap-3">
-                  <button
-                    className={secondaryClass}
+                <DialogActions className="mt-6">
+                  <Button
                     disabled={busy !== null}
                     onClick={() => {
                       setEventConversion(null);
                       requestAnimationFrame(() => triggerRef.current?.focus());
                     }}
-                    type="button"
                   >
                     Cancelar
-                  </button>
-                  <button className={primaryClass} disabled={busy !== null} type="submit">
+                  </Button>
+                  <Button
+                    busy={busy === eventConversion.id}
+                    disabled={busy !== null}
+                    type="submit"
+                    variant="primary"
+                  >
                     {busy === eventConversion.id ? 'Convertendo…' : 'Confirmar conversão'}
-                  </button>
-                </div>
+                  </Button>
+                </DialogActions>
               </form>
             </div>,
             document.body,
@@ -1818,7 +1802,7 @@ export function InboxManager({
             <div
               aria-labelledby="inbox-relationship-conversion-title"
               aria-modal="true"
-              className="fixed inset-0 z-40 grid place-items-center overflow-y-auto bg-slate-950/40 p-4"
+              className="fixed inset-0 z-40 grid place-items-center overflow-y-auto semantic-overlay p-4"
               onKeyDown={(event) => {
                 if (event.key === 'Escape' && busy === null) {
                   setRelationshipConversion(null);
@@ -1830,7 +1814,7 @@ export function InboxManager({
             >
               <form
                 aria-busy={busy === relationshipConversion.id}
-                className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-xl"
+                className="w-full max-w-2xl rounded-2xl semantic-surface p-6 shadow-xl"
                 onSubmit={(event) => {
                   event.preventDefault();
                   void convertRelationship();
@@ -1840,12 +1824,12 @@ export function InboxManager({
                 <h2 className="text-xl font-semibold" id="inbox-relationship-conversion-title">
                   Converter em relação
                 </h2>
-                <p className="mt-2 text-sm text-slate-600">
+                <p className="mt-2 text-sm semantic-text-secondary">
                   A captura original será preservada como fonte rastreável da relação.
                 </p>
                 <div
                   aria-labelledby="inbox-relationship-source-text"
-                  className="mt-4 max-h-28 overflow-y-auto rounded-xl bg-stone-100 p-3"
+                  className="mt-4 max-h-28 overflow-y-auto rounded-xl semantic-surface-muted p-3"
                 >
                   <p className="text-xs font-semibold" id="inbox-relationship-source-text">
                     Texto original da captura
@@ -1855,24 +1839,29 @@ export function InboxManager({
                   </p>
                 </div>
                 {relationshipError === null ? null : (
-                  <p className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-800" role="alert">
-                    {relationshipError}
-                  </p>
+                  <div className="mt-4">
+                    <UserFacingErrorNotice
+                      compact
+                      error={relationshipError}
+                      operation="inbox.convert"
+                    />
+                  </div>
                 )}
                 {!canChooseRelationshipSource || !canChooseRelationshipTarget ? (
-                  <div className="mt-4 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">
+                  <div className="mt-4 rounded-xl semantic-warning-surface p-3 text-sm semantic-accent-text">
                     <p>
                       O tipo selecionado não possui entidades ou tipos de entidade compatíveis para
                       todos os extremos.
                     </p>
-                    <button
-                      className="mt-2 font-semibold underline"
+                    <Button
+                      className="mt-2"
                       disabled={busy !== null}
                       onClick={onManageEntityTypes}
-                      type="button"
+                      size="small"
+                      variant="link"
                     >
                       Gerenciar tipos de entidade
-                    </button>
+                    </Button>
                   </div>
                 ) : null}
                 <label
@@ -1882,7 +1871,7 @@ export function InboxManager({
                   Tipo de relação
                 </label>
                 <select
-                  className="mt-1 w-full rounded-xl border border-stone-300 px-3 py-2"
+                  className="mt-1 w-full rounded-xl border semantic-border px-3 py-2"
                   disabled={busy !== null || relationshipTypes.length === 0}
                   id="inbox-relationship-type"
                   onChange={(event) => {
@@ -1936,7 +1925,7 @@ export function InboxManager({
                   Descrição da relação
                 </label>
                 <textarea
-                  className="mt-1 min-h-20 w-full rounded-xl border border-stone-300 px-3 py-2"
+                  className="mt-1 min-h-20 w-full rounded-xl border semantic-border px-3 py-2"
                   disabled={busy !== null}
                   id="inbox-relationship-description"
                   maxLength={10000}
@@ -1944,7 +1933,7 @@ export function InboxManager({
                   value={relationshipDescription}
                 />
                 <fieldset
-                  className="mt-5 grid gap-4 rounded-xl border border-stone-200 p-4"
+                  className="mt-5 grid gap-4 rounded-xl border semantic-border p-4"
                   disabled={busy !== null}
                 >
                   <legend className="px-1 text-sm font-semibold">Metadados narrativos</legend>
@@ -1992,20 +1981,18 @@ export function InboxManager({
                     ]}
                   />
                 </fieldset>
-                <div className="mt-6 flex justify-end gap-3">
-                  <button
-                    className={secondaryClass}
+                <DialogActions className="mt-6">
+                  <Button
                     disabled={busy !== null}
                     onClick={() => {
                       setRelationshipConversion(null);
                       requestAnimationFrame(() => triggerRef.current?.focus());
                     }}
-                    type="button"
                   >
                     Cancelar
-                  </button>
-                  <button
-                    className={primaryClass}
+                  </Button>
+                  <Button
+                    busy={busy === relationshipConversion.id}
                     disabled={
                       busy !== null ||
                       relationshipTypes.length === 0 ||
@@ -2015,10 +2002,11 @@ export function InboxManager({
                       (relationshipTargetMode === 'new' && compatibleTargetTypes.length === 0)
                     }
                     type="submit"
+                    variant="primary"
                   >
                     {busy === relationshipConversion.id ? 'Convertendo…' : 'Confirmar conversão'}
-                  </button>
-                </div>
+                  </Button>
+                </DialogActions>
               </form>
             </div>,
             document.body,
@@ -2091,7 +2079,7 @@ function MetadataSelect({
         {label}
       </label>
       <select
-        className="mt-1 w-full rounded-xl border border-stone-300 px-3 py-2"
+        className="mt-1 w-full rounded-xl border semantic-border px-3 py-2"
         id={id}
         onChange={(event) => onChange(event.target.value)}
         value={value}
@@ -2155,13 +2143,13 @@ function RelationshipEndpointFields({
 }): React.JSX.Element {
   const modeId = `${idPrefix}-mode`;
   return (
-    <fieldset className="mt-5 rounded-xl border border-stone-200 p-4" disabled={disabled}>
+    <fieldset className="mt-5 rounded-xl border semantic-border p-4" disabled={disabled}>
       <legend className="px-1 text-sm font-semibold">{label}</legend>
       <label className="block text-sm" htmlFor={modeId}>
         Usar entidade existente ou criar agora
       </label>
       <select
-        className="mt-1 w-full rounded-xl border border-stone-300 px-3 py-2"
+        className="mt-1 w-full rounded-xl border semantic-border px-3 py-2"
         id={modeId}
         onChange={(event) => onModeChange(event.target.value as 'existing' | 'new')}
         value={mode}
@@ -2179,7 +2167,7 @@ function RelationshipEndpointFields({
             Entidade
           </label>
           <select
-            className="mt-1 w-full rounded-xl border border-stone-300 px-3 py-2"
+            className="mt-1 w-full rounded-xl border semantic-border px-3 py-2"
             disabled={entities.length === 0}
             id={`${idPrefix}-entity`}
             onChange={(event) => onEntityChange(event.target.value)}
@@ -2199,7 +2187,7 @@ function RelationshipEndpointFields({
             Tipo da nova entidade
           </label>
           <select
-            className="mt-1 w-full rounded-xl border border-stone-300 px-3 py-2"
+            className="mt-1 w-full rounded-xl border semantic-border px-3 py-2"
             disabled={entityTypes.length === 0}
             id={`${idPrefix}-type`}
             onChange={(event) => onEntityTypeChange(event.target.value)}
@@ -2216,7 +2204,7 @@ function RelationshipEndpointFields({
             Nome da nova entidade
           </label>
           <input
-            className="mt-1 w-full rounded-xl border border-stone-300 px-3 py-2"
+            className="mt-1 w-full rounded-xl border semantic-border px-3 py-2"
             id={`${idPrefix}-name`}
             maxLength={200}
             onChange={(event) => onNameChange(event.target.value)}

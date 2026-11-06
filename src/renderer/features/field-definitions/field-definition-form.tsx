@@ -1,4 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
+import { Button, FormActions } from '../../components/actions';
+import { ContextualHelp, type ContextualHelpContent } from '../../components/contextual-help';
+import { contextualHelpCatalog } from '../../content/contextual-help';
 import {
   fieldDataTypes,
   fieldSemanticRoles,
@@ -6,6 +9,8 @@ import {
   type FieldDefinition,
   type FieldDefinitionPatch,
 } from '../../../core/contracts/field-definitions';
+import type { EntityType } from '../../../core/contracts/entity-types';
+import type { RelationshipType } from '../../../core/contracts/relationship-types';
 
 export type FieldDefinitionCreateValues = Omit<
   CreateFieldDefinitionInputRequest,
@@ -13,6 +18,7 @@ export type FieldDefinitionCreateValues = Omit<
 >;
 
 type FormProps = {
+  campaignId: string;
   busy: boolean;
   error: string | null;
   onCancel: () => void;
@@ -26,9 +32,10 @@ type FormProps = {
 );
 
 interface FormValues {
-  key: string;
   label: string;
   description: string;
+  helpText: string;
+  exampleText: string;
   dataType: FieldDefinition['dataType'];
   semanticRole: string;
   required: boolean;
@@ -39,18 +46,24 @@ interface FormValues {
   validation: string;
   referenceRelationshipTypeId: string;
   referenceDirection: string;
-  allowedTargetTypeIds: string;
+  allowedTargetTypeIds: string[];
   onDeleteBehavior: string;
-  sortOrder: string;
 }
-
-const stableKeyPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 export function FieldDefinitionForm(props: FormProps): React.JSX.Element {
   const [values, setValues] = useState<FormValues>(() =>
     props.mode === 'create' ? emptyValues : toFormValues(props.field),
   );
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [referenceOptions, setReferenceOptions] = useState<{
+    entityTypes: EntityType[];
+    relationshipTypes: RelationshipType[];
+  }>({ entityTypes: [], relationshipTypes: [] });
+  const [referenceOptionsState, setReferenceOptionsState] = useState<
+    'idle' | 'loading' | 'ready' | 'error'
+  >('idle');
+  const [referenceOptionsAttempt, setReferenceOptionsAttempt] = useState(0);
+  const referenceOptionsRequest = useRef(0);
 
   function update<Field extends keyof FormValues>(field: Field, value: FormValues[Field]): void {
     setValidationError(null);
@@ -61,12 +74,6 @@ export function FieldDefinitionForm(props: FormProps): React.JSX.Element {
     event.preventDefault();
     try {
       const normalized = normalize(values);
-      if (!stableKeyPattern.test(normalized.key)) {
-        setValidationError(
-          'A chave deve usar apenas letras minúsculas sem acentos, números e hífens simples.',
-        );
-        return;
-      }
       if (props.mode === 'create') {
         void props.onSubmit(normalized);
         return;
@@ -87,26 +94,99 @@ export function FieldDefinitionForm(props: FormProps): React.JSX.Element {
     setValues((current) => ({
       ...current,
       dataType: value,
+      ...(value === 'image'
+        ? {
+            required: false,
+            searchable: false,
+            secretByDefault: false,
+            defaultValue: '',
+            options: '',
+            validation: '',
+          }
+        : {}),
       ...(value.startsWith('entity_reference')
         ? {}
         : {
             referenceRelationshipTypeId: '',
             referenceDirection: '',
-            allowedTargetTypeIds: '',
+            allowedTargetTypeIds: [],
             onDeleteBehavior: '',
           }),
     }));
   }
 
   const isReference = values.dataType.startsWith('entity_reference');
+  const isImage = values.dataType === 'image';
+  useEffect(() => {
+    if (!isReference) {
+      setReferenceOptionsState('idle');
+      return;
+    }
+    const requestId = referenceOptionsRequest.current + 1;
+    referenceOptionsRequest.current = requestId;
+    setReferenceOptions({ entityTypes: [], relationshipTypes: [] });
+    setReferenceOptionsState('loading');
+    void (async () => {
+      try {
+        const [relationshipResult, entityResult] = await Promise.all([
+          window.campaignManager.relationshipTypes.list({
+            campaignId: props.campaignId,
+            limit: 100,
+            filters: { isArchived: false },
+          }),
+          window.campaignManager.entityTypes.list({
+            campaignId: props.campaignId,
+            limit: 100,
+            filters: { isArchived: false },
+          }),
+        ]);
+        if (requestId !== referenceOptionsRequest.current) return;
+        if (!relationshipResult.ok || !entityResult.ok) {
+          setReferenceOptionsState('error');
+          return;
+        }
+        setReferenceOptions({
+          relationshipTypes: relationshipResult.data.items,
+          entityTypes: entityResult.data.items,
+        });
+        setReferenceOptionsState('ready');
+      } catch {
+        if (requestId !== referenceOptionsRequest.current) return;
+        setReferenceOptionsState('error');
+      }
+    })();
+    return () => {
+      referenceOptionsRequest.current += 1;
+    };
+  }, [isReference, props.campaignId, referenceOptionsAttempt]);
+
+  const selectedRelationshipType = referenceOptions.relationshipTypes.find(
+    ({ id }) => id === values.referenceRelationshipTypeId,
+  );
+  const allowedEntityTypes = referenceOptions.entityTypes.filter((entityType) => {
+    if (selectedRelationshipType === undefined || values.referenceDirection === '') return true;
+    const allowedIds =
+      values.referenceDirection === 'outgoing'
+        ? selectedRelationshipType.allowedTargetTypeIds
+        : selectedRelationshipType.allowedSourceTypeIds;
+    return allowedIds === null || allowedIds.includes(entityType.id);
+  });
+  const referenceOptionsBusy = props.busy || referenceOptionsState === 'loading';
+  const referenceOptionsUnavailable = isReference && referenceOptionsState !== 'ready';
   return (
     <section className="mx-auto w-full max-w-5xl" aria-labelledby="field-form-title">
-      <button className={backClass} disabled={props.busy} onClick={props.onCancel} type="button">
+      <Button
+        className="mb-6"
+        disabled={props.busy}
+        onClick={props.onCancel}
+        size="small"
+        variant="ghost"
+      >
         ← Voltar para definições de campo
-      </button>
-      <div className="overflow-hidden rounded-3xl border border-stone-200 bg-white shadow-sm">
-        <header className="border-b border-stone-200 bg-stone-50 px-8 py-7">
-          <p className="text-xs font-bold tracking-[0.2em] text-amber-800 uppercase">
+      </Button>
+      <div className="overflow-hidden rounded-3xl border semantic-border semantic-surface shadow-sm">
+        <header className="border-b semantic-border semantic-surface-muted px-8 py-7">
+          <p className="text-xs font-bold tracking-[0.2em] semantic-accent-text uppercase">
             {props.mode === 'create' ? 'Nova definição de campo' : 'Editar definição de campo'}
           </p>
           <h1 id="field-form-title" className="mt-2 text-3xl font-semibold">
@@ -114,24 +194,20 @@ export function FieldDefinitionForm(props: FormProps): React.JSX.Element {
           </h1>
         </header>
         <form className="space-y-7 px-8 py-8" onSubmit={submit}>
-          <div className="grid gap-6 md:grid-cols-2">
-            <TextInput
-              label="Rótulo"
-              value={values.label}
-              onChange={(v) => update('label', v)}
-              required
-            />
-            <TextInput
-              label="Chave"
-              value={values.key}
-              onChange={(v) => update('key', v)}
-              required
-            />
-          </div>
-          <p className="-mt-5 text-xs text-slate-500">
-            A chave aceita letras minúsculas sem acentos, números e hífens simples. Exemplo:
-            objetivo-principal.
-          </p>
+          <TextInput
+            autoFocus
+            describedBy={props.mode === 'create' ? 'field-key-generation-help' : undefined}
+            id="field-label"
+            label="Rótulo"
+            value={values.label}
+            onChange={(v) => update('label', v)}
+            required
+          />
+          {props.mode === 'create' ? (
+            <p className="-mt-5 text-sm semantic-text-secondary" id="field-key-generation-help">
+              A chave técnica será gerada automaticamente ao criar o campo.
+            </p>
+          ) : null}
           <div>
             <label className={labelClass} htmlFor="field-description">
               Descrição
@@ -143,8 +219,23 @@ export function FieldDefinitionForm(props: FormProps): React.JSX.Element {
               onChange={(e) => update('description', e.target.value)}
             />
           </div>
+          <div className="grid gap-6 md:grid-cols-2">
+            <TextArea
+              label="Texto de ajuda"
+              maxLength={2000}
+              value={values.helpText}
+              onChange={(v) => update('helpText', v)}
+            />
+            <TextArea
+              label="Exemplo"
+              maxLength={2000}
+              value={values.exampleText}
+              onChange={(v) => update('exampleText', v)}
+            />
+          </div>
           <div className="grid gap-6 md:grid-cols-3">
             <Select
+              help={contextualHelpCatalog['fieldDefinition.dataType']}
               label="Tipo de dado"
               value={values.dataType}
               onChange={(v) => updateDataType(v as FieldDefinition['dataType'])}
@@ -159,72 +250,93 @@ export function FieldDefinitionForm(props: FormProps): React.JSX.Element {
                 ...fieldSemanticRoles.map((value) => [value, value] as const),
               ]}
             />
-            <TextInput
-              label="Ordem"
-              value={values.sortOrder}
-              onChange={(v) => update('sortOrder', v)}
-              type="number"
-              required
-            />
           </div>
-          <div className="flex flex-wrap gap-6 rounded-2xl bg-stone-50 p-5">
+          {isImage ? (
+            <p className="rounded-xl semantic-surface-muted p-4 text-sm semantic-text-secondary">
+              Campos de imagem são sempre opcionais e não pesquisáveis; valor padrão, opções e
+              validação JSON ficam desativados. “Secreto por padrão” não se aplica a este tipo; as
+              imagens permanecem privadas e são servidas somente pelo canal seguro.
+            </p>
+          ) : null}
+          <div className="flex flex-wrap gap-6 rounded-2xl semantic-surface-muted p-5">
             <Check
               label="Obrigatório"
               checked={values.required}
+              disabled={isImage}
               onChange={(v) => update('required', v)}
             />
             <Check
               label="Pesquisável"
               checked={values.searchable}
+              disabled={isImage}
               onChange={(v) => update('searchable', v)}
             />
             <Check
               label="Secreto por padrão"
               checked={values.secretByDefault}
+              disabled={isImage}
               onChange={(v) => update('secretByDefault', v)}
             />
           </div>
           <div className="grid gap-6 md:grid-cols-3">
             <JsonInput
               label="Valor padrão (JSON)"
+              disabled={isImage}
               value={values.defaultValue}
               onChange={(v) => update('defaultValue', v)}
             />
             <JsonInput
               label="Opções (JSON)"
+              disabled={isImage}
               value={values.options}
               onChange={(v) => update('options', v)}
             />
             <JsonInput
               label="Validação (JSON)"
+              disabled={isImage}
               value={values.validation}
               onChange={(v) => update('validation', v)}
             />
           </div>
           {isReference ? (
-            <fieldset className="grid gap-6 rounded-2xl border border-stone-200 p-5 md:grid-cols-2">
+            <fieldset className="grid gap-6 rounded-2xl border semantic-border p-5 md:grid-cols-2">
               <legend className="px-2 font-semibold">Configuração da referência</legend>
-              <TextInput
-                label="ID do tipo de relacionamento"
+              <Select
+                disabled={referenceOptionsBusy || referenceOptionsState === 'error'}
+                label="Tipo de relacionamento"
                 value={values.referenceRelationshipTypeId}
-                onChange={(v) => update('referenceRelationshipTypeId', v)}
+                onChange={(v) => {
+                  update('referenceRelationshipTypeId', v);
+                  update('allowedTargetTypeIds', []);
+                }}
+                options={[
+                  ['', 'Selecione'],
+                  ...relationshipOptions(referenceOptions.relationshipTypes, values),
+                ]}
               />
               <Select
+                disabled={referenceOptionsBusy}
                 label="Direção"
                 value={values.referenceDirection}
-                onChange={(v) => update('referenceDirection', v)}
+                onChange={(v) => {
+                  update('referenceDirection', v);
+                  update('allowedTargetTypeIds', []);
+                }}
                 options={[
                   ['', 'Nenhuma'],
                   ['outgoing', 'Saída'],
                   ['incoming', 'Entrada'],
                 ]}
               />
-              <TextInput
-                label="IDs dos tipos permitidos (separados por vírgula)"
-                value={values.allowedTargetTypeIds}
+              <EntityTypeChoices
+                disabled={referenceOptionsBusy || referenceOptionsState === 'error'}
+                entityTypes={allowedEntityTypes}
+                label="Tipos de entidade permitidos"
                 onChange={(v) => update('allowedTargetTypeIds', v)}
+                selected={values.allowedTargetTypeIds}
               />
               <Select
+                disabled={props.busy}
                 label="Ao excluir"
                 value={values.onDeleteBehavior}
                 onChange={(v) => update('onDeleteBehavior', v)}
@@ -234,33 +346,53 @@ export function FieldDefinitionForm(props: FormProps): React.JSX.Element {
                   ['unlink', 'Desvincular'],
                 ]}
               />
+              {referenceOptionsState === 'loading' ? (
+                <p className="text-sm semantic-text-secondary md:col-span-2" role="status">
+                  Carregando opções de referência…
+                </p>
+              ) : referenceOptionsState === 'error' ? (
+                <div
+                  className="rounded-xl border semantic-danger-border semantic-danger-surface p-4 text-sm semantic-error-text md:col-span-2"
+                  role="alert"
+                >
+                  <p>Não foi possível carregar as opções de referência.</p>
+                  <Button
+                    className="mt-3"
+                    disabled={props.busy}
+                    onClick={() => setReferenceOptionsAttempt((attempt) => attempt + 1)}
+                    size="small"
+                  >
+                    Tentar novamente
+                  </Button>
+                </div>
+              ) : null}
             </fieldset>
           ) : null}
           {props.error === null && validationError === null ? null : (
             <p
-              className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800"
+              className="rounded-xl border semantic-danger-border semantic-danger-surface p-4 text-sm semantic-error-text"
               role="alert"
             >
               {props.error ?? validationError}
             </p>
           )}
-          <div className="flex justify-end gap-3 border-t border-stone-200 pt-7">
-            <button
-              className={secondaryClass}
-              disabled={props.busy}
-              onClick={props.onCancel}
-              type="button"
-            >
+          <FormActions>
+            <Button disabled={props.busy} onClick={props.onCancel}>
               Cancelar
-            </button>
-            <button className={primaryClass} disabled={props.busy} type="submit">
+            </Button>
+            <Button
+              busy={props.busy}
+              disabled={props.busy || referenceOptionsUnavailable}
+              type="submit"
+              variant="primary"
+            >
               {props.busy
                 ? 'Salvando…'
                 : props.mode === 'create'
                   ? 'Criar definição de campo'
                   : 'Salvar definição de campo'}
-            </button>
-          </div>
+            </Button>
+          </FormActions>
         </form>
       </div>
     </section>
@@ -269,9 +401,10 @@ export function FieldDefinitionForm(props: FormProps): React.JSX.Element {
 
 function normalize(values: FormValues): FieldDefinitionCreateValues {
   return {
-    key: values.key.trim(),
     label: values.label.trim(),
     description: nullable(values.description),
+    helpText: nullable(values.helpText),
+    exampleText: nullable(values.exampleText),
     dataType: values.dataType,
     semanticRole:
       values.semanticRole === '' ? null : (values.semanticRole as FieldDefinition['semanticRole']),
@@ -287,14 +420,11 @@ function normalize(values: FormValues): FieldDefinitionCreateValues {
         ? null
         : (values.referenceDirection as FieldDefinition['referenceDirection']),
     allowedTargetTypeIds:
-      values.allowedTargetTypeIds.trim() === ''
-        ? null
-        : values.allowedTargetTypeIds.split(',').map((id) => id.trim()),
+      values.allowedTargetTypeIds.length === 0 ? null : values.allowedTargetTypeIds,
     onDeleteBehavior:
       values.onDeleteBehavior === ''
         ? null
         : (values.onDeleteBehavior as FieldDefinition['onDeleteBehavior']),
-    sortOrder: Number(values.sortOrder),
   };
 }
 
@@ -312,9 +442,10 @@ function createPatch(
 
 function toFormValues(field: FieldDefinition): FormValues {
   return {
-    key: field.key,
     label: field.label,
     description: field.description ?? '',
+    helpText: field.helpText ?? '',
+    exampleText: field.exampleText ?? '',
     dataType: field.dataType,
     semanticRole: field.semanticRole ?? '',
     required: field.required,
@@ -325,16 +456,16 @@ function toFormValues(field: FieldDefinition): FormValues {
     validation: displayJson(field.validation),
     referenceRelationshipTypeId: field.referenceRelationshipTypeId ?? '',
     referenceDirection: field.referenceDirection ?? '',
-    allowedTargetTypeIds: field.allowedTargetTypeIds?.join(', ') ?? '',
+    allowedTargetTypeIds: field.allowedTargetTypeIds ?? [],
     onDeleteBehavior: field.onDeleteBehavior ?? '',
-    sortOrder: String(field.sortOrder),
   };
 }
 
 const emptyValues: FormValues = {
-  key: '',
   label: '',
   description: '',
+  helpText: '',
+  exampleText: '',
   dataType: 'short_text',
   semanticRole: '',
   required: false,
@@ -345,9 +476,8 @@ const emptyValues: FormValues = {
   validation: '',
   referenceRelationshipTypeId: '',
   referenceDirection: '',
-  allowedTargetTypeIds: '',
+  allowedTargetTypeIds: [],
   onDeleteBehavior: '',
-  sortOrder: '0',
 };
 function nullable(value: string): string | null {
   const trimmed = value.trim();
@@ -365,16 +495,37 @@ function displayJson(value: unknown): string {
   return value === null ? '' : JSON.stringify(value);
 }
 function dataTypeLabel(value: string): string {
-  return value.replaceAll('_', ' ');
+  return (
+    {
+      short_text: 'Texto curto',
+      long_text: 'Texto longo',
+      number: 'Número',
+      boolean: 'Sim/não',
+      date: 'Data',
+      single_select: 'Seleção única',
+      multi_select: 'Seleção múltipla',
+      entity_reference: 'Referência de entidade',
+      entity_reference_list: 'Lista de referências',
+      structured: 'Estruturado',
+      progress: 'Progresso',
+      image: 'Imagem',
+    }[value] ?? value.replaceAll('_', ' ')
+  );
 }
 
 function TextInput({
+  autoFocus = false,
+  describedBy,
+  id,
   label,
   value,
   onChange,
   required = false,
   type = 'text',
 }: {
+  autoFocus?: boolean;
+  describedBy?: string | undefined;
+  id?: string;
   label: string;
   value: string;
   onChange: (value: string) => void;
@@ -386,7 +537,10 @@ function TextInput({
       {label}
       {required ? ' *' : ''}
       <input
+        aria-describedby={describedBy}
+        autoFocus={autoFocus}
         className={inputClass}
+        id={id}
         min={type === 'number' ? 0 : undefined}
         onChange={(e) => onChange(e.target.value)}
         required={required}
@@ -396,7 +550,31 @@ function TextInput({
     </label>
   );
 }
+function TextArea({
+  label,
+  maxLength,
+  value,
+  onChange,
+}: {
+  label: string;
+  maxLength: number;
+  value: string;
+  onChange: (value: string) => void;
+}): React.JSX.Element {
+  return (
+    <label className={labelClass}>
+      {label}
+      <textarea
+        className={`${inputClass} min-h-24`}
+        maxLength={maxLength}
+        onChange={(event) => onChange(event.target.value)}
+        value={value}
+      />
+    </label>
+  );
+}
 function JsonInput(props: {
+  disabled?: boolean;
   label: string;
   value: string;
   onChange: (value: string) => void;
@@ -406,6 +584,7 @@ function JsonInput(props: {
       {props.label}
       <textarea
         className={`${inputClass} min-h-24 font-mono text-sm`}
+        disabled={props.disabled}
         onChange={(e) => props.onChange(e.target.value)}
         placeholder='{"exemplo": true}'
         value={props.value}
@@ -414,50 +593,148 @@ function JsonInput(props: {
   );
 }
 function Select({
+  disabled = false,
+  help,
   label,
   value,
   onChange,
   options,
 }: {
+  disabled?: boolean;
+  help?: ContextualHelpContent;
   label: string;
   value: string;
   onChange: (value: string) => void;
   options: (readonly [string, string])[];
 }): React.JSX.Element {
+  const generatedId = useId();
+  const selectId = `field-select-${generatedId.replaceAll(':', '')}`;
   return (
-    <label className={labelClass}>
-      {label}
-      <select className={inputClass} onChange={(e) => onChange(e.target.value)} value={value}>
+    <div>
+      <div className="flex items-center gap-1">
+        <label className={labelClass} htmlFor={selectId}>
+          {label}
+        </label>
+        {help === undefined ? null : <ContextualHelp content={help} label={label} />}
+      </div>
+      <select
+        className={inputClass}
+        disabled={disabled}
+        id={selectId}
+        onChange={(e) => onChange(e.target.value)}
+        value={value}
+      >
         {options.map(([id, text]) => (
           <option key={id} value={id}>
             {text}
           </option>
         ))}
       </select>
-    </label>
+    </div>
+  );
+}
+function EntityTypeChoices({
+  disabled,
+  entityTypes,
+  label,
+  onChange,
+  selected,
+}: {
+  disabled: boolean;
+  entityTypes: EntityType[];
+  label: string;
+  onChange: (value: string[]) => void;
+  selected: string[];
+}): React.JSX.Element {
+  const generatedId = useId();
+  const labelId = `field-entity-types-${generatedId.replaceAll(':', '')}`;
+  const options = entityTypeOptions(entityTypes, selected);
+  return (
+    <div aria-labelledby={labelId} className="rounded-xl border semantic-border p-4" role="group">
+      <p className="font-semibold semantic-text-primary" id={labelId}>
+        {label}
+      </p>
+      <p className="mt-1 text-xs semantic-text-secondary">
+        Nenhuma seleção permite todos os tipos.
+      </p>
+      {options.length === 0 ? (
+        <p className="mt-3 text-sm semantic-text-secondary">Nenhum tipo de entidade ativo.</p>
+      ) : (
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          {options.map(([id, text]) => (
+            <label className="flex items-center gap-3 text-sm" key={id}>
+              <input
+                checked={selected.includes(id)}
+                disabled={disabled}
+                onChange={(event) =>
+                  onChange(
+                    event.target.checked
+                      ? [...selected, id]
+                      : selected.filter((selectedId) => selectedId !== id),
+                  )
+                }
+                type="checkbox"
+              />
+              {text}
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 function Check({
+  disabled = false,
   label,
   checked,
   onChange,
 }: {
+  disabled?: boolean;
   label: string;
   checked: boolean;
   onChange: (value: boolean) => void;
 }): React.JSX.Element {
   return (
     <label className="flex items-center gap-2 text-sm font-semibold">
-      <input checked={checked} onChange={(e) => onChange(e.target.checked)} type="checkbox" />
+      <input
+        checked={checked}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.checked)}
+        type="checkbox"
+      />
       {label}
     </label>
   );
 }
-const labelClass = 'block text-sm font-semibold text-slate-800';
+function relationshipOptions(
+  relationshipTypes: RelationshipType[],
+  values: FormValues,
+): (readonly [string, string])[] {
+  const options: (readonly [string, string])[] = relationshipTypes.map(({ id, name }) => [
+    id,
+    name,
+  ]);
+  if (
+    values.referenceRelationshipTypeId !== '' &&
+    !relationshipTypes.some(({ id }) => id === values.referenceRelationshipTypeId)
+  )
+    options.push([
+      values.referenceRelationshipTypeId,
+      'Tipo anteriormente selecionado (indisponível)',
+    ]);
+  return options;
+}
+function entityTypeOptions(
+  entityTypes: EntityType[],
+  selectedIds: string[],
+): (readonly [string, string])[] {
+  const options: (readonly [string, string])[] = entityTypes.map(({ id, name }) => [id, name]);
+  for (const id of selectedIds) {
+    if (!entityTypes.some((entityType) => entityType.id === id))
+      options.push([id, 'Tipo anteriormente selecionado (indisponível)']);
+  }
+  return options;
+}
+const labelClass = 'block text-sm font-semibold semantic-text-primary';
 const inputClass =
-  'mt-2 w-full rounded-xl border border-stone-300 bg-white px-4 py-3 font-normal text-slate-950 outline-none focus:border-amber-700 focus:ring-3 focus:ring-amber-700/15';
-const primaryClass =
-  'rounded-xl bg-amber-700 px-6 py-3 font-semibold text-white disabled:opacity-60';
-const secondaryClass =
-  'rounded-xl border border-stone-300 bg-white px-5 py-3 font-semibold text-slate-700 disabled:opacity-60';
-const backClass = 'mb-6 rounded-lg px-2 py-1 text-sm font-semibold text-slate-600';
+  'mt-2 w-full rounded-xl border semantic-border semantic-surface px-4 py-3 font-normal semantic-text-primary outline-none semantic-focus-border focus:ring-3 semantic-focus-ring';

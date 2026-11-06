@@ -139,6 +139,7 @@ describe('RelationshipService', () => {
       campaignId,
       entityId: targetId,
       depth: 1,
+      directOnly: false,
       maxEntities: 100,
       maxRelationships: 200,
       filters: { relationshipTypeIds: [], canonStates: [], knowledgeStates: [], visibilities: [] },
@@ -151,10 +152,28 @@ describe('RelationshipService', () => {
     expect(complete.relationships).toHaveLength(3);
     expect(complete.truncated).toBe(false);
 
+    const directOnly = service.neighborhood({
+      campaignId,
+      entityId: targetId,
+      depth: 1,
+      directOnly: true,
+      maxEntities: 100,
+      maxRelationships: 200,
+      filters: { relationshipTypeIds: [], canonStates: [], knowledgeStates: [], visibilities: [] },
+    });
+    expect(directOnly.relationships).toHaveLength(2);
+    expect(
+      directOnly.relationships.every(
+        (relationship) =>
+          relationship.sourceEntityId === targetId || relationship.targetEntityId === targetId,
+      ),
+    ).toBe(true);
+
     const filtered = service.neighborhood({
       campaignId,
       entityId: targetId,
       depth: 3,
+      directOnly: false,
       maxEntities: 2,
       maxRelationships: 200,
       filters: {
