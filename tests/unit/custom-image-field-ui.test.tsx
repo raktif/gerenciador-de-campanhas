@@ -4,6 +4,7 @@ import type { FieldDefinition } from '../../src/core/contracts/field-definitions
 import { importImageFieldValueBytesInputSchema } from '../../src/core/contracts/image-field-values';
 import {
   ImageFieldGallery,
+  imageRemovalFocusTarget,
   imageMetadataDraftKey,
 } from '../../src/renderer/features/entities/image-field-gallery';
 import { toFieldValueInputs } from '../../src/renderer/features/entities/entity-form';
@@ -64,6 +65,14 @@ describe('interface de campos personalizados de imagem', () => {
     expect(
       imageMetadataDraftKey({ ...item, value: { ...item.value, revision: 2, caption: 'Nova' } }),
     ).not.toBe(imageMetadataDraftKey(item));
+  });
+
+  it('define destinos de foco recuperaveis para cada resultado de remocao', () => {
+    expect(imageRemovalFocusTarget('success')).toBe('add');
+    expect(imageRemovalFocusTarget({ errorCode: 'IMAGE_FIELD_VALUE_REMOVE_FAILED' })).toBe(
+      'confirm',
+    );
+    expect(imageRemovalFocusTarget({ errorCode: 'REVISION_CONFLICT' })).toBe('reload');
   });
 
   it('renderiza galeria e dialogo acessivel sem lightbox ou caminhos privados', () => {
