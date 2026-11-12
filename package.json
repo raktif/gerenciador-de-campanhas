@@ -29,6 +29,8 @@
     "verify": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm test:integration"
   },
   "dependencies": {
+    "@dagrejs/dagre": "3.1.3",
+    "@xyflow/react": "12.12.1",
     "better-sqlite3": "13.0.3",
     "drizzle-orm": "0.45.2",
     "electron-squirrel-startup": "1.0.1",

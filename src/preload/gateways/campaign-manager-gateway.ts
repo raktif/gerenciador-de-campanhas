@@ -126,6 +126,14 @@ import {
   type RelationshipPageResult,
 } from '../../core/contracts/relationships';
 import {
+  applyRelationshipAutoLayoutInputSchema,
+  getRelationshipViewInputSchema,
+  resetRelationshipLayoutInputSchema,
+  saveRelationshipNodePositionInputSchema,
+  saveRelationshipViewportInputSchema,
+  type RelationshipViewState,
+} from '../../core/contracts/relationship-views';
+import {
   createRelationshipTypeInputSchema,
   getRelationshipTypeInputSchema,
   moveRelationshipTypeInputSchema,
@@ -171,6 +179,7 @@ import {
   phaseZeroChannels,
   relationshipTypeChannels,
   relationshipChannels,
+  relationshipViewChannels,
   timelineChannels,
 } from '../../core/contracts/ipc-channels';
 import {
@@ -509,6 +518,38 @@ export function createCampaignManagerGateway(
           relationshipChannels.neighborhood,
           input,
           relationshipNeighborhoodInputSchema,
+        ),
+    },
+    relationshipViews: {
+      get: (input) =>
+        invoke<RelationshipViewState>(
+          relationshipViewChannels.get,
+          input,
+          getRelationshipViewInputSchema,
+        ),
+      saveNodePosition: (input) =>
+        invoke<RelationshipViewState>(
+          relationshipViewChannels.saveNodePosition,
+          input,
+          saveRelationshipNodePositionInputSchema,
+        ),
+      saveViewport: (input) =>
+        invoke<RelationshipViewState>(
+          relationshipViewChannels.saveViewport,
+          input,
+          saveRelationshipViewportInputSchema,
+        ),
+      autoLayout: (input) =>
+        invoke<RelationshipViewState>(
+          relationshipViewChannels.autoLayout,
+          input,
+          applyRelationshipAutoLayoutInputSchema,
+        ),
+      resetLayout: (input) =>
+        invoke<RelationshipViewState>(
+          relationshipViewChannels.resetLayout,
+          input,
+          resetRelationshipLayoutInputSchema,
         ),
     },
     fieldDefinitions: {

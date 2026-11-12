@@ -20,6 +20,7 @@ import campaignCoverAttachmentsMigration from './0017_campaign_cover_attachments
 import entityReferenceImagesMigration from './0018_entity_reference_images.sql?raw';
 import customImageFieldsMigration from './0019_custom_image_fields.sql?raw';
 import imageFieldAltTextIntegrityMigration from './0020_image_field_alt_text_integrity.sql?raw';
+import relationshipViewsMigration from './0021_relationship_views.sql?raw';
 
 export interface MigrationDefinition {
   version: number;
@@ -159,6 +160,12 @@ export const migrations: readonly MigrationDefinition[] = [
     name: 'phase-two-image-field-alt-text-integrity',
     checksum: checksum(imageFieldAltTextIntegrityMigration),
     sql: imageFieldAltTextIntegrityMigration,
+  },
+  {
+    version: 21,
+    name: 'phase-two-relationship-views',
+    checksum: checksum(relationshipViewsMigration),
+    sql: relationshipViewsMigration,
   },
 ];
 
