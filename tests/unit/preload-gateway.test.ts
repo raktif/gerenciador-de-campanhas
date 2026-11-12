@@ -8,6 +8,7 @@ import {
   fieldDefinitionChannels,
   imageImportChannels,
   relationshipChannels,
+  relationshipViewChannels,
   relationshipTypeChannels,
 } from '../../src/core/contracts/ipc-channels';
 import {
@@ -35,6 +36,7 @@ describe('gateway do preload', () => {
       'notes',
       'phaseZero',
       'relationshipTypes',
+      'relationshipViews',
       'relationships',
       'sessionIntentions',
       'sessionParticipants',
@@ -83,6 +85,13 @@ describe('gateway do preload', () => {
       'getTheme',
       'onThemeChanged',
       'setTheme',
+    ]);
+    expect(Object.keys(gateway.relationshipViews).sort()).toEqual([
+      'autoLayout',
+      'get',
+      'resetLayout',
+      'saveNodePosition',
+      'saveViewport',
     ]);
     expect('ipcRenderer' in gateway).toBe(false);
     expect('invoke' in gateway).toBe(false);
@@ -469,6 +478,55 @@ describe('gateway do preload', () => {
         },
       },
     ]);
+  });
+
+  it('encaminha layouts somente por contratos estritos e canais nomeados', async () => {
+    const invocations: Invocation[] = [];
+    const gateway = createCampaignManagerGateway(createInvoker(invocations));
+    const campaignId = '00000000-0000-4000-8000-000000000001';
+    const relationshipViewId = '10000000-0000-4000-8000-000000000001';
+    const entityId = '20000000-0000-4000-8000-000000000001';
+    await gateway.relationshipViews.get({
+      campaignId,
+      viewType: 'campaign',
+      sourceEntityId: null,
+    });
+    await gateway.relationshipViews.saveNodePosition({
+      campaignId,
+      relationshipViewId,
+      revision: 1,
+      position: { entityId, x: 10, y: 20, width: 180, height: 64, pinned: false },
+    });
+    await gateway.relationshipViews.saveViewport({
+      campaignId,
+      relationshipViewId,
+      revision: 2,
+      viewport: { x: 0, y: 0, zoom: 1 },
+    });
+    await gateway.relationshipViews.autoLayout({
+      campaignId,
+      relationshipViewId,
+      revision: 3,
+      positions: [{ entityId, x: 0, y: 0, width: 180, height: 64, pinned: false }],
+      viewport: { x: 0, y: 0, zoom: 1 },
+    });
+    await gateway.relationshipViews.resetLayout({
+      campaignId,
+      relationshipViewId,
+      revision: 4,
+    });
+    expect(invocations.map(({ channel }) => channel)).toEqual(
+      Object.values(relationshipViewChannels),
+    );
+    expect(() =>
+      gateway.relationshipViews.saveViewport({
+        campaignId,
+        relationshipViewId,
+        revision: 2,
+        viewport: { x: 0, y: 0, zoom: 1 },
+        ipcRenderer: true,
+      } as never),
+    ).toThrow();
   });
 
   it('limita o ingresso de imagens a bytes e metadados sem paths', async () => {

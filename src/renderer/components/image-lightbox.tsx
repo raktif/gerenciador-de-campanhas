@@ -116,8 +116,9 @@ export function isLightboxDismissKey(key: string): boolean {
 }
 
 export function trapLightboxFocus(
-  event: React.KeyboardEvent<HTMLElement>,
-  container: HTMLElement | null,
+  event: Pick<React.KeyboardEvent<HTMLElement>, 'key' | 'shiftKey' | 'preventDefault'>,
+  container: Pick<HTMLElement, 'querySelectorAll'> | null,
+  activeElement: Element | null = document.activeElement,
 ): void {
   if (event.key !== 'Tab' || container === null) return;
   const focusable = container.querySelectorAll<HTMLElement>(
@@ -126,10 +127,10 @@ export function trapLightboxFocus(
   const first = focusable[0];
   const last = focusable[focusable.length - 1];
   if (first === undefined || last === undefined) return;
-  if (event.shiftKey && document.activeElement === first) {
+  if (event.shiftKey && activeElement === first) {
     event.preventDefault();
     last.focus();
-  } else if (!event.shiftKey && document.activeElement === last) {
+  } else if (!event.shiftKey && activeElement === last) {
     event.preventDefault();
     first.focus();
   }

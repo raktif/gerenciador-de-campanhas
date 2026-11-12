@@ -3,6 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { _electron as electron, expect, test, type ElectronApplication } from '@playwright/test';
+import Database from 'better-sqlite3';
 
 const repositoryRoot = process.cwd();
 const requireFromRepository = createRequire(path.join(repositoryRoot, 'package.json'));
@@ -82,8 +83,13 @@ test('configura campo image e oferece galeria acessivel nos detalhes', async () 
     let lightbox = window.getByRole('dialog', {
       name: 'Visualização ampliada: Brasão azul e dourado',
     });
-    await expect(lightbox.getByRole('button', { name: 'Fechar imagem ampliada' })).toBeFocused();
-    await lightbox.getByRole('button', { name: 'Fechar imagem ampliada' }).click();
+    const closeLightbox = lightbox.getByRole('button', { name: 'Fechar imagem ampliada' });
+    await expect(closeLightbox).toBeFocused();
+    await window.keyboard.press('Tab');
+    await expect(closeLightbox).toBeFocused();
+    await window.keyboard.press('Shift+Tab');
+    await expect(closeLightbox).toBeFocused();
+    await closeLightbox.click();
     await expect(amplify).toBeFocused();
     await amplify.click();
     await window.keyboard.press('Escape');
@@ -125,15 +131,73 @@ test('configura campo image e oferece galeria acessivel nos detalhes', async () 
     await window.keyboard.press('Escape');
     await expect(removal).toHaveCount(0);
     await expect(remove).toBeFocused();
+
+    installImageRemovalFailure(dataDirectory);
     await remove.click();
-    await removal.getByRole('button', { name: 'Confirmar remoção' }).click();
+    const confirmRemoval = removal.getByRole('button', { name: 'Confirmar remoção' });
+    await confirmRemoval.click();
+    await expect(removal.getByRole('alert')).toBeVisible();
+    await expect(confirmRemoval).toBeFocused();
+
+    removeImageRemovalFailure(dataDirectory);
+    await confirmRemoval.click();
     await expect(window.getByRole('heading', { name: 'Imagem 1 de Brasão' })).toBeVisible();
+    await expect(add).toBeFocused();
+
+    const finalRemove = window.getByRole('button', { name: 'Remover imagem 1' });
+    await finalRemove.click();
+    bumpImageFieldValueRevision(dataDirectory);
+    await removal.getByRole('button', { name: 'Confirmar remoção' }).click();
+    await expect(removal).toHaveCount(0);
+    const reload = window.getByRole('button', { name: 'Recarregar galeria' });
+    await expect(reload).toBeFocused();
+
+    await reload.click();
+    await window.getByRole('button', { name: 'Remover imagem 1' }).click();
+    await removal.getByRole('button', { name: 'Confirmar remoção' }).click();
+    await expect(imageFieldRegion.getByText('Nenhuma imagem adicionada.')).toBeVisible();
     await expect(add).toBeFocused();
   } finally {
     await application?.close();
     await rm(dataDirectory, { recursive: true, force: true });
   }
 });
+
+function installImageRemovalFailure(dataDirectory: string): void {
+  withDatabase(dataDirectory, (database) =>
+    database.exec(`
+      CREATE TRIGGER fail_image_field_value_removal
+      BEFORE DELETE ON image_field_values
+      BEGIN
+        SELECT RAISE(ABORT, 'falha injetada para teste');
+      END;
+    `),
+  );
+}
+
+function removeImageRemovalFailure(dataDirectory: string): void {
+  withDatabase(dataDirectory, (database) =>
+    database.exec('DROP TRIGGER fail_image_field_value_removal'),
+  );
+}
+
+function bumpImageFieldValueRevision(dataDirectory: string): void {
+  withDatabase(dataDirectory, (database) =>
+    database.prepare('UPDATE image_field_values SET revision = revision + 1').run(),
+  );
+}
+
+function withDatabase(
+  dataDirectory: string,
+  operation: (database: Database.Database) => void,
+): void {
+  const database = new Database(path.join(dataDirectory, 'database', 'app.db'));
+  try {
+    operation(database);
+  } finally {
+    database.close();
+  }
+}
 
 async function launch(dataDirectory: string): Promise<ElectronApplication> {
   const inheritedEnvironment = Object.fromEntries(

@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Campaign } from '../../../core/contracts/campaigns';
 import type { Entity } from '../../../core/contracts/entities';
 import type { RelationshipType } from '../../../core/contracts/relationship-types';
+import type { RelationshipViewState } from '../../../core/contracts/relationship-views';
 import type {
   Relationship,
   RelationshipNeighborhoodResult,
@@ -12,6 +13,18 @@ import {
 } from '../../../core/errors/user-facing-error';
 import { UserFacingErrorNotice } from '../../components/user-facing-error-notice';
 import { Button } from '../../components/actions';
+import { RelationshipCanvas, RelationshipLayoutUnavailableNotice } from './relationship-canvas';
+import {
+  createRelationshipAutoLayoutModel,
+  createRelationshipCanvasModel,
+} from './relationship-canvas-model';
+import {
+  idleRelationshipLayoutStatus,
+  RelationshipLayoutController,
+  type RelationshipLayoutPersistenceStatus,
+} from './relationship-layout-controller';
+import { relationshipMetadataSummary } from './relationship-metadata-labels';
+import { RelationshipTextAccordion } from './relationship-text-accordion';
 
 interface NeighborhoodFilters {
   relationshipTypeId: string;
@@ -45,7 +58,34 @@ export function RelationshipNeighborhood({
   const [result, setResult] = useState<RelationshipNeighborhoodResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<UserFacingError | null>(null);
+  const [layoutState, setLayoutState] = useState<RelationshipViewState | null>(null);
+  const [layoutLoading, setLayoutLoading] = useState(true);
+  const [layoutLoadFailed, setLayoutLoadFailed] = useState(false);
+  const [layoutReloadKey, setLayoutReloadKey] = useState(0);
+  const [layoutStatus, setLayoutStatus] = useState<RelationshipLayoutPersistenceStatus>(
+    idleRelationshipLayoutStatus,
+  );
+  const layoutStateRef = useRef<RelationshipViewState | null>(null);
   const initializedCentralContext = useRef<string | null>(null);
+
+  const acceptLayoutState = useCallback((state: RelationshipViewState) => {
+    layoutStateRef.current = state;
+    setLayoutState(state);
+    setLayoutLoadFailed(false);
+  }, []);
+  const layoutController = useMemo(
+    () =>
+      new RelationshipLayoutController({
+        campaignId: campaign.id,
+        gateway: window.campaignManager.relationshipViews,
+        getState: () => layoutStateRef.current,
+        onState: acceptLayoutState,
+        onStatus: setLayoutStatus,
+      }),
+    [acceptLayoutState, campaign.id],
+  );
+
+  useEffect(() => () => layoutController.dispose(), [layoutController]);
 
   useEffect(() => {
     if (centralEntityId === undefined) return;
@@ -57,6 +97,31 @@ export function RelationshipNeighborhood({
     setEntityId(validCentralEntityId);
     setDepth(1);
   }, [campaign.id, centralEntityId, entities]);
+
+  useEffect(() => {
+    let cancelled = false;
+    layoutStateRef.current = null;
+    setLayoutState(null);
+    setLayoutLoading(true);
+    setLayoutLoadFailed(false);
+    setLayoutStatus(idleRelationshipLayoutStatus);
+    void window.campaignManager.relationshipViews
+      .get({ campaignId: campaign.id, viewType: 'campaign', sourceEntityId: null })
+      .then((response) => {
+        if (cancelled) return;
+        if (response.ok) acceptLayoutState(response.data);
+        else setLayoutLoadFailed(true);
+      })
+      .catch(() => {
+        if (!cancelled) setLayoutLoadFailed(true);
+      })
+      .finally(() => {
+        if (!cancelled) setLayoutLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [acceptLayoutState, campaign.id, layoutReloadKey]);
 
   useEffect(() => {
     let cancelled = false;
@@ -108,7 +173,17 @@ export function RelationshipNeighborhood({
     () => new Map((result?.nodes ?? []).map((node) => [node.entity.id, node.depth])),
     [result],
   );
-  const graphLayout = useMemo(() => createGraphLayout(result), [result]);
+  const graphModel = useMemo(
+    () =>
+      result === null
+        ? null
+        : createRelationshipCanvasModel(result, types, layoutState?.nodes ?? []),
+    [layoutState?.nodes, result, types],
+  );
+  const automaticGraphModel = useMemo(
+    () => (result === null ? null : createRelationshipAutoLayoutModel(result, types)),
+    [result, types],
+  );
 
   return (
     <section
@@ -219,115 +294,44 @@ export function RelationshipNeighborhood({
               O resultado atingiu o limite seguro de entidades ou relações. Refine os filtros.
             </p>
           ) : null}
-          <div
-            className="mt-6 overflow-x-auto rounded-2xl border semantic-border semantic-surface p-5"
-            aria-label="Mapa da vizinhança"
-          >
-            <svg
-              aria-hidden="true"
-              className="block"
-              role="img"
-              style={{ minWidth: graphLayout.width }}
-              viewBox={`0 0 ${String(graphLayout.width)} ${String(graphLayout.height)}`}
-            >
-              <defs>
-                <marker
-                  id="relationship-arrow"
-                  markerHeight="7"
-                  markerWidth="7"
-                  orient="auto-start-reverse"
-                  refX="6"
-                  refY="3.5"
-                >
-                  <path d="M 0 0 L 7 3.5 L 0 7 z" fill="var(--accent)" />
-                </marker>
-              </defs>
-              {result.relationships.map((relationship) => {
-                const source = graphLayout.positions.get(relationship.sourceEntityId);
-                const target = graphLayout.positions.get(relationship.targetEntityId);
-                if (source === undefined || target === undefined) return null;
-                const type = typeById.get(relationship.relationshipTypeId);
-                const markerEnd =
-                  type?.isSymmetric === true ? undefined : 'url(#relationship-arrow)';
-                const isLoop = relationship.sourceEntityId === relationship.targetEntityId;
-                const labelX = isLoop ? source.x : (source.x + target.x) / 2;
-                const labelY = isLoop ? source.y - 78 : (source.y + target.y) / 2 - 8;
-                return (
-                  <g data-testid="neighborhood-graph-edge" key={relationship.id}>
-                    {isLoop ? (
-                      <path
-                        d={`M ${String(source.x - 30)} ${String(source.y - 25)} C ${String(source.x - 85)} ${String(source.y - 95)}, ${String(source.x + 85)} ${String(source.y - 95)}, ${String(source.x + 30)} ${String(source.y - 25)}`}
-                        fill="none"
-                        markerEnd={markerEnd}
-                        stroke="var(--accent)"
-                        strokeWidth="2"
-                      />
-                    ) : (
-                      <line
-                        markerEnd={markerEnd}
-                        stroke="var(--accent)"
-                        strokeWidth="2"
-                        x1={source.x}
-                        x2={target.x}
-                        y1={source.y}
-                        y2={target.y}
-                      />
-                    )}
-                    <text
-                      fill="var(--warning)"
-                      fontSize="12"
-                      fontWeight="600"
-                      paintOrder="stroke"
-                      stroke="var(--surface)"
-                      strokeWidth="4"
-                      textAnchor="middle"
-                      x={labelX}
-                      y={labelY}
-                    >
-                      {type?.name ?? 'Relação'}
-                    </text>
-                  </g>
-                );
-              })}
-              {result.nodes.map((node) => {
-                const point = graphLayout.positions.get(node.entity.id);
-                if (point === undefined) return null;
-                const central = node.depth === 0;
-                return (
-                  <g key={node.entity.id}>
-                    <rect
-                      fill={central ? 'var(--warning-surface)' : 'var(--surface)'}
-                      height="56"
-                      rx="12"
-                      stroke={central ? 'var(--accent)' : 'var(--border)'}
-                      strokeWidth="2"
-                      width="160"
-                      x={point.x - 80}
-                      y={point.y - 28}
-                    />
-                    <text
-                      fill="var(--text-primary)"
-                      fontSize="13"
-                      fontWeight="600"
-                      textAnchor="middle"
-                      x={point.x}
-                      y={point.y + 4}
-                    >
-                      {truncateLabel(node.entity.name)}
-                    </text>
-                  </g>
-                );
-              })}
-            </svg>
+          <div className="mt-6 rounded-2xl border semantic-border semantic-surface p-5">
+            {layoutLoading || graphModel === null || automaticGraphModel === null ? (
+              <p aria-live="polite" className="text-sm semantic-text-secondary" role="status">
+                Carregando layout do mapa…
+              </p>
+            ) : (
+              <RelationshipCanvas
+                automaticModel={automaticGraphModel}
+                model={graphModel}
+                onAutoLayout={(positions, viewport) =>
+                  layoutController.enqueue({ kind: 'auto-layout', positions, viewport })
+                }
+                onResetLayout={() => layoutController.enqueue({ kind: 'reset' })}
+                onRetry={() => layoutController.retry()}
+                onSaveNodePosition={(position) =>
+                  layoutController.enqueue({ kind: 'node', position })
+                }
+                onSaveViewport={(viewport) =>
+                  layoutController.enqueue({ kind: 'viewport', viewport })
+                }
+                persistenceAvailable={layoutState !== null}
+                persistenceStatus={layoutStatus}
+                viewport={layoutState?.view.viewport ?? { x: 0, y: 0, zoom: 1 }}
+              />
+            )}
+            {layoutLoadFailed ? (
+              <RelationshipLayoutUnavailableNotice
+                onRetry={() => setLayoutReloadKey((current) => current + 1)}
+              />
+            ) : null}
           </div>
-          <div className="mt-6" data-testid="neighborhood-text-list">
-            <h3 className="text-lg font-semibold">Lista textual acessível</h3>
+          <RelationshipTextAccordion>
             {result.relationships.length === 0 ? (
-              <p aria-live="polite" className="mt-3 text-sm semantic-text-secondary" role="status">
+              <p aria-live="polite" className="text-sm semantic-text-secondary" role="status">
                 Nenhuma conexão corresponde aos filtros.
               </p>
             ) : (
-              <ul className="mt-3 grid gap-2">
+              <ul className="grid gap-2">
                 {result.relationships.map((relationship) => {
                   const fromId = displayFromEntityId(
                     relationship,
@@ -367,15 +371,14 @@ export function RelationshipNeighborhood({
                         {entityNames.get(toId) ?? 'Entidade'}
                       </Button>
                       <span className="ml-2 text-xs semantic-text-secondary">
-                        {relationship.canonState} · {relationship.knowledgeState} ·{' '}
-                        {relationship.visibility}
+                        {relationshipMetadataSummary(relationship)}
                       </span>
                     </li>
                   );
                 })}
               </ul>
             )}
-          </div>
+          </RelationshipTextAccordion>
         </>
       )}
     </section>
@@ -395,38 +398,6 @@ export function resolveCentralEntityId(
     : '';
 }
 
-interface GraphPoint {
-  x: number;
-  y: number;
-}
-
-function createGraphLayout(result: RelationshipNeighborhoodResult | null): {
-  width: number;
-  height: number;
-  positions: Map<string, GraphPoint>;
-} {
-  if (result === null) return { width: 480, height: 240, positions: new Map() };
-  const layers = new Map<number, RelationshipNeighborhoodResult['nodes']>();
-  for (const node of result.nodes) {
-    const layer = layers.get(node.depth) ?? [];
-    layer.push(node);
-    layers.set(node.depth, layer);
-  }
-  const maximumDepth = Math.max(...result.nodes.map((node) => node.depth), 0);
-  const largestLayer = Math.max(...[...layers.values()].map((layer) => layer.length), 1);
-  const width = Math.max(480, (maximumDepth + 1) * 260);
-  const height = Math.max(240, largestLayer * 100 + 80);
-  const positions = new Map<string, GraphPoint>();
-  for (const [layerNumber, layerNodes] of layers) {
-    const x = 130 + layerNumber * 260;
-    const spacing = height / (layerNodes.length + 1);
-    layerNodes.forEach((node, index) => {
-      positions.set(node.entity.id, { x, y: spacing * (index + 1) });
-    });
-  }
-  return { width, height, positions };
-}
-
 function displayFromEntityId(
   relationship: Relationship,
   rootEntityId: string,
@@ -437,10 +408,6 @@ function displayFromEntityId(
   const sourceDepth = nodeDepthById.get(relationship.sourceEntityId) ?? Number.MAX_SAFE_INTEGER;
   const targetDepth = nodeDepthById.get(relationship.targetEntityId) ?? Number.MAX_SAFE_INTEGER;
   return targetDepth < sourceDepth ? relationship.targetEntityId : relationship.sourceEntityId;
-}
-
-function truncateLabel(label: string): string {
-  return label.length > 22 ? `${label.slice(0, 21)}…` : label;
 }
 
 function directionLabel(

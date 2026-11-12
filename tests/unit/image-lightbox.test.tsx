@@ -4,6 +4,7 @@ import {
   ImageLightbox,
   isLightboxDismissKey,
   shouldCloseLightboxFromBackdrop,
+  trapLightboxFocus,
 } from '../../src/renderer/components/image-lightbox';
 
 describe('lightbox compartilhado de imagens', () => {
@@ -29,5 +30,54 @@ describe('lightbox compartilhado de imagens', () => {
     expect(shouldCloseLightboxFromBackdrop(new EventTarget(), backdrop)).toBe(false);
     expect(isLightboxDismissKey('Escape')).toBe(true);
     expect(isLightboxDismissKey('Enter')).toBe(false);
+  });
+
+  it('mantém o foco dentro do diálogo nos dois sentidos', () => {
+    const focused: string[] = [];
+    const first = { focus: () => focused.push('first') } as unknown as HTMLElement;
+    const last = { focus: () => focused.push('last') } as unknown as HTMLElement;
+    const container = {
+      querySelectorAll: () => [first, last],
+    } as unknown as Pick<HTMLElement, 'querySelectorAll'>;
+    let prevented = 0;
+
+    trapLightboxFocus(
+      { key: 'Tab', shiftKey: false, preventDefault: () => prevented++ },
+      container,
+      last,
+    );
+    trapLightboxFocus(
+      { key: 'Tab', shiftKey: true, preventDefault: () => prevented++ },
+      container,
+      first,
+    );
+
+    expect(prevented).toBe(2);
+    expect(focused).toEqual(['first', 'last']);
+  });
+
+  it('não interfere em teclas e posições de foco internas', () => {
+    const focused: string[] = [];
+    const first = { focus: () => focused.push('first') } as unknown as HTMLElement;
+    const middle = { focus: () => focused.push('middle') } as unknown as HTMLElement;
+    const last = { focus: () => focused.push('last') } as unknown as HTMLElement;
+    const container = {
+      querySelectorAll: () => [first, middle, last],
+    } as unknown as Pick<HTMLElement, 'querySelectorAll'>;
+    let prevented = 0;
+
+    trapLightboxFocus(
+      { key: 'Enter', shiftKey: false, preventDefault: () => prevented++ },
+      container,
+      last,
+    );
+    trapLightboxFocus(
+      { key: 'Tab', shiftKey: false, preventDefault: () => prevented++ },
+      container,
+      middle,
+    );
+
+    expect(prevented).toBe(0);
+    expect(focused).toEqual([]);
   });
 });

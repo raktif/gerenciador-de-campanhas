@@ -30,6 +30,7 @@ import { NoteRepository } from '../../db/repositories/note-repository';
 import { InboxRepository } from '../../db/repositories/inbox-repository';
 import { RelationshipTypeRepository } from '../../db/repositories/relationship-type-repository';
 import { RelationshipRepository } from '../../db/repositories/relationship-repository';
+import { RelationshipViewRepository } from '../../db/repositories/relationship-view-repository';
 import { TimelineRepository } from '../../db/repositories/timeline-repository';
 import { SessionIntentionRepository } from '../../db/repositories/session-intention-repository';
 import { SessionRepository } from '../../db/repositories/session-repository';
@@ -50,6 +51,7 @@ import { registerNoteIpcHandlers } from '../ipc/note-handlers';
 import { registerInboxIpcHandlers } from '../ipc/inbox-handlers';
 import { registerRelationshipTypeIpcHandlers } from '../ipc/relationship-type-handlers';
 import { registerRelationshipIpcHandlers } from '../ipc/relationship-handlers';
+import { registerRelationshipViewIpcHandlers } from '../ipc/relationship-view-handlers';
 import {
   registerSessionIpcHandlers,
   type SessionHandlerDependencies,
@@ -75,6 +77,7 @@ import { NoteService } from '../services/note-service';
 import { InboxService } from '../services/inbox-service';
 import { RelationshipTypeService } from '../services/relationship-type-service';
 import { RelationshipService } from '../services/relationship-service';
+import { RelationshipViewService } from '../services/relationship-view-service';
 import { SessionIntentionService } from '../services/session-intention-service';
 import { SessionParticipantService } from '../services/session-participant-service';
 import { SessionService } from '../services/session-service';
@@ -135,6 +138,7 @@ export async function bootstrapApplication(): Promise<RunningApplication> {
   const entityRepository = new EntityRepository(database.orm);
   const relationshipTypeRepository = new RelationshipTypeRepository(database.orm);
   const relationshipRepository = new RelationshipRepository(database.orm);
+  const relationshipViewRepository = new RelationshipViewRepository(database.native);
   const eventRepository = new EventRepository(database.orm);
   const timelineRepository = new TimelineRepository(database.orm);
   const assertionRepository = new AssertionRepository(database.orm);
@@ -312,6 +316,16 @@ export async function bootstrapApplication(): Promise<RunningApplication> {
     logger,
     authorizedWebContentsId: window.webContents.id,
   });
+  const relationshipViewService = new RelationshipViewService({
+    repository: relationshipViewRepository,
+    campaigns: campaignRepository,
+    entities: entityRepository,
+  });
+  const unregisterRelationshipViewIpc = registerRelationshipViewIpcHandlers(ipcMain, {
+    service: relationshipViewService,
+    logger,
+    authorizedWebContentsId: window.webContents.id,
+  });
   const assertionService = new AssertionService({
     repository: assertionRepository,
     campaigns: campaignRepository,
@@ -414,6 +428,7 @@ export async function bootstrapApplication(): Promise<RunningApplication> {
       unregisterEntityIpc();
       unregisterRelationshipTypeIpc();
       unregisterRelationshipIpc();
+      unregisterRelationshipViewIpc();
       unregisterAssertionIpc();
       unregisterNoteIpc();
       unregisterInboxIpc();

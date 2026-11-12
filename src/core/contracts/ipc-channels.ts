@@ -86,6 +86,14 @@ export const relationshipChannels = {
   neighborhood: 'relationships:neighborhood',
 } as const;
 
+export const relationshipViewChannels = {
+  get: 'relationship-views:get',
+  saveNodePosition: 'relationship-views:save-node-position',
+  saveViewport: 'relationship-views:save-viewport',
+  autoLayout: 'relationship-views:auto-layout',
+  resetLayout: 'relationship-views:reset-layout',
+} as const;
+
 export const fieldDefinitionChannels = {
   create: 'field-definitions:create',
   get: 'field-definitions:get',

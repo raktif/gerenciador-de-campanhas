@@ -34,6 +34,10 @@ import {
   attachmentProcessingStatuses,
   attachmentSourceKinds,
 } from '../../core/contracts/attachments';
+import {
+  relationshipViewTypes,
+  type RelationshipViewport,
+} from '../../core/contracts/relationship-views';
 
 export const schemaMigrations = sqliteTable('schema_migrations', {
   version: integer('version').primaryKey(),
@@ -766,6 +770,109 @@ export const relationships = sqliteTable(
       table.relationshipTypeId,
       table.id,
     ),
+  ],
+);
+
+export const relationshipViews = sqliteTable(
+  'relationship_views',
+  {
+    id: text('id').primaryKey(),
+    campaignId: text('campaign_id')
+      .notNull()
+      .references(() => campaigns.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    viewType: text('view_type', { enum: relationshipViewTypes }).notNull(),
+    sourceEntityId: text('source_entity_id').references(() => entities.id, {
+      onDelete: 'cascade',
+    }),
+    isDefault: integer('is_default', { mode: 'boolean' }).notNull().default(false),
+    viewportJson: text('viewport_json', { mode: 'json' })
+      .$type<RelationshipViewport>()
+      .notNull()
+      .default({ x: 0, y: 0, zoom: 1 }),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
+    revision: integer('revision').notNull().default(1),
+  },
+  (table) => [
+    check(
+      'relationship_views_id_uuid',
+      sql`length(${table.id}) = 36
+        AND substr(${table.id}, 9, 1) = '-'
+        AND substr(${table.id}, 14, 1) = '-'
+        AND substr(${table.id}, 19, 1) = '-'
+        AND substr(${table.id}, 24, 1) = '-'
+        AND ${table.id} = lower(${table.id})
+        AND replace(${table.id}, '-', '') NOT GLOB '*[^0-9a-f]*'`,
+    ),
+    check('relationship_views_name_valid', sql`length(trim(${table.name})) BETWEEN 1 AND 120`),
+    check('relationship_views_type_valid', sql`${table.viewType} IN ('campaign', 'neighborhood')`),
+    check('relationship_views_default_valid', sql`${table.isDefault} IN (0, 1)`),
+    check(
+      'relationship_views_viewport_valid',
+      sql`json_valid(${table.viewportJson})
+        AND json_type(${table.viewportJson}) = 'object'
+        AND json_type(${table.viewportJson}, '$.x') IN ('integer', 'real')
+        AND json_type(${table.viewportJson}, '$.y') IN ('integer', 'real')
+        AND json_type(${table.viewportJson}, '$.zoom') IN ('integer', 'real')
+        AND json_extract(${table.viewportJson}, '$.x') BETWEEN -1000000 AND 1000000
+        AND json_extract(${table.viewportJson}, '$.y') BETWEEN -1000000 AND 1000000
+        AND json_extract(${table.viewportJson}, '$.zoom') BETWEEN 0.1 AND 4`,
+    ),
+    check('relationship_views_created_at_not_blank', sql`length(${table.createdAt}) > 0`),
+    check('relationship_views_updated_at_not_blank', sql`length(${table.updatedAt}) > 0`),
+    check('relationship_views_revision_positive', sql`${table.revision} > 0`),
+    check(
+      'relationship_views_source_coherent',
+      sql`(${table.viewType} = 'campaign' AND ${table.sourceEntityId} IS NULL)
+        OR (${table.viewType} = 'neighborhood' AND ${table.sourceEntityId} IS NOT NULL)`,
+    ),
+    index('relationship_views_campaign_type_idx').on(
+      table.campaignId,
+      table.viewType,
+      sql`${table.updatedAt} DESC`,
+      sql`${table.id} DESC`,
+    ),
+    uniqueIndex('relationship_views_default_campaign_unique')
+      .on(table.campaignId, table.viewType)
+      .where(sql`${table.isDefault} = 1 AND ${table.viewType} = 'campaign'`),
+    uniqueIndex('relationship_views_default_neighborhood_unique')
+      .on(table.campaignId, table.viewType, table.sourceEntityId)
+      .where(sql`${table.isDefault} = 1 AND ${table.viewType} = 'neighborhood'`),
+  ],
+);
+
+export const relationshipViewNodes = sqliteTable(
+  'relationship_view_nodes',
+  {
+    relationshipViewId: text('relationship_view_id')
+      .notNull()
+      .references(() => relationshipViews.id, { onDelete: 'cascade' }),
+    entityId: text('entity_id')
+      .notNull()
+      .references(() => entities.id, { onDelete: 'cascade' }),
+    x: real('x').notNull(),
+    y: real('y').notNull(),
+    width: real('width').notNull(),
+    height: real('height').notNull(),
+    pinned: integer('pinned', { mode: 'boolean' }).notNull().default(false),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.relationshipViewId, table.entityId] }),
+    check('relationship_view_nodes_x_valid', sql`${table.x} BETWEEN -1000000 AND 1000000`),
+    check('relationship_view_nodes_y_valid', sql`${table.y} BETWEEN -1000000 AND 1000000`),
+    check(
+      'relationship_view_nodes_width_valid',
+      sql`${table.width} > 0 AND ${table.width} <= 4096`,
+    ),
+    check(
+      'relationship_view_nodes_height_valid',
+      sql`${table.height} > 0 AND ${table.height} <= 4096`,
+    ),
+    check('relationship_view_nodes_pinned_valid', sql`${table.pinned} IN (0, 1)`),
+    check('relationship_view_nodes_updated_at_not_blank', sql`length(${table.updatedAt}) > 0`),
+    index('relationship_view_nodes_entity_idx').on(table.entityId, table.relationshipViewId),
   ],
 );
 

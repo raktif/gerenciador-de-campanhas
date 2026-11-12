@@ -23,6 +23,15 @@ type ImportRequest =
     }
   | { kind: 'url'; url?: string; pendingImportId?: string };
 
+type ImageRemovalFocusTarget = 'add' | 'confirm' | 'reload';
+
+export function imageRemovalFocusTarget(
+  outcome: 'success' | { errorCode: string },
+): ImageRemovalFocusTarget {
+  if (outcome === 'success') return 'add';
+  return outcome.errorCode === 'REVISION_CONFLICT' ? 'reload' : 'confirm';
+}
+
 export function ImageFieldGallery({
   campaignId,
   entityId,
@@ -51,7 +60,10 @@ export function ImageFieldGallery({
   const dialogRef = useRef<HTMLDivElement>(null);
   const removeDialogRef = useRef<HTMLDivElement>(null);
   const removeCancelRef = useRef<HTMLButtonElement>(null);
+  const removeConfirmRef = useRef<HTMLButtonElement>(null);
   const removalInvokerRef = useRef<HTMLButtonElement | null>(null);
+  const reloadGalleryRef = useRef<HTMLButtonElement>(null);
+  const removalFocusTargetRef = useRef<ImageRemovalFocusTarget | null>(null);
   const secondaryReturnFocusRef = useRef<HTMLElement | null>(null);
 
   const identity = { campaignId, entityId, fieldDefinitionId: field.id };
@@ -86,6 +98,20 @@ export function ImageFieldGallery({
   useEffect(() => {
     if (pendingRemoval !== null) requestAnimationFrame(() => removeCancelRef.current?.focus());
   }, [pendingRemoval]);
+
+  useEffect(() => {
+    if (busy || removalFocusTargetRef.current === null) return;
+    const target = removalFocusTargetRef.current;
+    const element =
+      target === 'add'
+        ? addButtonRef.current
+        : target === 'confirm'
+          ? removeConfirmRef.current
+          : reloadGalleryRef.current;
+    if (element === null || element.disabled) return;
+    removalFocusTargetRef.current = null;
+    element.focus();
+  }, [busy, conflict, error, pendingRemoval]);
 
   function handleOperationError(operationError: { code: string; message: string }): void {
     setError(operationError.message);
@@ -239,15 +265,20 @@ export function ImageFieldGallery({
       if (result.ok) {
         setItems((current) => current.filter(({ value }) => value.id !== item.value.id));
         setFeedback('Imagem removida.');
+        removalFocusTargetRef.current = imageRemovalFocusTarget('success');
         setPendingRemoval(null);
-        requestAnimationFrame(() => addButtonRef.current?.focus());
-      } else handleOperationError(result.error);
+      } else {
+        handleOperationError(result.error);
+        removalFocusTargetRef.current = imageRemovalFocusTarget({
+          errorCode: result.error.code,
+        });
+        if (result.error.code === 'REVISION_CONFLICT') setPendingRemoval(null);
+      }
     } catch {
       setError('Não foi possível remover a imagem.');
+      removalFocusTargetRef.current = imageRemovalFocusTarget({ errorCode: 'UNEXPECTED_ERROR' });
     } finally {
-      setPendingRemoval(null);
       setBusy(false);
-      requestAnimationFrame(() => addButtonRef.current?.focus());
     }
   }
 
@@ -335,13 +366,13 @@ export function ImageFieldGallery({
           ))}
         </ul>
       )}
-      {error === null || items.length === 0 ? null : (
+      {error === null || items.length === 0 || pendingRemoval !== null ? null : (
         <p className="mt-4 semantic-error-text" role="alert">
           {error}
         </p>
       )}
       {conflict ? (
-        <Button className="mt-3" onClick={() => void load()} size="small">
+        <Button className="mt-3" onClick={() => void load()} ref={reloadGalleryRef} size="small">
           Recarregar galeria
         </Button>
       ) : null}
@@ -505,11 +536,21 @@ export function ImageFieldGallery({
             <p className="mt-2 semantic-text-secondary">
               A imagem deixará de aparecer neste campo. Esta ação não pode ser desfeita aqui.
             </p>
+            {error === null ? null : (
+              <p className="mt-4 semantic-error-text" role="alert">
+                {error}
+              </p>
+            )}
             <DialogActions className="mt-5">
               <Button disabled={busy} onClick={cancelRemoval} ref={removeCancelRef}>
                 Cancelar
               </Button>
-              <Button busy={busy} onClick={() => void remove(pendingRemoval)} variant="danger">
+              <Button
+                busy={busy}
+                onClick={() => void remove(pendingRemoval)}
+                ref={removeConfirmRef}
+                variant="danger"
+              >
                 Confirmar remoção
               </Button>
             </DialogActions>

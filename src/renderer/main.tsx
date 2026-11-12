@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { CampaignApp } from './app/campaign-app';
 import { ThemeProvider } from './theme/theme-provider';
 import { applyDocumentTheme, loadInitialAppearance } from './theme/theme-model';
+import '@xyflow/react/dist/style.css';
 import './styles.css';
 
 const root = document.querySelector<HTMLDivElement>('#root');
