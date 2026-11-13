@@ -21,6 +21,7 @@ describe('formulário de tipo de entidade', () => {
     );
 
     expect(markup).not.toContain('Ícone ou símbolo');
+    expect(markup).not.toContain('Identificador (slug)');
     expect(markup.match(/type="radio"/g)).toHaveLength(34);
     expect(markup).toContain('<legend');
     expect(markup).toContain('Ícone');
@@ -34,7 +35,6 @@ describe('formulário de tipo de entidade', () => {
       toCreateEntityTypeValues({
         name: '  Personagens  ',
         singularName: '  Personagem  ',
-        slug: '  personagens  ',
         description: '   ',
         icon: null,
         color: '  #92400e  ',
@@ -42,7 +42,6 @@ describe('formulário de tipo de entidade', () => {
     ).toEqual({
       name: 'Personagens',
       singularName: 'Personagem',
-      slug: 'personagens',
       color: '#92400E',
     });
   });
@@ -53,7 +52,6 @@ describe('formulário de tipo de entidade', () => {
         {
           name: entityType.name,
           singularName: '  Protagonista  ',
-          slug: entityType.slug,
           description: '   ',
           icon: { legacy: entityType.icon ?? '' },
           color: entityType.color ?? '',
@@ -70,7 +68,6 @@ describe('formulário de tipo de entidade', () => {
         {
           name: legacy.name,
           singularName: 'Protagonista',
-          slug: legacy.slug,
           description: legacy.description ?? '',
           icon: { legacy: legacy.icon ?? '' },
           color: legacy.color,
@@ -84,7 +81,6 @@ describe('formulário de tipo de entidade', () => {
         {
           name: legacy.name,
           singularName: legacy.singularName,
-          slug: legacy.slug,
           description: legacy.description ?? '',
           icon: { legacy: legacy.icon ?? '' },
           color: '#abcdef',
@@ -102,7 +98,6 @@ describe('formulário de tipo de entidade', () => {
           {
             name: historical.name,
             singularName: 'Protagonista',
-            slug: historical.slug,
             description: historical.description ?? '',
             icon: { legacy: historical.icon ?? '' },
             color,
@@ -117,7 +112,6 @@ describe('formulário de tipo de entidade', () => {
     const values = {
       name: entityType.name,
       singularName: entityType.singularName,
-      slug: entityType.slug,
       description: entityType.description ?? '',
       icon: 'person' as const,
       color: entityType.color ?? '',
@@ -132,7 +126,6 @@ describe('formulário de tipo de entidade', () => {
         {
           name: entityType.name,
           singularName: entityType.singularName,
-          slug: entityType.slug,
           description: entityType.description ?? '',
           icon: { legacy: entityType.icon ?? '' },
           color: entityType.color ?? '',

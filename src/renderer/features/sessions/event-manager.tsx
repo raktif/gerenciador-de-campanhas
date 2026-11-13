@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigationState, useRestoredRecord } from '../../app/navigation-provider';
 import type { Campaign } from '../../../core/contracts/campaigns';
 import type { Entity } from '../../../core/contracts/entities';
 import type {
@@ -96,23 +97,46 @@ function sourceSessionError(
 export function EventManager({
   campaign,
   onBack,
+  initialDraft,
+  onCreated,
+  onCancelInitialDraft,
 }: {
   campaign: Campaign;
   onBack: () => void;
+  initialDraft?: {
+    title: string;
+    entityId: string | null;
+    occurredAtLabel: string;
+    sessionId: string;
+  };
+  onCreated?: () => Promise<UserFacingErrorPresentation | null>;
+  onCancelInitialDraft?: () => void;
 }): React.JSX.Element {
   const [items, setItems] = useState<Event[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [entities, setEntities] = useState<Entity[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
-  const [view, setView] = useState<View>('list');
-  const [editing, setEditing] = useState<EventDetails | null>(null);
-  const [archived, setArchived] = useState(false);
+  const [view, setView] = useNavigationState<View>(`events:${campaign.id}:view`, () =>
+    initialDraft === undefined ? 'list' : 'create',
+  );
+  const [editing, , setEditing] = useNavigationState<EventDetails | null>(
+    `events:${campaign.id}:editing`,
+    null,
+  );
+  const [archived, , setArchived] = useNavigationState(`events:${campaign.id}:archived`, false);
   const [loading, setLoading] = useState(true);
   const [referencesLoading, setReferencesLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<EventError | null>(null);
   const [announcement, setAnnouncement] = useState<string | null>(null);
   const [pending, setPending] = useState<PendingLifecycle | null>(null);
+  useRestoredRecord(
+    view === 'edit' ? editing?.event.id : undefined,
+    (id) => window.campaignManager.events.get({ campaignId: campaign.id, id }),
+    setEditing,
+    (failure) => setError(presentUserFacingError(failure, 'events.mutate')),
+    setBusy,
+  );
 
   const load = useCallback(
     async (append = false): Promise<void> => {
@@ -193,10 +217,17 @@ export function EventManager({
           ? await window.campaignManager.events.create(input)
           : await updateEvent(input, editing);
       if (result.ok) {
+        if (editing === null && initialDraft !== undefined && onCreated !== undefined) {
+          const failure = await onCreated();
+          if (failure !== null) setError(failure);
+          return;
+        }
         setAnnouncement(editing === null ? 'Evento registrado.' : 'Evento atualizado.');
         setEditing(null);
         setView('list');
+        const conversionError = editing === null ? await onCreated?.() : null;
         await load(false);
+        if (conversionError !== null && conversionError !== undefined) setError(conversionError);
       } else setError(eventFailure(result.error));
     } catch {
       setError(presentUserFacingError(undefined, 'events.mutate'));
@@ -248,8 +279,10 @@ export function EventManager({
   if (view !== 'list')
     return (
       <EventEditor
+        key={editing === null ? 'create' : `${editing.event.id}:${String(editing.event.revision)}`}
         campaign={campaign}
         details={editing}
+        {...(initialDraft === undefined ? {} : { initialDraft })}
         entities={entities}
         sessions={sessions}
         busy={busy}
@@ -258,6 +291,7 @@ export function EventManager({
           setEditing(null);
           setError(null);
           setView('list');
+          onCancelInitialDraft?.();
         }}
         onSubmit={submit}
       />
@@ -417,6 +451,7 @@ export function EventManager({
 function EventEditor({
   campaign,
   details,
+  initialDraft,
   sessions,
   entities,
   busy,
@@ -426,6 +461,12 @@ function EventEditor({
 }: {
   campaign: Campaign;
   details: EventDetails | null;
+  initialDraft?: {
+    title: string;
+    entityId: string | null;
+    occurredAtLabel: string;
+    sessionId: string;
+  };
   sessions: Session[];
   entities: Entity[];
   busy: boolean;
@@ -433,14 +474,26 @@ function EventEditor({
   onCancel: () => void;
   onSubmit: (input: CreateEventInput) => Promise<void>;
 }): React.JSX.Element {
-  const [title, setTitle] = useState(details?.event.title ?? '');
+  const [title, setTitle] = useState(details?.event.title ?? initialDraft?.title ?? '');
   const [description, setDescription] = useState(details?.event.descriptionMarkdown ?? '');
-  const [sessionId, setSessionId] = useState(details?.event.sessionId ?? '');
+  const [sessionId, setSessionId] = useState(
+    details?.event.sessionId ?? initialDraft?.sessionId ?? '',
+  );
   const [eventOrder, setEventOrder] = useState(String(details?.event.eventOrder ?? 0));
-  const [occurredAtLabel, setOccurredAtLabel] = useState(details?.event.occurredAtLabel ?? '');
+  const [occurredAtLabel, setOccurredAtLabel] = useState(
+    details?.event.occurredAtLabel ?? initialDraft?.occurredAtLabel ?? '',
+  );
   const [links, setLinks] = useState<EventLinkDraft[]>(() =>
     details === null
-      ? []
+      ? initialDraft?.entityId === null || initialDraft?.entityId === undefined
+        ? []
+        : [
+            {
+              id: `event-link-${initialDraft.entityId}`,
+              entityId: initialDraft.entityId,
+              role: 'related',
+            },
+          ]
       : details.links.map(({ entityId, role }, index) => ({
           id: `event-link-${String(index)}-${entityId}-${role}`,
           entityId,
@@ -451,11 +504,13 @@ function EventEditor({
     canonState: details?.event.canonState ?? 'accepted',
     knowledgeState: details?.event.knowledgeState ?? 'fact',
     visibility: details?.event.visibility ?? 'gm',
-    originKind: details?.event.originKind ?? 'manual',
-    sourceId: details?.event.sourceId ?? null,
+    originKind: details?.event.originKind ?? (initialDraft === undefined ? 'manual' : 'session'),
+    sourceId: details?.event.sourceId ?? initialDraft?.sessionId ?? null,
   });
   const [sourceSessionId, setSourceSessionId] = useState(
-    details?.event.originKind === 'session' ? (details.event.sourceId ?? '') : '',
+    details?.event.originKind === 'session'
+      ? (details.event.sourceId ?? '')
+      : (initialDraft?.sessionId ?? ''),
   );
   const [validation, setValidation] = useState<string | null>(null);
   const availableEntities = useMemo(() => activeEntities(entities), [entities]);

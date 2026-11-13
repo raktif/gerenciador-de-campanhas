@@ -25,14 +25,17 @@ test('cadastra entidade com metadados, edita, arquiva e persiste após reiniciar
     await window.getByRole('button', { name: 'Criar primeiro tipo' }).click();
     await window.getByLabel('Nome plural').fill('Personagens');
     await window.getByLabel('Nome singular').fill('Personagem');
-    await window.getByLabel('Identificador (slug)').fill('personagens');
     await window.getByRole('button', { name: 'Criar tipo de entidade' }).click();
     await expect(window.getByRole('heading', { name: 'Personagens' })).toBeVisible();
+    await window.getByRole('button', { name: 'Novo tipo' }).click();
+    await window.getByLabel('Nome plural').fill('Locais');
+    await window.getByLabel('Nome singular').fill('Local');
+    await window.getByRole('button', { name: 'Criar tipo de entidade' }).click();
 
     await window.getByRole('button', { name: 'Tipos de relação' }).click();
     await window.getByRole('button', { name: 'Novo tipo de relação' }).click();
     await window.getByRole('textbox', { name: 'Nome *', exact: true }).fill('Aliado de');
-    await window.getByLabel('Slug').fill('aliado-de');
+    await expect(window.getByLabel('Slug')).toHaveCount(0);
     await window.getByRole('button', { name: 'Criar tipo' }).click();
     await expect(window.getByRole('list', { name: 'Ordenar tipos de relação' })).toContainText(
       'Aliado de',
@@ -83,10 +86,10 @@ test('cadastra entidade com metadados, edita, arquiva e persiste após reiniciar
     await window.getByRole('button', { name: 'Nova entidade', exact: true }).click();
     await window.getByLabel('Nome *').fill('Gorel');
     await window.getByLabel('Resumo').fill('Chefe dos mineradores de Kabotya');
-    await window.getByLabel('Estado canônico').selectOption('draft');
-    await window.getByLabel('Natureza do conhecimento').selectOption('rumor');
-    await window.getByLabel('Visibilidade').selectOption('players');
-    await window.getByLabel('Origem').selectOption('document');
+    await window.getByLabel('Estado canônico', { exact: true }).selectOption('draft');
+    await window.getByLabel('Natureza do conhecimento', { exact: true }).selectOption('rumor');
+    await window.getByLabel('Visibilidade', { exact: true }).selectOption('players');
+    await window.getByLabel('Origem', { exact: true }).selectOption('document');
     await expect(window.getByRole('button', { name: 'Ajuda sobre Título' })).toBeVisible();
     await expect(window.getByRole('button', { name: 'Ajuda sobre Aliados' })).toBeVisible();
     await window.getByRole('button', { name: 'Ajuda sobre Título' }).click();
@@ -164,7 +167,8 @@ test('cadastra entidade com metadados, edita, arquiva e persiste após reiniciar
     await expect(window.getByLabel('Entidade central').locator('option:checked')).toHaveText(
       'Nilo',
     );
-    await expect(window.getByRole('status')).toContainText(
+    await window.getByTestId('neighborhood-text-list').locator('summary').click();
+    await expect(window.getByTestId('neighborhood-text-list').getByRole('status')).toContainText(
       'Nenhuma conexão corresponde aos filtros.',
     );
     await window.getByRole('button', { name: 'Ver entidades' }).click();
@@ -183,10 +187,12 @@ test('cadastra entidade com metadados, edita, arquiva e persiste após reiniciar
     );
     await window.getByRole('button', { name: 'Editar', exact: true }).click();
     await expect(window.getByLabel('Nome *')).toHaveValue('Gorel');
-    await expect(window.getByLabel('Estado canônico')).toHaveValue('draft');
-    await expect(window.getByLabel('Natureza do conhecimento')).toHaveValue('rumor');
-    await expect(window.getByLabel('Visibilidade')).toHaveValue('players');
-    await expect(window.getByLabel('Origem')).toHaveValue('document');
+    await expect(window.getByLabel('Estado canônico', { exact: true })).toHaveValue('draft');
+    await expect(window.getByLabel('Natureza do conhecimento', { exact: true })).toHaveValue(
+      'rumor',
+    );
+    await expect(window.getByLabel('Visibilidade', { exact: true })).toHaveValue('players');
+    await expect(window.getByLabel('Origem', { exact: true })).toHaveValue('document');
     await window.getByLabel('Resumo').fill('Chefe respeitado dos mineradores');
     await window.getByRole('button', { name: 'Cancelar', exact: true }).click();
     const discardDialog = window.getByRole('dialog', { name: 'Descartar alterações?' });
@@ -237,13 +243,22 @@ test('cadastra entidade com metadados, edita, arquiva e persiste após reiniciar
 
     await window.getByRole('button', { name: 'Arquivar Gorel' }).click();
     await window.getByRole('button', { name: 'Confirmar arquivamento' }).click();
-    await expect(window.getByText('Nenhuma entidade cadastrada')).toBeVisible();
+    await expect(window.getByRole('button', { name: 'Abrir detalhes de Gorel' })).toHaveCount(0);
+    await expect(window.getByTestId('entity-list')).toContainText('Mara');
+    await expect(window.getByTestId('entity-list')).toContainText('Nilo');
     await window.getByRole('button', { name: 'Arquivadas' }).click();
     await expect(window.getByTestId('entity-list')).toContainText('Gorel');
     await window.getByRole('button', { name: 'Restaurar Gorel' }).click();
     await window.getByRole('button', { name: 'Confirmar restauração' }).click();
     await window.getByRole('button', { name: 'Ativas' }).click();
     await expect(window.getByTestId('entity-list')).toContainText('Gorel');
+    await window.getByRole('button', { name: 'Abrir detalhes de Gorel' }).first().click();
+    await window.getByRole('button', { name: 'Editar', exact: true }).click();
+    await expect(window.getByLabel('Tipo de entidade *')).toBeEnabled();
+    await window.getByLabel('Tipo de entidade *').selectOption({ label: 'Local' });
+    await window.getByRole('button', { name: 'Salvar entidade' }).click();
+    await expect(window.getByRole('status')).toContainText('Entidade “Gorel” atualizada.');
+    await expect(window.getByTestId('entity-list')).toContainText('Local');
 
     await application.close();
     application = null;

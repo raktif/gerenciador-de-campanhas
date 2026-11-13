@@ -173,6 +173,26 @@ test('mantém navegação interna acessível para os módulos entregues da campa
     await expect(navigation.getByRole('button', { name: 'Relógios' })).toHaveCount(0);
     await navigation.getByRole('button', { name: 'Campanhas', exact: true }).click();
     await expect(window.getByRole('heading', { name: 'Campanhas', exact: true })).toBeVisible();
+    await window.keyboard.press('Alt+ArrowLeft');
+    await expect(
+      window.getByRole('heading', { name: 'Caixa de Entrada', exact: true }),
+    ).toBeVisible();
+    await window.keyboard.press('Alt+ArrowRight');
+    await expect(window.getByRole('heading', { name: 'Campanhas', exact: true })).toBeVisible();
+    await window.evaluate(() => {
+      document.dispatchEvent(
+        new MouseEvent('auxclick', { bubbles: true, cancelable: true, button: 3 }),
+      );
+    });
+    await expect(
+      window.getByRole('heading', { name: 'Caixa de Entrada', exact: true }),
+    ).toBeVisible();
+    await window.evaluate(() => {
+      document.dispatchEvent(
+        new MouseEvent('auxclick', { bubbles: true, cancelable: true, button: 4 }),
+      );
+    });
+    await expect(window.getByRole('heading', { name: 'Campanhas', exact: true })).toBeVisible();
   } finally {
     await application?.close();
     await rm(dataDirectory, { recursive: true, force: true });
@@ -198,19 +218,14 @@ test('configura tipos de entidade isolados na campanha e os recupera após reini
     await expect(window.getByLabel('Ordem', { exact: true })).toHaveCount(0);
     await window.getByLabel('Nome plural').fill('Personagens');
     await window.getByLabel('Nome singular').fill('Personagem');
-    await window.getByLabel('Identificador (slug)').fill('Personagens');
-    await window.getByRole('button', { name: 'Criar tipo de entidade' }).click();
-    await expect(window.getByRole('alert')).toContainText(
-      'O identificador deve usar apenas letras minúsculas sem acentos, números e hífens simples.',
-    );
-    await expect(window.getByRole('button', { name: 'Criar tipo de entidade' })).toBeEnabled();
-    await window.getByLabel('Identificador (slug)').fill('personagens');
+    await expect(window.getByLabel('Identificador (slug)')).toHaveCount(0);
     await window.getByLabel('Descrição').fill('Pessoas que movem a história.');
     await window.getByRole('radio', { name: 'Pessoa' }).check();
     await window.getByRole('radiogroup', { name: 'Paleta de cores' }).getByLabel('Marrom').check();
     await window.getByRole('button', { name: 'Criar tipo de entidade' }).click();
 
     await expect(window.getByRole('heading', { name: 'Personagens' })).toBeVisible();
+    await expect(window.getByText('Singular: Personagem · personagens')).toBeVisible();
     await expect(window.getByRole('status')).toContainText('Tipo “Personagens” criado.');
     await window.getByRole('button', { name: 'Editar tipo Personagens' }).click();
     await window.getByLabel('Nome singular').fill('Protagonista');
@@ -243,7 +258,6 @@ test('configura tipos de entidade isolados na campanha e os recupera após reini
     await expect(window.getByLabel('Ordem', { exact: true })).toHaveCount(0);
     await window.getByLabel('Nome plural').fill('Locais');
     await window.getByLabel('Nome singular').fill('Local');
-    await window.getByLabel('Identificador (slug)').fill('locais');
     await window.getByRole('button', { name: 'Criar tipo de entidade' }).click();
     const entityTypeList = window.getByRole('list', { name: 'Ordenar tipos de entidade' });
     await expect(entityTypeList).not.toContainText(/Ordem \d/);
@@ -356,6 +370,139 @@ test('configura tipos de entidade isolados na campanha e os recupera após reini
   }
 });
 
+test('volta e avança por cada tela interna e descarta formulários não salvos', async () => {
+  const dataDirectory = await mkdtemp(path.join(os.tmpdir(), 'rpg-page-history-e2e-'));
+  let application: ElectronApplication | null = null;
+  try {
+    application = await launch(dataDirectory);
+    const window = await application.firstWindow();
+    await window.getByRole('button', { name: 'Criar primeira campanha' }).click();
+    await window.getByLabel('Nome da campanha').fill('Histórico de páginas');
+    await window.getByRole('button', { name: 'Criar campanha', exact: true }).click();
+    await window.evaluate(async () => {
+      const gateway = (globalThis as { campaignManager?: CampaignManagerGateway }).campaignManager;
+      if (gateway === undefined) throw new Error('Gateway indisponível.');
+      const campaigns = await gateway.campaigns.list({});
+      if (!campaigns.ok) throw new Error('Falha ao consultar campanhas.');
+      const campaign = campaigns.data.items[0];
+      if (campaign === undefined) throw new Error('Campanha ausente.');
+      const type = await gateway.entityTypes.create({
+        campaignId: campaign.id,
+        name: 'Personagens',
+        singularName: 'Personagem',
+      });
+      if (!type.ok) throw new Error('Falha ao criar tipo.');
+      const entity = await gateway.entities.create({
+        campaignId: campaign.id,
+        entityTypeId: type.data.id,
+        name: 'Gorel',
+      });
+      if (!entity.ok) throw new Error('Falha ao criar entidade.');
+      const session = await gateway.sessions.create({
+        campaignId: campaign.id,
+        sequenceNumber: 1,
+        title: 'A ponte',
+      });
+      if (!session.ok) throw new Error('Falha ao criar sessão.');
+    });
+    await window.getByRole('button', { name: 'Abrir campanha Histórico de páginas' }).click();
+    await window.getByRole('button', { name: 'Ver entidades', exact: true }).click();
+    await window.getByRole('button', { name: 'Abrir detalhes de Gorel' }).first().click();
+    await window.getByRole('button', { name: 'Editar', exact: true }).click();
+    await window.getByLabel('Nome *').fill('Alteração não salva');
+
+    await window.keyboard.press('Alt+ArrowLeft');
+    await expect(window.getByRole('heading', { name: 'Gorel', exact: true })).toBeVisible();
+    await window.keyboard.press('Alt+ArrowLeft');
+    await expect(window.getByRole('heading', { name: 'Entidades', exact: true })).toBeVisible();
+    await window.keyboard.press('Alt+ArrowRight');
+    await expect(window.getByRole('heading', { name: 'Gorel', exact: true })).toBeVisible();
+    await window.keyboard.press('Alt+ArrowRight');
+    await expect(window.getByLabel('Nome *')).toHaveValue('Gorel');
+    await window.keyboard.press('Alt+ArrowLeft');
+
+    await window.getByRole('main').getByRole('button', { name: 'Notas', exact: true }).click();
+    await expect(window.getByRole('heading', { name: 'Notas', exact: true })).toBeVisible();
+    await window.keyboard.press('Alt+ArrowRight');
+    await expect(window.getByRole('heading', { name: 'Notas', exact: true })).toBeVisible();
+    await window.keyboard.press('Alt+ArrowLeft');
+    await expect(window.getByRole('heading', { name: 'Gorel', exact: true })).toBeVisible();
+    await window.keyboard.press('Alt+ArrowRight');
+    await expect(window.getByRole('heading', { name: 'Notas', exact: true })).toBeVisible();
+
+    await window.getByRole('button', { name: 'Sessões', exact: true }).click();
+    await window.getByRole('button', { name: 'Editar A ponte' }).click();
+    await expect(window.getByRole('heading', { name: 'Sessão 1', exact: true })).toBeVisible();
+    await window.getByRole('button', { name: 'Notas', exact: true }).click();
+    await window.keyboard.press('Alt+ArrowLeft');
+    await expect(window.getByRole('heading', { name: 'Sessão 1', exact: true })).toBeVisible();
+    await window.keyboard.press('Alt+ArrowLeft');
+    await expect(window.getByRole('heading', { name: 'Sessões', exact: true })).toBeVisible();
+    await window.keyboard.press('Alt+ArrowRight');
+    await expect(window.getByRole('heading', { name: 'Sessão 1', exact: true })).toBeVisible();
+    await window.keyboard.press('Alt+ArrowRight');
+    await expect(window.getByRole('heading', { name: 'Notas', exact: true })).toBeVisible();
+
+    await window.getByRole('button', { name: 'Gerenciar tipos de entidade', exact: true }).click();
+    await window.getByRole('button', { name: 'Gerenciar campos de Personagens' }).click();
+    await window.getByRole('button', { name: 'Novo campo' }).click();
+    await window.getByLabel('Rótulo *').fill('Não salvar');
+    await window.keyboard.press('Alt+ArrowLeft');
+    await expect(window.getByRole('button', { name: 'Novo campo' })).toBeVisible();
+    await window.keyboard.press('Alt+ArrowLeft');
+    await expect(
+      window.getByRole('heading', { name: 'Tipos de entidade', exact: true }),
+    ).toBeVisible();
+    await window.keyboard.press('Alt+ArrowRight');
+    await expect(window.getByRole('button', { name: 'Novo campo' })).toBeVisible();
+    await window.keyboard.press('Alt+ArrowRight');
+    await expect(window.getByLabel('Rótulo *')).toHaveValue('');
+    for (const [module, create, listHeading, formHeading] of [
+      ['Tipos de relação', 'Novo tipo de relação', 'Tipos de relação', 'Novo tipo de relação'],
+      ['Notas', 'Nova nota', 'Notas', 'Nova nota'],
+      ['Afirmações', 'Nova afirmação', 'Afirmações', 'Nova afirmação'],
+    ] as const) {
+      await window
+        .getByRole('navigation')
+        .getByRole('button', { name: module, exact: true })
+        .click();
+      await window.getByRole('button', { name: create, exact: true }).click();
+      await expect(window.getByRole('heading', { name: formHeading, exact: true })).toBeVisible();
+      await window.keyboard.press('Alt+ArrowLeft');
+      await expect(window.getByRole('heading', { name: listHeading, exact: true })).toBeVisible();
+      await window.keyboard.press('Alt+ArrowRight');
+      await expect(window.getByRole('heading', { name: formHeading, exact: true })).toBeVisible();
+    }
+    await window.getByRole('button', { name: 'Sessões', exact: true }).click();
+    await window.getByRole('button', { name: 'Gerenciar eventos' }).click();
+    await window.getByRole('button', { name: 'Registrar evento', exact: true }).click();
+    await window.getByLabel('Título do evento').fill('Evento não salvo');
+    await window.keyboard.press('Alt+ArrowLeft');
+    await expect(window.getByRole('heading', { name: 'Eventos', exact: true })).toBeVisible();
+    await window.keyboard.press('Alt+ArrowLeft');
+    await expect(window.getByRole('heading', { name: 'Sessões', exact: true })).toBeVisible();
+    await window.keyboard.press('Alt+ArrowRight');
+    await expect(window.getByRole('heading', { name: 'Eventos', exact: true })).toBeVisible();
+    await window.keyboard.press('Alt+ArrowRight');
+    await expect(window.getByLabel('Título do evento')).toHaveValue('');
+    await window.evaluate(() => {
+      document.dispatchEvent(
+        new MouseEvent('auxclick', { bubbles: true, cancelable: true, button: 3 }),
+      );
+    });
+    await expect(window.getByRole('heading', { name: 'Eventos', exact: true })).toBeVisible();
+    await window.evaluate(() => {
+      document.dispatchEvent(
+        new MouseEvent('auxclick', { bubbles: true, cancelable: true, button: 4 }),
+      );
+    });
+    await expect(window.getByLabel('Título do evento')).toHaveValue('');
+  } finally {
+    await application?.close();
+    await rm(dataDirectory, { recursive: true, force: true });
+  }
+});
+
 async function launch(dataDirectory: string): Promise<ElectronApplication> {
   const inheritedEnvironment = Object.fromEntries(
     Object.entries(process.env).filter(
@@ -387,14 +534,16 @@ async function readFieldKey(
     if (campaign === undefined) throw new Error('Campanha do teste ausente.');
     const entityTypes = await gateway.entityTypes.list({ campaignId: campaign.id });
     if (!entityTypes.ok) throw new Error('Não foi possível consultar os grupos do teste.');
-    const entityType = entityTypes.data.items[0];
-    if (entityType === undefined) throw new Error('Grupo do teste ausente.');
-    const fields = await gateway.fieldDefinitions.list({
-      campaignId: campaign.id,
-      entityTypeId: entityType.id,
-    });
-    if (!fields.ok) throw new Error('Não foi possível consultar os campos do teste.');
-    const field = fields.data.items.find((item) => item.label === requestedLabel);
+    const fieldGroups = await Promise.all(
+      entityTypes.data.items.map((entityType) =>
+        gateway.fieldDefinitions.list({ campaignId: campaign.id, entityTypeId: entityType.id }),
+      ),
+    );
+    if (fieldGroups.some((result) => !result.ok))
+      throw new Error('Não foi possível consultar os campos do teste.');
+    const field = fieldGroups
+      .flatMap((result) => (result.ok ? result.data.items : []))
+      .find((item) => item.label === requestedLabel);
     if (field === undefined) throw new Error(`Campo ausente: ${requestedLabel}`);
     return field.key;
   }, label);

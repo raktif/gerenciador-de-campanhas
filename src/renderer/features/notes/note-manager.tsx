@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useNavigationState, useRestoredRecord } from '../../app/navigation-provider';
 import type { Campaign } from '../../../core/contracts/campaigns';
 import type { Entity } from '../../../core/contracts/entities';
 import type {
@@ -43,26 +44,44 @@ export function NoteManager({
   campaign,
   context,
   onBack,
+  initialDraft,
+  onCreated,
+  onCancelInitialDraft,
 }: {
   campaign: Campaign;
   context?: NarrativeContext;
   onBack: () => void;
+  initialDraft?: { title: string; entityId: string | null };
+  onCreated?: () => Promise<UserFacingError | null>;
+  onCancelInitialDraft?: () => void;
 }): React.JSX.Element {
   const [items, setItems] = useState<Note[]>([]);
   const [entities, setEntities] = useState<Entity[]>([]);
-  const [view, setView] = useState<View>('list');
-  const [editing, setEditing] = useState<NoteDetails | null>(null);
-  const [archived, setArchived] = useState(false);
-  const [type, setType] = useState('');
-  const [knowledge, setKnowledge] = useState('');
-  const [canon, setCanon] = useState('');
-  const [visibility, setVisibility] = useState('');
+  const [view, setView] = useNavigationState<View>(`notes:${campaign.id}:view`, () =>
+    initialDraft === undefined ? 'list' : 'create',
+  );
+  const [editing, , setEditing] = useNavigationState<NoteDetails | null>(
+    `notes:${campaign.id}:editing`,
+    null,
+  );
+  const [archived, , setArchived] = useNavigationState(`notes:${campaign.id}:archived`, false);
+  const [type, , setType] = useNavigationState(`notes:${campaign.id}:type`, '');
+  const [knowledge, , setKnowledge] = useNavigationState(`notes:${campaign.id}:knowledge`, '');
+  const [canon, , setCanon] = useNavigationState(`notes:${campaign.id}:canon`, '');
+  const [visibility, , setVisibility] = useNavigationState(`notes:${campaign.id}:visibility`, '');
   const [cursor, setCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<UserFacingError | null>(null);
   const [announcement, setAnnouncement] = useState<string | null>(null);
   const [pending, setPending] = useState<Note | null>(null);
+  useRestoredRecord(
+    view === 'edit' ? editing?.note.id : undefined,
+    (id) => window.campaignManager.notes.get({ campaignId: campaign.id, id }),
+    setEditing,
+    (failure) => setError(presentUserFacingError(failure, 'notes.mutate')),
+    setBusy,
+  );
   const load = useCallback(
     async (append = false): Promise<void> => {
       setLoading(true);
@@ -150,10 +169,17 @@ export function NoteManager({
               links,
             });
       if (result.ok) {
+        if (editing === null && initialDraft !== undefined && onCreated !== undefined) {
+          const failure = await onCreated();
+          if (failure !== null) setError(failure);
+          return;
+        }
         setAnnouncement(editing === null ? 'Nota criada.' : 'Nota atualizada.');
         setEditing(null);
         setView('list');
+        const conversionError = editing === null ? await onCreated?.() : null;
         await load(false);
+        if (conversionError !== null && conversionError !== undefined) setError(conversionError);
       } else setError(presentUserFacingError(result.error, 'notes.mutate'));
     } catch {
       setError(presentUserFacingError(undefined, 'notes.mutate'));
@@ -185,13 +211,19 @@ export function NoteManager({
     return (
       <>
         <NoteForm
+          key={editing === null ? 'create' : `${editing.note.id}:${String(editing.note.revision)}`}
           campaign={campaign}
           {...(context === undefined ? {} : { context })}
+          {...(initialDraft === undefined ? {} : { initialDraft })}
           entities={entities}
           details={editing}
           busy={busy}
           error={null}
           onCancel={() => {
+            if (onCancelInitialDraft !== undefined) {
+              onCancelInitialDraft();
+              return;
+            }
             setEditing(null);
             setView('list');
             setError(null);
@@ -236,7 +268,7 @@ export function NoteManager({
           Nova nota
         </Button>
       </header>
-      <ToolbarActions aria-label="Filtros de notas" className="mt-5">
+      <ToolbarActions aria-label="Filtros de notas" className="mt-5 items-end gap-3">
         <Filter label="Tipo" value={type} options={noteTypeOptions} onChange={setType} />
         <Filter
           label="Natureza"
@@ -350,6 +382,7 @@ function NoteForm({
   entities,
   details,
   context,
+  initialDraft,
   busy,
   error,
   onCancel,
@@ -359,19 +392,22 @@ function NoteForm({
   entities: Entity[];
   details: NoteDetails | null;
   context?: NarrativeContext;
+  initialDraft?: { title: string; entityId: string | null };
   busy: boolean;
   error: string | null;
   onCancel: () => void;
   onSubmit: (input: CreateNoteInput) => Promise<void>;
 }): React.JSX.Element {
-  const [title, setTitle] = useState(details?.note.title ?? '');
+  const [title, setTitle] = useState(details?.note.title ?? initialDraft?.title ?? '');
   const [body, setBody] = useState(details?.note.bodyMarkdown ?? '');
   const [noteType, setNoteType] = useState<Note['noteType']>(details?.note.noteType ?? 'general');
   const [links, setLinks] = useState<NoteEntityLinkInput[]>(() =>
     details === null
-      ? context === undefined
-        ? []
-        : [{ entityId: context.entityId, role: 'related' }]
+      ? initialDraft?.entityId !== null && initialDraft?.entityId !== undefined
+        ? [{ entityId: initialDraft.entityId, role: 'related' }]
+        : context === undefined
+          ? []
+          : [{ entityId: context.entityId, role: 'related' }]
       : details.links.map(({ entityId, role }) => ({ entityId, role })),
   );
   const [metadata, setMetadata] = useState<NarrativeMetadataValues>({
@@ -600,10 +636,10 @@ function Filter({
   onChange: (value: string) => void;
 }): React.JSX.Element {
   return (
-    <label className="text-sm font-semibold">
+    <label className="flex w-40 max-w-full flex-col text-sm font-semibold">
       {label}
       <select
-        className={`${inputClass} ml-2 mt-0 w-auto`}
+        className={inputClass}
         value={value}
         onChange={(event) => onChange(event.target.value)}
       >

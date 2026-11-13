@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useNavigationState } from '../../app/navigation-provider';
 import type { Campaign } from '../../../core/contracts/campaigns';
 import type { Entity } from '../../../core/contracts/entities';
 import type { TimelineEntry } from '../../../core/contracts/timeline';
@@ -26,7 +27,7 @@ export function TimelineManager({
 }): React.JSX.Element {
   const [items, setItems] = useState<TimelineEntry[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
-  const [archived, setArchived] = useState(false);
+  const [archived, , setArchived] = useNavigationState(`timeline:${campaign.id}:archived`, false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<UserFacingError | null>(null);
   const [announcement, setAnnouncement] = useState<string | null>(null);

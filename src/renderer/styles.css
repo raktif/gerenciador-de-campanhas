@@ -16,6 +16,7 @@
   --danger-surface: #fef2f2;
   --warning-surface: #fffbeb;
   --success-surface: #f0fdf4;
+  --dialog-scrim: rgb(15 23 42 / 55%);
   --navigation-surface-elevated: #1e293b;
   --navigation-surface: #020617;
   --navigation-border: #1e293b;
@@ -51,6 +52,7 @@
   --danger-surface: #451a1a;
   --warning-surface: #422006;
   --success-surface: #052e16;
+  --dialog-scrim: rgb(0 0 0 / 70%);
   --navigation-surface-elevated: #1e293b;
   --navigation-surface: #020617;
   --navigation-border: #1e293b;
@@ -306,6 +308,10 @@
   background-color: var(--surface-elevated);
 }
 
+.semantic-dialog-backdrop {
+  background: var(--dialog-scrim);
+}
+
 .semantic-text-primary {
   color: var(--text-primary);
 }
@@ -514,7 +520,8 @@ select {
   background: var(--surface);
 }
 
-.relationship-canvas .react-flow__node-default {
+.relationship-canvas .react-flow__node-default,
+.relationship-canvas .react-flow__node-relationshipNode {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -529,7 +536,8 @@ select {
   box-shadow: 0 0.375rem 1.25rem color-mix(in srgb, var(--text-primary) 12%, transparent);
 }
 
-.relationship-canvas .react-flow__node-default.is-central {
+.relationship-canvas .react-flow__node-default.is-central,
+.relationship-canvas .react-flow__node-relationshipNode.is-central {
   border-color: var(--accent);
   background: var(--warning-surface);
 }

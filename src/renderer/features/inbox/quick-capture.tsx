@@ -17,9 +17,11 @@ import { Button, DialogActions, IconButton } from '../../components/actions';
 export function QuickCapture({
   campaign,
   onOpenInbox,
+  onCaptured,
 }: {
   campaign: Campaign;
   onOpenInbox: () => void;
+  onCaptured?: () => void;
 }): React.JSX.Element {
   const [open, setOpen] = useState(false);
   const [rawText, setRawText] = useState('');
@@ -155,6 +157,7 @@ export function QuickCapture({
       setSessionId('');
       setOpen(false);
       setFeedback(createQuickCaptureFeedback(result.item));
+      onCaptured?.();
       requestAnimationFrame(() => triggerRef.current?.focus());
     } else setCaptureError(result.error);
     setBusy(false);

@@ -25,7 +25,6 @@ test('captura, abre a Caixa de Entrada, filtra, move descartada e pagina com con
     await window.getByRole('button', { name: 'Criar primeiro tipo' }).click();
     await window.getByLabel('Nome plural').fill('Personagens');
     await window.getByLabel('Nome singular').fill('Personagem');
-    await window.getByLabel('Identificador (slug)').fill('personagem');
     await window.getByRole('button', { name: 'Criar tipo de entidade' }).click();
     await window.getByRole('button', { name: 'Voltar para detalhes da campanha' }).click();
     await window.getByRole('button', { name: /Captura rápida/ }).click();
@@ -66,6 +65,19 @@ test('captura, abre a Caixa de Entrada, filtra, move descartada e pagina com con
       .toBe(false);
 
     await reviewingCard.getByRole('button', { name: 'Converter em entidade' }).click();
+    await conversion.getByLabel('Nome').fill('Não salvar este nome');
+    await window.keyboard.press('Alt+ArrowLeft');
+    await expect(conversion).toHaveCount(0);
+    await window.keyboard.press('Alt+ArrowRight');
+    await expect(conversion.getByLabel('Nome')).toHaveValue('Captura para triagem');
+    for (const selector of [
+      '#inbox-entity-type',
+      '#inbox-entity-canon',
+      '#inbox-entity-knowledge',
+      '#inbox-entity-visibility',
+    ]) {
+      await expect(conversion.locator(selector)).toHaveClass(/semantic-surface/);
+    }
     await conversion.getByLabel('Tipo de entidade').selectOption({ label: 'Personagem' });
     await conversion.getByLabel('Nome').fill('Iara');
     await conversion.getByLabel('Resumo').fill('Sentinela da ponte.');

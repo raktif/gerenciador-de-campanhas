@@ -73,6 +73,11 @@ test('exibe um único feedback descartável da captura sem roubar foco', async (
     const window = await application.firstWindow();
     await prepareCampaign(window, 'Feedback da captura');
 
+    await window.getByRole('button', { name: 'Caixa de Entrada', exact: true }).click();
+    await expect(window.getByRole('heading', { name: 'Caixa de Entrada' })).toBeVisible();
+    await saveQuickCapture(window, 'Captura feita com a Caixa de Entrada aberta.');
+    await expect(window.getByText('Captura feita com a Caixa de Entrada aberta.')).toBeVisible();
+
     const trigger = window.getByRole('button', { name: 'Captura rápida' });
     const feedback = window.getByTestId('quick-capture-feedback');
     await saveQuickCapture(window, 'Primeira captura.');

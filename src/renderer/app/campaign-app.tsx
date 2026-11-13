@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Campaign, CampaignPatch, CreateCampaignInput } from '../../core/contracts/campaigns';
 import type { Entity } from '../../core/contracts/entities';
+import type { Session, SessionIntention } from '../../core/contracts/sessions';
 import {
   beginCampaignLoad,
   createCampaignStartupFailure,
@@ -28,6 +29,13 @@ import { presentUserFacingError, type UserFacingError } from '../../core/errors/
 import { UserFacingErrorNotice } from '../components/user-facing-error-notice';
 import { Button, ButtonGroup } from '../components/actions';
 import { ThemeToggle } from '../theme/theme-toggle';
+import {
+  useNavigation,
+  useNavigationRestoration,
+  useNavigationState,
+  useNavigationTraversal,
+  useRestoredRecord,
+} from './navigation-provider';
 
 type Screen =
   | 'campaigns'
@@ -45,23 +53,139 @@ type Screen =
 type CampaignScreen = Exclude<Screen, 'campaigns' | 'create'>;
 type CampaignStatus = Campaign['status'];
 type LifecycleAction = 'archive' | 'restore' | 'moveToTrash';
-
+type IntentionConversionTarget = 'assertion' | 'event' | 'note' | 'relationship';
+interface PendingIntentionConversion {
+  intention: SessionIntention;
+  session: Session;
+  target: IntentionConversionTarget;
+}
+interface AppNavigationRoute {
+  screen: Screen;
+  pageKey: number;
+  selectedCampaign: Campaign | null;
+  narrativeContext: NarrativeContext | null;
+  timelineEntity: Entity | null;
+  relationshipEntity: Entity | null;
+  relationshipReturnEntity: Entity | null;
+  intentionConversion: PendingIntentionConversion | null;
+  returningSessionId: string | null;
+  conversionReturnError: UserFacingError | null;
+}
 export function CampaignApp(): React.JSX.Element {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [statusFilter, setStatusFilter] = useState<CampaignStatus>('active');
-  const [screen, setScreen] = useState<Screen>('campaigns');
   const [campaignLoadState, setCampaignLoadState] =
     useState<CampaignLoadState>(initialCampaignLoadState);
   const [formFailure, setFormFailure] = useState<UserFacingError | null>(null);
   const [creating, setCreating] = useState(false);
-  const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
   const [announcement, setAnnouncement] = useState<string | null>(null);
-  const [narrativeContext, setNarrativeContext] = useState<NarrativeContext | undefined>();
-  const [timelineEntity, setTimelineEntity] = useState<Entity | undefined>();
-  const [relationshipEntity, setRelationshipEntity] = useState<Entity | undefined>();
-  const [relationshipReturnEntity, setRelationshipReturnEntity] = useState<Entity | undefined>();
+  const [inboxRefreshKey, setInboxRefreshKey] = useState(0);
   const contentRef = useRef<HTMLElement>(null);
   const campaignLoadStateRef = useRef<CampaignLoadState>(initialCampaignLoadState);
+  const navigation = useNavigation();
+  const navigationTraversal = useNavigationTraversal();
+  const restoringNavigation = useNavigationRestoration();
+  const [route, setRoute, replaceRoute] = useNavigationState<AppNavigationRoute>('app', {
+    screen: 'campaigns',
+    pageKey: 0,
+    selectedCampaign: null,
+    narrativeContext: null,
+    timelineEntity: null,
+    relationshipEntity: null,
+    relationshipReturnEntity: null,
+    intentionConversion: null,
+    returningSessionId: null,
+    conversionReturnError: null,
+  });
+  const {
+    screen,
+    selectedCampaign,
+    intentionConversion,
+    returningSessionId,
+    conversionReturnError,
+  } = route;
+  const narrativeContext = route.narrativeContext ?? undefined;
+  const timelineEntity = route.timelineEntity ?? undefined;
+  const relationshipEntity = route.relationshipEntity ?? undefined;
+  const navigationRouteRef = useRef(route);
+  navigationRouteRef.current = route;
+  useRestoredRecord(
+    selectedCampaign?.id,
+    (id) => window.campaignManager.campaigns.get({ id }),
+    (campaign) =>
+      replaceRoute((current) => ({
+        ...current,
+        selectedCampaign: campaign,
+        screen: campaign.status === 'active' ? current.screen : 'edit',
+      })),
+    (failure) => setFormFailure(presentUserFacingError(failure, 'campaigns.mutate')),
+    setCreating,
+  );
+
+  function stageRoute(updates: Partial<AppNavigationRoute>): void {
+    navigationRouteRef.current = { ...navigationRouteRef.current, ...updates };
+    replaceRoute(navigationRouteRef.current);
+  }
+
+  function setSelectedCampaign(value: Campaign | null): void {
+    stageRoute({ selectedCampaign: value });
+  }
+  function setNarrativeContext(value: NarrativeContext | undefined): void {
+    stageRoute({ narrativeContext: value ?? null });
+  }
+  function setTimelineEntity(value: Entity | undefined): void {
+    stageRoute({ timelineEntity: value ?? null });
+  }
+  function setRelationshipEntity(value: Entity | undefined): void {
+    stageRoute({ relationshipEntity: value ?? null });
+  }
+  function setRelationshipReturnEntity(value: Entity | undefined): void {
+    stageRoute({ relationshipReturnEntity: value ?? null });
+  }
+  function setIntentionConversion(value: PendingIntentionConversion | null): void {
+    stageRoute({ intentionConversion: value });
+  }
+  function setReturningSessionId(value: string | null): void {
+    stageRoute({ returningSessionId: value });
+  }
+  function setConversionReturnError(value: UserFacingError | null): void {
+    stageRoute({ conversionReturnError: value });
+  }
+
+  function navigateTo(
+    target: Screen,
+    updates: Partial<AppNavigationRoute> = {},
+    replace = false,
+  ): void {
+    const nextRoute = { ...navigationRouteRef.current, ...updates, screen: target };
+    if (
+      !replace &&
+      Object.entries(nextRoute).every(([key, value]) =>
+        Object.is(route[key as keyof AppNavigationRoute], value),
+      )
+    )
+      return;
+    if (target !== route.screen || nextRoute.selectedCampaign?.id !== route.selectedCampaign?.id)
+      navigation?.resetPages(replace ? 'replace' : 'push');
+    navigationRouteRef.current = nextRoute;
+    if (replace) replaceRoute(nextRoute);
+    else setRoute(nextRoute);
+  }
+
+  function setScreen(target: Screen): void {
+    navigateTo(target);
+  }
+
+  function replaceScreen(target: Screen, updates: Partial<AppNavigationRoute> = {}): void {
+    navigateTo(target, updates, true);
+  }
+
+  function goBack(target: Screen, updates: Partial<AppNavigationRoute> = {}): void {
+    navigation?.flush();
+    const previousRoute = navigation?.previousState?.app as AppNavigationRoute | undefined;
+    if (previousRoute?.screen === target) window.history.back();
+    else navigateTo(target, updates);
+  }
 
   useEffect(
     () => () => {
@@ -75,11 +199,12 @@ export function CampaignApp(): React.JSX.Element {
     const frame = requestAnimationFrame(() => {
       const heading = contentRef.current?.querySelector<HTMLHeadingElement>('h1');
       if (heading === null || heading === undefined) return;
+      if (restoringNavigation && contentRef.current?.contains(document.activeElement)) return;
       heading.tabIndex = -1;
       heading.focus();
     });
     return () => cancelAnimationFrame(frame);
-  }, [screen, selectedCampaign]);
+  }, [screen, selectedCampaign, navigationTraversal, restoringNavigation]);
 
   function openContext(entity: Entity, target: 'assertions' | 'notes'): void {
     setNarrativeContext({ entityId: entity.id, entityName: entity.name });
@@ -88,8 +213,7 @@ export function CampaignApp(): React.JSX.Element {
   }
 
   function returnFromNarrative(): void {
-    setScreen(narrativeContext === undefined ? 'edit' : 'entities');
-    setNarrativeContext(undefined);
+    goBack(narrativeContext === undefined ? 'edit' : 'entities', { narrativeContext: null });
   }
 
   function openEntityTimeline(entity: Entity): void {
@@ -101,20 +225,102 @@ export function CampaignApp(): React.JSX.Element {
   function openEntityRelationships(entity: Entity): void {
     setNarrativeContext(undefined);
     setTimelineEntity(undefined);
-    setRelationshipReturnEntity(undefined);
     setRelationshipEntity(entity);
     setScreen('relationships');
   }
 
   function returnFromRelationships(): void {
-    if (relationshipEntity !== undefined) setRelationshipReturnEntity(relationshipEntity);
-    setScreen(relationshipEntity === undefined ? 'edit' : 'entities');
+    goBack(relationshipEntity === undefined ? 'edit' : 'entities', {
+      relationshipEntity: null,
+      relationshipReturnEntity: relationshipEntity ?? null,
+    });
+  }
+
+  function beginIntentionConversion(
+    intention: SessionIntention,
+    session: Session,
+    target: IntentionConversionTarget,
+  ): void {
+    setIntentionConversion({ intention, session, target });
+    setNarrativeContext(undefined);
+    setTimelineEntity(undefined);
     setRelationshipEntity(undefined);
+    setRelationshipReturnEntity(undefined);
+    setScreen(
+      target === 'event'
+        ? 'sessions'
+        : target === 'note'
+          ? 'notes'
+          : target === 'assertion'
+            ? 'assertions'
+            : 'relationships',
+    );
+  }
+
+  async function markIntentionTransformed(): Promise<UserFacingError | null> {
+    const conversion = intentionConversion;
+    if (conversion === null) return null;
+    try {
+      const result = await window.campaignManager.sessionIntentions.update({
+        campaignId: conversion.session.campaignId,
+        sessionId: conversion.session.id,
+        id: conversion.intention.id,
+        revision: conversion.intention.revision,
+        patch: { status: 'transformed' },
+      });
+      setIntentionConversion(null);
+      return result.ok ? null : presentUserFacingError(result.error, 'sessions.mutate');
+    } catch (error) {
+      setIntentionConversion(null);
+      return presentUserFacingError(error, 'sessions.mutate');
+    }
+  }
+
+  async function completeIntentionConversion(): Promise<UserFacingError | null> {
+    const conversion = intentionConversion;
+    const error = await markIntentionTransformed();
+    if (conversion === null) return error;
+    if (navigation?.discardCurrentAndForward()) {
+      replaceRoute((current) => ({
+        ...current,
+        screen: 'sessions',
+        intentionConversion: null,
+        returningSessionId: conversion.session.id,
+        conversionReturnError: error,
+      }));
+      window.history.back();
+    } else {
+      setReturningSessionId(conversion.session.id);
+      setConversionReturnError(error);
+      replaceScreen('sessions');
+    }
+    return null;
+  }
+
+  function clearCampaignRoute(target: Screen): void {
+    replaceScreen(target, {
+      selectedCampaign: null,
+      narrativeContext: null,
+      timelineEntity: null,
+      relationshipEntity: null,
+      relationshipReturnEntity: null,
+      intentionConversion: null,
+      returningSessionId: null,
+      conversionReturnError: null,
+    });
+  }
+
+  const clearSessionReturn = useCallback((): void => {
+    setReturningSessionId(null);
+    setConversionReturnError(null);
+  }, []);
+
+  function cancelIntentionConversion(): void {
+    setIntentionConversion(null);
   }
 
   function returnFromTimeline(): void {
-    setScreen(timelineEntity === undefined ? 'edit' : 'entities');
-    setTimelineEntity(undefined);
+    goBack(timelineEntity === undefined ? 'edit' : 'entities', { timelineEntity: null });
   }
 
   const loadCampaigns = useCallback(async (): Promise<void> => {
@@ -195,11 +401,14 @@ export function CampaignApp(): React.JSX.Element {
   }
 
   function navigateWithinCampaign(target: CampaignScreen): void {
+    navigation?.resetPages();
+    setFormFailure(null);
+    setIntentionConversion(null);
     setNarrativeContext(undefined);
     setTimelineEntity(undefined);
     setRelationshipEntity(undefined);
     setRelationshipReturnEntity(undefined);
-    setScreen(target);
+    navigateTo(target, { pageKey: route.pageKey + 1 });
   }
 
   async function createCampaign(input: CreateCampaignInput): Promise<void> {
@@ -208,7 +417,7 @@ export function CampaignApp(): React.JSX.Element {
     const result = await window.campaignManager.campaigns.create(input);
     if (result.ok) {
       setCampaigns((current) => [result.data, ...current]);
-      setScreen('campaigns');
+      clearCampaignRoute('campaigns');
       setAnnouncement(`Campanha “${result.data.name}” criada.`);
     } else {
       const failure = presentUserFacingError(result.error, 'campaigns.mutate');
@@ -232,8 +441,7 @@ export function CampaignApp(): React.JSX.Element {
 
     if (result.ok) {
       setCampaigns((current) => current.filter((campaign) => campaign.id !== result.data.id));
-      setSelectedCampaign(null);
-      setScreen('campaigns');
+      clearCampaignRoute('campaigns');
       setAnnouncement(lifecycleAnnouncement(action, result.data.name));
     } else {
       const failure = presentUserFacingError(result.error, 'campaigns.mutate');
@@ -256,8 +464,7 @@ export function CampaignApp(): React.JSX.Element {
       setCampaigns((current) =>
         current.map((campaign) => (campaign.id === result.data.id ? result.data : campaign)),
       );
-      setSelectedCampaign(null);
-      setScreen('campaigns');
+      clearCampaignRoute('campaigns');
       setAnnouncement(`Campanha “${result.data.name}” atualizada.`);
     } else {
       const failure = presentUserFacingError(result.error, 'campaigns.mutate');
@@ -314,7 +521,17 @@ export function CampaignApp(): React.JSX.Element {
           </div>
         </aside>
 
-        <main className="min-w-0 px-8 py-8 lg:px-12 lg:py-10" ref={contentRef}>
+        <main
+          className="min-w-0 px-8 py-8 lg:px-12 lg:py-10"
+          key={`${String(navigationTraversal)}:${String(route.pageKey)}`}
+          ref={contentRef}
+        >
+          {formFailure !== null &&
+          screen !== 'create' &&
+          screen !== 'edit' &&
+          screen !== 'campaigns' ? (
+            <UserFacingErrorNotice error={formFailure} operation="campaigns.mutate" />
+          ) : null}
           <div className="mb-4 flex justify-end">
             <ThemeToggle />
           </div>
@@ -334,41 +551,126 @@ export function CampaignApp(): React.JSX.Element {
               )}
             </>
           ) : screen === 'entityTypes' && selectedCampaign !== null ? (
-            <EntityTypeManager campaign={selectedCampaign} onBack={() => setScreen('edit')} />
+            <EntityTypeManager campaign={selectedCampaign} onBack={() => goBack('edit')} />
           ) : screen === 'entities' && selectedCampaign !== null ? (
             <EntityManager
               campaign={selectedCampaign}
-              onBack={() => setScreen('edit')}
+              onBack={() => goBack('edit')}
               onOpenAssertions={(entity) => openContext(entity, 'assertions')}
               onOpenNotes={(entity) => openContext(entity, 'notes')}
               onOpenTimeline={openEntityTimeline}
               onOpenRelationships={openEntityRelationships}
-              {...(relationshipReturnEntity === undefined
-                ? {}
-                : { initialDetailEntity: relationshipReturnEntity, focusRelationshipButton: true })}
+              focusRelationshipButton={restoringNavigation}
             />
           ) : screen === 'relationshipTypes' && selectedCampaign !== null ? (
-            <RelationshipTypeManager campaign={selectedCampaign} onBack={() => setScreen('edit')} />
+            <RelationshipTypeManager campaign={selectedCampaign} onBack={() => goBack('edit')} />
           ) : screen === 'relationships' && selectedCampaign !== null ? (
             <RelationshipManager
               campaign={selectedCampaign}
               {...(relationshipEntity === undefined ? {} : { centralEntity: relationshipEntity })}
-              onBack={returnFromRelationships}
+              onBack={
+                intentionConversion === null
+                  ? returnFromRelationships
+                  : () => {
+                      cancelIntentionConversion();
+                      goBack('sessions', { intentionConversion: null });
+                    }
+              }
+              {...(intentionConversion?.target === 'relationship'
+                ? {
+                    initialDraft: {
+                      entityId: intentionConversion.intention.entityId,
+                      description: intentionConversion.intention.text,
+                    },
+                  }
+                : {})}
+              onCreated={completeIntentionConversion}
             />
           ) : screen === 'assertions' && selectedCampaign !== null ? (
             <AssertionManager
               campaign={selectedCampaign}
               {...(narrativeContext === undefined ? {} : { context: narrativeContext })}
-              onBack={returnFromNarrative}
+              onBack={
+                intentionConversion === null
+                  ? returnFromNarrative
+                  : () => {
+                      cancelIntentionConversion();
+                      goBack('sessions', { intentionConversion: null });
+                    }
+              }
+              {...(intentionConversion?.target === 'assertion'
+                ? {
+                    initialDraft: {
+                      subjectEntityId: intentionConversion.intention.entityId ?? '',
+                      statement: intentionConversion.intention.text,
+                    },
+                  }
+                : {})}
+              onCreated={completeIntentionConversion}
+              {...(intentionConversion === null
+                ? {}
+                : {
+                    onCancelInitialDraft: () => {
+                      cancelIntentionConversion();
+                      goBack('sessions', { intentionConversion: null });
+                    },
+                  })}
             />
           ) : screen === 'notes' && selectedCampaign !== null ? (
             <NoteManager
               campaign={selectedCampaign}
               {...(narrativeContext === undefined ? {} : { context: narrativeContext })}
-              onBack={returnFromNarrative}
+              onBack={
+                intentionConversion === null
+                  ? returnFromNarrative
+                  : () => {
+                      cancelIntentionConversion();
+                      goBack('sessions', { intentionConversion: null });
+                    }
+              }
+              {...(intentionConversion?.target === 'note'
+                ? {
+                    initialDraft: {
+                      title: intentionConversion.intention.text,
+                      entityId: intentionConversion.intention.entityId,
+                    },
+                  }
+                : {})}
+              onCreated={completeIntentionConversion}
+              {...(intentionConversion === null
+                ? {}
+                : {
+                    onCancelInitialDraft: () => {
+                      cancelIntentionConversion();
+                      goBack('sessions', { intentionConversion: null });
+                    },
+                  })}
             />
           ) : screen === 'sessions' && selectedCampaign !== null ? (
-            <SessionManager campaign={selectedCampaign} onBack={() => setScreen('edit')} />
+            <SessionManager
+              campaign={selectedCampaign}
+              onBack={() => goBack('edit')}
+              onTransformIntention={beginIntentionConversion}
+              onCancelIntentionTransformation={cancelIntentionConversion}
+              onIntentionTransformed={completeIntentionConversion}
+              {...(returningSessionId === null
+                ? {}
+                : {
+                    initialSessionId: returningSessionId,
+                    initialReturnError: conversionReturnError,
+                    onInitialSessionOpened: clearSessionReturn,
+                  })}
+              {...(intentionConversion?.target === 'event'
+                ? {
+                    initialEventDraft: {
+                      title: intentionConversion.intention.text,
+                      entityId: intentionConversion.intention.entityId,
+                      occurredAtLabel: intentionConversion.session.title,
+                      sessionId: intentionConversion.session.id,
+                    },
+                  }
+                : {})}
+            />
           ) : screen === 'timeline' && selectedCampaign !== null ? (
             <TimelineManager
               campaign={selectedCampaign}
@@ -378,10 +680,11 @@ export function CampaignApp(): React.JSX.Element {
           ) : screen === 'inbox' && selectedCampaign !== null ? (
             <InboxManager
               campaign={selectedCampaign}
-              onBack={() => setScreen('edit')}
+              onBack={() => goBack('edit')}
               onManageEntities={() => setScreen('entities')}
               onManageEntityTypes={() => setScreen('entityTypes')}
               onManageRelationshipTypes={() => setScreen('relationshipTypes')}
+              refreshKey={inboxRefreshKey}
             />
           ) : screen === 'edit' && selectedCampaign !== null ? (
             <>
@@ -422,7 +725,11 @@ export function CampaignApp(): React.JSX.Element {
           )}
         </main>
         {selectedCampaign === null ? null : (
-          <QuickCapture campaign={selectedCampaign} onOpenInbox={() => setScreen('inbox')} />
+          <QuickCapture
+            campaign={selectedCampaign}
+            onCaptured={() => setInboxRefreshKey((current) => current + 1)}
+            onOpenInbox={() => setScreen('inbox')}
+          />
         )}
       </div>
     </div>

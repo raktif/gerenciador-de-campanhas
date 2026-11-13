@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useNavigationState, useRestoredRecord } from '../../app/navigation-provider';
 import type { Campaign } from '../../../core/contracts/campaigns';
 import type { EntityType } from '../../../core/contracts/entity-types';
 import type {
@@ -14,6 +15,8 @@ import { UserFacingErrorNotice } from '../../components/user-facing-error-notice
 import { ReorderableList } from '../../components/reorderable-list';
 import type { RelativeMove } from '../../../core/ordering/move-relative';
 import { Button, ButtonGroup, ToolbarActions } from '../../components/actions';
+import { Icon } from '../../components/icon';
+import { entityTypeColorStyle } from '../entity-types/entity-type-color';
 
 type View = 'list' | 'create' | 'edit';
 
@@ -26,14 +29,30 @@ export function RelationshipTypeManager({
 }): React.JSX.Element {
   const [types, setTypes] = useState<RelationshipType[]>([]);
   const [entityTypes, setEntityTypes] = useState<EntityType[]>([]);
-  const [showArchived, setShowArchived] = useState(false);
-  const [view, setView] = useState<View>('list');
-  const [editing, setEditing] = useState<RelationshipType | null>(null);
+  const [showArchived, , setShowArchived] = useNavigationState(
+    `relationship-types:${campaign.id}:archived`,
+    false,
+  );
+  const [view, setView] = useNavigationState<View>(
+    `relationship-types:${campaign.id}:view`,
+    'list',
+  );
+  const [editing, , setEditing] = useNavigationState<RelationshipType | null>(
+    `relationship-types:${campaign.id}:editing`,
+    null,
+  );
   const [pending, setPending] = useState<RelationshipType | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<UserFacingError | null>(null);
   const [announcement, setAnnouncement] = useState<string | null>(null);
+  useRestoredRecord(
+    view === 'edit' ? editing?.id : undefined,
+    (id) => window.campaignManager.relationshipTypes.get({ campaignId: campaign.id, id }),
+    setEditing,
+    (failure) => setError(presentUserFacingError(failure, 'relationship-types.mutate')),
+    setBusy,
+  );
 
   const load = useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -168,7 +187,10 @@ export function RelationshipTypeManager({
           entityTypes={entityTypes}
           error={null}
           mode="create"
-          onCancel={() => setView('list')}
+          onCancel={() => {
+            setError(null);
+            setView('list');
+          }}
           onSubmit={create}
         />
         {error === null ? null : (
@@ -190,6 +212,7 @@ export function RelationshipTypeManager({
           onCancel={() => {
             setEditing(null);
             setView('list');
+            setError(null);
           }}
           onSubmit={update}
           relationshipType={editing}
@@ -322,6 +345,7 @@ export function RelationshipTypeManager({
               entityTypes={entityTypes}
               onEdit={() => {
                 setEditing(type);
+                setError(null);
                 setView('edit');
               }}
               onLifecycle={() => setPending(type)}
@@ -349,21 +373,34 @@ function RelationshipTypeCard({
   return (
     <article className="rounded-2xl border semantic-border semantic-surface p-6 shadow-sm">
       <div className="flex items-start justify-between gap-6">
-        <div>
-          <h2 className="text-xl font-semibold">{relationshipType.name}</h2>
-          <p className="mt-1 text-sm semantic-text-secondary">
-            {relationshipType.slug} ·{' '}
-            {relationshipType.isSymmetric
-              ? 'Simétrica'
-              : `Inversa: ${relationshipType.inverseName ?? 'não definida'}`}
-          </p>
-          {relationshipType.description === null ? null : (
-            <p className="mt-3 semantic-text-secondary">{relationshipType.description}</p>
-          )}
-          <p className="mt-3 text-sm semantic-text-secondary">
-            Origem: {allowedLabel(relationshipType.allowedSourceTypeIds, entityTypeNames)} ·
-            Destino: {allowedLabel(relationshipType.allowedTargetTypeIds, entityTypeNames)}
-          </p>
+        <div className="flex min-w-0 gap-4">
+          <div
+            aria-hidden="true"
+            className="grid size-11 shrink-0 place-items-center rounded-xl semantic-selected-surface text-lg font-bold semantic-selected-text"
+            data-testid="relationship-type-icon"
+            style={entityTypeColorStyle(relationshipType.color)}
+          >
+            {relationshipType.icon === null ? (
+              relationshipType.name.slice(0, 1).toUpperCase()
+            ) : (
+              <Icon className="size-6" value={relationshipType.icon} />
+            )}
+          </div>
+          <div className="min-w-0">
+            <h2 className="text-xl font-semibold">{relationshipType.name}</h2>
+            <p className="mt-1 text-sm semantic-text-secondary">
+              {relationshipType.isSymmetric
+                ? 'Simétrica'
+                : `Inversa: ${relationshipType.inverseName ?? 'não definida'}`}
+            </p>
+            {relationshipType.description === null ? null : (
+              <p className="mt-3 semantic-text-secondary">{relationshipType.description}</p>
+            )}
+            <p className="mt-3 text-sm semantic-text-secondary">
+              Origem: {allowedLabel(relationshipType.allowedSourceTypeIds, entityTypeNames)} ·
+              Destino: {allowedLabel(relationshipType.allowedTargetTypeIds, entityTypeNames)}
+            </p>
+          </div>
         </div>
       </div>
       <ToolbarActions

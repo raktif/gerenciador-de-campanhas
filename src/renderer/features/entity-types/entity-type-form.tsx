@@ -10,7 +10,7 @@ import type {
 import { iconIdSchema, type IconId } from '../../../core/contracts/icons';
 import { normalizeHexColor } from '../../../core/contracts/colors';
 
-export type EntityTypeCreateValues = Omit<CreateEntityTypeInputRequest, 'campaignId'>;
+export type EntityTypeCreateValues = Omit<CreateEntityTypeInputRequest, 'campaignId' | 'slug'>;
 
 type EntityTypeFormProps = {
   busy: boolean;
@@ -31,7 +31,6 @@ type EntityTypeFormProps = {
 interface FormValues {
   name: string;
   singularName: string;
-  slug: string;
   description: string;
   icon: EntityTypeFormIconValue;
   color: string;
@@ -40,13 +39,10 @@ interface FormValues {
 const emptyValues: FormValues = {
   name: '',
   singularName: '',
-  slug: '',
   description: '',
   icon: null,
   color: '',
 };
-
-const stableKeyPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 export function EntityTypeForm(props: EntityTypeFormProps): React.JSX.Element {
   const [values, setValues] = useState<FormValues>(() =>
@@ -61,12 +57,6 @@ export function EntityTypeForm(props: EntityTypeFormProps): React.JSX.Element {
 
   function submit(event: React.SyntheticEvent<HTMLFormElement, SubmitEvent>): void {
     event.preventDefault();
-    if (!stableKeyPattern.test(values.slug.trim())) {
-      setValidationError(
-        'O identificador deve usar apenas letras minúsculas sem acentos, números e hífens simples.',
-      );
-      return;
-    }
     if (props.mode === 'create') {
       void props.onSubmit(toCreateEntityTypeValues(values));
       return;
@@ -128,21 +118,6 @@ export function EntityTypeForm(props: EntityTypeFormProps): React.JSX.Element {
               value={values.singularName}
             />
           </div>
-
-          <div>
-            <TextField
-              disabled={props.busy}
-              id="entity-type-slug"
-              label="Identificador (slug)"
-              onChange={(value) => update('slug', value)}
-              placeholder="personagens"
-              required
-              value={values.slug}
-            />
-          </div>
-          <p className="-mt-5 text-xs semantic-text-secondary">
-            Use letras minúsculas, números e hífens simples no identificador.
-          </p>
 
           <div>
             <label className={labelClassName} htmlFor="entity-type-description">
@@ -254,7 +229,6 @@ export function toCreateEntityTypeValues(values: FormValues): EntityTypeCreateVa
   return {
     name: values.name.trim(),
     singularName: values.singularName.trim(),
-    slug: values.slug.trim(),
     ...optionalValue('description', values.description),
     ...optionalIconValue(values.icon),
     ...optionalColorValue(values.color),
@@ -268,7 +242,6 @@ export function toEntityTypePatch(
   const patch: EntityTypePatch = {};
   assignTextChange(patch, 'name', values.name, entityType.name);
   assignTextChange(patch, 'singularName', values.singularName, entityType.singularName);
-  assignTextChange(patch, 'slug', values.slug, entityType.slug);
   assignNullableChange(patch, 'description', values.description, entityType.description);
   assignNullableIconChange(patch, values.icon, entityType.icon);
   assignNullableColorChange(patch, values.color, entityType.color);
@@ -279,7 +252,6 @@ function toFormValues(entityType: EntityType): FormValues {
   return {
     name: entityType.name,
     singularName: entityType.singularName,
-    slug: entityType.slug,
     description: entityType.description ?? '',
     icon: toFormIconValue(entityType.icon),
     color: entityType.color ?? '',
@@ -288,7 +260,7 @@ function toFormValues(entityType: EntityType): FormValues {
 
 function assignTextChange(
   patch: EntityTypePatch,
-  field: 'name' | 'singularName' | 'slug',
+  field: 'name' | 'singularName',
   value: string,
   currentValue: string,
 ): void {

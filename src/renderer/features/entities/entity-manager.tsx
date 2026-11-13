@@ -11,6 +11,7 @@ import {
 import { UserFacingErrorNotice } from '../../components/user-facing-error-notice';
 import { Button, ButtonGroup, ToolbarActions } from '../../components/actions';
 import { EntityReferenceImagePreview } from './entity-reference-image';
+import { useNavigationState, useRestoredRecord } from '../../app/navigation-provider';
 
 type View = 'list' | 'create' | 'details' | 'edit';
 type LifecycleAction = 'archive' | 'restore';
@@ -36,11 +37,20 @@ export function EntityManager({
 }): React.JSX.Element {
   const [entityTypes, setEntityTypes] = useState<EntityType[]>([]);
   const [entities, setEntities] = useState<Entity[]>([]);
-  const [typeFilter, setTypeFilter] = useState('');
-  const [showArchived, setShowArchived] = useState(false);
-  const [view, setView] = useState<View>('list');
-  const [editing, setEditing] = useState<EntityDetails | null>(null);
-  const [viewing, setViewing] = useState<EntityDetails | null>(null);
+  const [typeFilter, , setTypeFilter] = useNavigationState(`entities:${campaign.id}:filter`, '');
+  const [showArchived, , setShowArchived] = useNavigationState(
+    `entities:${campaign.id}:archived`,
+    false,
+  );
+  const [view, setView] = useNavigationState<View>(`entities:${campaign.id}:view`, 'list');
+  const [editing, , setEditing] = useNavigationState<EntityDetails | null>(
+    `entities:${campaign.id}:editing`,
+    null,
+  );
+  const [viewing, setViewing, replaceViewing] = useNavigationState<EntityDetails | null>(
+    `entities:${campaign.id}:details`,
+    null,
+  );
   const [pending, setPending] = useState<{ action: LifecycleAction; entity: Entity } | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -49,6 +59,16 @@ export function EntityManager({
   const listFocusTargetRef = useRef<string | null>(null);
   const [pendingListFocusTarget, setPendingListFocusTarget] = useState<string | null>(null);
   const loadedInitialDetailEntityId = useRef<string | null>(null);
+  useRestoredRecord(
+    view === 'edit' ? editing?.entity.id : view === 'details' ? viewing?.entity.id : undefined,
+    (id) => window.campaignManager.entities.get({ campaignId: campaign.id, id }),
+    (details) => {
+      if (view === 'edit') setEditing(details);
+      else replaceViewing(details);
+    },
+    (failure) => setError(presentUserFacingError(failure, 'entities.mutate')),
+    setBusy,
+  );
 
   const loadEntityTypes = useCallback(async (): Promise<void> => {
     const result = await window.campaignManager.entityTypes.list({
@@ -138,7 +158,7 @@ export function EntityManager({
   }
 
   function updateViewingDetails(details: EntityDetails): void {
-    setViewing(details);
+    replaceViewing(details);
     setEntities((current) =>
       current.map((entity) => (entity.id === details.entity.id ? details.entity : entity)),
     );
@@ -185,6 +205,7 @@ export function EntityManager({
       id: editing.entity.id,
       revision: editing.entity.revision,
       patch: {
+        entityTypeId: values.entityTypeId,
         name: values.name,
         summary: values.summary,
         canonState: values.canonState,
@@ -281,21 +302,24 @@ export function EntityManager({
   }
   if (view === 'details' && viewing !== null) {
     return (
-      <EntityDetailsView
-        campaign={campaign}
-        details={viewing}
-        entityTypes={entityTypes}
-        onBack={returnToList}
-        onEdit={beginEditFromDetails}
-        onOpenAssertions={() => onOpenAssertions(viewing.entity)}
-        onOpenNotes={() => onOpenNotes(viewing.entity)}
-        onOpenTimeline={() => onOpenTimeline(viewing.entity)}
-        onOpenRelationships={onOpenRelationships}
-        onDetailsChange={updateViewingDetails}
-        focusRelationshipButton={
-          focusRelationshipButton && initialDetailEntity?.id === viewing.entity.id
-        }
-      />
+      <>
+        {error === null ? null : (
+          <UserFacingErrorNotice error={error} operation="entities.mutate" />
+        )}
+        <EntityDetailsView
+          campaign={campaign}
+          details={viewing}
+          entityTypes={entityTypes}
+          onBack={returnToList}
+          onEdit={beginEditFromDetails}
+          onOpenAssertions={() => onOpenAssertions(viewing.entity)}
+          onOpenNotes={() => onOpenNotes(viewing.entity)}
+          onOpenTimeline={() => onOpenTimeline(viewing.entity)}
+          onOpenRelationships={onOpenRelationships}
+          onDetailsChange={updateViewingDetails}
+          focusRelationshipButton={focusRelationshipButton}
+        />
+      </>
     );
   }
   return (

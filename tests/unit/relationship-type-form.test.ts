@@ -22,21 +22,23 @@ describe('formulário de tipo de relação', () => {
     );
 
     expect(markup).toContain('aria-label="Paleta de cores"');
-    expect(markup.match(/type="radio"/g)).toHaveLength(13);
+    expect(markup.match(/name="relationship-type-color-palette"/g)).toHaveLength(13);
     expect(markup).toContain('Seletor visual');
     expect(markup).toContain('Matiz');
     expect(markup).toContain('Saturação');
     expect(markup).toContain('Luminosidade');
     expect(markup).toContain('Cor hexadecimal');
+    expect(markup).toContain('Ícone');
+    expect(markup).not.toContain('Slug');
   });
 
   it('normaliza a cor na criação e preserva null', () => {
-    expect(
-      toCreateValues({ ...emptyValues, name: 'Conhece', slug: 'conhece', color: '#abcdef' }),
-    ).toMatchObject({ color: '#ABCDEF' });
-    expect(
-      toCreateValues({ ...emptyValues, name: 'Conhece', slug: 'conhece', color: '  ' }),
-    ).toMatchObject({ color: null });
+    expect(toCreateValues({ ...emptyValues, name: 'Conhece', color: '#abcdef' })).toMatchObject({
+      color: '#ABCDEF',
+    });
+    expect(toCreateValues({ ...emptyValues, name: 'Conhece', color: '  ' })).toMatchObject({
+      color: null,
+    });
   });
 
   it('preserva valor legado intocado ao editar outro campo', () => {
@@ -67,7 +69,6 @@ describe('formulário de tipo de relação', () => {
 
 const emptyValues = {
   name: '',
-  slug: '',
   inverseName: '',
   description: '',
   semanticRole: '',
@@ -102,7 +103,6 @@ const relationshipType: RelationshipType = {
 function toFormValues(type: RelationshipType): typeof emptyValues {
   return {
     name: type.name,
-    slug: type.slug,
     inverseName: type.inverseName ?? '',
     description: type.description ?? '',
     semanticRole: type.semanticRole ?? '',

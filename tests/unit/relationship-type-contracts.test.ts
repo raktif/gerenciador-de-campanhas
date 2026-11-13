@@ -17,7 +17,6 @@ describe('contratos de tipos de relação', () => {
       createRelationshipTypeInputSchema.parse({
         campaignId,
         name: '  Trabalha em  ',
-        slug: 'trabalha-em',
       }),
     ).toEqual({
       campaignId,
@@ -35,15 +34,21 @@ describe('contratos de tipos de relação', () => {
     });
   });
 
-  it('rejeita slug, papel semântico, IDs repetidos e patch vazio', () => {
+  it('gera o slug a partir do nome e rejeita entradas desconhecidas', () => {
+    expect(
+      createRelationshipTypeInputSchema.parse({ campaignId, name: 'Relação de Amizade' }),
+    ).toMatchObject({ slug: 'relacao-de-amizade' });
     expect(() =>
       createRelationshipTypeInputSchema.parse({ campaignId, name: 'Conhece', slug: 'Conhece' }),
     ).toThrow();
+    expect(() => relationshipTypePatchSchema.parse({ slug: 'conhece' })).toThrow();
+  });
+
+  it('valida papel semântico, IDs repetidos e patch vazio', () => {
     expect(() =>
       createRelationshipTypeInputSchema.parse({
         campaignId,
         name: 'Conhece',
-        slug: 'conhece',
         semanticRole: 'Conhece Pessoa',
       }),
     ).toThrow();
@@ -52,7 +57,6 @@ describe('contratos de tipos de relação', () => {
       createRelationshipTypeInputSchema.parse({
         campaignId,
         name: 'Conhece',
-        slug: 'conhece',
         allowedSourceTypeIds: [typeId, typeId],
       }),
     ).toThrow();
@@ -64,7 +68,6 @@ describe('contratos de tipos de relação', () => {
       createRelationshipTypeInputSchema.parse({
         campaignId,
         name: 'Conhece',
-        slug: 'conhece',
         sortOrder: 2,
       }),
     ).toThrow();
@@ -76,7 +79,6 @@ describe('contratos de tipos de relação', () => {
       createRelationshipTypeInputSchema.parse({
         campaignId,
         name: 'Conhece',
-        slug: 'conhece',
         color: '  #a1b2c3 ',
       }),
     ).toMatchObject({ color: '#A1B2C3' });

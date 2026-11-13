@@ -191,7 +191,6 @@ async function prepareCampaign(window: Page): Promise<void> {
   await window.getByRole('button', { name: 'Criar primeiro tipo' }).click();
   await window.getByLabel('Nome plural').fill('Personagens');
   await window.getByLabel('Nome singular').fill('Personagem');
-  await window.getByLabel('Identificador (slug)').fill('personagens');
   await window.getByRole('button', { name: 'Criar tipo de entidade' }).click();
   await window.getByRole('button', { name: 'Voltar para detalhes da campanha' }).click();
   await window.getByRole('button', { name: 'Ver entidades' }).click();

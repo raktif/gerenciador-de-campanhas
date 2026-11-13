@@ -42,6 +42,7 @@ describe('RelationshipTypeRepository', () => {
     );
 
     expect(repository.findById(campaignId, first.id)).toEqual(first);
+    expect(repository.findBySlug(campaignId, first.slug)).toEqual(first);
     expect(repository.findById(otherCampaignId, first.id)).toBeNull();
     expect(repository.list(relationshipTypePageRequestSchema.parse({ campaignId })).items).toEqual([
       first,
@@ -52,7 +53,7 @@ describe('RelationshipTypeRepository', () => {
           createType('20000000-0000-4000-8000-000000000003', campaignId, 'trabalha-em'),
         ),
       ).code,
-    ).toBe('RELATIONSHIP_TYPE_SLUG_CONFLICT');
+    ).toBe('RELATIONSHIP_TYPE_NAME_ALREADY_EXISTS');
     context.close();
   });
 

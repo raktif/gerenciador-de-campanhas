@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigationState } from '../../app/navigation-provider';
 import type { Campaign } from '../../../core/contracts/campaigns';
 import type { Entity } from '../../../core/contracts/entities';
 import type { RelationshipType } from '../../../core/contracts/relationship-types';
@@ -52,9 +53,15 @@ export function RelationshipNeighborhood({
   centralEntityId?: string;
   directOnly?: boolean;
 }): React.JSX.Element {
-  const [entityId, setEntityId] = useState('');
-  const [depth, setDepth] = useState<1 | 2 | 3>(1);
-  const [filters, setFilters] = useState(emptyFilters);
+  const [entityId, setEntityId, replaceEntityId] = useNavigationState(
+    `neighborhood:${campaign.id}:entity`,
+    centralEntityId ?? '',
+  );
+  const [depth, , setDepth] = useNavigationState<1 | 2 | 3>(`neighborhood:${campaign.id}:depth`, 1);
+  const [filters, , setFilters] = useNavigationState(
+    `neighborhood:${campaign.id}:filters`,
+    emptyFilters,
+  );
   const [result, setResult] = useState<RelationshipNeighborhoodResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<UserFacingError | null>(null);
@@ -94,8 +101,7 @@ export function RelationshipNeighborhood({
     const contextKey = `${campaign.id}:${validCentralEntityId}`;
     if (initializedCentralContext.current === contextKey) return;
     initializedCentralContext.current = contextKey;
-    setEntityId(validCentralEntityId);
-    setDepth(1);
+    if (entityId === '') replaceEntityId(validCentralEntityId);
   }, [campaign.id, centralEntityId, entities]);
 
   useEffect(() => {

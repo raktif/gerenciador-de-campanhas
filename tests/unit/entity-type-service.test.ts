@@ -4,6 +4,7 @@ import {
   createEntityTypeInputSchema,
   entityTypePageRequestSchema,
   entityTypeSchema,
+  updateEntityTypeInputSchema,
   type EntityType,
   type EntityTypePageRequest,
   type EntityTypePageResult,
@@ -34,7 +35,6 @@ describe('EntityTypeService', () => {
           campaignId,
           name: 'Personagens',
           singularName: 'Personagem',
-          slug: 'personagens',
           color: '#92400e',
         }),
       ),
@@ -55,6 +55,23 @@ describe('EntityTypeService', () => {
       updatedAt: secondTimestamp,
       revision: 1,
     });
+
+  });
+
+  it('atualiza o identificador gerado quando o nome do tipo muda', () => {
+    const repository = new MemoryEntityTypeRepository([createEntityType()]);
+    const service = createService(repository);
+
+    expect(
+      service.update(
+        updateEntityTypeInputSchema.parse({
+          campaignId,
+          id: entityTypeId,
+          revision: 1,
+          patch: { name: 'Guardiões da Névoa' },
+        }),
+      ),
+    ).toMatchObject({ name: 'Guardiões da Névoa', slug: 'guardioes-da-nevoa', revision: 2 });
   });
 
   it('lista somente após validar a campanha', () => {

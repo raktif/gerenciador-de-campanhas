@@ -13,6 +13,7 @@ import type { RelativeMove } from '../../../core/ordering/move-relative';
 import { Button, ButtonGroup, ToolbarActions } from '../../components/actions';
 import { Icon } from '../../components/icon';
 import { entityTypeColorStyle } from './entity-type-color';
+import { useNavigationState, useRestoredRecord } from '../../app/navigation-provider';
 
 type ManagerView = 'list' | 'create' | 'edit' | 'fields';
 type LifecycleAction = 'archive' | 'restore';
@@ -25,10 +26,22 @@ export function EntityTypeManager({
   onBack: () => void;
 }): React.JSX.Element {
   const [entityTypes, setEntityTypes] = useState<EntityType[]>([]);
-  const [showArchived, setShowArchived] = useState(false);
-  const [view, setView] = useState<ManagerView>('list');
-  const [editing, setEditing] = useState<EntityType | null>(null);
-  const [fieldOwner, setFieldOwner] = useState<EntityType | null>(null);
+  const [showArchived, , setShowArchived] = useNavigationState(
+    `entity-types:${campaign.id}:archived`,
+    false,
+  );
+  const [view, setView] = useNavigationState<ManagerView>(
+    `entity-types:${campaign.id}:view`,
+    'list',
+  );
+  const [editing, , setEditing] = useNavigationState<EntityType | null>(
+    `entity-types:${campaign.id}:editing`,
+    null,
+  );
+  const [fieldOwner, , setFieldOwner] = useNavigationState<EntityType | null>(
+    `entity-types:${campaign.id}:fields`,
+    null,
+  );
   const [pendingLifecycle, setPendingLifecycle] = useState<{
     action: LifecycleAction;
     entityType: EntityType;
@@ -37,6 +50,16 @@ export function EntityTypeManager({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<UserFacingError | null>(null);
   const [announcement, setAnnouncement] = useState<string | null>(null);
+  useRestoredRecord(
+    view === 'edit' ? editing?.id : view === 'fields' ? fieldOwner?.id : undefined,
+    (id) => window.campaignManager.entityTypes.get({ campaignId: campaign.id, id }),
+    (record) => {
+      if (view === 'edit') setEditing(record);
+      else setFieldOwner(record);
+    },
+    (failure) => setError(presentUserFacingError(failure, 'entity-types.mutate')),
+    setBusy,
+  );
 
   const loadEntityTypes = useCallback(async (): Promise<void> => {
     setLoading(true);

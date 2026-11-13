@@ -92,6 +92,15 @@ export class RelationshipTypeRepository {
     return row === undefined ? null : toContract(row);
   }
 
+  public findBySlug(campaignId: string, slug: string): RelationshipType | null {
+    const row = this.database
+      .select()
+      .from(relationshipTypes)
+      .where(and(eq(relationshipTypes.campaignId, campaignId), eq(relationshipTypes.slug, slug)))
+      .get();
+    return row === undefined ? null : toContract(row);
+  }
+
   public list(request: RelationshipTypePageRequest): RelationshipTypePageResult {
     const cursor = request.cursor === undefined ? null : decodeCursor(request.cursor, request);
     const sortExpression = getSortExpression(request.sort);
@@ -384,10 +393,13 @@ function decodeCursor(value: string, request: RelationshipTypePageRequest): Rela
   }
 }
 function translateConstraintError(error: unknown, campaignId: string, slug?: string): Error {
-  if (findSqliteCode(error)?.startsWith('SQLITE_CONSTRAINT_UNIQUE') === true)
+  if (
+    findSqliteCode(error)?.startsWith('SQLITE_CONSTRAINT_UNIQUE') === true &&
+    findSqliteMessage(error)?.includes('relationship_types.campaign_id, relationship_types.slug')
+  )
     return new AppError(
-      'RELATIONSHIP_TYPE_SLUG_CONFLICT',
-      'Já existe um tipo de relação com esse slug nesta campanha.',
+      'RELATIONSHIP_TYPE_NAME_ALREADY_EXISTS',
+      'Já existe um tipo de relação com esse nome. Escolha um nome diferente.',
       { campaignId, ...(slug === undefined ? {} : { slug }) },
     );
   return error instanceof Error ? error : new Error('Falha ao persistir tipo de relação.');
@@ -396,6 +408,11 @@ function findSqliteCode(error: unknown): string | undefined {
   if (typeof error !== 'object' || error === null) return undefined;
   if ('code' in error && typeof error.code === 'string') return error.code;
   return 'cause' in error ? findSqliteCode(error.cause) : undefined;
+}
+function findSqliteMessage(error: unknown): string | undefined {
+  if (typeof error !== 'object' || error === null) return undefined;
+  if ('message' in error && typeof error.message === 'string') return error.message;
+  return 'cause' in error ? findSqliteMessage(error.cause) : undefined;
 }
 
 function revisionConflict(current: RelationshipType, expectedRevision: number): AppError {

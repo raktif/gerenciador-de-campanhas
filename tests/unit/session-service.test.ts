@@ -58,6 +58,7 @@ describe('SessionService', () => {
       revision: 1,
       patch: { status: 'in_progress' },
     });
+
     expect(current).toMatchObject({ status: 'in_progress', revision: 2 });
     current = service.update({
       campaignId,
@@ -86,6 +87,52 @@ describe('SessionService', () => {
         }),
       ).code,
     ).toBe('INVALID_SESSION_TRANSITION');
+  });
+
+  it('só inicia uma sessão após concluir todas as sessões anteriores', () => {
+    const previous = createSession({
+      sequenceNumber: 1,
+      title: 'Sessão anterior',
+    });
+    const current = createSession({
+      id: '70000000-0000-4000-8000-000000000002',
+      sequenceNumber: 2,
+      title: 'Próxima sessão',
+    });
+    const service = createService(new MemoryRepository([previous, current]));
+
+    expect(
+      capture(() =>
+        service.update({
+          campaignId,
+          id: current.id,
+          revision: current.revision,
+          patch: { status: 'in_progress' },
+        }),
+      ),
+    ).toMatchObject({
+      code: 'PREVIOUS_SESSIONS_INCOMPLETE',
+      message: 'Conclua todas as sessões anteriores antes de iniciar esta sessão.',
+    });
+    expect(
+      service.update({
+        campaignId,
+        id: previous.id,
+        revision: previous.revision,
+        patch: { title: 'Sessão anterior revisada' },
+      }),
+    ).toMatchObject({ status: 'planned' });
+
+    const completedPrevious = createSession({ sequenceNumber: 1, status: 'completed' });
+    const readyService = createService(new MemoryRepository([completedPrevious, current]));
+    expect(
+      readyService.update({
+        campaignId,
+        id: current.id,
+        revision: current.revision,
+        patch: { status: 'in_progress' },
+      }),
+    ).toMatchObject({ status: 'in_progress' });
   });
 
   it('permite cancelar uma sessão em andamento e rejeita toda transição a partir de cancelada', () => {

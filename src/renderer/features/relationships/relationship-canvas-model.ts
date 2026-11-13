@@ -1,5 +1,5 @@
 import { Graph, layout } from '@dagrejs/dagre';
-import { MarkerType, Position, type Edge, type Node } from '@xyflow/react';
+import { MarkerType, type Edge, type Node } from '@xyflow/react';
 import type { RelationshipType } from '../../../core/contracts/relationship-types';
 import type { RelationshipViewNode } from '../../../core/contracts/relationship-views';
 import type { RelationshipNeighborhoodResult } from '../../../core/contracts/relationships';
@@ -15,7 +15,7 @@ export type RelationshipCanvasNode = Node<
     central: boolean;
     pinned: boolean;
   },
-  'default'
+  'relationshipNode'
 >;
 
 export type RelationshipCanvasEdge = Edge<
@@ -86,12 +86,10 @@ function createModel(
     const central = node.depth === 0;
     return {
       id: node.entity.id,
-      type: 'default',
+      type: 'relationshipNode',
       position,
       width: relationshipCanvasNodeWidth,
       height: relationshipCanvasNodeHeight,
-      sourcePosition: Position.Right,
-      targetPosition: Position.Left,
       connectable: false,
       deletable: false,
       selectable: true,
@@ -123,11 +121,19 @@ function createModel(
     const targetName = result.nodes.find((node) => node.entity.id === relationship.targetEntityId)
       ?.entity.name;
     const typeName = type?.name ?? 'Relação';
+    const sourceNode = nodes.find((node) => node.id === relationship.sourceEntityId);
+    const targetNode = nodes.find((node) => node.id === relationship.targetEntityId);
+    const handles = selfRelationship
+      ? { sourceHandle: 'source-right', targetHandle: 'target-top' }
+      : sourceNode === undefined || targetNode === undefined
+        ? { sourceHandle: 'source-right', targetHandle: 'target-left' }
+        : relationshipHandlesForNodes(sourceNode, targetNode);
     return [
       {
         id: relationship.id,
         source: relationship.sourceEntityId,
         target: relationship.targetEntityId,
+        ...handles,
         type: selfRelationship ? 'relationshipLoop' : 'default',
         label: typeName,
         ariaLabel: `${sourceName ?? 'Entidade'} — ${typeName} ${symmetric ? '—' : '→'} ${targetName ?? 'Entidade'}`,
@@ -152,6 +158,46 @@ function createModel(
   });
 
   return { nodes, edges };
+}
+
+type HandleSide = 'left' | 'right' | 'top' | 'bottom';
+
+export function relationshipHandlesForNodes(
+  source: RelationshipCanvasNode,
+  target: RelationshipCanvasNode,
+): { sourceHandle: string; targetHandle: string } {
+  const sides: HandleSide[] = ['left', 'right', 'top', 'bottom'];
+  let closest: { sourceSide: HandleSide; targetSide: HandleSide; distance: number } | undefined;
+  for (const sourceSide of sides) {
+    const sourcePoint = relationshipHandlePoint(source, sourceSide);
+    for (const targetSide of sides) {
+      const targetPoint = relationshipHandlePoint(target, targetSide);
+      const dx = sourcePoint.x - targetPoint.x;
+      const dy = sourcePoint.y - targetPoint.y;
+      const distance = dx * dx + dy * dy;
+      if (closest === undefined || distance < closest.distance)
+        closest = { sourceSide, targetSide, distance };
+    }
+  }
+  if (closest === undefined) throw new Error('Não foi possível calcular os pontos da relação.');
+  return {
+    sourceHandle: `source-${closest.sourceSide}`,
+    targetHandle: `target-${closest.targetSide}`,
+  };
+}
+
+function relationshipHandlePoint(
+  node: RelationshipCanvasNode,
+  side: HandleSide,
+): { x: number; y: number } {
+  const width = node.width ?? relationshipCanvasNodeWidth;
+  const height = node.height ?? relationshipCanvasNodeHeight;
+  const centerX = node.position.x + width / 2;
+  const centerY = node.position.y + height / 2;
+  if (side === 'left') return { x: node.position.x, y: centerY };
+  if (side === 'right') return { x: node.position.x + width, y: centerY };
+  if (side === 'top') return { x: centerX, y: node.position.y };
+  return { x: centerX, y: node.position.y + height };
 }
 
 export function truncateRelationshipCanvasLabel(label: string): string {

@@ -31,7 +31,6 @@ test('navega pela vizinhança com profundidade, direção inversa e filtros', as
     await window.getByRole('button', { name: 'Criar primeiro tipo' }).click();
     await window.getByLabel('Nome plural').fill('Personagens');
     await window.getByLabel('Nome singular').fill('Personagem');
-    await window.getByLabel('Identificador (slug)').fill('personagens');
     await window.getByRole('button', { name: 'Criar tipo de entidade' }).click();
     await window.getByRole('button', { name: 'Voltar para detalhes da campanha' }).click();
     await window.getByRole('button', { name: 'Ver entidades' }).click();
@@ -40,11 +39,18 @@ test('navega pela vizinhança com profundidade, direção inversa e filtros', as
     await window.getByRole('button', { name: 'Tipos de relação' }).click();
     await window.getByRole('button', { name: 'Novo tipo de relação' }).click();
     await window.getByLabel('Nome *').fill('Conhece');
-    await window.getByLabel('Slug *').fill('conhece');
+    await expect(window.getByLabel('Slug')).toHaveCount(0);
     await window.getByLabel('Nome inverso', { exact: true }).fill('É conhecido por');
     await window.getByRole('button', { name: 'Criar tipo' }).click();
     await window.getByRole('button', { name: 'Voltar para detalhes da campanha' }).click();
     await window.getByRole('button', { name: 'Relações', exact: true }).click();
+    const descriptionField = window.getByLabel('Descrição', { exact: true });
+    const strengthField = window.locator('input[type="number"]');
+    const descriptionBounds = await descriptionField.boundingBox();
+    const strengthBounds = await strengthField.boundingBox();
+    expect(descriptionBounds).not.toBeNull();
+    expect(strengthBounds).not.toBeNull();
+    expect(Math.abs((descriptionBounds?.y ?? 0) - (strengthBounds?.y ?? 0))).toBeLessThanOrEqual(1);
     await createRelationship(window, 'Gorel', 'Kabotya');
     await createRelationship(window, 'Kabotya', 'Cabos Antigos');
 
@@ -158,6 +164,8 @@ test('navega pela vizinhança com profundidade, direção inversa e filtros', as
     await window.getByLabel('Visibilidade').selectOption('players');
     await expect(list).toContainText('Nenhuma conexão corresponde aos filtros.');
     await window.getByLabel('Visibilidade').selectOption('');
+    await expect(list).toContainText('Kabotya — Conhece → Cabos Antigos');
+    await list.locator('summary').click();
     await list.getByRole('button', { name: 'Cabos Antigos' }).click();
     await expect(list).toContainText('Cabos Antigos — É conhecido por → Kabotya');
     await window.getByLabel('Natureza').selectOption('rumor');
