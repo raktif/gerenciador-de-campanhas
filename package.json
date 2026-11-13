@@ -1,7 +1,7 @@
 {
   "name": "gerenciador-de-campanhas-de-rpg",
   "productName": "Gerenciador de Campanhas de RPG",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Aplicativo desktop local-first para gerenciamento de campanhas de RPG.",
   "author": "Projeto Gerenciador de Campanhas de RPG",
   "main": ".vite/build/main.js",
