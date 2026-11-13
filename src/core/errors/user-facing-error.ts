@@ -49,6 +49,13 @@ const definitions: Readonly<Record<string, ErrorDefinition>> = {
     helpArticleId: 'revision-conflict',
     canRetry: true,
   },
+  RELATIONSHIP_TYPE_NAME_ALREADY_EXISTS: {
+    title: 'Este nome de tipo de relação já está em uso',
+    message: 'Já existe um tipo de relação com esse nome. Escolha um nome diferente.',
+    suggestedAction: 'Informe outro nome para o tipo de relação e tente novamente.',
+    helpArticleId: 'duplicate-relationship-type-name',
+    canRetry: false,
+  },
   INBOX_ITEM_NOT_FOUND: {
     title: 'A Captura Rápida não foi encontrada',
     message: 'Ela pode ter sido removida ou alterada desde que esta tela foi aberta.',
@@ -76,6 +83,13 @@ const definitions: Readonly<Record<string, ErrorDefinition>> = {
     message: 'A sessão pode ter sido removida ou não pertencer à campanha atual.',
     suggestedAction: 'Escolha outra sessão de origem e tente novamente.',
     helpArticleId: 'session-source-not-found',
+    canRetry: true,
+  },
+  PREVIOUS_SESSIONS_INCOMPLETE: {
+    title: 'Há sessões anteriores que ainda não foram concluídas',
+    message: 'Só é possível iniciar esta sessão depois de concluir todas as sessões anteriores.',
+    suggestedAction: 'Conclua as sessões anteriores e tente iniciar esta sessão novamente.',
+    helpArticleId: 'session-sequence',
     canRetry: true,
   },
   SESSION_SOURCE_NOT_FOUND: {

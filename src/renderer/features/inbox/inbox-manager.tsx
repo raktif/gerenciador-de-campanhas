@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useNavigationState, useRestoredRecord } from '../../app/navigation-provider';
 import { createPortal } from 'react-dom';
 import type { Campaign } from '../../../core/contracts/campaigns';
 import type { ConvertInboxItemToAssertionInput, InboxItem } from '../../../core/contracts/inbox';
@@ -29,15 +30,20 @@ export function InboxManager({
   onManageEntities,
   onManageEntityTypes,
   onManageRelationshipTypes,
+  refreshKey = 0,
 }: {
   campaign: Campaign;
   onBack: () => void;
   onManageEntities: () => void;
   onManageEntityTypes: () => void;
   onManageRelationshipTypes: () => void;
+  refreshKey?: number;
 }): React.JSX.Element {
   const [items, setItems] = useState<InboxItem[]>([]);
-  const [filter, setFilter] = useState<Filter>('pending');
+  const [filter, , setFilter] = useNavigationState<Filter>(
+    `inbox:${campaign.id}:filter`,
+    'pending',
+  );
   const [cursor, setCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -56,9 +62,12 @@ export function InboxManager({
   const [entityTypes, setEntityTypes] = useState<EntityType[]>([]);
   const [entities, setEntities] = useState<Entity[]>([]);
   const [relationshipTypes, setRelationshipTypes] = useState<RelationshipType[]>([]);
-  const [conversion, setConversion] = useState<InboxItem | null>(null);
+  const [conversion, setConversion, replaceConversion] = useNavigationState<InboxItem | null>(
+    `inbox:${campaign.id}:entity`,
+    null,
+  );
   const [conversionTypeId, setConversionTypeId] = useState('');
-  const [conversionName, setConversionName] = useState('');
+  const [conversionName, setConversionName] = useState(conversion?.rawText.slice(0, 200) ?? '');
   const [conversionSummary, setConversionSummary] = useState('');
   const [conversionCanonState, setConversionCanonState] = useState<
     'draft' | 'accepted' | 'rejected' | 'archived'
@@ -72,10 +81,11 @@ export function InboxManager({
   const [conversionError, setConversionError] = useState<UserFacingError | null>(null);
   const conversionDialogRef = useRef<HTMLFormElement>(null);
   const conversionNameRef = useRef<HTMLInputElement>(null);
-  const [assertionConversion, setAssertionConversion] = useState<InboxItem | null>(null);
+  const [assertionConversion, setAssertionConversion, replaceAssertionConversion] =
+    useNavigationState<InboxItem | null>(`inbox:${campaign.id}:assertion`, null);
   const [assertionSubjectEntityId, setAssertionSubjectEntityId] = useState('');
   const [assertionObjectEntityId, setAssertionObjectEntityId] = useState('');
-  const [assertionStatement, setAssertionStatement] = useState('');
+  const [assertionStatement, setAssertionStatement] = useState(assertionConversion?.rawText ?? '');
   const [assertionPredicate, setAssertionPredicate] = useState('');
   const [assertionValue, setAssertionValue] = useState('');
   const [assertionCanonState, setAssertionCanonState] = useState<
@@ -88,9 +98,10 @@ export function InboxManager({
   const [assertionError, setAssertionError] = useState<UserFacingError | null>(null);
   const assertionDialogRef = useRef<HTMLFormElement>(null);
   const assertionSubjectRef = useRef<HTMLSelectElement>(null);
-  const [noteConversion, setNoteConversion] = useState<InboxItem | null>(null);
-  const [noteTitle, setNoteTitle] = useState('');
-  const [noteBody, setNoteBody] = useState('');
+  const [noteConversion, setNoteConversion, replaceNoteConversion] =
+    useNavigationState<InboxItem | null>(`inbox:${campaign.id}:note`, null);
+  const [noteTitle, setNoteTitle] = useState(noteConversion?.rawText.slice(0, 200) ?? '');
+  const [noteBody, setNoteBody] = useState(noteConversion?.rawText ?? '');
   const [noteType, setNoteType] = useState<
     'general' | 'idea' | 'scene' | 'clue' | 'secret' | 'preparation' | 'reference'
   >('general');
@@ -106,10 +117,11 @@ export function InboxManager({
   const [noteError, setNoteError] = useState<UserFacingError | null>(null);
   const noteDialogRef = useRef<HTMLFormElement>(null);
   const noteTitleRef = useRef<HTMLInputElement>(null);
-  const [eventConversion, setEventConversion] = useState<InboxItem | null>(null);
-  const [eventTitle, setEventTitle] = useState('');
+  const [eventConversion, setEventConversion, replaceEventConversion] =
+    useNavigationState<InboxItem | null>(`inbox:${campaign.id}:event`, null);
+  const [eventTitle, setEventTitle] = useState(eventConversion?.rawText.slice(0, 200) ?? '');
   const [eventDescription, setEventDescription] = useState('');
-  const [eventSessionId, setEventSessionId] = useState('');
+  const [eventSessionId, setEventSessionId] = useState(eventConversion?.sessionId ?? '');
   const [eventOrder, setEventOrder] = useState(0);
   const [eventOccurredAtLabel, setEventOccurredAtLabel] = useState('');
   const [eventLinkEntityId, setEventLinkEntityId] = useState('');
@@ -134,7 +146,8 @@ export function InboxManager({
   const eventDialogRef = useRef<HTMLFormElement>(null);
   const eventTitleRef = useRef<HTMLInputElement>(null);
   const announcementRef = useRef<HTMLParagraphElement>(null);
-  const [relationshipConversion, setRelationshipConversion] = useState<InboxItem | null>(null);
+  const [relationshipConversion, setRelationshipConversion, replaceRelationshipConversion] =
+    useNavigationState<InboxItem | null>(`inbox:${campaign.id}:relationship`, null);
   const [relationshipTypeId, setRelationshipTypeId] = useState('');
   const [relationshipSourceMode, setRelationshipSourceMode] = useState<'existing' | 'new'>(
     'existing',
@@ -182,6 +195,75 @@ export function InboxManager({
     compatibleSourceEntities.length > 0 || compatibleSourceTypes.length > 0;
   const canChooseRelationshipTarget =
     compatibleTargetEntities.length > 0 || compatibleTargetTypes.length > 0;
+  const activeConversion =
+    conversion ??
+    assertionConversion ??
+    noteConversion ??
+    eventConversion ??
+    relationshipConversion;
+  useRestoredRecord(
+    activeConversion?.id,
+    (id) => window.campaignManager.inbox.get({ campaignId: campaign.id, id }),
+    (item) => {
+      const restored = item.status === 'reviewing' ? item : null;
+      if (conversion !== null) replaceConversion(restored);
+      else if (assertionConversion !== null) replaceAssertionConversion(restored);
+      else if (noteConversion !== null) replaceNoteConversion(restored);
+      else if (eventConversion !== null) replaceEventConversion(restored);
+      else replaceRelationshipConversion(restored);
+    },
+    (failure) => {
+      const notice = presentUserFacingError(failure, 'inbox.convert');
+      if (conversion !== null) setConversionError(notice);
+      else if (assertionConversion !== null) setAssertionError(notice);
+      else if (noteConversion !== null) setNoteError(notice);
+      else if (eventConversion !== null) setEventError(notice);
+      else setRelationshipError(notice);
+    },
+    (value) => setBusy(value ? (activeConversion?.id ?? null) : null),
+  );
+  useEffect(() => {
+    if (conversion !== null && conversionTypeId === '' && entityTypes.length > 0)
+      setConversionTypeId(entityTypes[0]?.id ?? '');
+    if (
+      relationshipConversion === null ||
+      relationshipTypeId !== '' ||
+      relationshipTypes.length === 0
+    )
+      return;
+    openRelationshipConversion(relationshipConversion);
+  }, [
+    conversion,
+    conversionTypeId,
+    entities,
+    entityTypes,
+    relationshipConversion,
+    relationshipTypeId,
+    relationshipTypes,
+  ]);
+
+  function openRelationshipConversion(item: InboxItem): void {
+    const type = relationshipTypes[0];
+    const sources = filterAllowedEntities(entities, type?.allowedSourceTypeIds);
+    const targets = filterAllowedEntities(entities, type?.allowedTargetTypeIds);
+    const sourceTypes = filterAllowedEntityTypes(entityTypes, type?.allowedSourceTypeIds);
+    const targetTypes = filterAllowedEntityTypes(entityTypes, type?.allowedTargetTypeIds);
+    setRelationshipConversion(item);
+    setRelationshipTypeId(type?.id ?? '');
+    setRelationshipSourceMode(sources.length > 0 ? 'existing' : 'new');
+    setRelationshipTargetMode(targets.length > 0 ? 'existing' : 'new');
+    setRelationshipSourceEntityId(sources[0]?.id ?? '');
+    setRelationshipTargetEntityId(targets[0]?.id ?? '');
+    setRelationshipSourceTypeId(sourceTypes[0]?.id ?? '');
+    setRelationshipTargetTypeId(targetTypes[0]?.id ?? '');
+    setRelationshipSourceName('');
+    setRelationshipTargetName('');
+    setRelationshipDescription('');
+    setRelationshipCanonState('accepted');
+    setRelationshipKnowledgeState('fact');
+    setRelationshipVisibility('gm');
+    setRelationshipError(null);
+  }
 
   const load = useCallback(
     async (append = false): Promise<void> => {
@@ -218,7 +300,7 @@ export function InboxManager({
     setItems([]);
     setCursor(null);
     void load(false);
-  }, [campaign.id, filter]);
+  }, [campaign.id, filter, refreshKey]);
   useEffect(() => {
     if (confirming !== null) cancelRef.current?.focus();
   }, [confirming]);
@@ -705,7 +787,6 @@ export function InboxManager({
                           setConversionKnowledgeState('fact');
                           setConversionVisibility('gm');
                         }}
-                        variant="primary"
                       >
                         Converter em entidade
                       </Button>
@@ -822,43 +903,8 @@ export function InboxManager({
                             : undefined
                         }
                         onClick={(event) => {
-                          const initialType = relationshipTypes[0];
-                          const initialSourceEntities = filterAllowedEntities(
-                            entities,
-                            initialType?.allowedSourceTypeIds,
-                          );
-                          const initialTargetEntities = filterAllowedEntities(
-                            entities,
-                            initialType?.allowedTargetTypeIds,
-                          );
-                          const initialSourceTypes = filterAllowedEntityTypes(
-                            entityTypes,
-                            initialType?.allowedSourceTypeIds,
-                          );
-                          const initialTargetTypes = filterAllowedEntityTypes(
-                            entityTypes,
-                            initialType?.allowedTargetTypeIds,
-                          );
                           triggerRef.current = event.currentTarget;
-                          setRelationshipConversion(item);
-                          setRelationshipTypeId(initialType?.id ?? '');
-                          setRelationshipSourceMode(
-                            initialSourceEntities.length > 0 ? 'existing' : 'new',
-                          );
-                          setRelationshipTargetMode(
-                            initialTargetEntities.length > 0 ? 'existing' : 'new',
-                          );
-                          setRelationshipSourceEntityId(initialSourceEntities[0]?.id ?? '');
-                          setRelationshipTargetEntityId(initialTargetEntities[0]?.id ?? '');
-                          setRelationshipSourceTypeId(initialSourceTypes[0]?.id ?? '');
-                          setRelationshipTargetTypeId(initialTargetTypes[0]?.id ?? '');
-                          setRelationshipSourceName('');
-                          setRelationshipTargetName('');
-                          setRelationshipDescription('');
-                          setRelationshipCanonState('accepted');
-                          setRelationshipKnowledgeState('fact');
-                          setRelationshipVisibility('gm');
-                          setRelationshipError(null);
+                          openRelationshipConversion(item);
                         }}
                       >
                         Converter em relação
@@ -1062,7 +1108,7 @@ export function InboxManager({
                   Tipo de entidade
                 </label>
                 <select
-                  className="mt-2 w-full rounded-xl border semantic-border px-3 py-2"
+                  className={`mt-2 ${themedSelectClassName}`}
                   disabled={busy !== null || entityTypes.length === 0}
                   id="inbox-entity-type"
                   onChange={(event) => setConversionTypeId(event.target.value)}
@@ -2015,6 +2061,9 @@ export function InboxManager({
   );
 }
 
+const themedSelectClassName =
+  'w-full rounded-xl border semantic-border semantic-surface px-3 py-2 semantic-text-primary semantic-focus-border focus:ring-3 semantic-focus-ring semantic-disabled-surface';
+
 function statusLabel(status: InboxItem['status']): string {
   return {
     new: 'Nova',
@@ -2079,7 +2128,7 @@ function MetadataSelect({
         {label}
       </label>
       <select
-        className="mt-1 w-full rounded-xl border semantic-border px-3 py-2"
+        className={`mt-1 ${themedSelectClassName}`}
         id={id}
         onChange={(event) => onChange(event.target.value)}
         value={value}

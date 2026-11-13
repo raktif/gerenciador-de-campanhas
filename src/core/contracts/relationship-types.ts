@@ -3,8 +3,15 @@ import { relativePlacements } from '../ordering/move-relative';
 import { defaultPageLimit, maximumPageLimit, type PageResult } from './pagination';
 import type { Result } from './result';
 import { nullableHexColorSchema } from './colors';
+import {
+  createTechnicalKeyCandidate,
+  normalizeTechnicalKeyPart,
+} from '../identifiers/technical-key';
 
 const nameSchema = z.string().trim().min(1).max(120);
+export function relationshipTypeSlug(name: string): string {
+  return createTechnicalKeyCandidate(normalizeTechnicalKeyPart(name, 'relacao'), 1);
+}
 const slugSchema = z
   .string()
   .trim()
@@ -56,7 +63,6 @@ export const createRelationshipTypeInputSchema = z
   .object({
     campaignId: z.uuid(),
     name: nameSchema,
-    slug: slugSchema,
     inverseName: nullableNameSchema.default(null),
     description: nullableDescriptionSchema.default(null),
     semanticRole: nullableSemanticRoleSchema.default(null),
@@ -67,14 +73,17 @@ export const createRelationshipTypeInputSchema = z
     color: nullableHexColorSchema.default(null),
   })
   .strict()
-  .transform((input) => ({ ...input, sortOrder: 0 }));
+  .transform((input) => ({
+    ...input,
+    slug: relationshipTypeSlug(input.name),
+    sortOrder: 0,
+  }));
 export type CreateRelationshipTypeInput = z.output<typeof createRelationshipTypeInputSchema>;
 export type CreateRelationshipTypeInputRequest = z.input<typeof createRelationshipTypeInputSchema>;
 
 export const relationshipTypePatchSchema = z
   .object({
     name: nameSchema.optional(),
-    slug: slugSchema.optional(),
     inverseName: nullableNameSchema.optional(),
     description: nullableDescriptionSchema.optional(),
     semanticRole: nullableSemanticRoleSchema.optional(),

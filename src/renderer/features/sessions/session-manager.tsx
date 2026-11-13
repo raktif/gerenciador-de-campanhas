@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useNavigationState, useRestoredRecord } from '../../app/navigation-provider';
 import type { Campaign } from '../../../core/contracts/campaigns';
 import type { Entity } from '../../../core/contracts/entities';
 import type {
@@ -51,22 +52,66 @@ const roleLabels: Record<SessionParticipantInput['role'], string> = {
 export function SessionManager({
   campaign,
   onBack,
+  onTransformIntention,
+  onCancelIntentionTransformation,
+  onIntentionTransformed,
+  initialEventDraft,
+  initialSessionId,
+  initialReturnError,
+  onInitialSessionOpened,
 }: {
   campaign: Campaign;
   onBack: () => void;
+  onTransformIntention: (
+    intention: SessionIntention,
+    session: Session,
+    target: 'assertion' | 'event' | 'note' | 'relationship',
+  ) => void;
+  onCancelIntentionTransformation: () => void;
+  onIntentionTransformed: () => Promise<UserFacingError | null>;
+  initialEventDraft?: {
+    title: string;
+    entityId: string | null;
+    occurredAtLabel: string;
+    sessionId: string;
+  };
+  initialSessionId?: string;
+  initialReturnError?: UserFacingError | null;
+  onInitialSessionOpened?: () => void;
 }): React.JSX.Element {
   const [items, setItems] = useState<Session[]>([]);
   const [entities, setEntities] = useState<Entity[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
-  const [status, setStatus] = useState<SessionStatus | ''>('');
-  const [view, setView] = useState<View>('list');
-  const [editing, setEditing] = useState<Session | null>(null);
+  const [status, , setStatus] = useNavigationState<SessionStatus | ''>(
+    `sessions:${campaign.id}:status`,
+    '',
+  );
+  const [view, setView, replaceView] = useNavigationState<View>(
+    `sessions:${campaign.id}:view`,
+    'list',
+  );
+  const [editing, , setEditing] = useNavigationState<Session | null>(
+    `sessions:${campaign.id}:editing`,
+    null,
+  );
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<UserFacingError | null>(null);
+  const [error, setError] = useState<UserFacingError | null>(initialReturnError ?? null);
   const [announcement, setAnnouncement] = useState<string | null>(null);
   const [pending, setPending] = useState<PendingTransition | null>(null);
-  const [section, setSection] = useState<'sessions' | 'events'>('sessions');
+  const [section, setSection, replaceSection] = useNavigationState<'sessions' | 'events'>(
+    `sessions:${campaign.id}:section`,
+    () => (initialEventDraft === undefined ? 'sessions' : 'events'),
+  );
+  const openedSessionReturnRef = useRef<string | null>(null);
+  const hasInitialEventDraftRef = useRef(initialEventDraft !== undefined);
+  const refreshingSession = useRestoredRecord(
+    view === 'edit' ? editing?.id : undefined,
+    (id) => window.campaignManager.sessions.get({ campaignId: campaign.id, id }),
+    setEditing,
+    (failure) => setError(presentUserFacingError(failure, 'sessions.mutate')),
+    setBusy,
+  );
 
   const load = useCallback(
     async (append = false): Promise<void> => {
@@ -102,6 +147,47 @@ export function SessionManager({
       .then(setEntities)
       .catch((loadError: unknown) => setError(presentUserFacingError(loadError, 'entities.list')));
   }, [campaign.id]);
+  useEffect(() => {
+    if (initialSessionId === undefined) {
+      openedSessionReturnRef.current = null;
+      return;
+    }
+    if (openedSessionReturnRef.current === initialSessionId) return;
+    openedSessionReturnRef.current = initialSessionId;
+    let active = true;
+    replaceSection('sessions');
+    setBusy(true);
+    void window.campaignManager.sessions
+      .get({ campaignId: campaign.id, id: initialSessionId })
+      .then((result) => {
+        if (!active) return;
+        if (result.ok) {
+          setEditing(result.data);
+          replaceView('edit');
+          setError(initialReturnError ?? null);
+        } else setError(presentUserFacingError(result.error, 'sessions.mutate'));
+      })
+      .catch(() => {
+        if (active) setError(presentUserFacingError(undefined, 'sessions.mutate'));
+      })
+      .finally(() => {
+        if (!active) return;
+        setBusy(false);
+        onInitialSessionOpened?.();
+      });
+    return () => {
+      active = false;
+    };
+  }, [campaign.id, initialReturnError, initialSessionId, onInitialSessionOpened]);
+  useEffect(() => {
+    if (initialEventDraft !== undefined) {
+      hasInitialEventDraftRef.current = true;
+      replaceSection('events');
+    } else if (hasInitialEventDraftRef.current) {
+      hasInitialEventDraftRef.current = false;
+      replaceSection('sessions');
+    }
+  }, [initialEventDraft]);
 
   async function beginEdit(item: Session): Promise<void> {
     if (busy) return;
@@ -171,8 +257,28 @@ export function SessionManager({
       setBusy(false);
     }
   }
+  if (refreshingSession) return <p aria-live="polite">Carregando sessão…</p>;
   if (section === 'events')
-    return <EventManager campaign={campaign} onBack={() => setSection('sessions')} />;
+    return (
+      <EventManager
+        campaign={campaign}
+        onBack={() => {
+          onCancelIntentionTransformation();
+          setSection('sessions');
+        }}
+        {...(initialEventDraft === undefined ? {} : { initialDraft: initialEventDraft })}
+        {...(initialEventDraft === undefined
+          ? {}
+          : {
+              onCreated: async () => {
+                const conversionError = await onIntentionTransformed();
+                replaceSection('sessions');
+                return conversionError;
+              },
+            })}
+        onCancelInitialDraft={onCancelIntentionTransformation}
+      />
+    );
   if (view !== 'list')
     return (
       <SessionEditor
@@ -193,6 +299,10 @@ export function SessionManager({
         onConfirmTransition={transition}
         onReplace={(session) => setEditing(session)}
         onBusyChange={setBusy}
+        onTransformIntention={(item, sourceSession, target) => {
+          if (target === 'event') setSection('events');
+          onTransformIntention(item, sourceSession, target);
+        }}
       />
     );
   return (
@@ -214,6 +324,7 @@ export function SessionManager({
         </div>
         <ToolbarActions aria-label="Ações de sessões">
           <Button
+            className="self-end"
             disabled={busy}
             onClick={() => {
               setEditing(null);
@@ -315,6 +426,7 @@ function SessionEditor({
   onConfirmTransition,
   onReplace,
   onBusyChange,
+  onTransformIntention,
 }: {
   campaign: Campaign;
   entities: Entity[];
@@ -329,6 +441,11 @@ function SessionEditor({
   onConfirmTransition: () => Promise<void>;
   onReplace: (session: Session) => void;
   onBusyChange: (busy: boolean) => void;
+  onTransformIntention: (
+    intention: SessionIntention,
+    session: Session,
+    target: 'assertion' | 'event' | 'note' | 'relationship',
+  ) => void;
 }): React.JSX.Element {
   const [title, setTitle] = useState(session?.title ?? '');
   const [sequence, setSequence] = useState(String(session?.sequenceNumber ?? ''));
@@ -676,6 +793,7 @@ function SessionEditor({
               setIntentionEntityId('');
             }}
             onStatus={(item, status) => void setIntentionStatus(item, status)}
+            onTransform={(item, target) => onTransformIntention(item, session, target)}
             onLoadMore={() => {
               if (intentionCursor !== null) void loadIntentions(true, intentionCursor);
             }}
@@ -823,10 +941,13 @@ function ParticipantEditor({
               </select>
             </label>
             <Button
+              className="h-9 self-center"
               disabled={busy}
               onClick={() =>
                 setParticipants((current) => current.filter((entry) => entry.id !== item.id))
               }
+              size="small"
+              variant="primary"
             >
               Remover
             </Button>
@@ -873,6 +994,7 @@ function IntentionEditor({
   onEdit,
   onCancelEdit,
   onStatus,
+  onTransform,
   onLoadMore,
   onRetry,
 }: {
@@ -892,12 +1014,20 @@ function IntentionEditor({
   onEdit: (item: SessionIntention) => void;
   onCancelEdit: () => void;
   onStatus: (item: SessionIntention, status: Exclude<SessionIntention['status'], 'open'>) => void;
+  onTransform: (
+    item: SessionIntention,
+    target: 'assertion' | 'event' | 'note' | 'relationship',
+  ) => void;
   onLoadMore: () => void;
   onRetry: () => void;
 }): React.JSX.Element {
   const titleRef = useRef<HTMLHeadingElement>(null);
   const retryButtonRef = useRef<HTMLButtonElement>(null);
   const [retrying, setRetrying] = useState(false);
+  const [transforming, setTransforming] = useState<SessionIntention | null>(null);
+  const [transformationTarget, setTransformationTarget] = useState<
+    'assertion' | 'event' | 'note' | 'relationship' | ''
+  >('');
   useEffect(() => {
     if (!retrying || loading) return;
     if (error === null) titleRef.current?.focus();
@@ -918,12 +1048,13 @@ function IntentionEditor({
       <h2 className="text-xl font-semibold" id="intentions-title" ref={titleRef} tabIndex={-1}>
         Intenções
       </h2>
-      <div className="mt-4 grid gap-3 md:grid-cols-[1fr_15rem_auto]">
+      <div className="mt-4 grid items-end gap-3 md:grid-cols-[1fr_15rem_auto]">
         <label className="text-sm font-semibold">
           Intenção
           <textarea
-            className={inputClass}
+            className={`${inputClass} min-h-11 resize-y`}
             maxLength={10000}
+            rows={1}
             value={text}
             onChange={(e) => onText(e.target.value)}
             disabled={busy}
@@ -932,7 +1063,7 @@ function IntentionEditor({
         <label className="text-sm font-semibold">
           Entidade relacionada (opcional)
           <select
-            className={inputClass}
+            className={`${inputClass} min-h-11`}
             value={entityId}
             onChange={(e) => onEntity(e.target.value)}
             disabled={busy}
@@ -975,29 +1106,108 @@ function IntentionEditor({
         <ul className="mt-5 grid gap-3" aria-label="Lista de intenções">
           {items.map((item) => (
             <li className="rounded-xl semantic-surface-muted p-4" key={item.id}>
-              <div className="flex flex-wrap justify-between gap-3">
+              <div className="grid gap-3">
                 <div>
                   <p className="font-semibold">{item.text}</p>
                   <p className="mt-1 text-sm semantic-text-secondary">
                     {intentionStatusLabel(item.status)}
+                    {item.entityId === null
+                      ? null
+                      : ` · ${entities.find((entity) => entity.id === item.entityId)?.name ?? 'Entidade arquivada'}`}
                   </p>
                 </div>
                 <ToolbarActions aria-label={`Ações da intenção ${item.text}`} className="gap-2">
-                  <Button disabled={busy} onClick={() => onEdit(item)}>
-                    Editar intenção
-                  </Button>
+                  {item.status === 'transformed' ? null : (
+                    <Button disabled={busy} onClick={() => onEdit(item)}>
+                      Editar intenção
+                    </Button>
+                  )}
                   {item.status === 'open'
-                    ? (['completed', 'abandoned', 'transformed'] as const).map((status) => (
+                    ? (['completed', 'abandoned'] as const).map((status) => (
                         <Button disabled={busy} key={status} onClick={() => onStatus(item, status)}>
                           {intentionActionLabel(status)}
                         </Button>
                       ))
                     : null}
+                  {item.status === 'open' ? (
+                    <Button
+                      disabled={busy}
+                      onClick={() => {
+                        setTransforming(item);
+                        setTransformationTarget('');
+                      }}
+                    >
+                      Transformar
+                    </Button>
+                  ) : null}
                 </ToolbarActions>
               </div>
             </li>
           ))}
         </ul>
+        {transforming === null ? null : (
+          <div className="semantic-dialog-backdrop fixed inset-0 z-50 grid place-items-center p-4">
+            <section
+              aria-labelledby="intention-transformation-title"
+              aria-modal="true"
+              className="w-full max-w-lg rounded-2xl border semantic-border semantic-surface p-6 shadow-xl"
+              role="dialog"
+            >
+              <h3 className="text-xl font-semibold" id="intention-transformation-title">
+                Deseja transformar a Intenção em que?
+              </h3>
+              <fieldset className="mt-4 grid gap-2">
+                <legend className="sr-only">Tipo de registro</legend>
+                {(
+                  [
+                    ['assertion', 'Afirmação'],
+                    ['event', 'Evento'],
+                    ['note', 'Nota'],
+                    ['relationship', 'Relação'],
+                  ] as const
+                ).map(([target, label]) => (
+                  <label
+                    className="semantic-choice flex cursor-pointer items-center gap-3 rounded-xl border p-3"
+                    key={target}
+                  >
+                    <input
+                      checked={transformationTarget === target}
+                      className="semantic-accent-control size-4"
+                      name="intention-transformation-target"
+                      onChange={() => setTransformationTarget(target)}
+                      type="radio"
+                      value={target}
+                    />
+                    {label}
+                  </label>
+                ))}
+              </fieldset>
+              <DialogActions className="mt-5">
+                <Button
+                  disabled={busy}
+                  onClick={() => {
+                    setTransforming(null);
+                    setTransformationTarget('');
+                  }}
+                >
+                  Cancelar transformação
+                </Button>
+                <Button
+                  disabled={busy || transformationTarget === ''}
+                  onClick={() => {
+                    if (transformationTarget === '') return;
+                    onTransform(transforming, transformationTarget);
+                    setTransforming(null);
+                    setTransformationTarget('');
+                  }}
+                  variant="primary"
+                >
+                  Continuar
+                </Button>
+              </DialogActions>
+            </section>
+          </div>
+        )}
         {cursor === null || loading ? null : (
           <Button busy={loading} className="mt-4" disabled={busy} onClick={onLoadMore}>
             Carregar mais intenções
@@ -1195,8 +1405,10 @@ function intentionStatusLabel(value: SessionIntention['status']): string {
     transformed: 'Transformada',
   }[value];
 }
-function intentionActionLabel(value: Exclude<SessionIntention['status'], 'open'>): string {
-  return { completed: 'Concluir', abandoned: 'Abandonar', transformed: 'Transformar' }[value];
+function intentionActionLabel(
+  value: Exclude<SessionIntention['status'], 'open' | 'transformed'>,
+): string {
+  return { completed: 'Concluir', abandoned: 'Abandonar' }[value];
 }
 async function loadAllEntities(campaignId: string): Promise<Entity[]> {
   const items: Entity[] = [];

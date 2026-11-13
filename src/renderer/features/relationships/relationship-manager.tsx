@@ -12,6 +12,8 @@ import {
   type UserFacingError,
 } from '../../../core/errors/user-facing-error';
 import { UserFacingErrorNotice } from '../../components/user-facing-error-notice';
+import { ContextualHelp } from '../../components/contextual-help';
+import { useNavigationState, useRestoredRecord } from '../../app/navigation-provider';
 
 interface FormState {
   relationshipTypeId: string;
@@ -32,17 +34,35 @@ export function RelationshipManager({
   campaign,
   onBack,
   centralEntity,
+  initialDraft,
+  onCreated,
 }: {
   campaign: Campaign;
   onBack: () => void;
   centralEntity?: Entity;
+  initialDraft?: { entityId: string | null; description?: string };
+  onCreated?: () => Promise<UserFacingError | null>;
 }): React.JSX.Element {
   const [relationships, setRelationships] = useState<Relationship[]>([]);
   const [types, setTypes] = useState<RelationshipType[]>([]);
   const [entities, setEntities] = useState<Entity[]>([]);
-  const [form, setForm] = useState<FormState>(emptyForm);
-  const [editing, setEditing] = useState<Relationship | null>(null);
-  const [showArchived, setShowArchived] = useState(false);
+  const [editing, setEditing, replaceEditing] = useNavigationState<Relationship | null>(
+    `relationships:${campaign.id}:editing`,
+    null,
+  );
+  const [form, setForm] = useState<FormState>(() => ({
+    ...emptyForm,
+    relationshipTypeId: editing?.relationshipTypeId ?? '',
+    sourceEntityId: editing?.sourceEntityId ?? initialDraft?.entityId ?? '',
+    targetEntityId: editing?.targetEntityId ?? '',
+    description: editing?.description ?? initialDraft?.description ?? '',
+    strength:
+      editing?.strength === null || editing?.strength === undefined ? '' : String(editing.strength),
+  }));
+  const [showArchived, , setShowArchived] = useNavigationState(
+    `relationships:${campaign.id}:archived`,
+    false,
+  );
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<UserFacingError | null>(null);
@@ -50,6 +70,26 @@ export function RelationshipManager({
     'relationships.list' | 'relationships.mutate'
   >('relationships.list');
   const [announcement, setAnnouncement] = useState<string | null>(null);
+  useRestoredRecord(
+    editing?.id,
+    (id) => window.campaignManager.relationships.get({ campaignId: campaign.id, id }),
+    replaceEditing,
+    (failure) => {
+      setError(presentUserFacingError(failure, 'relationships.mutate'));
+      setErrorOperation('relationships.mutate');
+    },
+    setBusy,
+  );
+  useEffect(() => {
+    if (editing === null) return;
+    setForm({
+      relationshipTypeId: editing.relationshipTypeId,
+      sourceEntityId: editing.sourceEntityId,
+      targetEntityId: editing.targetEntityId,
+      description: editing.description ?? '',
+      strength: editing.strength === null ? '' : String(editing.strength),
+    });
+  }, [editing]);
 
   const load = useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -141,13 +181,23 @@ export function RelationshipManager({
         setError(presentUserFacingError(result.error, 'relationships.mutate'));
         setErrorOperation('relationships.mutate');
       } else {
+        if (editing === null && initialDraft !== undefined && onCreated !== undefined) {
+          const failure = await onCreated();
+          if (failure !== null) {
+            setError(failure);
+            setErrorOperation('relationships.mutate');
+          }
+          return;
+        }
         setAnnouncement(
           result.data.warnings[0]?.message ??
             (editing === null ? 'Relação criada.' : 'Relação atualizada.'),
         );
         setEditing(null);
         setForm(emptyForm);
+        const conversionError = editing === null ? await onCreated?.() : null;
         await load();
+        if (conversionError !== null && conversionError !== undefined) setError(conversionError);
       }
     } catch {
       setError(presentUserFacingError(undefined, 'relationships.mutate'));
@@ -261,7 +311,7 @@ export function RelationshipManager({
             disabled={busy}
           />
           <label className={labelClass}>
-            Descrição
+            <span className="flex h-8 items-center">Descrição</span>
             <input
               className={inputClass}
               disabled={busy}
@@ -270,7 +320,16 @@ export function RelationshipManager({
             />
           </label>
           <label className={labelClass}>
-            Intensidade
+            <span className="flex h-8 items-center">
+              Intensidade
+              <ContextualHelp
+                compact
+                content={{
+                  description: 'Valor numérico opcional para indicar a força do vínculo.',
+                }}
+                label="Intensidade"
+              />
+            </span>
             <input
               className={inputClass}
               disabled={busy}
@@ -444,4 +503,5 @@ function Filter({
   );
 }
 const labelClass = 'block text-sm font-semibold semantic-text-primary';
-const inputClass = 'mt-2 w-full rounded-xl border semantic-border px-4 py-2.5';
+const inputClass =
+  'mt-2 w-full rounded-xl border semantic-border semantic-surface px-4 py-2.5 semantic-text-primary focus-visible:outline-2 focus-visible:outline-offset-2 semantic-focus-outline semantic-disabled-surface';

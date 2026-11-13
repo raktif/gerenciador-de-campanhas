@@ -84,6 +84,26 @@ describe('relationship canvas model', () => {
     });
   });
 
+  it('escolhe pontos centrais dos lados que minimizam o caminho da relação', () => {
+    const horizontal = createRelationshipCanvasModel(neighborhood(), relationshipTypes(), [
+      savedNode(centralId, 0, 0),
+      savedNode(targetId, 500, 0),
+    ]);
+    const vertical = createRelationshipCanvasModel(neighborhood(), relationshipTypes(), [
+      savedNode(centralId, 0, 0),
+      savedNode(targetId, 0, 500),
+    ]);
+
+    expect(horizontal.edges.find((edge) => edge.id === relationshipId(1))).toMatchObject({
+      sourceHandle: 'source-right',
+      targetHandle: 'target-left',
+    });
+    expect(vertical.edges.find((edge) => edge.id === relationshipId(1))).toMatchObject({
+      sourceHandle: 'source-bottom',
+      targetHandle: 'target-top',
+    });
+  });
+
   it.each(['amber', 'url(javascript:alert(1))'])(
     'rejeita cor legada ou insegura %s no boundary visual',
     (unsafeColor) => {

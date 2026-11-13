@@ -39,7 +39,6 @@ describe('handlers IPC de tipos de entidade', () => {
       campaignId,
       name: '  Personagens  ',
       singularName: '  Personagem  ',
-      slug: 'personagens',
     });
     await requireHandler(handlers, entityTypeChannels.list)(createEvent(42), { campaignId });
 
@@ -100,16 +99,15 @@ describe('handlers IPC de tipos de entidade', () => {
     const handler = requireHandler(handlers, entityTypeChannels.create);
     const invalidInput = {
       campaignId,
-      name: 'Personagens',
+      name: '',
       singularName: 'Personagem',
-      slug: 'Slug Inválido',
     };
 
     expect(await handler(createEvent(42), invalidInput)).toMatchObject({
       ok: false,
       error: { code: 'VALIDATION_ERROR' },
     });
-    expect(await handler(createEvent(99), { ...invalidInput, slug: 'personagens' })).toMatchObject({
+    expect(await handler(createEvent(99), invalidInput)).toMatchObject({
       ok: false,
       error: { code: 'IPC_SENDER_NOT_ALLOWED' },
     });

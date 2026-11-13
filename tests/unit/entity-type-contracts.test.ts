@@ -18,18 +18,17 @@ describe('contratos de tipos de entidade', () => {
         campaignId,
         name: '  Personagens  ',
         singularName: '  Personagem  ',
-        slug: 'personagens-jogadores',
       }),
     ).toEqual({
       campaignId,
       name: 'Personagens',
       singularName: 'Personagem',
-      slug: 'personagens-jogadores',
+      slug: 'personagens',
       sortOrder: 0,
     });
   });
 
-  it('rejeita slugs instáveis e atualizações vazias', () => {
+  it('gera identificadores a partir dos nomes e rejeita identificadores fornecidos', () => {
     expect(() =>
       createEntityTypeInputSchema.parse({
         campaignId,
@@ -38,6 +37,14 @@ describe('contratos de tipos de entidade', () => {
         slug: 'Personagens--Jogadores',
       }),
     ).toThrow();
+    expect(
+      createEntityTypeInputSchema.parse({
+        campaignId,
+        name: '  Guardiões da Névoa  ',
+        singularName: 'Guardião',
+      }),
+    ).toMatchObject({ slug: 'guardioes-da-nevoa' });
+    expect(() => entityTypePatchSchema.parse({ slug: 'personagens' })).toThrow();
     expect(() => entityTypePatchSchema.parse({})).toThrow();
   });
 
@@ -47,7 +54,6 @@ describe('contratos de tipos de entidade', () => {
         campaignId,
         name: 'Personagens',
         singularName: 'Personagem',
-        slug: 'personagens',
         sortOrder: 2,
       }),
     ).toThrow();
@@ -60,7 +66,6 @@ describe('contratos de tipos de entidade', () => {
         campaignId,
         name: 'Personagens',
         singularName: 'Personagem',
-        slug: 'personagens',
         icon: 'person',
       }),
     ).toMatchObject({ icon: 'person' });
@@ -73,7 +78,6 @@ describe('contratos de tipos de entidade', () => {
           campaignId,
           name: 'Personagens',
           singularName: 'Personagem',
-          slug: 'personagens',
           icon,
         }),
       ).toThrow();
@@ -87,7 +91,6 @@ describe('contratos de tipos de entidade', () => {
         campaignId,
         name: 'Personagens',
         singularName: 'Personagem',
-        slug: 'personagens',
         color: '  #a1b2c3 ',
       }),
     ).toMatchObject({ color: '#A1B2C3' });

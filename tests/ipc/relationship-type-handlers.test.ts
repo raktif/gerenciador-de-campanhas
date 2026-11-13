@@ -38,7 +38,6 @@ describe('handlers IPC de tipos de relação', () => {
     await requireHandler(handlers, relationshipTypeChannels.create)(event(42), {
       campaignId,
       name: '  Trabalha em  ',
-      slug: 'trabalha-em',
     });
     await requireHandler(handlers, relationshipTypeChannels.list)(event(42), { campaignId });
     const identity = { campaignId, id: relationshipTypeId };
@@ -61,6 +60,7 @@ describe('handlers IPC de tipos de relação', () => {
 
     expect(service.lastCreate).toMatchObject({
       name: 'Trabalha em',
+      slug: 'trabalha-em',
       inverseName: null,
       isSymmetric: false,
       sortOrder: 0,

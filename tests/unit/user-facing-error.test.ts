@@ -36,6 +36,29 @@ describe('catálogo de erros orientados ao usuário', () => {
     expect(JSON.stringify(error)).not.toContain('AppData');
   });
 
+  it('orienta a escolha de outro nome para tipos de relação duplicados', () => {
+    expect(
+      presentUserFacingError(
+        { code: 'RELATIONSHIP_TYPE_NAME_ALREADY_EXISTS' },
+        'relationship-types.mutate',
+      ),
+    ).toMatchObject({
+      code: 'RELATIONSHIP_TYPE_NAME_ALREADY_EXISTS',
+      message: 'Já existe um tipo de relação com esse nome. Escolha um nome diferente.',
+      suggestedAction: 'Informe outro nome para o tipo de relação e tente novamente.',
+    });
+  });
+
+  it('explica por que uma sessão anterior precisa ser concluída', () => {
+    expect(
+      presentUserFacingError({ code: 'PREVIOUS_SESSIONS_INCOMPLETE' }, 'sessions.mutate'),
+    ).toMatchObject({
+      code: 'PREVIOUS_SESSIONS_INCOMPLETE',
+      message: 'Só é possível iniciar esta sessão depois de concluir todas as sessões anteriores.',
+      suggestedAction: 'Conclua as sessões anteriores e tente iniciar esta sessão novamente.',
+    });
+  });
+
   it('produz diagnósticos estritos sem stack trace, segredos ou caminhos', () => {
     const error = presentUserFacingError({ code: 'SESSION_NOT_FOUND' }, 'sessions.list');
     const diagnostic = createUserFacingDiagnostic(error, 'sessions.list');

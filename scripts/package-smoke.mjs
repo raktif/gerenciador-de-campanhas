@@ -8,11 +8,13 @@ const require = createRequire(import.meta.url);
 const Database = require('better-sqlite3');
 const repositoryRoot = process.cwd();
 const expectedSchemaVersion = await readLatestMigrationVersion(repositoryRoot);
-const packageDirectory = path.join(
-  repositoryRoot,
-  'out',
-  `Gerenciador de Campanhas de RPG-${process.platform}-${process.arch}`,
-);
+const packageDirectory =
+  process.env.PACKAGE_DIRECTORY ??
+  path.join(
+    repositoryRoot,
+    'out',
+    `Gerenciador de Campanhas de RPG-${process.platform}-${process.arch}`,
+  );
 const executableByPlatform = {
   win32: path.join(packageDirectory, 'gerenciador-de-campanhas.exe'),
   darwin: path.join(
@@ -37,6 +39,7 @@ for (const key of Object.keys(environment)) {
   if (key.toUpperCase() === 'ELECTRON_RUN_AS_NODE') delete environment[key];
 }
 environment.APP_DATA_DIR = dataDirectory;
+environment.APP_ELECTRON_USER_DATA_DIR = path.join(dataDirectory, 'electron-profile');
 environment.NODE_ENV = 'production';
 environment.PHASE_ZERO_PACKAGE_SMOKE = '1';
 
@@ -57,7 +60,12 @@ try {
     child.once('exit', (code) => resolve(code));
   });
 
-  await waitForFile(databasePath, 30_000, exitPromise, () => stderr);
+  await waitForFile(
+    path.join(dataDirectory, 'logs', 'application.log'),
+    30_000,
+    exitPromise,
+    () => stderr,
+  );
   child.kill();
   await exitPromise;
   child = undefined;

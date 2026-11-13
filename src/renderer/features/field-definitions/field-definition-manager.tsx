@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useNavigationState, useRestoredRecord } from '../../app/navigation-provider';
 import type { Campaign } from '../../../core/contracts/campaigns';
 import type { EntityType } from '../../../core/contracts/entity-types';
 import type {
@@ -27,14 +28,32 @@ export function FieldDefinitionManager({
   onBack: () => void;
 }): React.JSX.Element {
   const [fields, setFields] = useState<FieldDefinition[]>([]);
-  const [showArchived, setShowArchived] = useState(false);
-  const [view, setView] = useState<View>('list');
-  const [editing, setEditing] = useState<FieldDefinition | null>(null);
+  const [showArchived, , setShowArchived] = useNavigationState(
+    `fields:${entityType.id}:archived`,
+    false,
+  );
+  const [view, setView] = useNavigationState<View>(`fields:${entityType.id}:view`, 'list');
+  const [editing, , setEditing] = useNavigationState<FieldDefinition | null>(
+    `fields:${entityType.id}:editing`,
+    null,
+  );
   const [pending, setPending] = useState<FieldDefinition | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<UserFacingError | null>(null);
   const [announcement, setAnnouncement] = useState<string | null>(null);
+  useRestoredRecord(
+    view === 'edit' ? editing?.id : undefined,
+    (id) =>
+      window.campaignManager.fieldDefinitions.get({
+        campaignId: campaign.id,
+        entityTypeId: entityType.id,
+        id,
+      }),
+    setEditing,
+    (failure) => setError(presentUserFacingError(failure, 'field-definitions.mutate')),
+    setBusy,
+  );
   const createButtonRef = useRef<HTMLButtonElement | null>(null);
   const editButtonRefs = useRef(new Map<string, HTMLButtonElement>());
   const returnFocusTarget = useRef<{ kind: 'create' } | { kind: 'edit'; id: string } | null>(null);

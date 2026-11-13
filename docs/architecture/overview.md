@@ -19,6 +19,17 @@ foco ao título após trocar de módulo. Estados de carregamento, vazio, erro re
 ocupada permanecem responsabilidade de cada tela. A Caixa de Entrada mantém seus diálogos com foco
 contido e fundo inerte; o renderer continua sem acesso privilegiado.
 
+O histórico de navegação é uma coleção central em memória, compartilhada pelas telas do renderer.
+Cada entrada guarda o módulo e suas telas internas (listas, detalhes, formulários, campos e
+sessões abertas), incluindo o registro selecionado. Alterações de contexto da mesma transição são
+agrupadas em uma única entrada; filtros e carregamentos apenas atualizam a entrada atual.
+Alt+Seta Esquerda/Direita e os botões laterais do mouse percorrem esse histórico sem mudar a URL.
+Uma nova navegação após voltar elimina o ramo de avanço. O histórico não é persistido no banco e
+os dados de formulário ainda não salvos são descartados ao sair; voltar/avançar não salva dados.
+Registros selecionados são recarregados ao restaurar uma tela, para usar sua revisão atual.
+Conversões de Intenção concluídas são retiradas do histórico e retornam à sessão de origem,
+sem permitir reabrir o formulário concluído pelo avanço.
+
 A Fase 2 não introduz Relógios, Demandas, Consequências, portabilidade, Biblioteca/PDFs ou IA.
 Esses limites preservam o modo local sem IA e sem rede: não há servidor HTTP, provedor de IA, modelo
 ou chamada externa necessária aos fluxos atuais. O fechamento 2.10E foi aprovado em 2026-09-21 com

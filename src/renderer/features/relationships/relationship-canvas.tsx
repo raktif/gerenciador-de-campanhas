@@ -1,16 +1,19 @@
 import {
   BaseEdge,
   EdgeLabelRenderer,
+  Handle,
   Panel,
+  Position,
   ReactFlow,
   getViewportForBounds,
   useNodesState,
   type EdgeProps,
   type NodeChange,
+  type NodeProps,
   type ReactFlowInstance,
   type Viewport,
 } from '@xyflow/react';
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import type {
   RelationshipNodePosition,
   RelationshipViewport,
@@ -23,6 +26,7 @@ import {
   type RelationshipCanvasEdge,
   type RelationshipCanvasModel,
   type RelationshipCanvasNode,
+  relationshipHandlesForNodes,
 } from './relationship-canvas-model';
 
 const canvasExtent: [[number, number], [number, number]] = [
@@ -30,6 +34,8 @@ const canvasExtent: [[number, number], [number, number]] = [
   [1_000_000, 1_000_000],
 ];
 const keyboardMoveKeys = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']);
+const nodeTypes = { relationshipNode: RelationshipEntityNode };
+const edgeTypes = { relationshipLoop: RelationshipLoopEdge };
 
 export const relationshipCanvasAriaLabels = {
   'node.a11yDescription.default':
@@ -47,8 +53,6 @@ export const relationshipCanvasAriaLabels = {
   'minimap.ariaLabel': 'Minimapa da vizinhança',
   'handle.ariaLabel': 'Ponto de conexão da entidade',
 } as const;
-
-const edgeTypes = { relationshipLoop: RelationshipLoopEdge };
 
 export interface RelationshipCanvasProps {
   model: RelationshipCanvasModel;
@@ -79,6 +83,18 @@ export function RelationshipCanvas({
   onRetry,
 }: RelationshipCanvasProps): React.JSX.Element {
   const [nodes, setNodes, onNodesChange] = useNodesState<RelationshipCanvasNode>(model.nodes);
+  const positionedEdges = useMemo(() => {
+    const nodeById = new Map(nodes.map((node) => [node.id, node]));
+    return model.edges.map((edge) => {
+      if (edge.data?.selfRelationship === true)
+        return { ...edge, sourceHandle: 'source-right', targetHandle: 'target-top' };
+      const source = nodeById.get(edge.source);
+      const target = nodeById.get(edge.target);
+      return source === undefined || target === undefined
+        ? edge
+        : { ...edge, ...relationshipHandlesForNodes(source, target) };
+    });
+  }, [model.edges, nodes]);
   const [instance, setInstance] = useState<ReactFlowInstance<
     RelationshipCanvasNode,
     RelationshipCanvasEdge
@@ -200,7 +216,7 @@ export function RelationshipCanvas({
             ariaLabelConfig={relationshipCanvasAriaLabels}
             defaultViewport={viewport}
             deleteKeyCode={null}
-            edges={model.edges}
+            edges={positionedEdges}
             edgesFocusable={false}
             edgesReconnectable={false}
             edgeTypes={edgeTypes}
@@ -209,6 +225,7 @@ export function RelationshipCanvas({
             minZoom={0.1}
             nodeExtent={canvasExtent}
             nodes={nodes}
+            nodeTypes={nodeTypes}
             nodesConnectable={false}
             nodesDraggable={persistenceAvailable}
             nodesFocusable
@@ -447,6 +464,37 @@ function RelationshipLoopEdge({
           {label}
         </span>
       </EdgeLabelRenderer>
+    </>
+  );
+}
+
+function RelationshipEntityNode({ data }: NodeProps<RelationshipCanvasNode>): React.JSX.Element {
+  const handleStyle = { opacity: 0, width: 0, height: 0, border: 0 };
+  const sides = [
+    ['left', Position.Left],
+    ['right', Position.Right],
+    ['top', Position.Top],
+    ['bottom', Position.Bottom],
+  ] as const;
+  return (
+    <>
+      {sides.flatMap(([side, position]) => [
+        <Handle
+          id={`source-${side}`}
+          key={`source-${side}`}
+          position={position}
+          style={handleStyle}
+          type="source"
+        />,
+        <Handle
+          id={`target-${side}`}
+          key={`target-${side}`}
+          position={position}
+          style={handleStyle}
+          type="target"
+        />,
+      ])}
+      <span>{data.label}</span>
     </>
   );
 }

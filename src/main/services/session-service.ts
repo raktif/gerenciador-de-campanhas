@@ -63,7 +63,11 @@ export class SessionService {
   public update(input: UpdateSessionInput): Session {
     const current = this.requireSession(input.campaignId, input.id);
     this.requireRevision(current, input.revision);
-    if (input.patch.status !== undefined) this.assertTransition(current.status, input.patch.status);
+    if (input.patch.status !== undefined) {
+      this.assertTransition(current.status, input.patch.status);
+      if (current.status === 'planned' && input.patch.status === 'in_progress')
+        this.assertPreviousSessionsCompleted(current);
+    }
     return this.dependencies.repository.update(input, this.now());
   }
 
@@ -103,5 +107,36 @@ export class SessionService {
           to,
         },
       );
+  }
+
+  private assertPreviousSessionsCompleted(session: Session): void {
+    let cursor: string | undefined;
+    do {
+      const page = this.dependencies.repository.list({
+        campaignId: session.campaignId,
+        limit: 100,
+        filters: {},
+        sort: 'sequenceNumber',
+        order: 'asc',
+        ...(cursor === undefined ? {} : { cursor }),
+      });
+      const previous = page.items.find(
+        (candidate) =>
+          candidate.sequenceNumber < session.sequenceNumber && candidate.status !== 'completed',
+      );
+      if (previous !== undefined)
+        throw new AppError(
+          'PREVIOUS_SESSIONS_INCOMPLETE',
+          'Conclua todas as sessões anteriores antes de iniciar esta sessão.',
+          {
+            sessionId: session.id,
+            sequenceNumber: session.sequenceNumber,
+            previousSessionId: previous.id,
+            previousSequenceNumber: previous.sequenceNumber,
+            previousStatus: previous.status,
+          },
+        );
+      cursor = page.nextCursor ?? undefined;
+    } while (cursor !== undefined);
   }
 }

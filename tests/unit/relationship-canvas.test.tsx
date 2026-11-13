@@ -14,7 +14,7 @@ describe('RelationshipCanvas', () => {
       nodes: [
         {
           id: 'entity-1',
-          type: 'default',
+          type: 'relationshipNode',
           position: { x: 0, y: 0 },
           data: { label: 'Aventureira', fullLabel: 'Aventureira', central: true, pinned: false },
           focusable: true,
@@ -49,7 +49,7 @@ describe('RelationshipCanvas', () => {
     expect(markup).toContain('Ferramentas do mapa de relações');
     expect(markup).toContain('Organizar automaticamente');
     expect(markup).toContain('Restaurar layout');
-    expect(markup).toContain('react-flow__node-default selected');
+    expect(markup).toContain('react-flow__node-relationshipNode selected');
     expect(markup).not.toContain('React Flow attribution');
     expect(markup).not.toContain('>React Flow</a>');
   });
@@ -59,7 +59,7 @@ describe('RelationshipCanvas', () => {
       nodes: [
         {
           id: 'entity-1',
-          type: 'default',
+          type: 'relationshipNode',
           position: { x: 0, y: 0 },
           data: {
             label: 'Aventureira',
@@ -98,7 +98,7 @@ describe('RelationshipCanvas', () => {
     expect(
       toPersistedNodePosition({
         id: 'entity-1',
-        type: 'default',
+        type: 'relationshipNode',
         position: { x: 125, y: -40 },
         data: { label: 'Aventureira', fullLabel: 'Aventureira', central: true, pinned: true },
       }),
@@ -116,7 +116,7 @@ describe('RelationshipCanvas', () => {
     expect(
       toPersistedNodePosition({
         id: 'entity-1',
-        type: 'default',
+        type: 'relationshipNode',
         position: { x: 48, y: 48 },
         data: { label: 'Aventureira', fullLabel: 'Aventureira', central: true, pinned: false },
       }),

@@ -4,8 +4,12 @@ import { defaultPageLimit, maximumPageLimit, type PageResult } from './paginatio
 import type { Result } from './result';
 import { hexColorSchema, nullableHexColorSchema } from './colors';
 import { iconIdSchema } from './icons';
+import { createTechnicalKeyCandidate, normalizeTechnicalKeyPart } from '../identifiers/technical-key';
 
 const nameSchema = z.string().trim().min(1).max(120);
+export function entityTypeSlug(name: string): string {
+  return createTechnicalKeyCandidate(normalizeTechnicalKeyPart(name, 'tipo-entidade'), 1);
+}
 const slugSchema = z
   .string()
   .trim()
@@ -40,13 +44,16 @@ export const createEntityTypeInputSchema = z
     campaignId: z.uuid(),
     name: nameSchema,
     singularName: nameSchema,
-    slug: slugSchema,
     description: z.string().trim().min(1).max(2000).optional(),
     icon: iconIdSchema.optional(),
     color: hexColorSchema.optional(),
   })
   .strict()
-  .transform((input) => ({ ...input, sortOrder: 0 }));
+  .transform((input) => ({
+    ...input,
+    slug: entityTypeSlug(input.name),
+    sortOrder: 0,
+  }));
 export type CreateEntityTypeInput = z.infer<typeof createEntityTypeInputSchema>;
 export type CreateEntityTypeInputRequest = z.input<typeof createEntityTypeInputSchema>;
 
@@ -54,7 +61,6 @@ export const entityTypePatchSchema = z
   .object({
     name: nameSchema.optional(),
     singularName: nameSchema.optional(),
-    slug: slugSchema.optional(),
     description: nullableDescriptionSchema.optional(),
     icon: iconIdSchema.nullable().optional(),
     color: nullableHexColorSchema.optional(),

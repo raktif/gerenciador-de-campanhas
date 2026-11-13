@@ -25,7 +25,6 @@ test('seleciona, valida, cancela, limpa e persiste cor de tipo de entidade', asy
 
     await window.getByLabel('Nome plural').fill('Personagens');
     await window.getByLabel('Nome singular').fill('Personagem');
-    await window.getByLabel('Identificador (slug)').fill('personagens');
 
     const palette = window.getByRole('radiogroup', { name: 'Paleta de cores' });
     const noColor = palette.getByLabel('Sem cor');

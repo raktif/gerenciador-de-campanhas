@@ -11,12 +11,14 @@ import type {
   RelationshipTypePageResult,
   UpdateRelationshipTypeInput,
 } from '../../core/contracts/relationship-types';
+import { relationshipTypeSlug } from '../../core/contracts/relationship-types';
 import { AppError } from '../../core/errors/app-error';
 import type { RelationshipTypeRepositoryUpdate } from '../../db/repositories/relationship-type-repository';
 
 export interface RelationshipTypeRepositoryPort {
   insertAtEnd(relationshipType: RelationshipType): RelationshipType;
   findById(campaignId: string, id: string): RelationshipType | null;
+  findBySlug(campaignId: string, slug: string): RelationshipType | null;
   list(request: RelationshipTypePageRequest): RelationshipTypePageResult;
   update(input: RelationshipTypeRepositoryUpdate, updatedAt: string): RelationshipType;
   restoreAtEnd(
@@ -51,6 +53,7 @@ export class RelationshipTypeService {
 
   public create(input: CreateRelationshipTypeInput): RelationshipType {
     this.requireCampaign(input.campaignId);
+    this.requireUniqueName(input.campaignId, input.name);
     this.validateAllowedTypes(input.campaignId, input.allowedSourceTypeIds);
     this.validateAllowedTypes(input.campaignId, input.allowedTargetTypeIds);
     const timestamp = this.now();
@@ -59,7 +62,7 @@ export class RelationshipTypeService {
       campaignId: input.campaignId,
       packId: null,
       name: input.name,
-      slug: input.slug,
+      slug: relationshipTypeSlug(input.name),
       inverseName: input.inverseName,
       description: input.description,
       semanticRole: input.semanticRole,
@@ -87,11 +90,17 @@ export class RelationshipTypeService {
 
   public update(input: UpdateRelationshipTypeInput): RelationshipType {
     this.requireRelationshipType(input.campaignId, input.id);
+    if (input.patch.name !== undefined)
+      this.requireUniqueName(input.campaignId, input.patch.name, input.id);
     if (input.patch.allowedSourceTypeIds !== undefined)
       this.validateAllowedTypes(input.campaignId, input.patch.allowedSourceTypeIds);
     if (input.patch.allowedTargetTypeIds !== undefined)
       this.validateAllowedTypes(input.campaignId, input.patch.allowedTargetTypeIds);
-    return this.dependencies.repository.update(input, this.now());
+    const patch =
+      input.patch.name === undefined
+        ? input.patch
+        : { ...input.patch, slug: relationshipTypeSlug(input.patch.name) };
+    return this.dependencies.repository.update({ ...input, patch }, this.now());
   }
 
   public move(input: MoveRelationshipTypeInput): RelationshipType[] {
@@ -133,6 +142,17 @@ export class RelationshipTypeService {
         id,
       });
     return relationshipType;
+  }
+
+  private requireUniqueName(campaignId: string, name: string, exceptId?: string): void {
+    const slug = relationshipTypeSlug(name);
+    const existing = this.dependencies.repository.findBySlug(campaignId, slug);
+    if (existing !== null && existing.id !== exceptId)
+      throw new AppError(
+        'RELATIONSHIP_TYPE_NAME_ALREADY_EXISTS',
+        'Já existe um tipo de relação com esse nome. Escolha um nome diferente.',
+        { campaignId, name, slug },
+      );
   }
 
   private validateAllowedTypes(campaignId: string, ids: string[] | null): void {

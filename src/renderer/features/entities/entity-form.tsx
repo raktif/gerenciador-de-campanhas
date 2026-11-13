@@ -280,7 +280,7 @@ export function EntityForm(props: EntityFormProps): React.JSX.Element {
               Tipo de entidade *
               <select
                 className={inputClass}
-                disabled={props.busy || props.mode === 'edit'}
+                disabled={props.busy}
                 onChange={(event) => {
                   setEntityTypeId(event.target.value);
                   setHasUnsavedChanges(true);
@@ -790,4 +790,4 @@ function entityTypeLabel(entityTypes: EntityType[], id: string): string {
 
 const labelClass = 'block text-sm font-semibold semantic-text-primary';
 const inputClass =
-  'mt-2 w-full rounded-xl border semantic-border px-4 py-2.5 semantic-text-primary focus-visible:outline-2 focus-visible:outline-offset-2 semantic-focus-outline';
+  'mt-2 w-full rounded-xl border semantic-border semantic-surface px-4 py-2.5 semantic-text-primary focus-visible:outline-2 focus-visible:outline-offset-2 semantic-focus-outline semantic-disabled-surface';

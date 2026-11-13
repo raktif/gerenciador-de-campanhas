@@ -15,9 +15,14 @@ A aplicação cria pastas separadas para banco, documentos da biblioteca, anexos
 
 ```powershell
 $env:APP_DATA_DIR = "$PWD/tmp/development-data"
+$env:APP_ELECTRON_USER_DATA_DIR = "$PWD/tmp/development-electron-profile"
 $env:LOG_LEVEL = "debug"
 pnpm start
 ```
+
+`APP_DATA_DIR` isola os dados da aplicação; `APP_ELECTRON_USER_DATA_DIR` também
+isola o perfil e os dados de sessão do Electron. Defina ambas para testes que
+não devem acessar o perfil existente.
 
 O log é local, rotativo e redige campos sensíveis. Migrações são transacionais e um banco existente recebe backup SQLite verificado antes da primeira migração pendente.
 

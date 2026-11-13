@@ -210,7 +210,6 @@ describe('gateway do preload', () => {
       campaignId: identity.id,
       name: '  Personagens  ',
       singularName: '  Personagem  ',
-      slug: 'personagens',
     });
     await gateway.entityTypes.get(entityTypeIdentity);
     await gateway.entityTypes.list({ campaignId: identity.id });
@@ -237,7 +236,6 @@ describe('gateway do preload', () => {
     await gateway.relationshipTypes.create({
       campaignId: identity.id,
       name: '  Trabalha em  ',
-      slug: 'trabalha-em',
     });
     await gateway.relationshipTypes.get(relationshipTypeIdentity);
     await gateway.relationshipTypes.list({ campaignId: identity.id });
@@ -325,7 +323,6 @@ describe('gateway do preload', () => {
           campaignId: identity.id,
           name: '  Personagens  ',
           singularName: '  Personagem  ',
-          slug: 'personagens',
         },
       },
       { channel: entityTypeChannels.get, input: entityTypeIdentity },
@@ -345,7 +342,6 @@ describe('gateway do preload', () => {
         input: {
           campaignId: identity.id,
           name: '  Trabalha em  ',
-          slug: 'trabalha-em',
         },
       },
       { channel: relationshipTypeChannels.get, input: relationshipTypeIdentity },

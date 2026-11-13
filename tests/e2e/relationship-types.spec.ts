@@ -19,11 +19,10 @@ test('configura, arquiva e persiste tipos de relação', async () => {
     await window.getByRole('button', { name: 'Criar campanha', exact: true }).click();
     await window.getByRole('button', { name: 'Abrir campanha Ethéria' }).click();
     await window.getByRole('button', { name: 'Gerenciar tipos de entidade' }).click();
-    await createEntityType(window, 'Personagens', 'Personagem', 'personagens');
+    await createEntityType(window, 'Personagens', 'Personagem');
     await window.getByRole('button', { name: 'Novo tipo' }).click();
     await window.getByLabel('Nome plural').fill('Locais');
     await window.getByLabel('Nome singular').fill('Local');
-    await window.getByLabel('Identificador (slug)').fill('locais');
     await window.getByRole('button', { name: 'Criar tipo de entidade' }).click();
     await window.getByRole('button', { name: 'Voltar para detalhes da campanha' }).click();
 
@@ -32,9 +31,10 @@ test('configura, arquiva e persiste tipos de relação', async () => {
     await window.getByRole('button', { name: 'Novo tipo de relação' }).click();
     await expect(window.getByLabel('Ordem', { exact: true })).toHaveCount(0);
     await window.getByLabel('Nome *').fill('Trabalha em');
-    await window.getByLabel('Slug *').fill('trabalha-em');
+    await expect(window.getByLabel('Slug')).toHaveCount(0);
     await window.getByLabel('Nome inverso', { exact: true }).fill('Emprega');
     await window.getByLabel('Papel semântico').fill('belongs_to');
+    await window.getByRole('radio', { name: 'Pessoa' }).check();
     await window
       .getByRole('group', { name: 'Tipos permitidos na origem' })
       .getByLabel('Personagens')
@@ -59,6 +59,9 @@ test('configura, arquiva e persiste tipos de relação', async () => {
 
     await expect(window.getByRole('status')).toContainText('Tipo de relação “Trabalha em” criado.');
     const relationshipTypeList = window.getByRole('list', { name: 'Ordenar tipos de relação' });
+    const typeIcon = relationshipTypeList.getByTestId('relationship-type-icon').first();
+    await expect(typeIcon.locator('[data-icon-id="person"]')).toBeVisible();
+    await expect(typeIcon).toHaveCSS('background-color', 'rgb(15, 118, 110)');
     await expect(relationshipTypeList).toContainText('Inversa: Emprega');
     await expect(relationshipTypeList).toContainText('Origem: Personagens');
     await expect(relationshipTypeList).not.toContainText(/Ordem \d/);
@@ -96,10 +99,24 @@ test('configura, arquiva e persiste tipos de relação', async () => {
 
     await window.getByRole('button', { name: 'Novo tipo de relação' }).click();
     await expect(window.getByLabel('Ordem', { exact: true })).toHaveCount(0);
-    await window.getByLabel('Nome *').fill('Conhece');
-    await window.getByLabel('Slug *').fill('conhece');
+    const relationshipTypeName = window.getByLabel('Nome *');
+    await relationshipTypeName.fill('Trabalha em');
+    await window.getByRole('button', { name: 'Criar tipo' }).click();
+    await expect(window.getByRole('alert')).toContainText(
+      'Já existe um tipo de relação com esse nome. Escolha um nome diferente.',
+    );
+    await relationshipTypeName.fill('Conhece');
     await window.getByRole('button', { name: 'Criar tipo' }).click();
     await expect(relationshipTypeList.getByRole('heading')).toHaveText(['Trabalha em', 'Conhece']);
+    const conheceCard = relationshipTypeList.getByRole('listitem').filter({ hasText: 'Conhece' });
+    await conheceCard.getByRole('button', { name: 'Editar' }).click();
+    await window.getByLabel('Nome *').fill('Trabalha em');
+    await window.getByRole('button', { name: 'Salvar alterações' }).click();
+    await expect(window.getByRole('alert')).toContainText(
+      'Já existe um tipo de relação com esse nome. Escolha um nome diferente.',
+    );
+    await window.getByRole('button', { name: 'Cancelar' }).click();
+    await expect(window.getByRole('alert')).toHaveCount(0);
     await window.getByRole('button', { name: 'Mover Conhece para cima' }).click();
     await expect(relationshipTypeList.getByRole('heading')).toHaveText(['Conhece', 'Trabalha em']);
     await expect(window.getByRole('status')).toContainText(
@@ -132,12 +149,10 @@ async function createEntityType(
   window: Awaited<ReturnType<ElectronApplication['firstWindow']>>,
   plural: string,
   singular: string,
-  slug: string,
 ): Promise<void> {
   await window.getByRole('button', { name: 'Criar primeiro tipo' }).click();
   await window.getByLabel('Nome plural').fill(plural);
   await window.getByLabel('Nome singular').fill(singular);
-  await window.getByLabel('Identificador (slug)').fill(slug);
   await window.getByRole('button', { name: 'Criar tipo de entidade' }).click();
 }
 

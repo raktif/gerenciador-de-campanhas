@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useNavigationState, useRestoredRecord } from '../../app/navigation-provider';
 import type { Assertion, CreateAssertionInput } from '../../../core/contracts/assertions';
 import type { Campaign } from '../../../core/contracts/campaigns';
 import type { Entity } from '../../../core/contracts/entities';
@@ -32,25 +33,46 @@ export function AssertionManager({
   campaign,
   context,
   onBack,
+  initialDraft,
+  onCreated,
+  onCancelInitialDraft,
 }: {
   campaign: Campaign;
   context?: NarrativeContext;
   onBack: () => void;
+  initialDraft?: { subjectEntityId: string; statement: string };
+  onCreated?: () => Promise<UserFacingError | null>;
+  onCancelInitialDraft?: () => void;
 }): React.JSX.Element {
   const [items, setItems] = useState<Assertion[]>([]);
   const [entities, setEntities] = useState<Entity[]>([]);
-  const [view, setView] = useState<View>('list');
-  const [editing, setEditing] = useState<Assertion | null>(null);
-  const [archived, setArchived] = useState(false);
-  const [knowledge, setKnowledge] = useState('');
-  const [canon, setCanon] = useState('');
-  const [visibility, setVisibility] = useState('');
+  const [view, setView] = useNavigationState<View>(`assertions:${campaign.id}:view`, () =>
+    initialDraft === undefined ? 'list' : 'create',
+  );
+  const [editing, , setEditing] = useNavigationState<Assertion | null>(
+    `assertions:${campaign.id}:editing`,
+    null,
+  );
+  const [archived, , setArchived] = useNavigationState(`assertions:${campaign.id}:archived`, false);
+  const [knowledge, , setKnowledge] = useNavigationState(`assertions:${campaign.id}:knowledge`, '');
+  const [canon, , setCanon] = useNavigationState(`assertions:${campaign.id}:canon`, '');
+  const [visibility, , setVisibility] = useNavigationState(
+    `assertions:${campaign.id}:visibility`,
+    '',
+  );
   const [cursor, setCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<UserFacingError | null>(null);
   const [announcement, setAnnouncement] = useState<string | null>(null);
   const [pending, setPending] = useState<Assertion | null>(null);
+  useRestoredRecord(
+    view === 'edit' ? editing?.id : undefined,
+    (id) => window.campaignManager.assertions.get({ campaignId: campaign.id, id }),
+    setEditing,
+    (failure) => setError(presentUserFacingError(failure, 'assertions.mutate')),
+    setBusy,
+  );
 
   const load = useCallback(
     async (append = false): Promise<void> => {
@@ -141,10 +163,17 @@ export function AssertionManager({
               },
             });
       if (result.ok) {
+        if (editing === null && initialDraft !== undefined && onCreated !== undefined) {
+          const failure = await onCreated();
+          if (failure !== null) setError(failure);
+          return;
+        }
         setAnnouncement(editing === null ? 'Afirmação criada.' : 'Afirmação atualizada.');
         setEditing(null);
         setView('list');
+        const conversionError = editing === null ? await onCreated?.() : null;
         await load(false);
+        if (conversionError !== null && conversionError !== undefined) setError(conversionError);
       } else setError(presentUserFacingError(result.error, 'assertions.mutate'));
     } catch {
       setError(presentUserFacingError(undefined, 'assertions.mutate'));
@@ -177,13 +206,19 @@ export function AssertionManager({
     return (
       <>
         <AssertionForm
+          key={editing === null ? 'create' : `${editing.id}:${String(editing.revision)}`}
           campaign={campaign}
           {...(context === undefined ? {} : { context })}
+          {...(initialDraft === undefined ? {} : { initialDraft })}
           entities={entities}
           assertion={editing}
           busy={busy}
           error={null}
           onCancel={() => {
+            if (onCancelInitialDraft !== undefined) {
+              onCancelInitialDraft();
+              return;
+            }
             setEditing(null);
             setView('list');
             setError(null);
@@ -228,7 +263,7 @@ export function AssertionManager({
           Nova afirmação
         </Button>
       </header>
-      <ToolbarActions aria-label="Filtros de afirmações" className="mt-5">
+      <ToolbarActions aria-label="Filtros de afirmações" className="mt-5 items-end gap-3">
         <Filter
           label="Natureza"
           value={knowledge}
@@ -341,6 +376,7 @@ function AssertionForm({
   entities,
   assertion,
   context,
+  initialDraft,
   busy,
   error,
   onCancel,
@@ -350,15 +386,18 @@ function AssertionForm({
   entities: Entity[];
   assertion: Assertion | null;
   context?: NarrativeContext;
+  initialDraft?: { subjectEntityId: string; statement: string };
   busy: boolean;
   error: string | null;
   onCancel: () => void;
   onSubmit: (input: CreateAssertionInput) => Promise<void>;
 }): React.JSX.Element {
   const [structured, setStructured] = useState(assertion?.statement === null);
-  const [subject, setSubject] = useState(assertion?.subjectEntityId ?? context?.entityId ?? '');
+  const [subject, setSubject] = useState(
+    assertion?.subjectEntityId ?? initialDraft?.subjectEntityId ?? context?.entityId ?? '',
+  );
   const [object, setObject] = useState(assertion?.objectEntityId ?? '');
-  const [statement, setStatement] = useState(assertion?.statement ?? '');
+  const [statement, setStatement] = useState(assertion?.statement ?? initialDraft?.statement ?? '');
   const [predicate, setPredicate] = useState(assertion?.predicate ?? '');
   const [value, setValue] = useState(
     assertion?.value === null || assertion?.value === undefined
@@ -577,10 +616,10 @@ function Filter({
   onChange: (value: string) => void;
 }): React.JSX.Element {
   return (
-    <label className="text-sm font-semibold">
+    <label className="flex w-40 max-w-full flex-col text-sm font-semibold">
       {label}
       <select
-        className={`${inputClass} ml-2 mt-0 w-auto`}
+        className={inputClass}
         value={value}
         onChange={(event) => onChange(event.target.value)}
       >

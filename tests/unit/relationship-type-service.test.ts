@@ -33,7 +33,6 @@ describe('RelationshipTypeService', () => {
       createRelationshipTypeInputSchema.parse({
         campaignId,
         name: 'Trabalha em',
-        slug: 'trabalha-em',
         inverseName: 'Emprega',
         semanticRole: 'belongs_to',
         allowedSourceTypeIds: [entityTypeId],
@@ -43,6 +42,7 @@ describe('RelationshipTypeService', () => {
       id: relationshipTypeId,
       campaignId,
       name: 'Trabalha em',
+      slug: 'trabalha-em',
       inverseName: 'Emprega',
       allowedSourceTypeIds: [entityTypeId],
       isArchived: false,
@@ -57,7 +57,6 @@ describe('RelationshipTypeService', () => {
         createRelationshipTypeInputSchema.parse({
           campaignId,
           name: 'Conhece',
-          slug: 'conhece',
           allowedTargetTypeIds: [id],
         }),
       );
@@ -101,6 +100,53 @@ describe('RelationshipTypeService', () => {
       ).code,
     ).toBe('CAMPAIGN_NOT_FOUND');
   });
+
+  it('atualiza o slug automaticamente quando o nome muda', () => {
+    const repository = new MemoryRepository([createRelationshipType()]);
+    const service = createService(repository);
+
+    expect(
+      service.update({
+        campaignId,
+        id: relationshipTypeId,
+        revision: 1,
+        patch: { name: 'Relação de Amizade' },
+      }),
+    ).toMatchObject({ name: 'Relação de Amizade', slug: 'relacao-de-amizade' });
+  });
+
+  it('rejeita nomes que geram slugs já usados na campanha', () => {
+    const repository = new MemoryRepository([
+      createRelationshipType({ name: 'Relação de Amizade', slug: 'relacao-de-amizade' }),
+      createRelationshipType({
+        id: '20000000-0000-4000-8000-000000000002',
+        name: 'Conhece',
+        slug: 'conhece',
+      }),
+    ]);
+    const service = createService(repository);
+
+    expect(
+      capture(() =>
+        service.create(
+          createRelationshipTypeInputSchema.parse({ campaignId, name: 'Relação de Amizade' }),
+        ),
+      ),
+    ).toMatchObject({
+      code: 'RELATIONSHIP_TYPE_NAME_ALREADY_EXISTS',
+      message: 'Já existe um tipo de relação com esse nome. Escolha um nome diferente.',
+    });
+    expect(
+      capture(() =>
+        service.update({
+          campaignId,
+          id: '20000000-0000-4000-8000-000000000002',
+          revision: 1,
+          patch: { name: 'relacao de amizade' },
+        }),
+      ).code,
+    ).toBe('RELATIONSHIP_TYPE_NAME_ALREADY_EXISTS');
+  });
 });
 
 class MemoryRepository implements RelationshipTypeRepositoryPort {
@@ -115,6 +161,13 @@ class MemoryRepository implements RelationshipTypeRepositoryPort {
   public findById(targetCampaignId: string, id: string): RelationshipType | null {
     const value = this.records.get(id);
     return value?.campaignId === targetCampaignId ? value : null;
+  }
+  public findBySlug(targetCampaignId: string, slug: string): RelationshipType | null {
+    return (
+      [...this.records.values()].find(
+        (value) => value.campaignId === targetCampaignId && value.slug === slug,
+      ) ?? null
+    );
   }
   public list(request: RelationshipTypePageRequest): RelationshipTypePageResult {
     const items = [...this.records.values()].filter(

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Button, FormActions } from '../../components/actions';
 import { ColorPicker } from '../../components/color-picker';
+import { IconPicker } from '../../components/icon-picker';
 import { normalizeHexColor } from '../../../core/contracts/colors';
 import type { EntityType } from '../../../core/contracts/entity-types';
 import type {
@@ -11,12 +12,11 @@ import type {
 
 export type RelationshipTypeCreateValues = Omit<
   CreateRelationshipTypeInput,
-  'campaignId' | 'sortOrder'
+  'campaignId' | 'sortOrder' | 'slug'
 >;
 
 interface FormValues {
   name: string;
-  slug: string;
   inverseName: string;
   description: string;
   semanticRole: string;
@@ -112,14 +112,6 @@ export function RelationshipTypeForm(props: Props): React.JSX.Element {
             />
             <TextField
               disabled={props.busy}
-              label="Slug"
-              onChange={(value) => update('slug', value)}
-              placeholder="ex.: trabalha-em"
-              required
-              value={values.slug}
-            />
-            <TextField
-              disabled={props.busy}
               label="Nome inverso"
               onChange={(value) => update('inverseName', value)}
               placeholder="ex.: emprega"
@@ -132,11 +124,13 @@ export function RelationshipTypeForm(props: Props): React.JSX.Element {
               placeholder="ex.: belongs_to"
               value={values.semanticRole}
             />
-            <TextField
+          </div>
+          <div className="space-y-6">
+            <IconPicker
               disabled={props.busy}
-              label="Ícone"
-              onChange={(value) => update('icon', value)}
-              value={values.icon}
+              id="relationship-type-icon"
+              onChange={(value) => update('icon', value ?? '')}
+              value={values.icon === '' ? null : values.icon}
             />
             <ColorPicker
               disabled={props.busy}
@@ -294,7 +288,6 @@ function TextField({
 function emptyValues(): FormValues {
   return {
     name: '',
-    slug: '',
     inverseName: '',
     description: '',
     semanticRole: '',
@@ -308,7 +301,6 @@ function emptyValues(): FormValues {
 function toFormValues(type: RelationshipType): FormValues {
   return {
     name: type.name,
-    slug: type.slug,
     inverseName: type.inverseName ?? '',
     description: type.description ?? '',
     semanticRole: type.semanticRole ?? '',
@@ -322,7 +314,6 @@ function toFormValues(type: RelationshipType): FormValues {
 export function toCreateValues(values: FormValues): RelationshipTypeCreateValues {
   return {
     name: values.name.trim(),
-    slug: values.slug.trim(),
     inverseName: nullable(values.inverseName),
     description: nullable(values.description),
     semanticRole: nullable(values.semanticRole),
@@ -341,7 +332,6 @@ export function toPatch(
   const patch: RelationshipTypePatch = {};
   for (const field of [
     'name',
-    'slug',
     'inverseName',
     'description',
     'semanticRole',

@@ -12,6 +12,7 @@ export interface ContextualHelpContent {
 export interface ContextualHelpProps {
   content: ContextualHelpContent;
   label: string;
+  compact?: boolean;
 }
 
 interface PopoverPosition {
@@ -23,7 +24,11 @@ const viewportMargin = 16;
 const triggerGap = 8;
 const transientCloseDelay = 120;
 
-export function ContextualHelp({ content, label }: ContextualHelpProps): React.JSX.Element {
+export function ContextualHelp({
+  content,
+  label,
+  compact = false,
+}: ContextualHelpProps): React.JSX.Element {
   const reactId = useId();
   const popoverId = `contextual-help-${reactId.replaceAll(':', '')}`;
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -157,7 +162,7 @@ export function ContextualHelp({ content, label }: ContextualHelpProps): React.J
         <span aria-hidden="true">?</span>
       </IconButton>
       <div
-        className="contextual-help-popover m-0 max-h-[min(28rem,calc(100vh-2rem))] w-[min(24rem,calc(100vw-2rem))] overflow-auto rounded-2xl border p-4 text-left text-sm font-normal shadow-xl"
+        className={`contextual-help-popover m-0 max-h-[min(28rem,calc(100vh-2rem))] overflow-auto rounded-2xl border text-left font-normal shadow-xl ${compact ? 'w-[min(18rem,calc(100vw-2rem))] p-3 text-xs' : 'w-[min(24rem,calc(100vw-2rem))] p-4 text-sm'}`}
         id={popoverId}
         onPointerEnter={() => {
           popoverHoveredRef.current = true;

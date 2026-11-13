@@ -25,7 +25,6 @@ test('seleciona ícone por teclado, cancela alterações e persiste a escolha', 
 
     await window.getByLabel('Nome plural').fill('Personagens');
     await window.getByLabel('Nome singular').fill('Personagem');
-    await window.getByLabel('Identificador (slug)').fill('personagens');
     const none = window.getByRole('radio', { name: 'Nenhum' });
     const person = window.getByRole('radio', { name: 'Pessoa' });
     await expect(none).toBeChecked();

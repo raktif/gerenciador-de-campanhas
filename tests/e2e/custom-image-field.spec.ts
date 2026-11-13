@@ -24,7 +24,6 @@ test('configura campo image e oferece galeria acessivel nos detalhes', async () 
     await window.getByRole('button', { name: 'Criar primeiro tipo' }).click();
     await window.getByLabel('Nome plural').fill('Personagens');
     await window.getByLabel('Nome singular').fill('Personagem');
-    await window.getByLabel('Identificador (slug)').fill('personagens');
     await window.getByRole('button', { name: 'Criar tipo de entidade' }).click();
     await window.getByRole('button', { name: 'Gerenciar campos de Personagens' }).click();
     await window.getByRole('button', { name: 'Criar primeiro campo' }).click();

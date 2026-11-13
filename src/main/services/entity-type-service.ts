@@ -10,6 +10,7 @@ import type {
   MoveEntityTypeInput,
   UpdateEntityTypeInput,
 } from '../../core/contracts/entity-types';
+import { entityTypeSlug } from '../../core/contracts/entity-types';
 import { AppError } from '../../core/errors/app-error';
 import type { EntityTypeRepositoryUpdate } from '../../db/repositories/entity-type-repository';
 
@@ -74,7 +75,11 @@ export class EntityTypeService {
   }
 
   public update(input: UpdateEntityTypeInput): EntityType {
-    return this.dependencies.repository.update(input, this.now());
+    const patch =
+      input.patch.name === undefined
+        ? input.patch
+        : { ...input.patch, slug: entityTypeSlug(input.patch.name) };
+    return this.dependencies.repository.update({ ...input, patch }, this.now());
   }
 
   public move(input: MoveEntityTypeInput): EntityType[] {

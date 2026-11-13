@@ -15,6 +15,12 @@ test('carrega a tela inicial sem reload manual em banco vazio e com campanha per
 
   try {
     application = await launch(dataDirectory);
+    expect(await application.evaluate(({ app }) => app.getPath('userData'))).toBe(
+      path.join(dataDirectory, 'electron-profile'),
+    );
+    expect(await application.evaluate(({ app }) => app.getPath('sessionData'))).toBe(
+      path.join(dataDirectory, 'electron-profile'),
+    );
     let window = await application.firstWindow();
     await expect(
       window.getByRole('heading', { name: 'Bem-vindo ao Gerenciador de Campanhas de RPG' }),
@@ -119,6 +125,7 @@ async function launch(
     env: {
       ...inheritedEnvironment,
       APP_DATA_DIR: dataDirectory,
+      APP_ELECTRON_USER_DATA_DIR: path.join(dataDirectory, 'electron-profile'),
       NODE_ENV: 'test',
       ...(options.failInitialCampaignList
         ? { CAMPAIGN_MANAGER_TEST_FAIL_INITIAL_CAMPAIGN_LIST: '1' }
