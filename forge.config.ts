@@ -12,7 +12,7 @@ import path from 'node:path';
 
 const config: ForgeConfig = {
   packagerConfig: {
-    asar: true,
+    asar: { unpackDir: path.join('node_modules', '@img') },
     executableName: 'gerenciador-de-campanhas',
   },
   // Os mÃ³dulos nativos distribuem binÃ¡rios prÃ©-compilados compatÃ­veis. Rebuild
@@ -26,6 +26,8 @@ const config: ForgeConfig = {
       await copyRuntimePackage(buildPath, 'better-sqlite3');
       await copyRuntimePackage(buildPath, 'sharp');
       await copyRuntimePackage(buildPath, '@img');
+      await copyRuntimePackage(buildPath, 'detect-libc');
+      await copyRuntimePackage(buildPath, 'semver');
     },
   },
   makers: [

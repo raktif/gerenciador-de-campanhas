@@ -1,11 +1,22 @@
 import { app, BrowserWindow } from 'electron';
 import squirrelStartup from 'electron-squirrel-startup';
+import { mkdirSync } from 'node:fs';
+import path from 'node:path';
+import { readEnvironment } from '../core/config/environment';
 import {
   bootstrapApplication,
   showBootstrapError,
   type RunningApplication,
 } from './bootstrap/application';
 import { scheduleSquirrelUninstallCleanup } from './squirrel/uninstall-cleanup';
+
+const electronUserDataDirectory = readEnvironment().APP_ELECTRON_USER_DATA_DIR;
+if (electronUserDataDirectory !== undefined) {
+  const resolvedDirectory = path.resolve(electronUserDataDirectory);
+  mkdirSync(resolvedDirectory, { recursive: true });
+  app.setPath('userData', resolvedDirectory);
+  app.setPath('sessionData', resolvedDirectory);
+}
 
 // Evita depender do compositor de GPU: algumas sessões remotas/VMs corporativas
 // nunca produzem o primeiro frame, deixando a janela invisível indefinidamente.
