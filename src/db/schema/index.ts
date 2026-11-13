@@ -38,6 +38,13 @@ import {
   relationshipViewTypes,
   type RelationshipViewport,
 } from '../../core/contracts/relationship-views';
+import {
+  campaignSignalGeneratorKinds,
+  campaignSignalSeverities,
+  campaignSignalStatuses,
+  campaignSignalTypes,
+  signalEvidenceObjectTypes,
+} from '../../core/contracts/campaign-signals';
 
 export const schemaMigrations = sqliteTable('schema_migrations', {
   version: integer('version').primaryKey(),
@@ -873,6 +880,195 @@ export const relationshipViewNodes = sqliteTable(
     check('relationship_view_nodes_pinned_valid', sql`${table.pinned} IN (0, 1)`),
     check('relationship_view_nodes_updated_at_not_blank', sql`length(${table.updatedAt}) > 0`),
     index('relationship_view_nodes_entity_idx').on(table.entityId, table.relationshipViewId),
+  ],
+);
+
+export const campaignSignals = sqliteTable(
+  'campaign_signals',
+  {
+    id: text('id').primaryKey(),
+    campaignId: text('campaign_id')
+      .notNull()
+      .references(() => campaigns.id, { onDelete: 'cascade' }),
+    signalType: text('signal_type', { enum: campaignSignalTypes }).notNull(),
+    title: text('title').notNull(),
+    summary: text('summary').notNull(),
+    score: integer('score').notNull(),
+    severity: text('severity', { enum: campaignSignalSeverities }).notNull(),
+    status: text('status', { enum: campaignSignalStatuses }).notNull(),
+    generatedAt: text('generated_at').notNull(),
+    lastDetectedAt: text('last_detected_at').notNull(),
+    dismissedUntil: text('dismissed_until'),
+    ruleVersion: text('rule_version').notNull(),
+    generatorKind: text('generator_kind', { enum: campaignSignalGeneratorKinds }).notNull(),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
+    revision: integer('revision').notNull().default(1),
+  },
+  (table) => [
+    check(
+      'campaign_signals_id_uuid',
+      sql`length(${table.id}) = 36
+        AND substr(${table.id}, 9, 1) = '-'
+        AND substr(${table.id}, 14, 1) = '-'
+        AND substr(${table.id}, 19, 1) = '-'
+        AND substr(${table.id}, 24, 1) = '-'
+        AND length(replace(${table.id}, '-', '')) = 32
+        AND replace(${table.id}, '-', '') NOT GLOB '*[^0-9a-f]*'`,
+    ),
+    check(
+      'campaign_signals_type_valid',
+      sql`${table.signalType} IN (
+        'explicit_need', 'blocked_goal', 'open_consequence', 'clock_pressure',
+        'shared_resource', 'recent_change', 'open_thread', 'stale_thread',
+        'uninvestigated_clue', 'ignored_demand', 'cross_plot_bridge',
+        'potential_contradiction', 'inactive_entity', 'unresolved_mystery',
+        'unfulfilled_promise'
+      )`,
+    ),
+    check(
+      'campaign_signals_title_not_blank',
+      sql`length(trim(${table.title}, char(9,10,11,12,13,32,160,5760,8192,8193,8194,8195,8196,8197,8198,8199,8200,8201,8202,8232,8233,8239,8287,12288,65279))) > 0`,
+    ),
+    check(
+      'campaign_signals_summary_not_blank',
+      sql`length(trim(${table.summary}, char(9,10,11,12,13,32,160,5760,8192,8193,8194,8195,8196,8197,8198,8199,8200,8201,8202,8232,8233,8239,8287,12288,65279))) > 0`,
+    ),
+    check(
+      'campaign_signals_score_valid',
+      sql`typeof(${table.score}) = 'integer' AND ${table.score} BETWEEN -5 AND 5`,
+    ),
+    check('campaign_signals_severity_valid', sql`${table.severity} IN ('low', 'medium', 'high')`),
+    check(
+      'campaign_signals_status_valid',
+      sql`${table.status} IN ('new', 'viewed', 'dismissed', 'snoozed', 'converted', 'resolved', 'stale')`,
+    ),
+    check(
+      'campaign_signals_generated_at_valid',
+      sql`length(${table.generatedAt}) = 24
+        AND ${table.generatedAt} GLOB '????-??-??T??:??:??.???Z'
+        AND coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', ${table.generatedAt}) = ${table.generatedAt}, 0)`,
+    ),
+    check(
+      'campaign_signals_last_detected_at_valid',
+      sql`length(${table.lastDetectedAt}) = 24
+        AND ${table.lastDetectedAt} GLOB '????-??-??T??:??:??.???Z'
+        AND coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', ${table.lastDetectedAt}) = ${table.lastDetectedAt}, 0)`,
+    ),
+    check(
+      'campaign_signals_dismissed_until_valid',
+      sql`${table.dismissedUntil} IS NULL OR (
+        length(${table.dismissedUntil}) = 24
+        AND ${table.dismissedUntil} GLOB '????-??-??T??:??:??.???Z'
+        AND coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', ${table.dismissedUntil}) = ${table.dismissedUntil}, 0)
+      )`,
+    ),
+    check(
+      'campaign_signals_rule_version_not_blank',
+      sql`length(trim(${table.ruleVersion}, char(9,10,11,12,13,32,160,5760,8192,8193,8194,8195,8196,8197,8198,8199,8200,8201,8202,8232,8233,8239,8287,12288,65279))) > 0`,
+    ),
+    check('campaign_signals_generator_kind_valid', sql`${table.generatorKind} = 'deterministic'`),
+    check(
+      'campaign_signals_created_at_valid',
+      sql`length(${table.createdAt}) = 24
+        AND ${table.createdAt} GLOB '????-??-??T??:??:??.???Z'
+        AND coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', ${table.createdAt}) = ${table.createdAt}, 0)`,
+    ),
+    check(
+      'campaign_signals_updated_at_valid',
+      sql`length(${table.updatedAt}) = 24
+        AND ${table.updatedAt} GLOB '????-??-??T??:??:??.???Z'
+        AND coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', ${table.updatedAt}) = ${table.updatedAt}, 0)`,
+    ),
+    check(
+      'campaign_signals_revision_positive',
+      sql`typeof(${table.revision}) = 'integer' AND ${table.revision} BETWEEN 1 AND 9007199254740991`,
+    ),
+    index('campaign_signals_campaign_status_updated_idx').on(
+      table.campaignId,
+      table.status,
+      sql`${table.updatedAt} DESC`,
+      sql`${table.id} DESC`,
+    ),
+    index('campaign_signals_campaign_type_detected_idx').on(
+      table.campaignId,
+      table.signalType,
+      sql`${table.lastDetectedAt} DESC`,
+      sql`${table.id} DESC`,
+    ),
+  ],
+);
+
+export const signalEvidence = sqliteTable(
+  'signal_evidence',
+  {
+    id: text('id').primaryKey(),
+    signalId: text('signal_id')
+      .notNull()
+      .references(() => campaignSignals.id, { onDelete: 'cascade' }),
+    objectType: text('object_type', { enum: signalEvidenceObjectTypes }).notNull(),
+    objectId: text('object_id').notNull(),
+    role: text('role').notNull(),
+    description: text('description'),
+    graphPathJson: text('graph_path_json', { mode: 'json' }).$type<unknown[]>(),
+    sortOrder: integer('sort_order').notNull(),
+    createdAt: text('created_at').notNull(),
+  },
+  (table) => [
+    check(
+      'signal_evidence_id_uuid',
+      sql`length(${table.id}) = 36
+        AND substr(${table.id}, 9, 1) = '-'
+        AND substr(${table.id}, 14, 1) = '-'
+        AND substr(${table.id}, 19, 1) = '-'
+        AND substr(${table.id}, 24, 1) = '-'
+        AND length(replace(${table.id}, '-', '')) = 32
+        AND replace(${table.id}, '-', '') NOT GLOB '*[^0-9a-f]*'`,
+    ),
+    check(
+      'signal_evidence_object_type_valid',
+      sql`${table.objectType} IN ('entity', 'relationship', 'assertion', 'event', 'session', 'note')`,
+    ),
+    check(
+      'signal_evidence_object_id_uuid',
+      sql`length(${table.objectId}) = 36
+        AND substr(${table.objectId}, 9, 1) = '-'
+        AND substr(${table.objectId}, 14, 1) = '-'
+        AND substr(${table.objectId}, 19, 1) = '-'
+        AND substr(${table.objectId}, 24, 1) = '-'
+        AND length(replace(${table.objectId}, '-', '')) = 32
+        AND replace(${table.objectId}, '-', '') NOT GLOB '*[^0-9a-f]*'`,
+    ),
+    check(
+      'signal_evidence_role_not_blank',
+      sql`instr(${table.role}, char(0)) = 0
+        AND length(trim(${table.role}, char(9,10,11,12,13,32,160,5760,8192,8193,8194,8195,8196,8197,8198,8199,8200,8201,8202,8232,8233,8239,8287,12288,65279))) BETWEEN 1 AND 100`,
+    ),
+    check(
+      'signal_evidence_description_valid',
+      sql`${table.description} IS NULL OR (
+        instr(${table.description}, char(0)) = 0
+        AND length(trim(${table.description}, char(9,10,11,12,13,32,160,5760,8192,8193,8194,8195,8196,8197,8198,8199,8200,8201,8202,8232,8233,8239,8287,12288,65279))) BETWEEN 1 AND 2000
+      )`,
+    ),
+    check(
+      'signal_evidence_graph_path_valid',
+      sql`${table.graphPathJson} IS NULL OR (
+        json_valid(${table.graphPathJson}) AND json_type(${table.graphPathJson}) = 'array'
+      )`,
+    ),
+    check(
+      'signal_evidence_sort_order_nonnegative',
+      sql`typeof(${table.sortOrder}) = 'integer' AND ${table.sortOrder} BETWEEN 0 AND 9007199254740991`,
+    ),
+    check(
+      'signal_evidence_created_at_valid',
+      sql`length(${table.createdAt}) = 24
+        AND ${table.createdAt} GLOB '????-??-??T??:??:??.???Z'
+        AND coalesce(strftime('%Y-%m-%dT%H:%M:%fZ', ${table.createdAt}) = ${table.createdAt}, 0)`,
+    ),
+    index('signal_evidence_signal_order_idx').on(table.signalId, table.sortOrder, table.id),
+    index('signal_evidence_object_idx').on(table.objectType, table.objectId),
   ],
 );
 

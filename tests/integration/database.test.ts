@@ -343,7 +343,7 @@ describe('SQLite embutido', () => {
     legacy.close();
 
     const context = await openTestDatabase(directories);
-    expect(context.schemaVersion).toBe(18);
+    expect(context.schemaVersion).toBe(latestSchemaVersion);
     expect(
       context.native
         .prepare('SELECT name, reference_image_attachment_id FROM entities WHERE id = ?')

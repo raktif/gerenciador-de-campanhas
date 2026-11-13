@@ -58,7 +58,7 @@ describe('fundação dos campos personalizados de imagem', () => {
     legacy.close();
 
     const context = await openTestDatabase(directories);
-    expect(context.schemaVersion).toBe(20);
+    expect(context.schemaVersion).toBe(22);
     expect(
       context.native
         .prepare(
@@ -140,7 +140,7 @@ describe('fundação dos campos personalizados de imagem', () => {
     legacy.close();
 
     const context = await openTestDatabase(directories);
-    expect(context.schemaVersion).toBe(20);
+    expect(context.schemaVersion).toBe(22);
     expect(
       context.native
         .prepare('SELECT id, alt_text, revision FROM image_field_values WHERE id = ?')

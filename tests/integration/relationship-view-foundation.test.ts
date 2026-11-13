@@ -26,7 +26,7 @@ afterEach(async () => {
 });
 
 describe('fundação persistente do canvas de Relações', () => {
-  it('migra um banco v20 preservado e cria as estruturas da versão 21', async () => {
+  it('migra um banco v20 preservado e cria as estruturas até a versão atual', async () => {
     const root = await createTemporaryRoot();
     const directories = getDataDirectories(root);
     await ensureDataDirectories(directories);
@@ -37,7 +37,7 @@ describe('fundação persistente do canvas de Relações', () => {
 
     const context = await openTestDatabase(directories);
 
-    expect(context.schemaVersion).toBe(21);
+    expect(context.schemaVersion).toBe(22);
     expect(
       context.native.prepare('SELECT name FROM campaigns WHERE id = ?').get(seeded.campaignId),
     ).toEqual({ name: 'Ethéria' });

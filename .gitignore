@@ -9,6 +9,7 @@ test-results/
 .env.*
 !.env.example
 tmp/
+.github/agents/
 
 # graphify-axet
 .graphify/
