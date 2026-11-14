@@ -108,6 +108,164 @@ describe('AssertionService', () => {
     expect(updated).toMatchObject({ knowledgeState: 'rumor', visibility: 'players', revision: 2 });
   });
 
+  it('exige promoção explícita, aplica revisão otimista e preserva os demais campos', () => {
+    const possibility = createAssertion({
+      knowledgeState: 'possibility',
+      canonState: 'draft',
+      visibility: 'players',
+      originKind: 'session',
+      sourceId,
+      sessionId: sourceId,
+    });
+    const repository = new MemoryRepository([possibility]);
+    repository.sources.set(sourceId, {
+      kind: 'session',
+      sessionCampaignId: campaignId,
+      sessionId: sourceId,
+    });
+    const service = createService(repository);
+
+    expect(
+      capture(() =>
+        service.update({
+          campaignId,
+          id: possibility.id,
+          revision: 1,
+          patch: { knowledgeState: 'fact' },
+        }),
+      ).code,
+    ).toBe('ASSERTION_PROMOTION_CONFIRMATION_REQUIRED');
+    expect(repository.findById(campaignId, possibility.id)).toEqual(possibility);
+
+    const promoted = service.promotePossibilityToFact({
+      campaignId,
+      id: possibility.id,
+      revision: 1,
+      confirmation: 'possibility-to-fact',
+    });
+    expect(promoted).toMatchObject({
+      knowledgeState: 'fact',
+      canonState: 'draft',
+      visibility: 'players',
+      originKind: 'session',
+      sourceId,
+      sessionId: sourceId,
+      revision: 2,
+    });
+    expect(
+      capture(() =>
+        service.promotePossibilityToFact({
+          campaignId,
+          id: possibility.id,
+          revision: 1,
+          confirmation: 'possibility-to-fact',
+        }),
+      ).code,
+    ).toBe('REVISION_CONFLICT');
+    expect(
+      capture(() =>
+        service.promotePossibilityToFact({
+          campaignId: otherCampaignId,
+          id: possibility.id,
+          revision: 2,
+          confirmation: 'possibility-to-fact',
+        }),
+      ).code,
+    ).toBe('ASSERTION_NOT_FOUND');
+  });
+
+  it('não promove outros estados nem aceita ausência do marcador de confirmação em runtime', () => {
+    const repository = new MemoryRepository([createAssertion()]);
+    const service = createService(repository);
+    expect(
+      capture(() =>
+        service.promotePossibilityToFact({
+          campaignId,
+          id: createAssertion().id,
+          revision: 1,
+          confirmation: 'possibility-to-fact',
+        }),
+      ).code,
+    ).toBe('INVALID_ASSERTION_STATE');
+    expect(
+      capture(() =>
+        service.promotePossibilityToFact({
+          campaignId,
+          id: createAssertion().id,
+          revision: 1,
+        } as never),
+      ).code,
+    ).toBe('ASSERTION_PROMOTION_CONFIRMATION_REQUIRED');
+  });
+
+  it('bloqueia a promoção quando o sujeito ou objeto vinculado está arquivado', () => {
+    for (const [id, entityOverrides] of [
+      [
+        '50000000-0000-4000-8000-000000000010',
+        { subjectEntityId: '30000000-0000-4000-8000-000000000004' },
+      ],
+      [
+        '50000000-0000-4000-8000-000000000011',
+        { objectEntityId: '30000000-0000-4000-8000-000000000004' },
+      ],
+    ] as const) {
+      const archivedReference = createAssertion({
+        id,
+        knowledgeState: 'possibility',
+        ...entityOverrides,
+      });
+      const repository = new MemoryRepository([archivedReference]);
+      const service = createService(repository);
+
+      expect(
+        capture(() =>
+          service.promotePossibilityToFact({
+            campaignId,
+            id: archivedReference.id,
+            revision: archivedReference.revision,
+            confirmation: 'possibility-to-fact',
+          }),
+        ).code,
+      ).toBe('ASSERTION_PROMOTION_BLOCKED_ARCHIVED_ENTITY');
+      expect(repository.findById(campaignId, archivedReference.id)).toEqual(archivedReference);
+    }
+  });
+
+  it('lista a proveniência do registro sem expor sessão de outra campanha', () => {
+    const assertion = createAssertion({
+      originKind: 'session',
+      sourceId,
+      sessionId: sourceId,
+    });
+    const repository = new MemoryRepository([assertion]);
+    repository.sources.set(sourceId, {
+      kind: 'session',
+      sessionCampaignId: campaignId,
+      sessionId: sourceId,
+      description: 'Fonte de sessão',
+      sessionTitle: 'Sessão 4',
+    });
+    const service = createService(repository);
+    expect(
+      service.listRegistry(assertionPageRequestSchema.parse({ campaignId })).items[0],
+    ).toMatchObject({
+      assertion: { sourceId, sessionId: sourceId },
+      sourceDescription: 'Fonte de sessão',
+      sessionTitle: 'Sessão 4',
+    });
+
+    repository.sources.set(sourceId, {
+      kind: 'session',
+      sessionCampaignId: otherCampaignId,
+      sessionId: sourceId,
+      description: 'Não deve vazar',
+      sessionTitle: 'Sessão alheia',
+    });
+    expect(
+      capture(() => service.listRegistry(assertionPageRequestSchema.parse({ campaignId }))).code,
+    ).toBe('ASSERTION_SOURCE_CAMPAIGN_MISMATCH');
+  });
+
   it('exige fonte coerente e impede fonte de sessão de outra campanha', () => {
     const missingSource = createAssertionInputSchema.parse({
       campaignId,

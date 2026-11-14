@@ -10,9 +10,10 @@ processo de aprovação. Não implementa funcionalidades da Fase 3.
 - O fechamento da Fase 2 está documentado em `phase-2-refinement.md` e
   `phase-2-activity-2.10.md`.
 - A base usa migrações SQLite versionadas; a fundação 3A.1 eleva o schema da versão 21 para a 22.
-- A implementação da Fase 3 começou exclusivamente na 3A.1, entregue para validação independente
-  do QA. Não foram iniciados Registro de Cânone, Motor de Sinais, Relógios, Demandas, Consequências,
-  Fios Abertos ou Mundo em Movimento.
+- A 3A.1 (contratos e fundação persistente) foi aprovada tecnicamente pelo QA. O teste manual de UX
+  das atividades 3A foi adiado pelo responsável até a conclusão de toda a etapa 3A.
+- A 3A.2 (Registro de Cânone) foi implementada e aguarda validação técnica independente do QA.
+  Seu teste manual de UX permanece adiado; a atividade 3A.3 não foi iniciada nem autorizada.
 - Esta etapa não autoriza por si só o início da implementação de qualquer subtarefa da Fase 3.
 
 ## Base técnica verificada
@@ -93,6 +94,11 @@ essas perguntas e aguardar decisão, em vez de assumir comportamento narrativo:
   a especificar.
 
 ## Protocolo de implementação, QA e UX
+
+**Estado após a implementação 3A.2:** entrega técnica pendente do QA independente; UX manual das
+atividades 3A permanece adiada até a conclusão da etapa, conforme orientação do responsável. A
+implementação 3A.2 e suas decisões estão registradas em
+[phase-3-3a2.md](phase-3-3a2.md). Nenhuma atividade seguinte está autorizada por este registro.
 
 1. O responsável autoriza uma única subtarefa e seu escopo.
 2. O implementador consulta os requisitos aplicáveis, implementa a subtarefa e adiciona/executa

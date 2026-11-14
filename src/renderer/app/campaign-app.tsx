@@ -46,6 +46,7 @@ type Screen =
   | 'relationshipTypes'
   | 'relationships'
   | 'assertions'
+  | 'canonRegistry'
   | 'notes'
   | 'sessions'
   | 'timeline'
@@ -616,6 +617,8 @@ export function CampaignApp(): React.JSX.Element {
                     },
                   })}
             />
+          ) : screen === 'canonRegistry' && selectedCampaign !== null ? (
+            <AssertionManager campaign={selectedCampaign} registry onBack={() => goBack('edit')} />
           ) : screen === 'notes' && selectedCampaign !== null ? (
             <NoteManager
               campaign={selectedCampaign}
@@ -822,6 +825,11 @@ function CampaignNavigation({
             active={screen === 'assertions'}
             label="Afirmações"
             onClick={() => onNavigate('assertions')}
+          />
+          <CampaignNavigationItem
+            active={screen === 'canonRegistry'}
+            label="Registro de Cânone"
+            onClick={() => onNavigate('canonRegistry')}
           />
           <CampaignNavigationItem
             active={screen === 'notes'}

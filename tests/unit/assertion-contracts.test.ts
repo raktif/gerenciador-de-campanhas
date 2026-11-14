@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   assertionPageRequestSchema,
+  assertionRegistryPageResultSchema,
   assertionSchema,
   createAssertionInputSchema,
+  promoteAssertionPossibilityInputSchema,
   updateAssertionInputSchema,
 } from '../../src/core/contracts/assertions';
 
@@ -117,5 +119,56 @@ describe('contratos de afirmações', () => {
       sort: 'createdAt',
       order: 'asc',
     });
+  });
+
+  it('exige o marcador explícito da promoção e valida proveniência projetada no registro', () => {
+    const promotion = { campaignId, id: assertionId, revision: 3 };
+    expect(() => promoteAssertionPossibilityInputSchema.parse(promotion)).toThrow();
+    expect(
+      promoteAssertionPossibilityInputSchema.parse({
+        ...promotion,
+        confirmation: 'possibility-to-fact',
+      }),
+    ).toEqual({ ...promotion, confirmation: 'possibility-to-fact' });
+    expect(() =>
+      promoteAssertionPossibilityInputSchema.parse({
+        ...promotion,
+        confirmation: 'yes',
+      }),
+    ).toThrow();
+    expect(
+      assertionRegistryPageResultSchema.parse({
+        items: [
+          {
+            assertion: {
+              id: assertionId,
+              campaignId,
+              subjectEntityId,
+              predicate: null,
+              objectEntityId: null,
+              statement: 'Uma possibilidade.',
+              value: null,
+              canonState: 'accepted',
+              knowledgeState: 'possibility',
+              visibility: 'gm',
+              originKind: 'manual',
+              sourceId: null,
+              createdAt: timestamp,
+              updatedAt: timestamp,
+              archivedAt: null,
+              revision: 1,
+            },
+            subjectName: 'Entidade',
+            subjectArchived: false,
+            objectName: null,
+            objectArchived: false,
+            sourceDescription: null,
+            sessionTitle: null,
+          },
+        ],
+        nextCursor: null,
+        total: 1,
+      }),
+    ).toMatchObject({ items: [{ sourceDescription: null, sessionTitle: null }] });
   });
 });

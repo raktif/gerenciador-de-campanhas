@@ -68,6 +68,7 @@ import { SecureImageDownloadService } from '../services/secure-image-download-se
 import { AppearanceService } from '../services/appearance-service';
 import { StartupDiagnosticsService } from '../services/startup-diagnostics-service';
 import { AssertionService } from '../services/assertion-service';
+import { createAssertionRegistryTestHooks } from './assertion-registry-test-hooks';
 import { EntityService } from '../services/entity-service';
 import { EntityTypeService } from '../services/entity-type-service';
 import { EventService } from '../services/event-service';
@@ -326,16 +327,23 @@ export async function bootstrapApplication(): Promise<RunningApplication> {
     logger,
     authorizedWebContentsId: window.webContents.id,
   });
-  const assertionService = new AssertionService({
+  const assertionServiceDependencies = {
     repository: assertionRepository,
     campaigns: campaignRepository,
     entities: entityRepository,
     sessions: sessionRepository,
+  };
+  const assertionService = new AssertionService(assertionServiceDependencies);
+  const assertionRegistryTestHooks = createAssertionRegistryTestHooks({
+    isPackaged: app.isPackaged,
+    nodeEnv: process.env.NODE_ENV,
+    environment: process.env,
   });
   const unregisterAssertionIpc = registerAssertionIpcHandlers(ipcMain, {
     service: assertionService,
     logger,
     authorizedWebContentsId: window.webContents.id,
+    ...(assertionRegistryTestHooks === undefined ? {} : { testHooks: assertionRegistryTestHooks }),
   });
   const noteService = new NoteService({
     repository: noteRepository,

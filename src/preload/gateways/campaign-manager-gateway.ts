@@ -7,11 +7,13 @@ import {
 import {
   assertionLifecycleInputSchema,
   assertionPageRequestSchema,
+  promoteAssertionPossibilityInputSchema,
   createAssertionInputSchema,
   getAssertionInputSchema,
   updateAssertionInputSchema,
   type Assertion,
   type AssertionPageResult,
+  type AssertionRegistryPageResult,
 } from '../../core/contracts/assertions';
 import {
   campaignLifecycleInputSchema,
@@ -611,8 +613,20 @@ export function createCampaignManagerGateway(
       get: (input) => invoke<Assertion>(assertionChannels.get, input, getAssertionInputSchema),
       list: (input) =>
         invoke<AssertionPageResult>(assertionChannels.list, input, assertionPageRequestSchema),
+      listRegistry: (input) =>
+        invoke<AssertionRegistryPageResult>(
+          assertionChannels.listRegistry,
+          input,
+          assertionPageRequestSchema,
+        ),
       update: (input) =>
         invoke<Assertion>(assertionChannels.update, input, updateAssertionInputSchema),
+      promotePossibilityToFact: (input) =>
+        invoke<Assertion>(
+          assertionChannels.promotePossibilityToFact,
+          input,
+          promoteAssertionPossibilityInputSchema,
+        ),
       archive: (input) =>
         invoke<Assertion>(assertionChannels.archive, input, assertionLifecycleInputSchema),
       restore: (input) =>

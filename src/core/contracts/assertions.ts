@@ -131,6 +131,13 @@ export const assertionLifecycleInputSchema = z
   .strict();
 export type AssertionLifecycleInput = z.infer<typeof assertionLifecycleInputSchema>;
 
+export const promoteAssertionPossibilityInputSchema = assertionLifecycleInputSchema
+  .extend({ confirmation: z.literal('possibility-to-fact') })
+  .strict();
+export type PromoteAssertionPossibilityInput = z.infer<
+  typeof promoteAssertionPossibilityInputSchema
+>;
+
 export const assertionPageRequestSchema = z
   .object({
     campaignId: z.uuid(),
@@ -163,11 +170,35 @@ export const assertionPageResultSchema = z
   })
   .strict();
 
+export const assertionRegistryItemSchema = z
+  .object({
+    assertion: assertionSchema,
+    subjectName: z.string().nullable(),
+    subjectArchived: z.boolean(),
+    objectName: z.string().nullable(),
+    objectArchived: z.boolean(),
+    sourceDescription: z.string().nullable(),
+    sessionTitle: z.string().nullable(),
+  })
+  .strict();
+export type AssertionRegistryItem = z.infer<typeof assertionRegistryItemSchema>;
+export type AssertionRegistryPageResult = PageResult<AssertionRegistryItem>;
+
+export const assertionRegistryPageResultSchema = z
+  .object({
+    items: z.array(assertionRegistryItemSchema),
+    nextCursor: z.string().nullable(),
+    total: z.number().int().nonnegative().optional(),
+  })
+  .strict();
+
 export interface AssertionGateway {
   create(input: CreateAssertionInputRequest): Promise<Result<Assertion>>;
   get(input: GetAssertionInput): Promise<Result<Assertion>>;
   list(input: AssertionPageRequestInput): Promise<Result<AssertionPageResult>>;
+  listRegistry(input: AssertionPageRequestInput): Promise<Result<AssertionRegistryPageResult>>;
   update(input: UpdateAssertionInput): Promise<Result<Assertion>>;
+  promotePossibilityToFact(input: PromoteAssertionPossibilityInput): Promise<Result<Assertion>>;
   archive(input: AssertionLifecycleInput): Promise<Result<Assertion>>;
   restore(input: AssertionLifecycleInput): Promise<Result<Assertion>>;
 }

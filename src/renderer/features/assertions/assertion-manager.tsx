@@ -1,6 +1,21 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigationState, useRestoredRecord } from '../../app/navigation-provider';
 import type { Assertion, CreateAssertionInput } from '../../../core/contracts/assertions';
+import type { OriginKind } from '../../../core/contracts/narrative';
+import {
+  choosePromotionTarget,
+  createLatestRequestGate,
+  canonRegistryCategoryFilter,
+  canonRegistryCategoryOptions,
+  promotePossibilityWhenConfirmed,
+  registryAssertionText,
+  requiresFreshPromotionConfirmation,
+  registrySessionLabel,
+  registrySourceLabel,
+  registrySubjectLabel,
+  shouldShowRegistryEmptyState,
+  type CanonRegistrySourceMetadata,
+} from './canon-registry-model';
 import type { Campaign } from '../../../core/contracts/campaigns';
 import type { Entity } from '../../../core/contracts/entities';
 import {
@@ -10,6 +25,7 @@ import {
   inputClass,
   knowledgeLabel,
   knowledgeOptions,
+  originOptions,
   visibilityLabel,
   visibilityOptions,
   type NarrativeMetadataValues,
@@ -32,6 +48,7 @@ export interface NarrativeContext {
 export function AssertionManager({
   campaign,
   context,
+  registry = false,
   onBack,
   initialDraft,
   onCreated,
@@ -39,6 +56,7 @@ export function AssertionManager({
 }: {
   campaign: Campaign;
   context?: NarrativeContext;
+  registry?: boolean;
   onBack: () => void;
   initialDraft?: { subjectEntityId: string; statement: string };
   onCreated?: () => Promise<UserFacingError | null>;
@@ -46,16 +64,27 @@ export function AssertionManager({
 }): React.JSX.Element {
   const [items, setItems] = useState<Assertion[]>([]);
   const [entities, setEntities] = useState<Entity[]>([]);
-  const [view, setView] = useNavigationState<View>(`assertions:${campaign.id}:view`, () =>
-    initialDraft === undefined ? 'list' : 'create',
+  const [sourceMetadata, setSourceMetadata] = useState<Record<string, CanonRegistrySourceMetadata>>(
+    {},
+  );
+  const [view, setView] = useNavigationState<View>(
+    `${registry ? 'canon-registry' : 'assertions'}:${campaign.id}:view`,
+    () => (initialDraft === undefined ? 'list' : 'create'),
   );
   const [editing, , setEditing] = useNavigationState<Assertion | null>(
-    `assertions:${campaign.id}:editing`,
+    `${registry ? 'canon-registry' : 'assertions'}:${campaign.id}:editing`,
     null,
   );
-  const [archived, , setArchived] = useNavigationState(`assertions:${campaign.id}:archived`, false);
+  const [archived, , setArchived] = useNavigationState(
+    `${registry ? 'canon-registry' : 'assertions'}:${campaign.id}:archived`,
+    false,
+  );
   const [knowledge, , setKnowledge] = useNavigationState(`assertions:${campaign.id}:knowledge`, '');
   const [canon, , setCanon] = useNavigationState(`assertions:${campaign.id}:canon`, '');
+  const [registryCategory, setRegistryCategory] = useNavigationState(
+    `canon-registry:${campaign.id}:category`,
+    '',
+  );
   const [visibility, , setVisibility] = useNavigationState(
     `assertions:${campaign.id}:visibility`,
     '',
@@ -66,6 +95,24 @@ export function AssertionManager({
   const [error, setError] = useState<UserFacingError | null>(null);
   const [announcement, setAnnouncement] = useState<string | null>(null);
   const [pending, setPending] = useState<Assertion | null>(null);
+  const [pendingPromotion, setPendingPromotion] = useState<Assertion | null>(null);
+  const loadRequestGate = useRef(createLatestRequestGate());
+  const activeFilterKey = JSON.stringify([
+    campaign.id,
+    registry,
+    registryCategory,
+    context?.entityId ?? null,
+    archived,
+    knowledge,
+    canon,
+    visibility,
+  ]);
+  const activeFilterKeyRef = useRef(activeFilterKey);
+  activeFilterKeyRef.current = activeFilterKey;
+  const viewRef = useRef(view);
+  viewRef.current = view;
+  const campaignIdRef = useRef(campaign.id);
+  campaignIdRef.current = campaign.id;
   useRestoredRecord(
     view === 'edit' ? editing?.id : undefined,
     (id) => window.campaignManager.assertions.get({ campaignId: campaign.id, id }),
@@ -75,41 +122,117 @@ export function AssertionManager({
   );
 
   const load = useCallback(
-    async (append = false): Promise<void> => {
+    async (append = false): Promise<boolean> => {
+      const requestId = loadRequestGate.current.begin();
+      const requestFilterKey = activeFilterKey;
+      const isCurrentRequest = (): boolean =>
+        loadRequestGate.current.isCurrent(requestId) &&
+        activeFilterKeyRef.current === requestFilterKey;
       setLoading(true);
       setError(null);
       try {
-        const result = await window.campaignManager.assertions.list({
+        const categoryFilter =
+          registryCategory === '' ? {} : canonRegistryCategoryFilter(registryCategory);
+        const request = {
           campaignId: campaign.id,
           ...(append && cursor !== null ? { cursor } : {}),
           filters: {
             archived,
             ...(context === undefined ? {} : { entityId: context.entityId }),
-            ...(knowledge === ''
-              ? {}
-              : { knowledgeState: knowledge as Assertion['knowledgeState'] }),
-            ...(canon === '' ? {} : { canonState: canon as Assertion['canonState'] }),
+            ...(registry
+              ? categoryFilter
+              : {
+                  ...(knowledge === ''
+                    ? {}
+                    : { knowledgeState: knowledge as Assertion['knowledgeState'] }),
+                  ...(canon === '' ? {} : { canonState: canon as Assertion['canonState'] }),
+                }),
             ...(visibility === '' ? {} : { visibility: visibility as Assertion['visibility'] }),
           },
-        });
-        if (result.ok) {
-          setItems((current) => (append ? [...current, ...result.data.items] : result.data.items));
-          setCursor(result.data.nextCursor);
-        } else setError(presentUserFacingError(result.error, 'assertions.list'));
+        };
+        if (registry) {
+          const result = await window.campaignManager.assertions.listRegistry(request);
+          if (!isCurrentRequest()) return false;
+          if (result.ok) {
+            const nextSources = Object.fromEntries(
+              result.data.items.map((entry) => [
+                entry.assertion.id,
+                {
+                  subjectName: entry.subjectName,
+                  subjectArchived: entry.subjectArchived,
+                  objectName: entry.objectName,
+                  objectArchived: entry.objectArchived,
+                  sourceDescription: entry.sourceDescription,
+                  sessionTitle: entry.sessionTitle,
+                },
+              ]),
+            );
+            setSourceMetadata((current) => (append ? { ...current, ...nextSources } : nextSources));
+            const nextItems = result.data.items.map((entry) => entry.assertion);
+            setItems((current) => (append ? [...current, ...nextItems] : nextItems));
+            setCursor(result.data.nextCursor);
+            return true;
+          }
+          setError(presentUserFacingError(result.error, 'assertions.list'));
+          return false;
+        } else {
+          const result = await window.campaignManager.assertions.list(request);
+          if (!isCurrentRequest()) return false;
+          if (result.ok) {
+            setSourceMetadata({});
+            setItems((current) =>
+              append ? [...current, ...result.data.items] : result.data.items,
+            );
+            setCursor(result.data.nextCursor);
+            return true;
+          }
+          setError(presentUserFacingError(result.error, 'assertions.list'));
+          return false;
+        }
       } catch {
-        setError(presentUserFacingError(undefined, 'assertions.list'));
+        if (isCurrentRequest()) setError(presentUserFacingError(undefined, 'assertions.list'));
+        return false;
       } finally {
-        setLoading(false);
+        if (isCurrentRequest()) setLoading(false);
       }
     },
-    [archived, campaign.id, canon, context, cursor, knowledge, visibility],
+    [
+      archived,
+      activeFilterKey,
+      campaign.id,
+      canon,
+      context,
+      cursor,
+      knowledge,
+      registry,
+      registryCategory,
+      visibility,
+    ],
   );
+  const loadRef = useRef(load);
+  loadRef.current = load;
+
+  useEffect(() => {
+    setPendingPromotion(null);
+  }, [archived, campaign.id, context?.entityId, registryCategory, visibility]);
+  useEffect(() => {
+    if (view !== 'list') setPendingPromotion(null);
+  }, [view]);
 
   useEffect(() => {
     setItems([]);
     setCursor(null);
     void load(false);
-  }, [archived, campaign.id, canon, context?.entityId, knowledge, visibility]);
+  }, [
+    archived,
+    campaign.id,
+    canon,
+    context?.entityId,
+    knowledge,
+    registry,
+    registryCategory,
+    visibility,
+  ]);
   useEffect(() => {
     void loadAllEntities(campaign.id)
       .then(setEntities)
@@ -129,6 +252,7 @@ export function AssertionManager({
         setError(presentUserFacingError(result.error, 'assertions.mutate'));
         return;
       }
+      setPendingPromotion(null);
       setEditing(result.data);
       setView('edit');
     } catch {
@@ -202,6 +326,43 @@ export function AssertionManager({
     }
   }
 
+  async function confirmPromotion(): Promise<void> {
+    if (busy || pendingPromotion === null) return;
+    const promotionCampaignId = campaign.id;
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await promotePossibilityWhenConfirmed(
+        pendingPromotion,
+        campaign.id,
+        true,
+        (request) => window.campaignManager.assertions.promotePossibilityToFact(request),
+      );
+      if (result === null) return;
+      if (result.ok) {
+        setPendingPromotion(null);
+        setAnnouncement('Possibilidade promovida a fato. Os demais metadados foram preservados.');
+        if (viewRef.current === 'list') await loadRef.current(false);
+      } else if (requiresFreshPromotionConfirmation(result.error.code)) {
+        setPendingPromotion(null);
+        if (viewRef.current === 'list' && campaignIdRef.current === promotionCampaignId) {
+          setItems([]);
+          setSourceMetadata({});
+          setCursor(null);
+          const refreshed = await loadRef.current(false);
+          if (refreshed) setError(presentUserFacingError(result.error, 'assertions.mutate'));
+        } else setError(presentUserFacingError(result.error, 'assertions.mutate'));
+      } else {
+        setPendingPromotion(null);
+        setError(presentUserFacingError(result.error, 'assertions.mutate'));
+      }
+    } catch {
+      setError(presentUserFacingError(undefined, 'assertions.mutate'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (view !== 'list')
     return (
       <>
@@ -219,6 +380,7 @@ export function AssertionManager({
               onCancelInitialDraft();
               return;
             }
+            setPendingPromotion(null);
             setEditing(null);
             setView('list');
             setError(null);
@@ -243,17 +405,20 @@ export function AssertionManager({
             {campaign.name}
           </p>
           <h1 className="mt-2 text-4xl font-semibold" id="assertions-title">
-            Afirmações
+            {registry ? 'Registro de Cânone' : 'Afirmações'}
           </h1>
           <p className="mt-2 semantic-text-secondary">
-            {context === undefined
-              ? 'Fatos, rumores e possibilidades com proveniência explícita.'
-              : `Contexto: ${context.entityName}`}
+            {registry
+              ? 'Revise afirmações existentes e seus estados, natureza e proveniência.'
+              : context === undefined
+                ? 'Fatos, rumores e possibilidades com proveniência explícita.'
+                : `Contexto: ${context.entityName}`}
           </p>
         </div>
         <Button
           disabled={busy || entities.length === 0}
           onClick={() => {
+            setPendingPromotion(null);
             setEditing(null);
             setView('create');
           }}
@@ -263,24 +428,70 @@ export function AssertionManager({
           Nova afirmação
         </Button>
       </header>
-      <ToolbarActions aria-label="Filtros de afirmações" className="mt-5 items-end gap-3">
-        <Filter
-          label="Natureza"
-          value={knowledge}
-          options={knowledgeOptions}
-          onChange={setKnowledge}
-        />
-        <Filter label="Estado canônico" value={canon} options={canonOptions} onChange={setCanon} />
+      <ToolbarActions
+        aria-label={registry ? 'Filtros do Registro de Cânone' : 'Filtros de afirmações'}
+        className="mt-5 items-end gap-3"
+      >
+        {registry ? (
+          <label className="block font-semibold">
+            Categoria
+            <select
+              className={inputClass}
+              value={registryCategory}
+              onChange={(event) => {
+                setPendingPromotion(null);
+                setRegistryCategory(event.target.value);
+              }}
+            >
+              <option value="">Todas as categorias</option>
+              {canonRegistryCategoryOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : (
+          <>
+            <Filter
+              label="Natureza"
+              value={knowledge}
+              options={knowledgeOptions}
+              onChange={setKnowledge}
+            />
+            <Filter
+              label="Estado canônico"
+              value={canon}
+              options={canonOptions}
+              onChange={setCanon}
+            />
+          </>
+        )}
         <Filter
           label="Visibilidade"
           value={visibility}
           options={visibilityOptions}
-          onChange={setVisibility}
+          onChange={(value) => {
+            setPendingPromotion(null);
+            setVisibility(value);
+          }}
         />
-        <Button aria-pressed={!archived} onClick={() => setArchived(false)}>
+        <Button
+          aria-pressed={!archived}
+          onClick={() => {
+            setPendingPromotion(null);
+            setArchived(false);
+          }}
+        >
           Ativas
         </Button>
-        <Button aria-pressed={archived} onClick={() => setArchived(true)}>
+        <Button
+          aria-pressed={archived}
+          onClick={() => {
+            setPendingPromotion(null);
+            setArchived(true);
+          }}
+        >
           Arquivadas
         </Button>
       </ToolbarActions>
@@ -318,11 +529,42 @@ export function AssertionManager({
           </ButtonGroup>
         </div>
       )}
+      {pendingPromotion === null ? null : (
+        <div
+          className="mt-5 rounded-xl border semantic-warning-border semantic-warning-surface p-5"
+          role="alert"
+        >
+          <p className="font-semibold">Promover esta possibilidade a fato?</p>
+          <p className="mt-2">
+            Declaração:{' '}
+            {registryAssertionText(pendingPromotion, sourceMetadata[pendingPromotion.id])}
+          </p>
+          <p className="mt-1">
+            Assunto: {registrySubjectLabel(sourceMetadata[pendingPromotion.id])}
+          </p>
+          <p className="mt-2">
+            A natureza do conhecimento mudará somente após sua confirmação. O estado canônico, a
+            visibilidade e a proveniência serão preservados.
+          </p>
+          <ButtonGroup aria-label="Confirmação da promoção" className="mt-3">
+            <Button disabled={busy} onClick={() => setPendingPromotion(null)}>
+              Cancelar promoção
+            </Button>
+            <Button busy={busy} onClick={() => void confirmPromotion()} variant="primary">
+              Confirmar promoção a fato
+            </Button>
+          </ButtonGroup>
+        </div>
+      )}
       {loading && items.length === 0 ? (
         <p aria-live="polite" className="mt-8">
           Carregando afirmações…
         </p>
-      ) : items.length === 0 ? (
+      ) : shouldShowRegistryEmptyState({
+          loading,
+          hasError: error !== null,
+          itemCount: items.length,
+        }) ? (
         <div className="mt-8 rounded-2xl border border-dashed semantic-border semantic-surface p-12 text-center">
           <h2 className="text-xl font-semibold">Nenhuma afirmação encontrada</h2>
         </div>
@@ -338,13 +580,65 @@ export function AssertionManager({
                 <Badge>{knowledgeLabel(item.knowledgeState)}</Badge>
                 <Badge>{visibilityLabel(item.visibility)}</Badge>
               </div>
-              <p className="mt-4 text-lg font-medium">{assertionText(item, entities)}</p>
+              <p className="mt-4 text-lg font-medium">
+                {registry
+                  ? registryAssertionText(item, sourceMetadata[item.id])
+                  : assertionText(item, entities)}
+              </p>
               {item.knowledgeState === 'possibility' ? (
                 <p className="mt-2 font-semibold semantic-accent-text">
                   Possibilidade — não confirmada como fato
                 </p>
               ) : null}
+              {registry ? (
+                <dl className="mt-4 grid gap-2 text-sm sm:grid-cols-2">
+                  <div>
+                    <dt className="font-semibold">Assunto</dt>
+                    <dd>{registrySubjectLabel(sourceMetadata[item.id])}</dd>
+                  </div>
+                  <div>
+                    <dt className="font-semibold">Natureza</dt>
+                    <dd>{knowledgeLabel(item.knowledgeState)}</dd>
+                  </div>
+                  <div>
+                    <dt className="font-semibold">Estado canônico</dt>
+                    <dd>{canonLabel(item.canonState)}</dd>
+                  </div>
+                  <div>
+                    <dt className="font-semibold">Visibilidade</dt>
+                    <dd>{visibilityLabel(item.visibility)}</dd>
+                  </div>
+                  <div>
+                    <dt className="font-semibold">Origem</dt>
+                    <dd>{originLabel(item.originKind)}</dd>
+                  </div>
+                  <div>
+                    <dt className="font-semibold">Fonte</dt>
+                    <dd>
+                      {registrySourceLabel(
+                        item,
+                        sourceMetadata[item.id],
+                        originLabel(item.originKind),
+                      )}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="font-semibold">Sessão</dt>
+                    <dd>{registrySessionLabel(item, sourceMetadata[item.id])}</dd>
+                  </div>
+                </dl>
+              ) : null}
               <ToolbarActions aria-label="Ações da afirmação" className="mt-5 justify-end">
+                {registry && item.knowledgeState === 'possibility' ? (
+                  <Button
+                    disabled={busy || pendingPromotion !== null}
+                    onClick={() => {
+                      setPendingPromotion((current) => choosePromotionTarget(current, item));
+                    }}
+                  >
+                    Promover possibilidade a fato
+                  </Button>
+                ) : null}
                 <Button disabled={busy} onClick={() => void beginEdit(item)}>
                   Editar afirmação
                 </Button>
@@ -604,6 +898,11 @@ function assertionText(item: Assertion, entities: Entity[]): string {
         : JSON.stringify(item.value);
   return `${name(item.subjectEntityId)} ${item.predicate ?? ''} ${complement}`.trim();
 }
+
+function originLabel(originKind: OriginKind): string {
+  return originOptions.find(([value]) => value === originKind)?.[1] ?? originKind;
+}
+
 function Filter({
   label,
   value,

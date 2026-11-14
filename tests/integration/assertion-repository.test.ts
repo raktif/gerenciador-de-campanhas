@@ -257,6 +257,76 @@ describe('AssertionRepository', () => {
     expect(repository.findById(otherCampaignId, '50000000-0000-4000-8000-000000000099')).toBeNull();
     context.close();
   });
+
+  it('projeta sessão e descrição da fonte no Registro de Cânone sem outra tabela', async () => {
+    const { context, repository } = await setup();
+    const sessionId = '70000000-0000-4000-8000-000000000011';
+    const assertionId = '50000000-0000-4000-8000-000000000011';
+    context.native
+      .prepare(
+        "INSERT INTO sessions (id, campaign_id, sequence_number, title, status, created_at, updated_at, revision) VALUES (?, ?, 1, 'Sessão da campanha', 'completed', ?, ?, 1)",
+      )
+      .run(sessionId, campaignId, timestamp, timestamp);
+    context.native
+      .prepare(
+        "INSERT INTO sources (id, kind, session_id, description, created_at) VALUES (?, 'session', ?, 'Registro durante a sessão', ?)",
+      )
+      .run(sessionId, sessionId, timestamp);
+    repository.insert(
+      createAssertion(assertionId, {
+        originKind: 'session',
+        sourceId: sessionId,
+        knowledgeState: 'possibility',
+        canonState: 'draft',
+        visibility: 'players',
+      }),
+    );
+    context.native
+      .prepare('UPDATE entities SET archived_at = ? WHERE id = ?')
+      .run('2026-09-02T13:00:00.000Z', subjectEntityId);
+    const service = new AssertionService({
+      repository,
+      campaigns: new CampaignRepository(context.orm),
+      entities: new EntityRepository(context.orm),
+      sessions: new SessionRepository(context.orm),
+    });
+
+    expect(
+      service.listRegistry(assertionPageRequestSchema.parse({ campaignId })).items[0],
+    ).toMatchObject({
+      assertion: {
+        id: assertionId,
+        sourceId: sessionId,
+        sessionId,
+        knowledgeState: 'possibility',
+      },
+      subjectName: subjectEntityId,
+      subjectArchived: true,
+      objectName: null,
+      objectArchived: false,
+      sourceDescription: 'Registro durante a sessão',
+      sessionTitle: 'Sessão da campanha',
+    });
+    expect(context.native.prepare('SELECT COUNT(*) AS total FROM assertions').get()).toEqual({
+      total: 1,
+    });
+    expect(() =>
+      service.promotePossibilityToFact({
+        campaignId,
+        id: assertionId,
+        revision: 1,
+        confirmation: 'possibility-to-fact',
+      }),
+    ).toThrow(expect.objectContaining({ code: 'ASSERTION_PROMOTION_BLOCKED_ARCHIVED_ENTITY' }));
+    expect(repository.findById(campaignId, assertionId)).toMatchObject({
+      knowledgeState: 'possibility',
+      revision: 1,
+    });
+    expect(
+      context.native.prepare('SELECT description FROM sources WHERE id = ?').get(sessionId),
+    ).toEqual({ description: 'Registro durante a sessão' });
+    context.close();
+  });
 });
 
 async function setup(): Promise<{

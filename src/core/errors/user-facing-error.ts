@@ -49,6 +49,20 @@ const definitions: Readonly<Record<string, ErrorDefinition>> = {
     helpArticleId: 'revision-conflict',
     canRetry: true,
   },
+  ASSERTION_PROMOTION_CONFIRMATION_REQUIRED: {
+    title: 'Confirme a promoção antes de alterar a possibilidade',
+    message: 'A afirmação continua como possibilidade; nenhuma alteração foi gravada.',
+    suggestedAction: 'Use a ação “Promover possibilidade a fato” e confirme a mudança.',
+    helpArticleId: 'assertion-canon-promotion',
+    canRetry: false,
+  },
+  ASSERTION_PROMOTION_BLOCKED_ARCHIVED_ENTITY: {
+    title: 'A possibilidade não pode ser promovida',
+    message: 'O assunto ou objeto desta afirmação está arquivado. Nenhuma alteração foi gravada.',
+    suggestedAction: 'Restaure a entidade vinculada antes de tentar promover a possibilidade.',
+    helpArticleId: 'assertion-canon-promotion',
+    canRetry: false,
+  },
   RELATIONSHIP_TYPE_NAME_ALREADY_EXISTS: {
     title: 'Este nome de tipo de relação já está em uso',
     message: 'Já existe um tipo de relação com esse nome. Escolha um nome diferente.',

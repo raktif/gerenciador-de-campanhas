@@ -23,7 +23,7 @@ import {
   type AssertionPatch,
 } from '../../core/contracts/assertions';
 import { AppError } from '../../core/errors/app-error';
-import { assertions, sessions, sources } from '../schema';
+import { assertions, inboxItems, sessions, sources } from '../schema';
 import type * as schema from '../schema';
 
 const cursorSchema = z
@@ -54,7 +54,10 @@ export interface AssertionRepositoryUpdate {
 export interface AssertionSourceContext {
   kind: Assertion['originKind'];
   sessionCampaignId: string | null;
+  inboxCampaignId?: string | null;
   sessionId: string | null;
+  description?: string | null;
+  sessionTitle?: string | null;
 }
 
 export class AssertionRepository {
@@ -82,10 +85,14 @@ export class AssertionRepository {
       .select({
         kind: sources.kind,
         sessionCampaignId: sessions.campaignId,
+        inboxCampaignId: inboxItems.campaignId,
         sessionId: sources.sessionId,
+        description: sources.description,
+        sessionTitle: sessions.title,
       })
       .from(sources)
       .leftJoin(sessions, eq(sources.sessionId, sessions.id))
+      .leftJoin(inboxItems, eq(sources.inboxItemId, inboxItems.id))
       .where(eq(sources.id, id))
       .get();
     return row ?? null;

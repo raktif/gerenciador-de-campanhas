@@ -49,6 +49,33 @@ describe('catálogo de erros orientados ao usuário', () => {
     });
   });
 
+  it('explica que promoção de possibilidade exige confirmação explícita', () => {
+    expect(
+      presentUserFacingError(
+        { code: 'ASSERTION_PROMOTION_CONFIRMATION_REQUIRED' },
+        'assertions.mutate',
+      ),
+    ).toMatchObject({
+      code: 'ASSERTION_PROMOTION_CONFIRMATION_REQUIRED',
+      message: 'A afirmação continua como possibilidade; nenhuma alteração foi gravada.',
+      canRetry: false,
+    });
+  });
+
+  it('explica que entidade arquivada impede a promoção sem alterar a afirmação', () => {
+    expect(
+      presentUserFacingError(
+        { code: 'ASSERTION_PROMOTION_BLOCKED_ARCHIVED_ENTITY' },
+        'assertions.mutate',
+      ),
+    ).toMatchObject({
+      code: 'ASSERTION_PROMOTION_BLOCKED_ARCHIVED_ENTITY',
+      title: 'A possibilidade não pode ser promovida',
+      message: 'O assunto ou objeto desta afirmação está arquivado. Nenhuma alteração foi gravada.',
+      canRetry: false,
+    });
+  });
+
   it('explica por que uma sessão anterior precisa ser concluída', () => {
     expect(
       presentUserFacingError({ code: 'PREVIOUS_SESSIONS_INCOMPLETE' }, 'sessions.mutate'),

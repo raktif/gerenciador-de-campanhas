@@ -5,8 +5,10 @@ import type {
   AssertionLifecycleInput,
   AssertionPageRequest,
   AssertionPageResult,
+  AssertionRegistryPageResult,
   CreateAssertionInput,
   GetAssertionInput,
+  PromoteAssertionPossibilityInput,
   UpdateAssertionInput,
 } from '../../core/contracts/assertions';
 import type { Entity } from '../../core/contracts/entities';
@@ -88,9 +90,80 @@ export class AssertionService {
     return { ...page, items: page.items.map((assertion) => this.withSessionId(assertion)) };
   }
 
+  public listRegistry(input: AssertionPageRequest): AssertionRegistryPageResult {
+    const page = this.list(input);
+    return {
+      ...page,
+      items: page.items.map((assertion) => {
+        const subject = this.dependencies.entities.findById(
+          input.campaignId,
+          assertion.subjectEntityId,
+        );
+        const object =
+          assertion.objectEntityId === null
+            ? null
+            : this.dependencies.entities.findById(input.campaignId, assertion.objectEntityId);
+        if (assertion.sourceId === null)
+          return {
+            assertion,
+            subjectName: subject?.name ?? null,
+            subjectArchived: subject !== null && subject.archivedAt !== null,
+            objectName: object?.name ?? null,
+            objectArchived: object !== null && object.archivedAt !== null,
+            sourceDescription: null,
+            sessionTitle: null,
+          };
+        const source = this.dependencies.repository.findSourceContext(assertion.sourceId);
+        if (source === null)
+          return {
+            assertion,
+            subjectName: subject?.name ?? null,
+            subjectArchived: subject !== null && subject.archivedAt !== null,
+            objectName: object?.name ?? null,
+            objectArchived: object !== null && object.archivedAt !== null,
+            sourceDescription: null,
+            sessionTitle: null,
+          };
+        if (source.kind !== assertion.originKind)
+          throw new AppError(
+            'ASSERTION_SOURCE_KIND_MISMATCH',
+            'A fonte não corresponde à origem da afirmação.',
+            { assertionId: assertion.id, sourceId: assertion.sourceId },
+          );
+        if (source.kind === 'session' && source.sessionCampaignId !== input.campaignId)
+          throw new AppError(
+            'ASSERTION_SOURCE_CAMPAIGN_MISMATCH',
+            'A fonte de sessão não pertence à campanha da afirmação.',
+            { campaignId: input.campaignId, assertionId: assertion.id },
+          );
+        if (source.inboxCampaignId != null && source.inboxCampaignId !== input.campaignId)
+          throw new AppError(
+            'ASSERTION_SOURCE_CAMPAIGN_MISMATCH',
+            'A fonte da afirmação não pertence à campanha solicitada.',
+            { campaignId: input.campaignId, assertionId: assertion.id },
+          );
+        return {
+          assertion,
+          subjectName: subject?.name ?? null,
+          subjectArchived: subject !== null && subject.archivedAt !== null,
+          objectName: object?.name ?? null,
+          objectArchived: object !== null && object.archivedAt !== null,
+          sourceDescription: source.description ?? null,
+          sessionTitle: source.kind === 'session' ? (source.sessionTitle ?? null) : null,
+        };
+      }),
+    };
+  }
+
   public update(input: UpdateAssertionInput): Assertion {
     const current = this.requireAssertion(input.campaignId, input.id);
     this.requireRevision(current, input.revision);
+    if (current.knowledgeState === 'possibility' && input.patch.knowledgeState === 'fact')
+      throw new AppError(
+        'ASSERTION_PROMOTION_CONFIRMATION_REQUIRED',
+        'Promova a possibilidade a fato pela ação explícita de confirmação.',
+        { campaignId: input.campaignId, id: input.id },
+      );
     const { sessionId, ...patch } = input.patch;
     const updatedContent = {
       subjectEntityId: input.patch.subjectEntityId ?? current.subjectEntityId,
@@ -118,6 +191,51 @@ export class AssertionService {
     return this.withSessionId(
       this.dependencies.repository.update(
         { ...input, patch, ...(sessionId === undefined ? {} : { sessionId }) },
+        this.now(),
+      ),
+    );
+  }
+
+  public promotePossibilityToFact(input: PromoteAssertionPossibilityInput): Assertion {
+    const confirmation: unknown = input.confirmation;
+    if (confirmation !== 'possibility-to-fact')
+      throw new AppError(
+        'ASSERTION_PROMOTION_CONFIRMATION_REQUIRED',
+        'A confirmação explícita da promoção é obrigatória.',
+        { campaignId: input.campaignId, id: input.id },
+      );
+    const current = this.requireAssertion(input.campaignId, input.id);
+    this.requireRevision(current, input.revision);
+    if (current.knowledgeState !== 'possibility')
+      throw new AppError(
+        'INVALID_ASSERTION_STATE',
+        'Somente uma possibilidade pode ser promovida a fato.',
+        { currentKnowledgeState: current.knowledgeState },
+      );
+    try {
+      this.validateEntities(
+        input.campaignId,
+        current.subjectEntityId,
+        current.objectEntityId,
+        true,
+      );
+    } catch (error) {
+      if (error instanceof AppError && error.code === 'INVALID_ENTITY_STATE')
+        throw new AppError(
+          'ASSERTION_PROMOTION_BLOCKED_ARCHIVED_ENTITY',
+          'A possibilidade não foi promovida: o assunto ou objeto está arquivado. Restaure a entidade e tente novamente.',
+          error.details,
+        );
+      throw error;
+    }
+    return this.withSessionId(
+      this.dependencies.repository.update(
+        {
+          campaignId: input.campaignId,
+          id: input.id,
+          revision: input.revision,
+          patch: { knowledgeState: 'fact' },
+        },
         this.now(),
       ),
     );
@@ -207,6 +325,12 @@ export class AssertionService {
       throw new AppError(
         'ASSERTION_SOURCE_CAMPAIGN_MISMATCH',
         'A fonte de sessão não pertence à campanha da afirmação.',
+        { campaignId, sourceId },
+      );
+    if (source.inboxCampaignId != null && source.inboxCampaignId !== campaignId)
+      throw new AppError(
+        'ASSERTION_SOURCE_CAMPAIGN_MISMATCH',
+        'A fonte da afirmação não pertence à campanha informada.',
         { campaignId, sourceId },
       );
   }

@@ -117,7 +117,9 @@ export const assertionChannels = {
   create: 'assertions:create',
   get: 'assertions:get',
   list: 'assertions:list',
+  listRegistry: 'assertions:list-registry',
   update: 'assertions:update',
+  promotePossibilityToFact: 'assertions:promote-possibility-to-fact',
   archive: 'assertions:archive',
   restore: 'assertions:restore',
 } as const;

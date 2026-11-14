@@ -31,9 +31,14 @@ describe('handlers IPC narrativos', () => {
     });
     await requireHandler(handlers, assertionChannels.get)(event(42), identity);
     await requireHandler(handlers, assertionChannels.list)(event(42), { campaignId });
+    await requireHandler(handlers, assertionChannels.listRegistry)(event(42), { campaignId });
     await requireHandler(handlers, assertionChannels.update)(event(42), {
       ...lifecycle,
       patch: { statement: 'Revisada.' },
+    });
+    await requireHandler(handlers, assertionChannels.promotePossibilityToFact)(event(42), {
+      ...lifecycle,
+      confirmation: 'possibility-to-fact',
     });
     await requireHandler(handlers, assertionChannels.archive)(event(42), lifecycle);
     await requireHandler(handlers, assertionChannels.restore)(event(42), lifecycle);
@@ -50,7 +55,37 @@ describe('handlers IPC narrativos', () => {
       sort: 'updatedAt',
       order: 'desc',
     });
-    expect(service.calls).toEqual(['create', 'get', 'list', 'update', 'archive', 'restore']);
+    expect(service.calls).toEqual([
+      'create',
+      'get',
+      'list',
+      'listRegistry',
+      'update',
+      'promotePossibilityToFact',
+      'archive',
+      'restore',
+    ]);
+    const callsBeforeInvalidPromotion = service.calls.length;
+    expect(
+      await requireHandler(handlers, assertionChannels.promotePossibilityToFact)(event(42), {
+        ...lifecycle,
+        confirmation: 'cancel',
+      }),
+    ).toMatchObject({ ok: false, error: { code: 'VALIDATION_ERROR' } });
+    expect(service.calls).toHaveLength(callsBeforeInvalidPromotion);
+    service.failure = new AppError(
+      'ASSERTION_PROMOTION_BLOCKED_ARCHIVED_ENTITY',
+      'O assunto ou objeto está arquivado.',
+    );
+    expect(
+      await requireHandler(handlers, assertionChannels.promotePossibilityToFact)(event(42), {
+        ...lifecycle,
+        confirmation: 'possibility-to-fact',
+      }),
+    ).toMatchObject({
+      ok: false,
+      error: { code: 'ASSERTION_PROMOTION_BLOCKED_ARCHIVED_ENTITY' },
+    });
     unregister();
     expect(handlers.size).toBe(0);
   });
@@ -162,8 +197,30 @@ class FakeAssertionService {
     this.listInput = input;
     return { items: [assertion()], nextCursor: null, total: 1 };
   }
+  public listRegistry(input: unknown) {
+    this.calls.push('listRegistry');
+    this.listInput = input;
+    return {
+      items: [
+        {
+          assertion: assertion(),
+          subjectName: 'Entidade',
+          subjectArchived: false,
+          objectName: null,
+          objectArchived: false,
+          sourceDescription: null,
+          sessionTitle: null,
+        },
+      ],
+      nextCursor: null,
+      total: 1,
+    };
+  }
   public update(): Assertion {
     return this.result('update');
+  }
+  public promotePossibilityToFact(): Assertion {
+    return this.result('promotePossibilityToFact');
   }
   public archive(): Assertion {
     return this.result('archive');

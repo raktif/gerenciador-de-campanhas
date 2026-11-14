@@ -14,8 +14,8 @@ describe('gateways narrativos do preload', () => {
   it('expõe somente operações nomeadas e mapeia todos os canais permitidos', async () => {
     const invocations: Invocation[] = [];
     const gateway = createCampaignManagerGateway(invoker(invocations));
-    expect(Object.keys(gateway.assertions).sort()).toEqual(operations);
-    expect(Object.keys(gateway.notes).sort()).toEqual(operations);
+    expect(Object.keys(gateway.assertions).sort()).toEqual(assertionOperations);
+    expect(Object.keys(gateway.notes).sort()).toEqual(noteOperations);
     expect('ipcRenderer' in gateway).toBe(false);
     expect('invoke' in gateway).toBe(false);
 
@@ -28,9 +28,14 @@ describe('gateways narrativos do preload', () => {
     });
     await gateway.assertions.get(assertionIdentity);
     await gateway.assertions.list({ campaignId });
+    await gateway.assertions.listRegistry({ campaignId });
     await gateway.assertions.update({
       ...assertionLifecycle,
       patch: { statement: 'Revisada.' },
+    });
+    await gateway.assertions.promotePossibilityToFact({
+      ...assertionLifecycle,
+      confirmation: 'possibility-to-fact',
     });
     await gateway.assertions.archive(assertionLifecycle);
     await gateway.assertions.restore(assertionLifecycle);
@@ -53,8 +58,10 @@ describe('gateways narrativos do preload', () => {
     ]);
     expect(invocations[0]?.input).toMatchObject({ statement: '  Pista.  ' });
     expect(invocations[2]?.input).toEqual({ campaignId });
-    expect(invocations[6]?.input).toMatchObject({ title: '  Nota  ' });
-    expect(invocations[9]?.input).toMatchObject({ links: [{ entityId, role: '  alvo  ' }] });
+    expect(invocations[8]?.input).toMatchObject({ title: '  Nota  ' });
+    expect(invocations[11]?.input).toMatchObject({ links: [{ entityId, role: '  alvo  ' }] });
+    expect(invocations[3]?.channel).toBe(assertionChannels.listRegistry);
+    expect(invocations[5]?.input).toMatchObject({ confirmation: 'possibility-to-fact' });
   });
 
   it('bloqueia entradas inválidas antes de invocar o IPC', () => {
@@ -69,6 +76,13 @@ describe('gateways narrativos do preload', () => {
         originKind: 'session',
       }),
     ).toThrow();
+    expect(() =>
+      gateway.assertions.promotePossibilityToFact({
+        campaignId,
+        id: assertionId,
+        revision: 1,
+      } as never),
+    ).toThrow();
     expect(() => gateway.notes.create({ campaignId, title: ' ', bodyMarkdown: ' ' })).toThrow();
     expect(() =>
       gateway.notes.create({
@@ -82,7 +96,17 @@ describe('gateways narrativos do preload', () => {
   });
 });
 
-const operations = ['archive', 'create', 'get', 'list', 'restore', 'update'];
+const assertionOperations = [
+  'archive',
+  'create',
+  'get',
+  'list',
+  'listRegistry',
+  'promotePossibilityToFact',
+  'restore',
+  'update',
+];
+const noteOperations = ['archive', 'create', 'get', 'list', 'restore', 'update'];
 interface Invocation {
   channel: string;
   input: unknown;
