@@ -125,19 +125,43 @@ function applyMigrations(
     VALUES (?, ?, ?, ?)
   `);
 
-  const migrate = database.transaction(() => {
-    for (const migration of pendingMigrations) {
-      database.exec(migration.sql);
-      insertMigration.run(
-        migration.version,
-        migration.name,
-        migration.checksum,
-        new Date().toISOString(),
-      );
-    }
-  });
+  const specialIndex = pendingMigrations.findIndex(
+    (migration) => migration.requiresForeignKeysDisabled === true,
+  );
+  const runBatch = (batch: readonly MigrationDefinition[], checkForeignKeys: boolean): void => {
+    if (batch.length === 0) return;
+    database.transaction(() => {
+      for (const migration of batch) {
+        database.exec(migration.sql);
+        insertMigration.run(
+          migration.version,
+          migration.name,
+          migration.checksum,
+          new Date().toISOString(),
+        );
+      }
+      if (checkForeignKeys) {
+        const violations = database.pragma('foreign_key_check') as unknown[];
+        if (violations.length > 0)
+          throw new Error('A migração deixou referências estrangeiras inconsistentes.');
+      }
+    })();
+  };
+  if (specialIndex === -1) {
+    runBatch(pendingMigrations, false);
+    return;
+  }
 
-  migrate();
+  runBatch(pendingMigrations.slice(0, specialIndex), false);
+  database.pragma('foreign_keys = OFF');
+  const legacyAlterTable = pendingMigrations[specialIndex]?.requiresLegacyAlterTable === true;
+  if (legacyAlterTable) database.pragma('legacy_alter_table = ON');
+  try {
+    runBatch(pendingMigrations.slice(specialIndex), true);
+  } finally {
+    if (legacyAlterTable) database.pragma('legacy_alter_table = OFF');
+    database.pragma('foreign_keys = ON');
+  }
 }
 
 function readSqliteVersion(database: Database.Database): string {

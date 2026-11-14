@@ -169,6 +169,7 @@ import {
   assertionChannels,
   appearanceChannels,
   campaignChannels,
+  campaignSignalChannels,
   diagnosticsChannels,
   entityChannels,
   entityTypeChannels,
@@ -185,6 +186,17 @@ import {
   timelineChannels,
 } from '../../core/contracts/ipc-channels';
 import {
+  campaignSignalCampaignInputSchema,
+  dismissCampaignSignalInputSchema,
+  markContradictionExceptionInputSchema,
+  type ContradictionReview,
+  reactivateCampaignSignalInputSchema,
+  reviewCampaignSignalInputSchema,
+  snoozeCampaignSignalInputSchema,
+  type CampaignSignalListResult,
+  type CampaignSignalRecalculationResult,
+} from '../../core/contracts/campaign-signal-engine';
+import {
   sessionChannels,
   sessionIntentionChannels,
   sessionParticipantChannels,
@@ -196,6 +208,7 @@ import {
   type PhaseZeroTestRecord,
 } from '../../core/contracts/phase-zero';
 import type { Result } from '../../core/contracts/result';
+import type { CampaignSignal } from '../../core/contracts/campaign-signals';
 import {
   createSessionInputSchema,
   createSessionIntentionInputSchema,
@@ -631,6 +644,56 @@ export function createCampaignManagerGateway(
         invoke<Assertion>(assertionChannels.archive, input, assertionLifecycleInputSchema),
       restore: (input) =>
         invoke<Assertion>(assertionChannels.restore, input, assertionLifecycleInputSchema),
+    },
+    campaignSignals: {
+      getContradictionReview: (input) =>
+        invoke<ContradictionReview>(
+          campaignSignalChannels.getContradictionReview,
+          input,
+          reviewCampaignSignalInputSchema,
+        ),
+      list: (input) =>
+        invoke<CampaignSignalListResult>(
+          campaignSignalChannels.list,
+          input,
+          campaignSignalCampaignInputSchema,
+        ),
+      recalculate: (input) =>
+        invoke<CampaignSignalRecalculationResult>(
+          campaignSignalChannels.recalculate,
+          input,
+          campaignSignalCampaignInputSchema,
+        ),
+      review: (input) =>
+        invoke<CampaignSignal>(
+          campaignSignalChannels.review,
+          input,
+          reviewCampaignSignalInputSchema,
+        ),
+      dismiss: (input) =>
+        invoke<CampaignSignal>(
+          campaignSignalChannels.dismiss,
+          input,
+          dismissCampaignSignalInputSchema,
+        ),
+      reactivate: (input) =>
+        invoke<CampaignSignal>(
+          campaignSignalChannels.reactivate,
+          input,
+          reactivateCampaignSignalInputSchema,
+        ),
+      snooze: (input) =>
+        invoke<CampaignSignal>(
+          campaignSignalChannels.snooze,
+          input,
+          snoozeCampaignSignalInputSchema,
+        ),
+      markContradictionException: (input) =>
+        invoke<CampaignSignal>(
+          campaignSignalChannels.markContradictionException,
+          input,
+          markContradictionExceptionInputSchema,
+        ),
     },
     notes: {
       create: (input) => invoke<NoteDetails>(noteChannels.create, input, createNoteInputSchema),

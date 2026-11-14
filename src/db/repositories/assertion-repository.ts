@@ -55,6 +55,9 @@ export interface AssertionSourceContext {
   kind: Assertion['originKind'];
   sessionCampaignId: string | null;
   inboxCampaignId?: string | null;
+  inboxItemId?: string | null;
+  inboxSessionId?: string | null;
+  inboxOriginKind?: Assertion['originKind'] | null;
   sessionId: string | null;
   description?: string | null;
   sessionTitle?: string | null;
@@ -86,6 +89,9 @@ export class AssertionRepository {
         kind: sources.kind,
         sessionCampaignId: sessions.campaignId,
         inboxCampaignId: inboxItems.campaignId,
+        inboxItemId: sources.inboxItemId,
+        inboxSessionId: inboxItems.sessionId,
+        inboxOriginKind: inboxItems.originKind,
         sessionId: sources.sessionId,
         description: sources.description,
         sessionTitle: sessions.title,

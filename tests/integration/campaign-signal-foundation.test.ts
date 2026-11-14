@@ -34,6 +34,309 @@ afterEach(async () => {
 });
 
 describe('fundação persistente de sinais de campanha', () => {
+  it('migra scores reais v22 em prioridade, preserva dados/evidências e conserva backup íntegro', async () => {
+    const directories = await createDirectories();
+    const databasePath = path.join(directories.database, 'app.db');
+    const legacy = new Database(databasePath);
+    applyThroughVersion(legacy, 22);
+    const campaignId = randomUUID();
+    const entityTypeId = randomUUID();
+    const entityId = randomUUID();
+    const now = timestamp();
+    legacy
+      .prepare('INSERT INTO campaigns (id, name, created_at, updated_at) VALUES (?, ?, ?, ?)')
+      .run(campaignId, 'Campanha v22', now, now);
+    legacy
+      .prepare(
+        `INSERT INTO entity_types (
+          id, campaign_id, name, singular_name, slug, created_at, updated_at
+        ) VALUES (?, ?, 'Personagens', 'Personagem', ?, ?, ?)`,
+      )
+      .run(entityTypeId, campaignId, `personagens-${campaignId.slice(0, 8)}`, now, now);
+    legacy
+      .prepare(
+        `INSERT INTO entities (id, campaign_id, entity_type_id, name, created_at, updated_at)
+         VALUES (?, ?, ?, 'Gorel', ?, ?)`,
+      )
+      .run(entityId, campaignId, entityTypeId, now, now);
+    const statuses = ['new', 'viewed', 'dismissed', 'snoozed', 'converted', 'resolved', 'stale'];
+    const legacyRows: {
+      id: string;
+      signal_type: string;
+      score: number;
+      severity: string;
+      status: string;
+      generated_at: string;
+      last_detected_at: string;
+      dismissed_until: string | null;
+      rule_version: string;
+      generator_kind: string;
+      created_at: string;
+      updated_at: string;
+      revision: number;
+    }[] = [];
+    const insertSignal = legacy.prepare(
+      `INSERT INTO campaign_signals (
+        id, campaign_id, signal_type, title, summary, score, severity, status,
+        generated_at, last_detected_at, dismissed_until, rule_version,
+        generator_kind, created_at, updated_at, revision
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'deterministic', ?, ?, ?)`,
+    );
+    const insertEvidence = legacy.prepare(
+      `INSERT INTO signal_evidence (
+        id, signal_id, object_type, object_id, role, description, sort_order, created_at
+      ) VALUES (?, ?, 'entity', ?, 'origem', ?, 0, ?)`,
+    );
+    const legacyEvidence: {
+      id: string;
+      signal_id: string;
+      object_id: string;
+      role: string;
+      description: string;
+      sort_order: number;
+      created_at: string;
+    }[] = [];
+    const originalSchemaObjects = legacy
+      .prepare(
+        `SELECT type, name FROM sqlite_master
+         WHERE type IN ('index', 'trigger') AND name NOT LIKE 'sqlite_%'`,
+      )
+      .all() as { type: string; name: string }[];
+    for (const signalType of ['open_thread', 'explicit_need']) {
+      for (let score = -5; score <= 5; score += 1) {
+        const index = score + 5;
+        const id = randomUUID();
+        const status = statuses[index % statuses.length] ?? 'new';
+        const dismissedUntil = status === 'snoozed' ? '2026-11-15T12:00:00.000Z' : null;
+        const severity = index % 3 === 0 ? 'low' : index % 3 === 1 ? 'medium' : 'high';
+        const row = {
+          id,
+          signal_type: signalType,
+          score,
+          severity,
+          status,
+          generated_at: now,
+          last_detected_at: now,
+          dismissed_until: dismissedUntil,
+          rule_version: `v22-${String(score)}`,
+          generator_kind: 'deterministic',
+          created_at: now,
+          updated_at: now,
+          revision: index + 1,
+        };
+        insertSignal.run(
+          id,
+          campaignId,
+          signalType,
+          `Aviso ${String(score)}`,
+          `Resumo ${String(score)}`,
+          score,
+          severity,
+          status,
+          now,
+          now,
+          dismissedUntil,
+          row.rule_version,
+          now,
+          now,
+          row.revision,
+        );
+        const evidence = {
+          id: randomUUID(),
+          signal_id: id,
+          object_id: entityId,
+          role: 'origem',
+          description: `Evidência ${String(score)}`,
+          sort_order: 0,
+          created_at: now,
+        };
+        insertEvidence.run(
+          evidence.id,
+          evidence.signal_id,
+          evidence.object_id,
+          evidence.description,
+          evidence.created_at,
+        );
+        legacyEvidence.push(evidence);
+        legacyRows.push(row);
+      }
+    }
+    legacy.close();
+
+    const context = await openTestDatabase(directories);
+    const migratedRows = context.native
+      .prepare(
+        `SELECT id, signal_type, priority, status, generated_at, last_detected_at,
+                dismissed_until, rule_version, generator_kind, created_at, updated_at, revision
+         FROM campaign_signals ORDER BY id`,
+      )
+      .all() as Record<string, unknown>[];
+    expect(migratedRows).toHaveLength(22);
+    for (const row of legacyRows) {
+      const priority =
+        row.signal_type === 'explicit_need'
+          ? 'high'
+          : row.score < 1
+            ? 'low'
+            : row.score === 1
+              ? 'medium'
+              : row.score === 2
+                ? 'high'
+                : 'very_high';
+      expect(migratedRows.find((candidate) => candidate.id === row.id)).toEqual({
+        id: row.id,
+        signal_type: row.signal_type,
+        priority,
+        status: row.status,
+        generated_at: row.generated_at,
+        last_detected_at: row.last_detected_at,
+        dismissed_until: row.dismissed_until,
+        rule_version: row.rule_version,
+        generator_kind: row.generator_kind,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+        revision: row.revision,
+      });
+    }
+    expect(
+      (context.native.prepare('PRAGMA table_info(campaign_signals)').all() as { name: string }[])
+        .map(({ name }) => name)
+        .filter((name) => name === 'score' || name === 'severity'),
+    ).toEqual([]);
+    expect(
+      context.native
+        .prepare(
+          `SELECT id, signal_id, object_id, role, description, sort_order, created_at
+           FROM signal_evidence ORDER BY id`,
+        )
+        .all(),
+    ).toEqual(legacyEvidence.sort((left, right) => left.id.localeCompare(right.id)));
+    expect(context.native.pragma('foreign_key_check')).toEqual([]);
+    const migratedSchemaObjects = new Set(
+      (
+        context.native
+          .prepare(
+            `SELECT type, name FROM sqlite_master
+             WHERE type IN ('index', 'trigger') AND name NOT LIKE 'sqlite_%'`,
+          )
+          .all() as { type: string; name: string }[]
+      ).map(({ type, name }) => `${type}:${name}`),
+    );
+    for (const { type, name } of originalSchemaObjects)
+      expect(migratedSchemaObjects.has(`${type}:${name}`), `${type}:${name}`).toBe(true);
+    expect(
+      context.native
+        .prepare(
+          `SELECT count(*) AS total FROM sqlite_master
+           WHERE type = 'index' AND name IN (
+             'campaign_signals_campaign_status_updated_idx',
+             'campaign_signals_campaign_type_detected_idx',
+             'signal_evidence_signal_order_idx',
+             'signal_evidence_object_idx'
+           )`,
+        )
+        .get(),
+    ).toEqual({ total: 4 });
+    expect(
+      context.native
+        .prepare(
+          `SELECT count(*) AS total FROM sqlite_master
+           WHERE type = 'trigger' AND name IN (
+             'signal_evidence_target_insert_guard',
+             'signal_evidence_assertion_delete_cascade',
+             'signal_evidence_session_natural_key_update_guard',
+             'campaign_signals_campaign_evidence_update_guard'
+           )`,
+        )
+        .get(),
+    ).toEqual({ total: 4 });
+    expect(
+      context.native.prepare('SELECT checksum FROM schema_migrations WHERE version = 22').get(),
+    ).toEqual({ checksum: migrations.find(({ version }) => version === 22)?.checksum });
+    context.close();
+
+    const backupNames = (await readdir(directories.automaticBackups)).filter((name) =>
+      name.endsWith('.db'),
+    );
+    expect(backupNames).toHaveLength(1);
+    const backup = new Database(path.join(directories.automaticBackups, backupNames[0] ?? ''), {
+      readonly: true,
+      fileMustExist: true,
+    });
+    expect(backup.pragma('integrity_check', { simple: true })).toBe('ok');
+    expect(
+      (
+        backup.prepare('SELECT score FROM campaign_signals ORDER BY score').all() as {
+          score: number;
+        }[]
+      ).map(({ score }) => score),
+    ).toEqual(Array.from({ length: 22 }, (_, index) => (index % 11) - 5).sort((a, b) => a - b));
+    expect(backup.prepare('SELECT count(*) AS total FROM signal_evidence').get()).toEqual({
+      total: 22,
+    });
+    backup.close();
+  });
+
+  it('reverte integralmente v23 se ocorrer falha após a substituição da tabela', async () => {
+    const directories = await createDirectories();
+    const databasePath = path.join(directories.database, 'app.db');
+    const legacy = new Database(databasePath);
+    applyThroughVersion(legacy, 22);
+    const campaignId = randomUUID();
+    const signalId = randomUUID();
+    const now = timestamp();
+    legacy
+      .prepare('INSERT INTO campaigns (id, name, created_at, updated_at) VALUES (?, ?, ?, ?)')
+      .run(campaignId, 'Rollback', now, now);
+    legacy
+      .prepare(
+        `INSERT INTO campaign_signals (
+          id, campaign_id, signal_type, title, summary, score, severity, status,
+          generated_at, last_detected_at, rule_version, generator_kind, created_at, updated_at
+        ) VALUES (?, ?, 'open_thread', 'Título', 'Resumo', 3, 'low', 'new',
+                  ?, ?, 'v22', 'deterministic', ?, ?)`,
+      )
+      .run(signalId, campaignId, now, now, now, now);
+    legacy.exec('DROP TABLE signal_evidence');
+    legacy.close();
+
+    await expect(openTestDatabase(directories)).rejects.toThrow();
+    const afterFailure = new Database(databasePath, { readonly: true });
+    expect(
+      afterFailure.prepare('SELECT max(version) AS version FROM schema_migrations').get(),
+    ).toEqual({ version: 22 });
+    expect(
+      (afterFailure.prepare('PRAGMA table_info(campaign_signals)').all() as { name: string }[]).map(
+        ({ name }) => name,
+      ),
+    ).toContain('score');
+    expect(
+      (afterFailure.prepare('PRAGMA table_info(campaign_signals)').all() as { name: string }[]).map(
+        ({ name }) => name,
+      ),
+    ).not.toContain('priority');
+    expect(
+      afterFailure
+        .prepare('SELECT score, severity, status FROM campaign_signals WHERE id = ?')
+        .get(signalId),
+    ).toEqual({ score: 3, severity: 'low', status: 'new' });
+    expect(afterFailure.pragma('foreign_key_check')).toEqual([]);
+    afterFailure.close();
+    const backups = (await readdir(directories.automaticBackups)).filter((name) =>
+      name.endsWith('.db'),
+    );
+    expect(backups).toHaveLength(1);
+    const backup = new Database(path.join(directories.automaticBackups, backups[0] ?? ''), {
+      readonly: true,
+      fileMustExist: true,
+    });
+    expect(backup.pragma('integrity_check', { simple: true })).toBe('ok');
+    expect(
+      backup.prepare('SELECT count(*) AS total FROM schema_migrations WHERE version = 22').get(),
+    ).toEqual({ total: 1 });
+    backup.close();
+  });
+
   it('executa os CHECKs declarados pelo Drizzle contra as regressões de validação', () => {
     const db = new Database(':memory:');
     try {
@@ -53,8 +356,7 @@ describe('fundação persistente de sinais de campanha', () => {
         signal_type: 'open_thread',
         title: 'Título',
         summary: 'Resumo',
-        score: 0,
-        severity: 'low',
+        priority: 'low',
         status: 'new',
         generated_at: now,
         last_detected_at: now,
@@ -129,11 +431,11 @@ describe('fundação persistente de sinais de campanha', () => {
       db.close();
     }
   });
-  it('cria as estruturas da versão 22 em banco vazio', async () => {
+  it('cria as estruturas da versão 23 em banco vazio', async () => {
     const directories = await createDirectories();
     const context = await openTestDatabase(directories);
 
-    expect(context.schemaVersion).toBe(22);
+    expect(context.schemaVersion).toBe(23);
     expect(
       context.native
         .prepare(
@@ -162,7 +464,7 @@ describe('fundação persistente de sinais de campanha', () => {
     legacy.close();
 
     const context = await openTestDatabase(directories);
-    expect(context.schemaVersion).toBe(22);
+    expect(context.schemaVersion).toBe(23);
     expect(
       context.native.prepare('SELECT name FROM campaigns WHERE id = ?').get(campaignId),
     ).toEqual({ name: 'Campanha preservada' });
@@ -173,10 +475,10 @@ describe('fundação persistente de sinais de campanha', () => {
     const signalId = randomUUID();
     const insertSignal = context.native.prepare(`
       INSERT INTO campaign_signals (
-        id, campaign_id, signal_type, title, summary, score, severity, status,
+        id, campaign_id, signal_type, title, summary, priority, status,
         generated_at, last_detected_at, dismissed_until, rule_version,
         generator_kind, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?)
     `);
     insertSignal.run(
       signalId,
@@ -184,7 +486,6 @@ describe('fundação persistente de sinais de campanha', () => {
       'open_thread',
       'Pista pendente',
       'A pista ainda não foi investigada.',
-      4,
       'high',
       'new',
       now,
@@ -201,7 +502,6 @@ describe('fundação persistente de sinais de campanha', () => {
         'not_a_signal',
         'Título',
         'Resumo',
-        0,
         'low',
         'new',
         now,
@@ -219,7 +519,6 @@ describe('fundação persistente de sinais de campanha', () => {
         'open_thread',
         'Título',
         'Resumo',
-        0,
         'low',
         'new',
         now,
@@ -242,8 +541,7 @@ describe('fundação persistente de sinais de campanha', () => {
         'open_thread',
         'Título',
         'Resumo',
-        0.5,
-        'low',
+        'invalid',
         'new',
         now,
         now,
@@ -260,7 +558,6 @@ describe('fundação persistente de sinais de campanha', () => {
         'open_thread',
         '   ',
         'Resumo',
-        0,
         'low',
         'new',
         now,
@@ -317,7 +614,6 @@ describe('fundação persistente de sinais de campanha', () => {
         'open_thread',
         'Título',
         'Resumo',
-        0,
         'low',
         'new',
         now,
@@ -335,7 +631,6 @@ describe('fundação persistente de sinais de campanha', () => {
         'open_thread',
         'Título',
         'Resumo',
-        0,
         'low',
         'new',
         now,
@@ -358,8 +653,7 @@ describe('fundação persistente de sinais de campanha', () => {
         'open_thread',
         'Título',
         'Resumo',
-        6,
-        'low',
+        'critical',
         'new',
         now,
         now,
@@ -370,7 +664,7 @@ describe('fundação persistente de sinais de campanha', () => {
       ),
     ).toThrow();
     const updateSignal = context.native.prepare(
-      'UPDATE campaign_signals SET severity = ? WHERE id = ?',
+      'UPDATE campaign_signals SET priority = ? WHERE id = ?',
     );
     expect(() => updateSignal.run('critical', signalId)).toThrow();
     expect(() =>

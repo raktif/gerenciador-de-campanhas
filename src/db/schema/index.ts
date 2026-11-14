@@ -40,7 +40,7 @@ import {
 } from '../../core/contracts/relationship-views';
 import {
   campaignSignalGeneratorKinds,
-  campaignSignalSeverities,
+  campaignSignalPriorities,
   campaignSignalStatuses,
   campaignSignalTypes,
   signalEvidenceObjectTypes,
@@ -893,8 +893,7 @@ export const campaignSignals = sqliteTable(
     signalType: text('signal_type', { enum: campaignSignalTypes }).notNull(),
     title: text('title').notNull(),
     summary: text('summary').notNull(),
-    score: integer('score').notNull(),
-    severity: text('severity', { enum: campaignSignalSeverities }).notNull(),
+    priority: text('priority', { enum: campaignSignalPriorities }).notNull(),
     status: text('status', { enum: campaignSignalStatuses }).notNull(),
     generatedAt: text('generated_at').notNull(),
     lastDetectedAt: text('last_detected_at').notNull(),
@@ -935,10 +934,9 @@ export const campaignSignals = sqliteTable(
       sql`length(trim(${table.summary}, char(9,10,11,12,13,32,160,5760,8192,8193,8194,8195,8196,8197,8198,8199,8200,8201,8202,8232,8233,8239,8287,12288,65279))) > 0`,
     ),
     check(
-      'campaign_signals_score_valid',
-      sql`typeof(${table.score}) = 'integer' AND ${table.score} BETWEEN -5 AND 5`,
+      'campaign_signals_priority_valid',
+      sql`${table.priority} IN ('low', 'medium', 'high', 'very_high')`,
     ),
-    check('campaign_signals_severity_valid', sql`${table.severity} IN ('low', 'medium', 'high')`),
     check(
       'campaign_signals_status_valid',
       sql`${table.status} IN ('new', 'viewed', 'dismissed', 'snoozed', 'converted', 'resolved', 'stale')`,
@@ -996,6 +994,35 @@ export const campaignSignals = sqliteTable(
       sql`${table.lastDetectedAt} DESC`,
       sql`${table.id} DESC`,
     ),
+  ],
+);
+
+export const potentialContradictionExceptions = sqliteTable(
+  'potential_contradiction_exceptions',
+  {
+    campaignId: text('campaign_id')
+      .notNull()
+      .references(() => campaigns.id, { onDelete: 'cascade' }),
+    assertionLowId: text('assertion_low_id')
+      .notNull()
+      .references(() => assertions.id, { onDelete: 'cascade' }),
+    assertionHighId: text('assertion_high_id')
+      .notNull()
+      .references(() => assertions.id, { onDelete: 'cascade' }),
+    signalId: text('signal_id')
+      .notNull()
+      .unique()
+      .references(() => campaignSignals.id, { onDelete: 'cascade' }),
+    createdAt: text('created_at').notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.campaignId, table.assertionLowId, table.assertionHighId] }),
+    check(
+      'potential_contradiction_exception_pair_order',
+      sql`${table.assertionLowId} < ${table.assertionHighId}`,
+    ),
+    index('potential_contradiction_exceptions_low_idx').on(table.assertionLowId),
+    index('potential_contradiction_exceptions_high_idx').on(table.assertionHighId),
   ],
 );
 

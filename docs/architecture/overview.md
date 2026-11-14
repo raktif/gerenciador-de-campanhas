@@ -30,7 +30,14 @@ Registros selecionados são recarregados ao restaurar uma tela, para usar sua re
 Conversões de Intenção concluídas são retiradas do histórico e retornam à sessão de origem,
 sem permitir reabrir o formulário concluído pelo avanço.
 
-A Fase 2 não introduz Relógios, Demandas, Consequências, portabilidade, Biblioteca/PDFs ou IA.
+A implementação pendente de QA da 3A.3 persiste e apresenta sinais determinísticos apenas para
+campos textuais de necessidade já preenchidos em entidades ativas. O renderer usa gateway IPC
+tipado; o motor e o SQLite permanecem no processo principal. Essa detecção não cria Eventos,
+Demandas ou fatos nem altera o cânone. Relógios, Demandas, Consequências, outros tipos de sinais,
+portabilidade, Biblioteca/PDFs e IA continuam fora do escopo entregue.
+O recálculo adquire transação SQLite imediata antes de ler as fontes e mantém leitura, detecção,
+reconciliação e evidências no mesmo snapshot; contenção `SQLITE_BUSY`/`SQLITE_LOCKED` retorna erro
+explícito, sem gravar parcialmente nem repetir a ação silenciosamente.
 Esses limites preservam o modo local sem IA e sem rede: não há servidor HTTP, provedor de IA, modelo
 ou chamada externa necessária aos fluxos atuais. O fechamento 2.10E foi aprovado em 2026-09-21 com
 verify, 12 E2E, pacote Windows x64 e smoke test de SQLite/FTS5.

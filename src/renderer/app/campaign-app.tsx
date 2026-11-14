@@ -24,6 +24,11 @@ import { RelationshipTypeManager } from '../features/relationship-types/relation
 import { RelationshipManager } from '../features/relationships/relationship-manager';
 import { SessionManager } from '../features/sessions/session-manager';
 import { TimelineManager } from '../features/timeline/timeline-manager';
+import { SignalManager } from '../features/signals/signal-manager';
+import {
+  ContradictionReviewManager,
+  type ContradictionReviewContext,
+} from '../features/signals/contradiction-review-manager';
 import { InboxManager } from '../features/inbox/inbox-manager';
 import { presentUserFacingError, type UserFacingError } from '../../core/errors/user-facing-error';
 import { UserFacingErrorNotice } from '../components/user-facing-error-notice';
@@ -47,6 +52,7 @@ type Screen =
   | 'relationships'
   | 'assertions'
   | 'canonRegistry'
+  | 'signals'
   | 'notes'
   | 'sessions'
   | 'timeline'
@@ -71,6 +77,7 @@ interface AppNavigationRoute {
   intentionConversion: PendingIntentionConversion | null;
   returningSessionId: string | null;
   conversionReturnError: UserFacingError | null;
+  contradictionReview: ContradictionReviewContext | null;
 }
 export function CampaignApp(): React.JSX.Element {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
@@ -97,6 +104,7 @@ export function CampaignApp(): React.JSX.Element {
     intentionConversion: null,
     returningSessionId: null,
     conversionReturnError: null,
+    contradictionReview: null,
   });
   const {
     screen,
@@ -166,7 +174,11 @@ export function CampaignApp(): React.JSX.Element {
       )
     )
       return;
-    if (target !== route.screen || nextRoute.selectedCampaign?.id !== route.selectedCampaign?.id)
+    if (
+      target !== route.screen ||
+      nextRoute.selectedCampaign?.id !== route.selectedCampaign?.id ||
+      nextRoute.contradictionReview !== route.contradictionReview
+    )
       navigation?.resetPages(replace ? 'replace' : 'push');
     navigationRouteRef.current = nextRoute;
     if (replace) replaceRoute(nextRoute);
@@ -174,7 +186,7 @@ export function CampaignApp(): React.JSX.Element {
   }
 
   function setScreen(target: Screen): void {
-    navigateTo(target);
+    navigateTo(target, { contradictionReview: null });
   }
 
   function replaceScreen(target: Screen, updates: Partial<AppNavigationRoute> = {}): void {
@@ -308,6 +320,7 @@ export function CampaignApp(): React.JSX.Element {
       intentionConversion: null,
       returningSessionId: null,
       conversionReturnError: null,
+      contradictionReview: null,
     });
   }
 
@@ -409,7 +422,7 @@ export function CampaignApp(): React.JSX.Element {
     setTimelineEntity(undefined);
     setRelationshipEntity(undefined);
     setRelationshipReturnEntity(undefined);
-    navigateTo(target, { pageKey: route.pageKey + 1 });
+    navigateTo(target, { pageKey: route.pageKey + 1, contradictionReview: null });
   }
 
   async function createCampaign(input: CreateCampaignInput): Promise<void> {
@@ -619,6 +632,22 @@ export function CampaignApp(): React.JSX.Element {
             />
           ) : screen === 'canonRegistry' && selectedCampaign !== null ? (
             <AssertionManager campaign={selectedCampaign} registry onBack={() => goBack('edit')} />
+          ) : screen === 'signals' && selectedCampaign !== null ? (
+            route.contradictionReview != null ? (
+              <ContradictionReviewManager
+                key={`${selectedCampaign.id}:${route.contradictionReview.id}`}
+                campaign={selectedCampaign}
+                context={route.contradictionReview}
+                onBack={() => goBack('signals', { contradictionReview: null })}
+              />
+            ) : (
+              <SignalManager
+                campaign={selectedCampaign}
+                onOpenCanonRegistry={(input, mode) =>
+                  navigateTo('signals', { contradictionReview: { ...input, mode } })
+                }
+              />
+            )
           ) : screen === 'notes' && selectedCampaign !== null ? (
             <NoteManager
               campaign={selectedCampaign}
@@ -739,7 +768,7 @@ export function CampaignApp(): React.JSX.Element {
   );
 }
 
-function CampaignNavigation({
+export function CampaignNavigation({
   campaign,
   onExit,
   onNavigate,
@@ -830,6 +859,11 @@ function CampaignNavigation({
             active={screen === 'canonRegistry'}
             label="Registro de Cânone"
             onClick={() => onNavigate('canonRegistry')}
+          />
+          <CampaignNavigationItem
+            active={screen === 'signals'}
+            label="Sinais da campanha"
+            onClick={() => onNavigate('signals')}
           />
           <CampaignNavigationItem
             active={screen === 'notes'}

@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   campaignSignalGeneratorKindSchema,
   campaignSignalSchema,
-  campaignSignalScoreSchema,
-  campaignSignalSeverityLabels,
+  campaignSignalPriorityLabels,
+  campaignSignalPriorityOrder,
   campaignSignalStatusSchema,
   campaignSignalTypeSchema,
   signalEvidenceSchema,
@@ -38,7 +38,7 @@ describe('contratos da fundação de sinais de campanha', () => {
       campaignSignalIdentifierSchema.safeParse('00000000-0000-4000-8000-00000000000-').success,
     ).toBe(false);
   });
-  it('valida o conjunto explícito de tipos, estados, severidade e generator kind', () => {
+  it('valida o conjunto explícito de tipos, estados, prioridade e generator kind', () => {
     for (const value of [
       'explicit_need',
       'blocked_goal',
@@ -64,21 +64,16 @@ describe('contratos da fundação de sinais de campanha', () => {
     for (const objectType of ['entity', 'relationship', 'assertion', 'event', 'session', 'note'])
       expect(signalEvidenceObjectTypeSchema.parse(objectType)).toBe(objectType);
     expect(() => signalEvidenceObjectTypeSchema.parse('clock')).toThrow();
-    expect(campaignSignalSeverityLabels).toEqual({
+    expect(campaignSignalPriorityLabels).toEqual({
       low: 'Baixa',
       medium: 'Média',
       high: 'Alta',
+      very_high: 'Altíssima',
     });
+    expect(campaignSignalPriorityOrder).toEqual(['low', 'medium', 'high', 'very_high']);
     expect(() => campaignSignalTypeSchema.parse('future_type')).toThrow();
     expect(() => campaignSignalStatusSchema.parse('ignored')).toThrow();
     expect(() => campaignSignalGeneratorKindSchema.parse('ai')).toThrow();
-  });
-
-  it('limita score a inteiros entre -5 e +5', () => {
-    for (const score of [-5, -1, 0, 1, 5])
-      expect(campaignSignalScoreSchema.parse(score)).toBe(score);
-    for (const score of [-6, 6, 0.5, Number.NaN])
-      expect(() => campaignSignalScoreSchema.parse(score)).toThrow();
   });
 
   it('valida sinais e evidências sem aceitar propriedades extras ou referências malformadas', () => {
@@ -88,8 +83,7 @@ describe('contratos da fundação de sinais de campanha', () => {
       signalType: 'open_thread',
       title: 'Fio sem resposta',
       summary: 'A pergunta da torre segue sem resposta.',
-      score: 2,
-      severity: 'medium',
+      priority: 'high',
       status: 'new',
       generatedAt: timestamp,
       lastDetectedAt: timestamp,
@@ -105,7 +99,8 @@ describe('contratos da fundação de sinais de campanha', () => {
       for (const value of ['\t\n', '\u00a0\u2003\ufeff'])
         expect(campaignSignalSchema.safeParse({ ...signal, [field]: value }).success).toBe(false);
     expect(() => campaignSignalSchema.parse({ ...signal, extra: true })).toThrow();
-    expect(() => campaignSignalSchema.parse({ ...signal, score: 5.1 })).toThrow();
+    expect(() => campaignSignalSchema.parse({ ...signal, priority: 'critical' })).toThrow();
+    expect(() => campaignSignalSchema.parse({ ...signal, score: 2 })).toThrow();
     expect(() => campaignSignalSchema.parse({ ...signal, revision: 1.5 })).toThrow();
     expect(() => campaignSignalSchema.parse({ ...signal, generatedAt: 'not-a-date' })).toThrow();
     expect(() => campaignSignalSchema.parse({ ...signal, dismissedUntil: ' ' })).toThrow();

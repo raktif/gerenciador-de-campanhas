@@ -84,6 +84,65 @@ const definitions: Readonly<Record<string, ErrorDefinition>> = {
     helpArticleId: 'inbox-conversion',
     canRetry: true,
   },
+  CAMPAIGN_SIGNAL_NOT_FOUND: {
+    title: 'O sinal não está disponível nesta campanha',
+    message: 'Nenhuma alteração foi gravada; atualize a lista de sinais.',
+    suggestedAction: 'Atualize os sinais e escolha um registro ainda disponível.',
+    helpArticleId: 'signals-operation-failed',
+    canRetry: true,
+  },
+  POTENTIAL_CONTRADICTION_NO_LONGER_DETECTED: {
+    title: 'As afirmações mudaram',
+    message: 'A exceção não foi registrada porque o aviso não corresponde mais aos dados atuais.',
+    suggestedAction: 'Atualize ou recalcule os sinais antes de decidir novamente.',
+    helpArticleId: 'signals-operation-failed',
+    canRetry: true,
+  },
+  ASSERTION_SOURCE_SCOPE_UNVERIFIABLE: {
+    title: 'Não foi possível comprovar o escopo da fonte',
+    message:
+      'O par não foi aberto porque uma fonte vinculada não tem escopo verificável. Nenhum dado foi alterado.',
+    suggestedAction: 'Confira os vínculos da fonte antes de tentar novamente.',
+    helpArticleId: 'signals-operation-failed',
+    canRetry: true,
+  },
+  ASSERTION_SOURCE_CAMPAIGN_MISMATCH: {
+    title: 'Fonte com vínculo incompatível entre campanhas',
+    message:
+      'O par não foi aberto porque a fonte não está vinculada exclusivamente a esta campanha.',
+    suggestedAction: 'Confira os vínculos da fonte. Nenhum dado foi alterado.',
+    helpArticleId: 'signals-operation-failed',
+    canRetry: true,
+  },
+  ASSERTION_SOURCE_CAPTURE_MISMATCH: {
+    title: 'A fonte e a captura não correspondem',
+    message:
+      'O par não foi aberto porque a origem ou a sessão da fonte diverge da captura vinculada.',
+    suggestedAction: 'Confira a proveniência antes de tentar novamente. Nenhum dado foi alterado.',
+    helpArticleId: 'signals-operation-failed',
+    canRetry: true,
+  },
+  INVALID_POTENTIAL_CONTRADICTION_ACTION: {
+    title: 'Ação indisponível',
+    message: 'Apenas avisos de possível contradição permitem marcar uma exceção.',
+    suggestedAction: 'Atualize a lista e escolha um aviso compatível.',
+    helpArticleId: 'signals-operation-failed',
+    canRetry: true,
+  },
+  INVALID_CAMPAIGN_SIGNAL_TRANSITION: {
+    title: 'Esta ação não está disponível para o estado atual',
+    message: 'O estado do sinal não foi alterado.',
+    suggestedAction: 'Atualize os sinais e use uma ação compatível com o estado apresentado.',
+    helpArticleId: 'signals-operation-failed',
+    canRetry: true,
+  },
+  INVALID_SIGNAL_SNOOZE_DEADLINE: {
+    title: 'Escolha um prazo futuro para adiar o sinal',
+    message: 'O sinal continua no estado atual e nenhum prazo foi gravado.',
+    suggestedAction: 'Informe uma data e hora futuras e tente novamente.',
+    helpArticleId: 'signals-operation-failed',
+    canRetry: false,
+  },
   INBOX_CONVERSION_FAILED: {
     title: 'Não foi possível transformar a Captura Rápida',
     message: 'Nenhum dado foi perdido e a captura continua na Caixa de Entrada.',
@@ -161,6 +220,20 @@ const operationFallbacks: Readonly<Partial<Record<UserFacingErrorOperation, Erro
     suggestedAction:
       'Tente novamente. Se o problema continuar, copie o diagnóstico e consulte a ajuda.',
     helpArticleId: 'session-source-not-loading',
+    canRetry: true,
+  },
+  'signals.list': {
+    title: 'Não foi possível carregar os sinais',
+    message: 'Nenhum sinal foi alterado. A leitura local da campanha não foi concluída.',
+    suggestedAction: 'Tente carregar os sinais novamente.',
+    helpArticleId: 'signals-not-loading',
+    canRetry: true,
+  },
+  'signals.mutate': {
+    title: 'Não foi possível atualizar o sinal',
+    message: 'A alteração não foi confirmada; o estado atual do sinal foi preservado.',
+    suggestedAction: 'Atualize os sinais e confira o estado antes de tentar novamente.',
+    helpArticleId: 'signals-operation-failed',
     canRetry: true,
   },
 };

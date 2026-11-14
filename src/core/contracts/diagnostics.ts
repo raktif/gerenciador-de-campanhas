@@ -15,6 +15,7 @@ const diagnosticScreenSchema = z.enum([
   'sessions',
   'timeline',
   'events',
+  'signals',
   'phase-zero',
 ]);
 const diagnosticOperationSchema = z.enum([
@@ -42,6 +43,8 @@ const diagnosticOperationSchema = z.enum([
   'timeline.list',
   'events.list',
   'events.mutate',
+  'signals.list',
+  'signals.mutate',
   'phase-zero.operation',
 ]);
 

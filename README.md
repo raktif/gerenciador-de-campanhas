@@ -36,8 +36,11 @@ Fase 2](docs/development/phase-2-refinement.md).
 
 ## Estado e limites
 
-O produto disponível inclui o escopo concluído até a Fase 2. Não
-inclui Relógios, Demandas, Consequências ou gerador determinístico (Fase 3); histórico geral,
+O produto disponível inclui o escopo concluído até a Fase 2 e a implementação técnica aprovada
+pelo QA da 3A.3, além da implementação 3A.4 pendente de QA: necessidades textuais explícitas e
+possíveis contradições estruturais exatas entre afirmações.
+Isso não representa conclusão da Fase 3. Ainda não inclui Relógios, Demandas, Consequências, outros
+tipos de sinais ou transformação de Intenção em Evento por sinais; histórico geral,
 exportação, importação, restauração ou backup de campanha (Fase 4); Biblioteca/PDFs (Fase 5); nem IA
 ou provedores (Fases 6+). A infraestrutura FTS5 criada na Fase 0 permanece reservada para a futura
 busca. Assinatura de código, notarização e publicação automática dependem de certificados e

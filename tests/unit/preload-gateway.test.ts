@@ -24,6 +24,7 @@ describe('gateway do preload', () => {
     expect(Object.keys(gateway).sort()).toEqual([
       'appearance',
       'assertions',
+      'campaignSignals',
       'campaigns',
       'diagnostics',
       'entities',

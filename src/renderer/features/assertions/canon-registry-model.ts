@@ -87,7 +87,7 @@ export function registryAssertionText(
 
 export function registrySourceLabel(
   assertion: Assertion,
-  metadata: CanonRegistrySourceMetadata | undefined,
+  metadata: Pick<CanonRegistrySourceMetadata, 'sourceDescription'> | undefined,
   originLabel: string,
 ): string {
   if (assertion.sourceId === null) return 'Sem fonte vinculada';
@@ -98,7 +98,7 @@ export function registrySourceLabel(
 
 export function registrySessionLabel(
   assertion: Assertion,
-  metadata: CanonRegistrySourceMetadata | undefined,
+  metadata: Pick<CanonRegistrySourceMetadata, 'sessionTitle'> | undefined,
 ): string {
   if (assertion.originKind !== 'session') return 'Não se aplica';
   return metadata?.sessionTitle ?? 'Título da sessão indisponível';

@@ -124,6 +124,17 @@ export const assertionChannels = {
   restore: 'assertions:restore',
 } as const;
 
+export const campaignSignalChannels = {
+  list: 'campaign-signals:list',
+  recalculate: 'campaign-signals:recalculate',
+  review: 'campaign-signals:review',
+  dismiss: 'campaign-signals:dismiss',
+  reactivate: 'campaign-signals:reactivate',
+  snooze: 'campaign-signals:snooze',
+  markContradictionException: 'campaign-signals:mark-contradiction-exception',
+  getContradictionReview: 'campaign-signals:get-contradiction-review',
+} as const;
+
 export const noteChannels = {
   create: 'notes:create',
   get: 'notes:get',

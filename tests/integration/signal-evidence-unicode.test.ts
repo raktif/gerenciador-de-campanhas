@@ -18,7 +18,17 @@ describe('limites Unicode persistentes de evidência', () => {
         if (mode === 'migration') {
           db.pragma('foreign_keys = ON');
           db.pragma('recursive_triggers = OFF');
-          for (const migration of migrations) db.exec(migration.sql);
+          for (const migration of migrations) {
+            if (migration.requiresForeignKeysDisabled) {
+              db.pragma('foreign_keys = OFF');
+              if (migration.requiresLegacyAlterTable) db.pragma('legacy_alter_table = ON');
+            }
+            db.exec(migration.sql);
+            if (migration.requiresForeignKeysDisabled) {
+              if (migration.requiresLegacyAlterTable) db.pragma('legacy_alter_table = OFF');
+              db.pragma('foreign_keys = ON');
+            }
+          }
           db.prepare(
             'INSERT INTO campaigns (id, name, created_at, updated_at) VALUES (?, ?, ?, ?)',
           ).run(campaignId, 'Unicode', now, now);
@@ -32,9 +42,9 @@ describe('limites Unicode persistentes de evidência', () => {
           ).run(entityId, campaignId, entityTypeId, now, now);
           db.prepare(
             `INSERT INTO campaign_signals (
-              id, campaign_id, signal_type, title, summary, score, severity, status,
+              id, campaign_id, signal_type, title, summary, priority, status,
               generated_at, last_detected_at, rule_version, generator_kind, created_at, updated_at
-            ) VALUES (?, ?, 'open_thread', 'Título', 'Resumo', 0, 'low', 'new',
+            ) VALUES (?, ?, 'open_thread', 'Título', 'Resumo', 'low', 'new',
                       ?, ?, '1', 'deterministic', ?, ?)`,
           ).run(signalId, campaignId, now, now, now, now);
         } else {

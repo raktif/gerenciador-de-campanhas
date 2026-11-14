@@ -22,12 +22,15 @@ import customImageFieldsMigration from './0019_custom_image_fields.sql?raw';
 import imageFieldAltTextIntegrityMigration from './0020_image_field_alt_text_integrity.sql?raw';
 import relationshipViewsMigration from './0021_relationship_views.sql?raw';
 import campaignSignalsMigration from './0022_campaign_signals.sql?raw';
+import campaignSignalPriorityAndContradictionExceptionsMigration from './0023_campaign_signal_priority_and_contradiction_exceptions.sql?raw';
 
 export interface MigrationDefinition {
   version: number;
   name: string;
   checksum: string;
   sql: string;
+  requiresForeignKeysDisabled?: boolean;
+  requiresLegacyAlterTable?: boolean;
 }
 
 function checksum(sql: string): string {
@@ -173,6 +176,14 @@ export const migrations: readonly MigrationDefinition[] = [
     name: 'phase-three-campaign-signals-foundation',
     checksum: checksum(campaignSignalsMigration),
     sql: campaignSignalsMigration,
+  },
+  {
+    version: 23,
+    name: 'phase-three-campaign-signal-priority-and-contradiction-exceptions',
+    checksum: checksum(campaignSignalPriorityAndContradictionExceptionsMigration),
+    sql: campaignSignalPriorityAndContradictionExceptionsMigration,
+    requiresForeignKeysDisabled: true,
+    requiresLegacyAlterTable: true,
   },
 ];
 

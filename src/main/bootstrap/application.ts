@@ -17,6 +17,7 @@ import { FileLogger } from '../../core/logging/logger';
 import { ensureDataDirectories, getDataDirectories } from '../../core/storage/data-directories';
 import { openApplicationDatabase, type DatabaseContext } from '../../db/connection';
 import { AssertionRepository } from '../../db/repositories/assertion-repository';
+import { CampaignSignalRepository } from '../../db/repositories/campaign-signal-repository';
 import { AppearanceRepository } from '../../db/repositories/appearance-repository';
 import { CampaignRepository } from '../../db/repositories/campaign-repository';
 import { AttachmentRepository } from '../../db/repositories/attachment-repository';
@@ -42,6 +43,7 @@ import { registerEntityReferenceImageIpcHandlers } from '../ipc/entity-reference
 import { registerAppearanceIpcHandlers } from '../ipc/appearance-handlers';
 import { registerDiagnosticsIpcHandlers } from '../ipc/diagnostics-handlers';
 import { registerAssertionIpcHandlers } from '../ipc/assertion-handlers';
+import { registerCampaignSignalIpcHandlers } from '../ipc/campaign-signal-handlers';
 import { registerEntityIpcHandlers } from '../ipc/entity-handlers';
 import { registerEntityTypeIpcHandlers } from '../ipc/entity-type-handlers';
 import { registerEventIpcHandlers } from '../ipc/event-handlers';
@@ -68,6 +70,7 @@ import { SecureImageDownloadService } from '../services/secure-image-download-se
 import { AppearanceService } from '../services/appearance-service';
 import { StartupDiagnosticsService } from '../services/startup-diagnostics-service';
 import { AssertionService } from '../services/assertion-service';
+import { CampaignSignalService } from '../services/campaign-signal-service';
 import { createAssertionRegistryTestHooks } from './assertion-registry-test-hooks';
 import { EntityService } from '../services/entity-service';
 import { EntityTypeService } from '../services/entity-type-service';
@@ -143,6 +146,7 @@ export async function bootstrapApplication(): Promise<RunningApplication> {
   const eventRepository = new EventRepository(database.orm);
   const timelineRepository = new TimelineRepository(database.orm);
   const assertionRepository = new AssertionRepository(database.orm);
+  const campaignSignalRepository = new CampaignSignalRepository(database.native);
   const noteRepository = new NoteRepository(database.orm);
   const inboxRepository = new InboxRepository(database.orm);
   const sessionRepository = new SessionRepository(database.orm);
@@ -345,6 +349,15 @@ export async function bootstrapApplication(): Promise<RunningApplication> {
     authorizedWebContentsId: window.webContents.id,
     ...(assertionRegistryTestHooks === undefined ? {} : { testHooks: assertionRegistryTestHooks }),
   });
+  const campaignSignalService = new CampaignSignalService({
+    repository: campaignSignalRepository,
+    campaigns: campaignRepository,
+  });
+  const unregisterCampaignSignalIpc = registerCampaignSignalIpcHandlers(ipcMain, {
+    service: campaignSignalService,
+    logger,
+    authorizedWebContentsId: window.webContents.id,
+  });
   const noteService = new NoteService({
     repository: noteRepository,
     campaigns: campaignRepository,
@@ -438,6 +451,7 @@ export async function bootstrapApplication(): Promise<RunningApplication> {
       unregisterRelationshipIpc();
       unregisterRelationshipViewIpc();
       unregisterAssertionIpc();
+      unregisterCampaignSignalIpc();
       unregisterNoteIpc();
       unregisterInboxIpc();
       unregisterEventIpc();

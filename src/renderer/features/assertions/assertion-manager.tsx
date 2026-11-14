@@ -53,6 +53,9 @@ export function AssertionManager({
   initialDraft,
   onCreated,
   onCancelInitialDraft,
+  initialEditing,
+  onFinishEditing,
+  navigationScope,
 }: {
   campaign: Campaign;
   context?: NarrativeContext;
@@ -61,6 +64,9 @@ export function AssertionManager({
   initialDraft?: { subjectEntityId: string; statement: string };
   onCreated?: () => Promise<UserFacingError | null>;
   onCancelInitialDraft?: () => void;
+  initialEditing?: Assertion;
+  onFinishEditing?: () => void;
+  navigationScope?: string;
 }): React.JSX.Element {
   const [items, setItems] = useState<Assertion[]>([]);
   const [entities, setEntities] = useState<Entity[]>([]);
@@ -68,12 +74,12 @@ export function AssertionManager({
     {},
   );
   const [view, setView] = useNavigationState<View>(
-    `${registry ? 'canon-registry' : 'assertions'}:${campaign.id}:view`,
-    () => (initialDraft === undefined ? 'list' : 'create'),
+    `${navigationScope ?? (registry ? 'canon-registry' : 'assertions')}:${campaign.id}:view`,
+    () => (initialEditing !== undefined ? 'edit' : initialDraft === undefined ? 'list' : 'create'),
   );
   const [editing, , setEditing] = useNavigationState<Assertion | null>(
-    `${registry ? 'canon-registry' : 'assertions'}:${campaign.id}:editing`,
-    null,
+    `${navigationScope ?? (registry ? 'canon-registry' : 'assertions')}:${campaign.id}:editing`,
+    initialEditing ?? null,
   );
   const [archived, , setArchived] = useNavigationState(
     `${registry ? 'canon-registry' : 'assertions'}:${campaign.id}:archived`,
@@ -292,6 +298,10 @@ export function AssertionManager({
           if (failure !== null) setError(failure);
           return;
         }
+        if (initialEditing !== undefined && onFinishEditing !== undefined) {
+          onFinishEditing();
+          return;
+        }
         setAnnouncement(editing === null ? 'Afirmação criada.' : 'Afirmação atualizada.');
         setEditing(null);
         setView('list');
@@ -373,9 +383,14 @@ export function AssertionManager({
           {...(initialDraft === undefined ? {} : { initialDraft })}
           entities={entities}
           assertion={editing}
+          {...(initialEditing === undefined ? {} : { backLabel: 'Voltar ao par de afirmações' })}
           busy={busy}
           error={null}
           onCancel={() => {
+            if (onFinishEditing !== undefined) {
+              onFinishEditing();
+              return;
+            }
             if (onCancelInitialDraft !== undefined) {
               onCancelInitialDraft();
               return;
@@ -674,6 +689,7 @@ function AssertionForm({
   busy,
   error,
   onCancel,
+  backLabel,
   onSubmit,
 }: {
   campaign: Campaign;
@@ -684,6 +700,7 @@ function AssertionForm({
   busy: boolean;
   error: string | null;
   onCancel: () => void;
+  backLabel?: string;
   onSubmit: (input: CreateAssertionInput) => Promise<void>;
 }): React.JSX.Element {
   const [structured, setStructured] = useState(assertion?.statement === null);
@@ -756,7 +773,7 @@ function AssertionForm({
   return (
     <section className="mx-auto max-w-4xl">
       <Button disabled={busy} onClick={onCancel} size="small" variant="ghost">
-        ← Voltar para afirmações
+        ← {backLabel ?? 'Voltar para afirmações'}
       </Button>
       <div className="mt-6 rounded-3xl border semantic-border semantic-surface p-8">
         <h1 className="text-3xl font-semibold">

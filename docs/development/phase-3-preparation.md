@@ -12,15 +12,18 @@ processo de aprovação. Não implementa funcionalidades da Fase 3.
 - A base usa migrações SQLite versionadas; a fundação 3A.1 eleva o schema da versão 21 para a 22.
 - A 3A.1 (contratos e fundação persistente) foi aprovada tecnicamente pelo QA. O teste manual de UX
   das atividades 3A foi adiado pelo responsável até a conclusão de toda a etapa 3A.
-- A 3A.2 (Registro de Cânone) foi implementada e aguarda validação técnica independente do QA.
-  Seu teste manual de UX permanece adiado; a atividade 3A.3 não foi iniciada nem autorizada.
+- A 3A.2 (Registro de Cânone) recebeu aprovação técnica independente do QA; UX continua pendente.
+- A 3A.3 (Motor de Sinais determinístico) foi aprovada tecnicamente pelo QA; UX manual continua
+  adiada até o fim da etapa 3A.
+- A implementação técnica da 3A.4 (Possíveis Contradições) aguarda QA independente; UX manual
+  continua adiada até o fim da etapa 3A. Consulte [phase-3-3a4.md](phase-3-3a4.md).
 - Esta etapa não autoriza por si só o início da implementação de qualquer subtarefa da Fase 3.
 
 ## Base técnica verificada
 
 | Área             | Estado atual                                                                                                                                                                   | Implicação para a Fase 3                                                                                                                                   |
 | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Persistência     | SQLite, migrações SQL versionadas, manifesto e registro contínuo; schema atual na versão 22 após a fundação 3A.1.                                                              | Novas estruturas devem ser adicionadas por migrações aditivas, com upgrade de banco existente e teste de banco vazio.                                      |
+| Persistência     | SQLite, migrações SQL versionadas, manifesto e registro contínuo; schema atual na versão 23 após 3A.4.                                                                            | Novas estruturas devem ser adicionadas por migrações aditivas, com upgrade de banco existente e teste de banco vazio.                                      |
 | Arquitetura      | Serviços e SQLite no processo principal; contratos Zod; IPC validado; renderer via gateway tipado.                                                                             | Não acessar o banco diretamente pelo renderer nem contornar contratos/handlers.                                                                            |
 | Dados narrativos | Afirmações, Eventos, Sessões, Relações, Notas e fontes já persistidos. Os contratos narrativos já distinguem estado canônico, natureza do conhecimento, visibilidade e origem. | Reutilizar esses registros para o Registro de Cânone, evidências e sinais; evitar uma segunda fonte de verdade.                                            |
 | Integridade      | O padrão existente inclui escopo por campanha, revisão otimista, validação de origem e operações compostas no serviço/repositório.                                             | Reaplicar essas garantias a cada novo agregado e testar referências cruzadas entre campanhas.                                                              |
@@ -63,7 +66,7 @@ intencionais.
 | 3A.1 | 3A — Motor de Sinais e Cânone        | Contratos e fundação persistente    | Esquemas estritos; migrações aditivas; isolamento por campanha; índices e integridade adequados; teste de banco vazio e upgrade a partir do schema 21; nenhuma tabela ou fluxo futuro não autorizado.                                                                  | P0                    |
 | 3A.2 | 3A                                   | Registro de Cânone                  | Exibe afirmações e seus estados/natureza/visibilidade/origem sem duplicar o registro; ações de revisão respeitam revisão otimista; promoção de Possibilidade a Fato exige confirmação explícita; nenhuma promoção automática.                                          | 3A.1                  |
 | 3A.3 | 3A                                   | Motor de Sinais determinístico      | Regras iniciais documentadas; mesma entrada e versão de regra produzem o mesmo resultado; evidências rastreáveis; recálculo não duplica sinais nem apaga decisões do usuário; transições de estado validadas e explicáveis.                                            | 3A.1                  |
-| 3A.4 | 3A                                   | Avisos de possíveis contradições    | Regras determinísticas e limitadas a casos definidos; aviso sempre apresentado como possibilidade; revisar, manter, marcar exceção, corrigir ou descartar não altera outros dados sem ação explícita; testes de falsos positivos relevantes e isolamento por campanha. | 3A.2, 3A.3            |
+| 3A.4 | 3A                                   | Avisos de possíveis contradições    | Regra determinística de igualdade estrutural estrita; prioridade Alta; evidências reais do par; ações revisam/encaminham ao Registro, mantêm, registram exceção por par, corrigem via edição explícita ou descartam aviso; migração de prioridade preserva backup v22; exceções invalidam-se em alteração relevante; testes de concorrência, isolamento e falsos positivos. | 3A.2, 3A.3 |
 | 3B.1 | 3B — Mundo em Movimento              | Fios Abertos                        | Criar, editar, vincular, resolver e arquivar fios; estados e tipos permitidos conforme contrato; vínculos não cruzam campanhas; mudanças de estado preservam revisão e proveniência.                                                                                   | 3A.1                  |
 | 3B.2 | 3B                                   | Relógios                            | Criar, configurar, consultar e avançar/resolver com ação explícita do narrador; progresso permanece estável após reinício; regras de avanço são testáveis e nenhum relógio avança automaticamente.                                                                     | 3A.1                  |
 | 3B.3 | 3B                                   | Demandas emergentes                 | Sugestões derivadas apenas de sinais/dados disponíveis; fontes e justificativas visíveis; sugestão não é demanda aceita até revisão explícita; suportar ignorar/adiar/aceitar conforme contrato.                                                                       | 3A.3, 3B.1, 3B.2      |
@@ -72,17 +75,16 @@ intencionais.
 | 3C.2 | 3C                                   | Encerramento de sessão e preparação | Fluxo reúne capturas, eventos, mudanças, relógios, consequências, fios e recálculo; etapas opcionais e encerramento rápido; falhas ou interrupções não perdem silenciosamente progresso já confirmado.                                                                 | 3A.3, 3B.1–3B.4, 3C.1 |
 | 3C.3 | 3C                                   | Integração e fechamento da Fase 3   | QA independente confirma critérios, regressões, migração, fluxo completo e verificações de pacote; documentação/estado atualizados; teste manual de UX aprovado pelo responsável; nenhuma pendência bloqueadora aberta.                                                | Todas as anteriores   |
 
-## Decisões obrigatórias antes das subtarefas afetadas
+## Decisões registradas e questões pendentes de produto
 
-Os documentos estabelecem conceitos e exemplos, mas alguns detalhes operacionais precisam ser
-definidos pelo responsável antes de codificar a regra correspondente. O implementador deve registrar
-essas perguntas e aguardar decisão, em vez de assumir comportamento narrativo:
+As decisões da 3A.3 e da 3A.4 estão documentadas nas entregas respectivas. Para as atividades
+posteriores abaixo, detalhes operacionais ainda precisam de decisão do responsável antes de
+codificar qualquer regra; o implementador deve aguardar, sem assumir comportamento narrativo:
 
-- **3A.3 — Sinais:** quais tipos entram no primeiro conjunto executável, regras de pontuação/severidade,
-  expiração e significado de “stale”; se o estado do sinal é preservado quando a regra deixa de
-  detectá-lo.
-- **3A.4 — Contradições:** quais combinações específicas entre afirmações/relações devem disparar os
-  avisos iniciais e como exceções interagem com alterações posteriores dos registros.
+- **3A.4 — Contradições (decisão registrada e implementada):** somente afirmações
+  aceitas com mesmo assunto e conteúdo estrutural exato, uma fato e outra refutada; não inferir
+  equivalência de frases diferentes. Prioridade inicial Alta. Exceções valem para o par enquanto
+  os campos de conteúdo/eligibilidade não mudarem; ver [phase-3-3a4.md](phase-3-3a4.md).
 - **3B.2 — Relógios:** escala/progresso, limites, regra de avanço manual, resolução/reabertura e
   relação entre avanço e sessão. Nenhum incremento automático deve ser presumido.
 - **3B.3 — Demandas:** entidade persistida, estados de ciclo de vida, critérios de conversão e
@@ -95,10 +97,11 @@ essas perguntas e aguardar decisão, em vez de assumir comportamento narrativo:
 
 ## Protocolo de implementação, QA e UX
 
-**Estado após a implementação 3A.2:** entrega técnica pendente do QA independente; UX manual das
-atividades 3A permanece adiada até a conclusão da etapa, conforme orientação do responsável. A
-implementação 3A.2 e suas decisões estão registradas em
-[phase-3-3a2.md](phase-3-3a2.md). Nenhuma atividade seguinte está autorizada por este registro.
+**Estado após a implementação 3A.4:** 3A.1, 3A.2 e 3A.3 estão tecnicamente aprovadas pelo QA;
+3A.4 aguarda QA independente. UX manual permanece adiada até a conclusão de toda a etapa 3A,
+conforme orientação do responsável. Consulte [phase-3-3a2.md](phase-3-3a2.md),
+[phase-3-3a3.md](phase-3-3a3.md) e [phase-3-3a4.md](phase-3-3a4.md). Esta entrega não inicia
+3B nem qualquer outra atividade.
 
 1. O responsável autoriza uma única subtarefa e seu escopo.
 2. O implementador consulta os requisitos aplicáveis, implementa a subtarefa e adiciona/executa
@@ -107,10 +110,10 @@ implementação 3A.2 e suas decisões estão registradas em
 3. O agente QA valida o diff e os requisitos de forma independente, executa testes e verifica
    regressões. Qualquer bug ou comportamento inesperado devolve a atividade ao implementador com
    evidências reproduzíveis. Não há aprovação condicional.
-4. Após aprovação técnica, o responsável executa o teste manual de UX da subtarefa usando o
-   checklist enviado pelo QA. A aprovação técnica não representa aprovação de UX.
-5. A subtarefa só é encerrada depois do UX manual. O responsável então autoriza a próxima
-   subtarefa; achados de UX retornam ao desenvolvimento e passam novamente pelo QA.
+4. O teste manual de UX das atividades 3A acontece somente após o término da etapa 3A. A aprovação
+   técnica de uma subtarefa não representa aprovação de UX.
+5. O responsável autoriza cada subtarefa separadamente. A conclusão técnica desta entrega não
+   inicia nem autoriza atividades posteriores; UX manual permanece pendente para o encerramento da 3A.
 
 O QA não deve editar a implementação nem substituir o teste manual do usuário. O implementador não
 deve aprovar o próprio trabalho. Uma subtarefa não autoriza automaticamente a seguinte.

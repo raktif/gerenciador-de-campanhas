@@ -31,7 +31,7 @@ export const campaignSignalStatuses = [
   'resolved',
   'stale',
 ] as const;
-export const campaignSignalSeverities = ['low', 'medium', 'high'] as const;
+export const campaignSignalPriorities = ['low', 'medium', 'high', 'very_high'] as const;
 export const campaignSignalGeneratorKinds = ['deterministic'] as const;
 export const signalEvidenceObjectTypes = [
   'entity',
@@ -44,18 +44,19 @@ export const signalEvidenceObjectTypes = [
 
 export const campaignSignalTypeSchema = z.enum(campaignSignalTypes);
 export const campaignSignalStatusSchema = z.enum(campaignSignalStatuses);
-export const campaignSignalSeveritySchema = z.enum(campaignSignalSeverities);
+export const campaignSignalPrioritySchema = z.enum(campaignSignalPriorities);
 export const campaignSignalGeneratorKindSchema = z.enum(campaignSignalGeneratorKinds);
 export const signalEvidenceObjectTypeSchema = z.enum(signalEvidenceObjectTypes);
-export const campaignSignalScoreSchema = z.number().int().min(-5).max(5);
 export const campaignSignalRevisionSchema = z.number().int().min(1).max(Number.MAX_SAFE_INTEGER);
 export const signalEvidenceSortOrderSchema = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
 
-export const campaignSignalSeverityLabels = {
+export const campaignSignalPriorityLabels = {
   low: 'Baixa',
   medium: 'Média',
   high: 'Alta',
-} as const satisfies Record<(typeof campaignSignalSeverities)[number], string>;
+  very_high: 'Altíssima',
+} as const satisfies Record<(typeof campaignSignalPriorities)[number], string>;
+export const campaignSignalPriorityOrder = ['low', 'medium', 'high', 'very_high'] as const;
 
 export const campaignSignalSchema = z
   .object({
@@ -64,8 +65,7 @@ export const campaignSignalSchema = z
     signalType: campaignSignalTypeSchema,
     title: z.string().trim().min(1),
     summary: z.string().trim().min(1),
-    score: campaignSignalScoreSchema,
-    severity: campaignSignalSeveritySchema,
+    priority: campaignSignalPrioritySchema,
     status: campaignSignalStatusSchema,
     generatedAt: campaignSignalTimestampSchema,
     lastDetectedAt: campaignSignalTimestampSchema,

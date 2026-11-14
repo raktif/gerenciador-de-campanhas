@@ -2,6 +2,7 @@ import type { AssertionGateway } from './assertions';
 import type { AppearanceGateway } from './appearance';
 import type { CampaignGateway } from './campaigns';
 import type { CampaignCoverGateway } from './campaign-covers';
+import type { CampaignSignalGateway } from './campaign-signal-engine';
 import type { DiagnosticsGateway } from './diagnostics';
 import type { EntityGateway } from './entities';
 import type { EntityReferenceImageGateway } from './entity-reference-images';
@@ -37,6 +38,7 @@ export interface CampaignManagerGateway {
   fieldDefinitions: FieldDefinitionGateway;
   entities: EntityGateway;
   assertions: AssertionGateway;
+  campaignSignals: CampaignSignalGateway;
   notes: NoteGateway;
   inbox: InboxGateway;
   events: EventGateway;
