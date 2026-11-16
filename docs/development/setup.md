@@ -26,6 +26,29 @@ não devem acessar o perfil existente.
 
 O log é local, rotativo e redige campos sensíveis. Migrações são transacionais e um banco existente recebe backup SQLite verificado antes da primeira migração pendente.
 
+### Erro de checksum na inicialização
+
+Erro de checksum indica divergência entre uma migração registrada e a definição aceita
+pelo aplicativo; **não significa, por si só, banco corrompido nem necessidade de apagar
+dados**. Preserve o banco e registre a mensagem, versão do aplicativo e versão da migração
+para diagnóstico. Não edite `schema_migrations`, não exclua dados/caches e não altere a
+configuração global do Git para contornar a validação.
+
+A diferença exclusivamente LF/CRLF é aceita nas migrações de checksum dinâmico, com
+checksum canônico LF em bancos novos e sem regravar registros existentes. Uma alteração
+no SQL atual de uma migração dinâmica já registrada (por exemplo, uma versão anterior
+de desenvolvimento da v22) é recusada; hashes desconhecidos e finais de linha mistos
+também são recusados. v6 e v8–15 preservam os hashes fixos históricos, sem validação
+dinâmica do SQL atual dessas versões já registradas. Consulte a
+[política de compatibilidade](../architecture/overview.md#compatibilidade-lfcrlf-das-migrações).
+
+Testes focais, sem abrir Electron e usando bancos temporários descartáveis:
+
+```powershell
+rtk corepack pnpm@11.24.0 exec vitest run tests/unit/migration-checksum.test.ts
+rtk corepack pnpm@11.24.0 exec vitest run --config vitest.integration.config.mts tests/integration/migration-checksum.test.ts
+```
+
 ## Verificação
 
 `pnpm verify` executa verificações estáticas e testes sem abrir o Electron. `pnpm test:e2e` compila e inicia o aplicativo duas vezes para comprovar persistência. Para validar a distribuição, rode `pnpm package` seguido de `pnpm test:package`.

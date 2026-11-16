@@ -6,6 +6,25 @@ As janelas usam `contextIsolation`, sandbox e `webSecurity`, com `nodeIntegratio
 
 O SQLite usa WAL, foreign keys, busy timeout e migrações versionadas com checksum. FTS5 é verificado no bootstrap. Antes de alterar um banco existente, a aplicação usa a API de backup do SQLite e confirma a integridade da cópia. Segredos futuros deverão usar `safeStorage`; a Fase 0 não persiste credenciais.
 
+### Compatibilidade LF/CRLF das migrações
+
+Para as definições dinâmicas (v1–5, v7 e v16–23), o checksum armazenado para novas
+migrações é SHA-256 do SQL com CRLF convertido para LF. Na abertura, também é aceito
+o hash da variante integral CRLF desse mesmo SQL, independentemente do checkout
+(`core.autocrlf`). Nenhuma outra normalização é feita: espaços, BOM, CR isolado,
+newline final e conteúdo continuam significativos; hashes de finais de linha mistos
+não são aceitos. Assim, uma alteração no SQL atual de uma migração dinâmica já
+registrada não corresponde aos hashes aceitos e bloqueia a inicialização.
+
+As versões fixas v6 e v8–15 preservam a política histórica: seus checksums são
+comparados com os valores fixos, sem validação dinâmica do conteúdo SQL atual. Para
+versões já registradas, alterações no SQL atual dessas migrações não são detectadas
+por hash dinâmico. Checksums armazenados desconhecidos continuam bloqueando a
+inicialização. O runner não sobrescreve checksums, nomes ou datas de migrações já
+aplicadas nem apaga dados.
+Não há nova migração de schema: backup verificado e transações continuam sendo usados
+quando há migrações pendentes.
+
 ## Estado arquitetural da Fase 2
 
 Os agregados entregues na Fase 2 — relações, afirmações, notas, sessões, eventos, cronologia e Caixa

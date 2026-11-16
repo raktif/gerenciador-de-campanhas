@@ -5,6 +5,7 @@ import { drizzle, type BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
 import type { Logger } from '../core/logging/logger';
 import type { DataDirectories } from '../core/storage/data-directories';
 import { createVerifiedBackup } from './backup';
+import { matchesMigrationChecksum } from './migrations/checksum';
 import { migrations, type MigrationDefinition } from './migrations/registry';
 import * as schema from './schema';
 
@@ -107,7 +108,7 @@ function findPendingMigrations(database: Database.Database): MigrationDefinition
 
   for (const migration of applied) {
     const definition = migrations.find((candidate) => candidate.version === migration.version);
-    if (definition?.checksum !== migration.checksum) {
+    if (!definition || !matchesMigrationChecksum(definition, migration.checksum)) {
       throw new Error(`Checksum de migração inválido para a versão ${String(migration.version)}.`);
     }
   }

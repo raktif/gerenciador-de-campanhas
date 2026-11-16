@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createMigrationChecksums, type MigrationChecksums } from './checksum';
 import migrationManifest from './manifest.json';
 import phaseZeroMigration from './0001_phase_zero.sql?raw';
 import campaignsMigration from './0002_campaigns.sql?raw';
@@ -24,48 +24,45 @@ import relationshipViewsMigration from './0021_relationship_views.sql?raw';
 import campaignSignalsMigration from './0022_campaign_signals.sql?raw';
 import campaignSignalPriorityAndContradictionExceptionsMigration from './0023_campaign_signal_priority_and_contradiction_exceptions.sql?raw';
 
-export interface MigrationDefinition {
+export interface MigrationDefinition extends MigrationChecksums {
   version: number;
   name: string;
-  checksum: string;
   sql: string;
   requiresForeignKeysDisabled?: boolean;
   requiresLegacyAlterTable?: boolean;
 }
 
-function checksum(sql: string): string {
-  return createHash('sha256').update(sql).digest('hex');
-}
-
+// Dynamic checksums accept only the LF/CRLF forms of the current SQL.
+// Historical fixed checksums (v6, v8–15) intentionally have no CRLF alternative.
 export const migrations: readonly MigrationDefinition[] = [
   {
     version: 1,
     name: 'phase-zero-foundation',
-    checksum: checksum(phaseZeroMigration),
+    ...createMigrationChecksums(phaseZeroMigration),
     sql: phaseZeroMigration,
   },
   {
     version: 2,
     name: 'phase-one-campaigns',
-    checksum: checksum(campaignsMigration),
+    ...createMigrationChecksums(campaignsMigration),
     sql: campaignsMigration,
   },
   {
     version: 3,
     name: 'phase-one-entity-types',
-    checksum: checksum(entityTypesMigration),
+    ...createMigrationChecksums(entityTypesMigration),
     sql: entityTypesMigration,
   },
   {
     version: 4,
     name: 'phase-one-field-definitions',
-    checksum: checksum(fieldDefinitionsMigration),
+    ...createMigrationChecksums(fieldDefinitionsMigration),
     sql: fieldDefinitionsMigration,
   },
   {
     version: 5,
     name: 'phase-one-entities',
-    checksum: checksum(entitiesMigration),
+    ...createMigrationChecksums(entitiesMigration),
     sql: entitiesMigration,
   },
   {
@@ -79,7 +76,7 @@ export const migrations: readonly MigrationDefinition[] = [
   {
     version: 7,
     name: 'phase-one-remove-deferred-features',
-    checksum: checksum(removeDeferredPhaseFeaturesMigration),
+    ...createMigrationChecksums(removeDeferredPhaseFeaturesMigration),
     sql: removeDeferredPhaseFeaturesMigration,
   },
   {
@@ -138,49 +135,49 @@ export const migrations: readonly MigrationDefinition[] = [
   {
     version: 16,
     name: 'phase-two-field-definition-contextual-help',
-    checksum: checksum(fieldDefinitionContextualHelpMigration),
+    ...createMigrationChecksums(fieldDefinitionContextualHelpMigration),
     sql: fieldDefinitionContextualHelpMigration,
   },
   {
     version: 17,
     name: 'phase-two-campaign-cover-attachments',
-    checksum: checksum(campaignCoverAttachmentsMigration),
+    ...createMigrationChecksums(campaignCoverAttachmentsMigration),
     sql: campaignCoverAttachmentsMigration,
   },
   {
     version: 18,
     name: 'phase-two-entity-reference-images',
-    checksum: checksum(entityReferenceImagesMigration),
+    ...createMigrationChecksums(entityReferenceImagesMigration),
     sql: entityReferenceImagesMigration,
   },
   {
     version: 19,
     name: 'phase-two-custom-image-fields',
-    checksum: checksum(customImageFieldsMigration),
+    ...createMigrationChecksums(customImageFieldsMigration),
     sql: customImageFieldsMigration,
   },
   {
     version: 20,
     name: 'phase-two-image-field-alt-text-integrity',
-    checksum: checksum(imageFieldAltTextIntegrityMigration),
+    ...createMigrationChecksums(imageFieldAltTextIntegrityMigration),
     sql: imageFieldAltTextIntegrityMigration,
   },
   {
     version: 21,
     name: 'phase-two-relationship-views',
-    checksum: checksum(relationshipViewsMigration),
+    ...createMigrationChecksums(relationshipViewsMigration),
     sql: relationshipViewsMigration,
   },
   {
     version: 22,
     name: 'phase-three-campaign-signals-foundation',
-    checksum: checksum(campaignSignalsMigration),
+    ...createMigrationChecksums(campaignSignalsMigration),
     sql: campaignSignalsMigration,
   },
   {
     version: 23,
     name: 'phase-three-campaign-signal-priority-and-contradiction-exceptions',
-    checksum: checksum(campaignSignalPriorityAndContradictionExceptionsMigration),
+    ...createMigrationChecksums(campaignSignalPriorityAndContradictionExceptionsMigration),
     sql: campaignSignalPriorityAndContradictionExceptionsMigration,
     requiresForeignKeysDisabled: true,
     requiresLegacyAlterTable: true,
