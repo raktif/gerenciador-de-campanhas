@@ -89,7 +89,11 @@ export type EventEntityLinksInput = z.output<typeof eventEntityLinksInputSchema>
 export type EventEntityLinksInputRequest = z.input<typeof eventEntityLinksInputSchema>;
 
 export const eventDetailsSchema = z
-  .object({ event: eventSchema, links: z.array(eventEntityLinkSchema) })
+  .object({
+    event: eventSchema,
+    links: z.array(eventEntityLinkSchema),
+    demandGenerated: z.literal(true).optional(),
+  })
   .strict();
 export type EventDetails = z.infer<typeof eventDetailsSchema>;
 

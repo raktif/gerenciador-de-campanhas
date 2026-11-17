@@ -56,6 +56,12 @@ export class EntityService {
       entityTypes: EntityTypeLookupPort;
       fieldDefinitions: FieldDefinitionLookupPort;
       relationshipTypes?: EntityRelationshipTypeLookupPort;
+      demandProtection?: {
+        assertEntityMutation(
+          input: UpdateEntityInput | EntityLifecycleInput,
+          archive?: boolean,
+        ): void;
+      };
       createId?: () => string;
       now?: () => string;
     },
@@ -108,6 +114,7 @@ export class EntityService {
   public update(input: UpdateEntityInput): EntityDetails {
     const current = this.requireEntity(input.campaignId, input.id);
     this.requireRevision(current, input.revision);
+    this.dependencies.demandProtection?.assertEntityMutation(input);
     const targetTypeId = input.patch?.entityTypeId ?? current.entityTypeId;
     if (targetTypeId !== current.entityTypeId && input.fieldValues === undefined)
       throw new AppError(
@@ -143,6 +150,7 @@ export class EntityService {
 
   public archive(input: EntityLifecycleInput): EntityDetails {
     const current = this.requireEntity(input.campaignId, input.id);
+    this.dependencies.demandProtection?.assertEntityMutation(input, true);
     this.requireRevision(current, input.revision);
     if (current.archivedAt !== null)
       throw new AppError('INVALID_ENTITY_STATE', 'A entidade já está arquivada.', {

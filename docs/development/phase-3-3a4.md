@@ -2,23 +2,25 @@
 
 ## Estado e dependências
 
-Implementação técnica devolvida pelo QA por navegação genérica em Revisar/Corrigir; o fluxo
-contextual foi corrigido e aguarda nova validação independente. O QA aprovou tecnicamente no
-escopo verificado migração, pares estruturais/JSON, exceções, estados, isolamento e IPC anteriores.
-As atividades 3A.1, 3A.2
-e 3A.3 foram aprovadas tecnicamente pelo QA. Conforme decisão do responsável, nenhum teste manual
-de UX foi realizado: a validação manual de toda a etapa 3A fica para depois de sua conclusão.
-Esta entrega não inicia 3B nem qualquer outra atividade.
+**Fechamento confirmado pelo responsável em 2026-11-16:** as subtarefas 3A.1–3A.4 receberam
+aprovação técnica do QA, e o usuário confirmou que todos os testes manuais de UX da etapa 3A
+passaram. A validação manual foi realizada pelo usuário, não pelo implementador; este registro
+documental não representa aprovação própria nem substitui a validação independente do QA.
+
+Nas rodadas anteriores ao fechamento, o QA devolveu uma versão da implementação por navegação
+genérica em Revisar/Corrigir; o fluxo contextual recebeu correções após esse retorno. O registro
+abaixo preserva os estados e evidências dessas rodadas, não o estado atual. A confirmação de
+conclusão acima prevalece sobre referências históricas a validações pendentes. Esta entrega
+documental não inicia outras atividades.
 
 Na segunda revalidação, o QA confirmou o par real, seleção/edição de ambos os alvos, histórico
 e guardas contextuais; devolveu somente proveniência ausente na apresentação e falta de prova
-runtime com terceira evidência válida. Esses dois pontos foram tratados e aguardam nova
-validação independente; UX manual continua pendente até a conclusão técnica da 3A.
+runtime com terceira evidência válida. Esses dois pontos foram tratados nas rodadas subsequentes.
 
 Na rodada focal seguinte, o QA reproduziu fonte manual compartilhada entre campanhas e
 divergência entre a sessão da fonte e da captura na mesma campanha. A publicação contextual foi
-endurecida para esses dois casos e aguarda nova validação independente. Nenhuma migração,
-escrita corretiva automática, funcionalidade da Fase 2.1 ou etapa 3B foi implementada nesta correção.
+endurecida para esses dois casos. Nenhuma migração, escrita corretiva automática, funcionalidade
+da Fase 2.1 ou etapa 3B foi implementada naquela correção.
 
 ## Regra inicial, determinística e limitada
 
@@ -193,8 +195,9 @@ backup íntegro e rollback são cobertos por integração.
   migração/backup/rollback e evidências Unicode.
 - `pnpm typecheck`.
 
-Os comandos exatos e resultados da entrega são registrados no relatório do implementador; o QA
-deve repetir e complementar a validação de forma independente. UX permanece pendente.
+Naquele registro, os comandos exatos e resultados da entrega eram encaminhados ao QA para repetição
+independente, e a UX ainda estava pendente. Esse estado é histórico; o fechamento confirmado pelo
+responsável em 2026-11-16 está registrado no início deste documento.
 
 ### Validação direcionada da devolução do QA
 
@@ -286,15 +289,19 @@ propriedade histórica; a implementação não se declara aprovada.
   cânone; Revisar mostra o par real e Corrigir abre cada alvo somente após escolha explícita.
   Verificar cancelar, voltar/avançar por teclado, alvo indisponível e Registro normal após o fluxo.
 
-## Checklist manual de UX para o fechamento da etapa 3A (pendente)
+## Checklist manual de UX para a etapa 3A
 
-- [ ] Ler e compreender que “possível” não atribui erro a nenhuma afirmação.
-- [ ] Diferenciar Revisar/Corrigir, Manter, Marcar exceção e Descartar aviso.
-- [ ] Confirmar que Revisar mostra ambas as afirmações reais e Corrigir permite escolher cada alvo.
-- [ ] Conferir origem, fonte e sessão de cada afirmação, incluindo ausência e indisponibilidade.
-- [ ] Entender os bloqueios de fonte compartilhada e de sessão divergente, sem correção automática.
-- [ ] Confirmar retorno ao par, histórico por teclado e Registro normal após edição/cancelamento.
-- [ ] Entender quais campos invalidam uma exceção e perceber a necessidade de nova revisão.
-- [ ] Distinguir carregamento, falha, vazio antes do cálculo e recálculo concluído.
-- [ ] Confirmar legibilidade dos níveis Baixa, Média, Alta e Altíssima e ausência de UUID.
-- [ ] Validar teclado, foco, leitores de tela, mensagens e recuperação de erros no fluxo completo.
+**Estado:** o usuário confirmou em 2026-11-16 que todos os testes manuais de UX de 3A passaram.
+O implementador não executou esses testes. Os itens abaixo são o checklist de escopo documentado,
+não uma declaração de aprovação própria nem evidência de nova execução:
+
+- [x] Ler e compreender que “possível” não atribui erro a nenhuma afirmação.
+- [x] Diferenciar Revisar/Corrigir, Manter, Marcar exceção e Descartar aviso.
+- [x] Confirmar que Revisar mostra ambas as afirmações reais e Corrigir permite escolher cada alvo.
+- [x] Conferir origem, fonte e sessão de cada afirmação, incluindo ausência e indisponibilidade.
+- [x] Entender os bloqueios de fonte compartilhada e de sessão divergente, sem correção automática.
+- [x] Confirmar retorno ao par, histórico por teclado e Registro normal após edição/cancelamento.
+- [x] Entender quais campos invalidam uma exceção e perceber a necessidade de nova revisão.
+- [x] Distinguir carregamento, falha, vazio antes do cálculo e recálculo concluído.
+- [x] Confirmar legibilidade dos níveis Baixa, Média, Alta e Altíssima e ausência de UUID.
+- [x] Validar teclado, foco, leitores de tela, mensagens e recuperação de erros no fluxo completo.

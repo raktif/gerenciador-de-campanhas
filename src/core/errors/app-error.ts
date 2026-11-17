@@ -14,6 +14,18 @@ export function toSafeError(error: unknown): {
   message: string;
   details?: unknown;
 } {
+  // SQLite/Drizzle may wrap a trigger failure. Only translate our exact, fixed
+  // integrity tokens, never arbitrary database messages or source text.
+  let cause: unknown = error;
+  for (let depth = 0; depth < 5 && cause instanceof Error; depth += 1) {
+    const token = cause.message.trim();
+    if (/^(DEMAND_[A-Z_]+|INVALID_CAMPAIGN_STATE)$/u.test(token))
+      return {
+        code: token,
+        message: 'A operação foi bloqueada para preservar a Demanda e sua proveniência.',
+      };
+    cause = cause.cause;
+  }
   if (error instanceof AppError) {
     return {
       code: error.code,

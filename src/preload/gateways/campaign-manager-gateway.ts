@@ -1,5 +1,20 @@
 import type { z } from 'zod';
 import {
+  acceptDemandSchema,
+  demandIdentitySchema,
+  demandPageSchema,
+  demandSuggestionRequestSchema,
+  demandTargetRequestSchema,
+  transformDemandSchema,
+  transitionDemandSchema,
+  updateDemandSchema,
+  type DemandDetails,
+  type DemandSuggestion,
+  type DemandTarget,
+  type Demand,
+} from '../../core/contracts/demands';
+import { demandChannels } from '../../core/contracts/ipc-channels';
+import {
   appearanceSettingSchema,
   updateAppearanceThemeInputSchema,
   type AppearanceSetting,
@@ -197,8 +212,10 @@ import {
   type CampaignSignalRecalculationResult,
 } from '../../core/contracts/campaign-signal-engine';
 import {
+  clockChannels,
   sessionChannels,
   sessionIntentionChannels,
+  storyThreadChannels,
   sessionParticipantChannels,
 } from '../../core/contracts/ipc-channels';
 import {
@@ -208,6 +225,27 @@ import {
   type PhaseZeroTestRecord,
 } from '../../core/contracts/phase-zero';
 import type { Result } from '../../core/contracts/result';
+import {
+  createStoryThreadInputSchema,
+  getStoryThreadInputSchema,
+  setStoryThreadStatusInputSchema,
+  storyThreadLifecycleInputSchema,
+  storyThreadPageRequestSchema,
+  storyThreadTargetRequestSchema,
+  updateStoryThreadInputSchema,
+  type StoryThreadDetails,
+  type StoryThreadPageResult,
+  type StoryThreadTargetPageResult,
+} from '../../core/contracts/story-threads';
+import {
+  clockPageRequestSchema,
+  completeClockInputSchema,
+  createClockInputSchema,
+  getClockInputSchema,
+  updateClockInputSchema,
+  type Clock,
+  type ClockPageResult,
+} from '../../core/contracts/clocks';
 import type { CampaignSignal } from '../../core/contracts/campaign-signals';
 import {
   createSessionInputSchema,
@@ -264,6 +302,94 @@ export function createCampaignManagerGateway(
           const setting = appearanceSettingSchema.safeParse(payload);
           if (setting.success) listener(setting.data);
         }),
+    },
+    demands: {
+      suggestion: (input) =>
+        invoke<DemandSuggestion>(demandChannels.suggestion, input, demandSuggestionRequestSchema),
+      get: (input) => invoke<DemandDetails>(demandChannels.get, input, demandIdentitySchema),
+      list: (input) =>
+        invoke<{ items: Demand[]; nextCursor: string | null; total: number }>(
+          demandChannels.list,
+          input,
+          demandPageSchema,
+        ),
+      targets: (input) =>
+        invoke<{ items: DemandTarget[]; nextCursor: string | null }>(
+          demandChannels.targets,
+          input,
+          demandTargetRequestSchema,
+        ),
+      accept: (input) => invoke<DemandDetails>(demandChannels.accept, input, acceptDemandSchema),
+      update: (input) => invoke<DemandDetails>(demandChannels.update, input, updateDemandSchema),
+      transform: (input) =>
+        invoke<DemandDetails>(demandChannels.transform, input, transformDemandSchema),
+      transition: (input) =>
+        invoke<DemandDetails>(demandChannels.transition, input, transitionDemandSchema),
+      sourceLocks: (input) =>
+        invoke<string[]>(demandChannels.sourceLocks, input, demandIdentitySchema),
+    },
+    clocks: {
+      create: (input) => invoke<Clock>(clockChannels.create, input, createClockInputSchema),
+      get: (input) => invoke<Clock>(clockChannels.get, input, getClockInputSchema),
+      list: (input) => invoke<ClockPageResult>(clockChannels.list, input, clockPageRequestSchema),
+      update: (input) => invoke<Clock>(clockChannels.update, input, updateClockInputSchema),
+      complete: (input) => invoke<Clock>(clockChannels.complete, input, completeClockInputSchema),
+    },
+    storyThreads: {
+      create: (input) =>
+        invoke<StoryThreadDetails>(storyThreadChannels.create, input, createStoryThreadInputSchema),
+      get: (input) =>
+        invoke<StoryThreadDetails>(storyThreadChannels.get, input, getStoryThreadInputSchema),
+      list: (input) =>
+        invoke<StoryThreadPageResult>(
+          storyThreadChannels.list,
+          input,
+          storyThreadPageRequestSchema,
+        ),
+      listTargets: (input) =>
+        invoke<StoryThreadTargetPageResult>(
+          storyThreadChannels.listTargets,
+          input,
+          storyThreadTargetRequestSchema,
+        ),
+      update: (input) =>
+        invoke<StoryThreadDetails>(storyThreadChannels.update, input, updateStoryThreadInputSchema),
+      setStatus: (input) =>
+        invoke<StoryThreadDetails>(
+          storyThreadChannels.setStatus,
+          input,
+          setStoryThreadStatusInputSchema,
+        ),
+      resolve: (input) =>
+        invoke<StoryThreadDetails>(
+          storyThreadChannels.resolve,
+          input,
+          storyThreadLifecycleInputSchema,
+        ),
+      abandon: (input) =>
+        invoke<StoryThreadDetails>(
+          storyThreadChannels.abandon,
+          input,
+          storyThreadLifecycleInputSchema,
+        ),
+      reopen: (input) =>
+        invoke<StoryThreadDetails>(
+          storyThreadChannels.reopen,
+          input,
+          storyThreadLifecycleInputSchema,
+        ),
+      archive: (input) =>
+        invoke<StoryThreadDetails>(
+          storyThreadChannels.archive,
+          input,
+          storyThreadLifecycleInputSchema,
+        ),
+      restore: (input) =>
+        invoke<StoryThreadDetails>(
+          storyThreadChannels.restore,
+          input,
+          storyThreadLifecycleInputSchema,
+        ),
     },
     diagnostics: {
       copyStartupDiagnostic: (input) =>

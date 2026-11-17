@@ -28,6 +28,7 @@ export interface CampaignLookupPort {
 }
 
 export interface EntityTypeServiceDependencies {
+  demandProtection?: { assertTypeArchive(id: string): void };
   repository: EntityTypeRepositoryPort;
   campaigns: CampaignLookupPort;
   createId?: () => string;
@@ -90,6 +91,7 @@ export class EntityTypeService {
   public archive(input: EntityTypeLifecycleInput): EntityType {
     const current = this.requireEntityType(input.campaignId, input.id);
     this.requireRevision(current, input.revision);
+    this.dependencies.demandProtection?.assertTypeArchive(input.id);
     if (current.isArchived) {
       throw new AppError('INVALID_ENTITY_TYPE_STATE', 'O tipo de entidade já está arquivado.', {
         campaignId: current.campaignId,

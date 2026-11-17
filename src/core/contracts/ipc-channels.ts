@@ -144,6 +144,40 @@ export const noteChannels = {
   restore: 'notes:restore',
 } as const;
 
+export const storyThreadChannels = {
+  create: 'threads:create',
+  get: 'threads:get',
+  list: 'threads:list',
+  listTargets: 'threads:list-targets',
+  update: 'threads:update',
+  setStatus: 'threads:set-status',
+  resolve: 'threads:resolve',
+  abandon: 'threads:abandon',
+  reopen: 'threads:reopen',
+  archive: 'threads:archive',
+  restore: 'threads:restore',
+} as const;
+
+export const demandChannels = {
+  suggestion: 'demands:suggestion',
+  get: 'demands:get',
+  list: 'demands:list',
+  targets: 'demands:targets',
+  accept: 'demands:accept',
+  update: 'demands:update',
+  transform: 'demands:transform',
+  transition: 'demands:transition',
+  sourceLocks: 'demands:source-locks',
+} as const;
+
+export const clockChannels = {
+  create: 'clocks:create',
+  get: 'clocks:get',
+  list: 'clocks:list',
+  update: 'clocks:update',
+  complete: 'clocks:complete',
+} as const;
+
 export const inboxChannels = {
   capture: 'inbox:capture',
   get: 'inbox:get',

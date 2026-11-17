@@ -45,6 +45,13 @@ import {
   campaignSignalTypes,
   signalEvidenceObjectTypes,
 } from '../../core/contracts/campaign-signals';
+import {
+  storyThreadOriginKinds,
+  storyThreadStatuses,
+  storyThreadTargetTypes,
+  storyThreadTypes,
+} from '../../core/contracts/story-threads';
+import { clockStatuses, clockTypes } from '../../core/contracts/clocks';
 
 export const schemaMigrations = sqliteTable('schema_migrations', {
   version: integer('version').primaryKey(),
@@ -1334,4 +1341,378 @@ export const inboxEventConversions = sqliteTable('inbox_event_conversions', {
   eventId: text('event_id').notNull().unique(),
   sourceId: text('source_id').notNull().unique(),
   createdAt: text('created_at').notNull(),
+});
+
+export const storyThreads = sqliteTable(
+  'story_threads',
+  {
+    id: text('id').primaryKey(),
+    campaignId: text('campaign_id')
+      .notNull()
+      .references(() => campaigns.id, { onDelete: 'cascade' }),
+    title: text('title').notNull(),
+    description: text('description'),
+    threadType: text('thread_type', { enum: storyThreadTypes }).notNull(),
+    status: text('status', { enum: storyThreadStatuses }).notNull(),
+    statusBeforeArchive: text('status_before_archive', {
+      enum: ['open', 'active', 'dormant', 'resolved', 'abandoned'],
+    }),
+    originKind: text('origin_kind', { enum: storyThreadOriginKinds }).notNull(),
+    originSessionId: text('origin_session_id').references(() => sessions.id, {
+      onDelete: 'restrict',
+    }),
+    originReason: text('origin_reason'),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
+    revision: integer('revision').notNull().default(1),
+  },
+  (table) => [
+    check('story_threads_revision_positive', sql`${table.revision} > 0`),
+    check(
+      'story_threads_archive_state_consistent',
+      sql`(${table.status} = 'archived' AND ${table.statusBeforeArchive} IS NOT NULL)
+        OR (${table.status} <> 'archived' AND ${table.statusBeforeArchive} IS NULL)`,
+    ),
+    check(
+      'story_threads_origin_consistent',
+      sql`(${table.originKind} = 'session' AND ${table.originSessionId} IS NOT NULL)
+        OR (${table.originKind} = 'manual' AND ${table.originSessionId} IS NULL)`,
+    ),
+    index('story_threads_campaign_status_updated_idx').on(
+      table.campaignId,
+      table.status,
+      sql`${table.updatedAt} DESC`,
+      sql`${table.id} DESC`,
+    ),
+    index('story_threads_campaign_type_idx').on(
+      table.campaignId,
+      table.threadType,
+      table.status,
+      sql`${table.updatedAt} DESC`,
+      sql`${table.id} DESC`,
+    ),
+  ],
+);
+
+export const storyThreadLinks = sqliteTable(
+  'story_thread_links',
+  {
+    id: text('id').primaryKey(),
+    campaignId: text('campaign_id')
+      .notNull()
+      .references(() => campaigns.id, { onDelete: 'cascade' }),
+    threadId: text('thread_id')
+      .notNull()
+      .references(() => storyThreads.id, { onDelete: 'cascade' }),
+    targetType: text('target_type', { enum: storyThreadTargetTypes }).notNull(),
+    targetId: text('target_id').notNull(),
+    entityId: text('entity_id').references(() => entities.id, { onDelete: 'restrict' }),
+    relationshipId: text('relationship_id').references(() => relationships.id, {
+      onDelete: 'restrict',
+    }),
+    assertionId: text('assertion_id').references(() => assertions.id, { onDelete: 'restrict' }),
+    noteId: text('note_id').references(() => notes.id, { onDelete: 'restrict' }),
+    eventId: text('event_id').references(() => events.id, { onDelete: 'restrict' }),
+    sessionId: text('session_id').references(() => sessions.id, { onDelete: 'restrict' }),
+    sortOrder: integer('sort_order').notNull().default(0),
+    createdAt: text('created_at').notNull(),
+  },
+  (table) => [
+    uniqueIndex('story_thread_links_target_unique').on(
+      table.threadId,
+      table.targetType,
+      table.targetId,
+    ),
+    index('story_thread_links_campaign_target_idx').on(
+      table.campaignId,
+      table.targetType,
+      table.targetId,
+    ),
+    index('story_thread_links_thread_order_idx').on(table.threadId, table.sortOrder, table.id),
+  ],
+);
+
+export const storyThreadTransitions = sqliteTable(
+  'story_thread_transitions',
+  {
+    id: text('id').primaryKey(),
+    campaignId: text('campaign_id')
+      .notNull()
+      .references(() => campaigns.id, { onDelete: 'cascade' }),
+    threadId: text('thread_id')
+      .notNull()
+      .references(() => storyThreads.id, { onDelete: 'cascade' }),
+    sequenceNumber: integer('sequence_number').notNull(),
+    fromStatus: text('from_status', { enum: storyThreadStatuses }),
+    toStatus: text('to_status', { enum: storyThreadStatuses }).notNull(),
+    reason: text('reason'),
+    sessionId: text('session_id').references(() => sessions.id, { onDelete: 'restrict' }),
+    occurredAt: text('occurred_at').notNull(),
+  },
+  (table) => [
+    uniqueIndex('story_thread_transitions_thread_sequence_unique').on(
+      table.threadId,
+      table.sequenceNumber,
+    ),
+  ],
+);
+
+export const clocks = sqliteTable(
+  'clocks',
+  {
+    id: text('id').primaryKey(),
+    campaignId: text('campaign_id')
+      .notNull()
+      .references(() => campaigns.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    description: text('description'),
+    consequence: text('consequence').notNull(),
+    segmentsTotal: integer('segments_total').notNull(),
+    segmentsFilled: integer('segments_filled').notNull().default(0),
+    clockType: text('clock_type', { enum: clockTypes }).notNull(),
+    status: text('status', { enum: clockStatuses }).notNull(),
+    entityId: text('entity_id')
+      .notNull()
+      .references(() => entities.id, { onDelete: 'restrict' }),
+    canonState: text('canon_state', { enum: canonStates }).notNull().default('accepted'),
+    knowledgeState: text('knowledge_state', { enum: knowledgeStates }).notNull().default('fact'),
+    visibility: text('visibility', { enum: visibilityStates }).notNull().default('gm'),
+    originKind: text('origin_kind', { enum: originKinds }).notNull().default('manual'),
+    sourceId: text('source_id').references(() => sources.id, { onDelete: 'restrict' }),
+    generatedEventId: text('generated_event_id').references(() => events.id, {
+      onDelete: 'restrict',
+    }),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
+    revision: integer('revision').notNull().default(1),
+  },
+  (table) => [
+    check('clocks_segments_total_valid', sql`${table.segmentsTotal} IN (4, 6, 8, 10, 12)`),
+    check(
+      'clocks_segments_filled_valid',
+      sql`${table.segmentsFilled} BETWEEN 0 AND ${table.segmentsTotal}`,
+    ),
+    check(
+      'clocks_status_progress_consistent',
+      sql`(${table.segmentsFilled} = ${table.segmentsTotal} AND ${table.status} = 'completed')
+        OR (${table.segmentsFilled} < ${table.segmentsTotal} AND ${table.status} IN ('active', 'completed'))`,
+    ),
+    check('clocks_revision_positive', sql`${table.revision} > 0`),
+    index('clocks_campaign_status_updated_idx').on(
+      table.campaignId,
+      table.status,
+      sql`${table.updatedAt} DESC`,
+      sql`${table.id} DESC`,
+    ),
+    index('clocks_campaign_type_idx').on(
+      table.campaignId,
+      table.clockType,
+      sql`${table.updatedAt} DESC`,
+      sql`${table.id} DESC`,
+    ),
+    index('clocks_entity_idx').on(
+      table.entityId,
+      table.status,
+      sql`${table.updatedAt} DESC`,
+      sql`${table.id} DESC`,
+    ),
+  ],
+);
+
+export const clockEntityLinks = sqliteTable(
+  'clock_entity_links',
+  {
+    clockId: text('clock_id')
+      .primaryKey()
+      .references(() => clocks.id, { onDelete: 'cascade' }),
+    entityId: text('entity_id')
+      .notNull()
+      .references(() => entities.id, { onDelete: 'restrict' }),
+  },
+  (table) => [index('clock_entity_links_entity_idx').on(table.entityId, table.clockId)],
+);
+
+export const clockCreateOperations = sqliteTable(
+  'clock_create_operations',
+  {
+    idempotencyKey: text('idempotency_key').primaryKey(),
+    campaignId: text('campaign_id')
+      .notNull()
+      .references(() => campaigns.id, { onDelete: 'cascade' }),
+    payloadHash: text('payload_hash').notNull(),
+    clockId: text('clock_id')
+      .notNull()
+      .unique()
+      .references(() => clocks.id, { onDelete: 'cascade' }),
+    createdAt: text('created_at').notNull(),
+  },
+  (table) => [index('clock_create_operations_campaign_idx').on(table.campaignId, table.createdAt)],
+);
+
+// The v29 SQL also installs cross-aggregate integrity/immutability triggers.
+export const demands = sqliteTable(
+  'demands',
+  {
+    id: text('id').primaryKey().notNull(),
+    campaignId: text('campaign_id')
+      .notNull()
+      .references(() => campaigns.id, { onDelete: 'restrict' }),
+    title: text('title').notNull(),
+    need: text('need').notNull(),
+    summary: text('summary').notNull().default(''),
+    obstacle: text('obstacle').notNull().default(''),
+    risks: text('risks').notNull().default(''),
+    urgency: text('urgency', { enum: ['low', 'medium', 'high', 'critical'] }).notNull(),
+    requesterEntityId: text('requester_entity_id')
+      .notNull()
+      .references(() => entities.id, { onDelete: 'restrict' }),
+    status: text('status', {
+      enum: ['available', 'active', 'resolved', 'failed', 'ignored', 'archived'],
+    }).notNull(),
+    statusBeforeArchive: text('status_before_archive'),
+    parentId: text('parent_id').references((): AnySQLiteColumn => demands.id, {
+      onDelete: 'restrict',
+    }),
+    acceptedSignalId: text('accepted_signal_id')
+      .unique()
+      .references(() => campaignSignals.id, { onDelete: 'restrict' }),
+    lineageSignalId: text('lineage_signal_id')
+      .notNull()
+      .references(() => campaignSignals.id, { onDelete: 'restrict' }),
+    sourceEntityId: text('source_entity_id')
+      .notNull()
+      .references(() => entities.id, { onDelete: 'restrict' }),
+    sourceFieldDefinitionId: text('source_field_definition_id')
+      .notNull()
+      .references(() => fieldDefinitions.id, { onDelete: 'restrict' }),
+    sourceFieldValueId: text('source_field_value_id')
+      .notNull()
+      .references(() => fieldValues.id, { onDelete: 'restrict' }),
+    sourceId: text('source_id')
+      .notNull()
+      .unique()
+      .references(() => sources.id, { onDelete: 'restrict' }),
+    sourceSnapshot: text('source_snapshot').notNull(),
+    generatedEventId: text('generated_event_id')
+      .unique()
+      .references(() => events.id, { onDelete: 'restrict' }),
+    canonState: text('canon_state', { enum: ['draft'] })
+      .notNull()
+      .default('draft'),
+    knowledgeState: text('knowledge_state', { enum: ['possibility'] })
+      .notNull()
+      .default('possibility'),
+    visibility: text('visibility', { enum: ['gm'] })
+      .notNull()
+      .default('gm'),
+    originKind: text('origin_kind', { enum: ['generator'] })
+      .notNull()
+      .default('generator'),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
+    revision: integer('revision').notNull().default(1),
+  },
+  (table) => [
+    index('demands_campaign_status').on(table.campaignId, table.status, table.createdAt, table.id),
+    index('demands_parent').on(table.parentId),
+    index('demands_need_source').on(table.sourceFieldValueId),
+    check('demands_title_valid', sql`length(trim(${table.title})) BETWEEN 1 AND 200`),
+    check('demands_need_valid', sql`length(CAST(trim(${table.need}) AS BLOB)) > 0`),
+    check('demands_snapshot_valid', sql`json_valid(${table.sourceSnapshot})`),
+    check('demands_urgency_valid', sql`${table.urgency} IN ('low','medium','high','critical')`),
+    check(
+      'demands_status_valid',
+      sql`${table.status} IN ('available','active','resolved','failed','ignored','archived')`,
+    ),
+    check(
+      'demands_archive_status_valid',
+      sql`${table.statusBeforeArchive} IN ('available','active','resolved','failed','ignored')`,
+    ),
+    check(
+      'demands_archive_pair',
+      sql`(${table.status}='archived')=(${table.statusBeforeArchive} IS NOT NULL)`,
+    ),
+    check(
+      'demands_event_pair',
+      sql`(${table.status}='resolved' OR (${table.status}='archived' AND ${table.statusBeforeArchive}='resolved'))=(${table.generatedEventId} IS NOT NULL)`,
+    ),
+    check(
+      'demands_parent_pair',
+      sql`(${table.parentId} IS NULL)=(${table.acceptedSignalId} IS NOT NULL)`,
+    ),
+    check('demands_canon_valid', sql`${table.canonState}='draft'`),
+    check('demands_knowledge_valid', sql`${table.knowledgeState}='possibility'`),
+    check('demands_visibility_valid', sql`${table.visibility}='gm'`),
+    check('demands_origin_valid', sql`${table.originKind}='generator'`),
+    check(
+      'demands_revision_valid',
+      sql`typeof(${table.revision})='integer' AND ${table.revision} BETWEEN 1 AND 9007199254740991`,
+    ),
+  ],
+);
+export const demandEntityLinks = sqliteTable(
+  'demand_entity_links',
+  {
+    demandId: text('demand_id')
+      .notNull()
+      .references(() => demands.id, { onDelete: 'restrict' }),
+    entityId: text('entity_id')
+      .notNull()
+      .references(() => entities.id, { onDelete: 'restrict' }),
+    role: text('role', {
+      enum: [
+        'requester',
+        'affected',
+        'location',
+        'opposition',
+        'resource',
+        'clue',
+        'hidden_connection',
+        'beneficiary',
+        'related',
+      ],
+    }).notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.demandId, table.entityId, table.role] }),
+    check(
+      'demand_entity_role_valid',
+      sql`${table.role} IN ('requester','affected','location','opposition','resource','clue','hidden_connection','beneficiary','related')`,
+    ),
+  ],
+);
+export const demandClockLinks = sqliteTable(
+  'demand_clock_links',
+  {
+    demandId: text('demand_id')
+      .notNull()
+      .references(() => demands.id, { onDelete: 'restrict' }),
+    clockId: text('clock_id')
+      .notNull()
+      .references(() => clocks.id, { onDelete: 'restrict' }),
+  },
+  (table) => [primaryKey({ columns: [table.demandId, table.clockId] })],
+);
+export const demandSessionLinks = sqliteTable(
+  'demand_session_links',
+  {
+    demandId: text('demand_id')
+      .notNull()
+      .references(() => demands.id, { onDelete: 'restrict' }),
+    sessionId: text('session_id')
+      .notNull()
+      .references(() => sessions.id, { onDelete: 'restrict' }),
+  },
+  (table) => [primaryKey({ columns: [table.demandId, table.sessionId] })],
+);
+export const demandTransformOperations = sqliteTable('demand_transform_operations', {
+  id: text('id').primaryKey().notNull(),
+  campaignId: text('campaign_id')
+    .notNull()
+    .references(() => campaigns.id, { onDelete: 'restrict' }),
+  payload: text('payload').notNull(),
+  childId: text('child_id')
+    .notNull()
+    .unique()
+    .references(() => demands.id, { onDelete: 'restrict' }),
 });

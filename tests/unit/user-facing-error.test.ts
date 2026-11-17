@@ -86,6 +86,29 @@ describe('catálogo de erros orientados ao usuário', () => {
     });
   });
 
+  it('apresenta erros de Relógios e permite diagnóstico contextual sem informação técnica', () => {
+    expect(
+      presentUserFacingError({ code: 'CLOCK_PROGRESS_EXCEEDS_TOTAL' }, 'clocks.mutate'),
+    ).toMatchObject({
+      code: 'CLOCK_PROGRESS_EXCEEDS_TOTAL',
+      title: 'O progresso excede o total de divisões',
+      canRetry: false,
+    });
+    const error = presentUserFacingError({ code: 'INVALID_CLOCK_STATE' }, 'clocks.mutate');
+    expect(createUserFacingDiagnostic(error, 'clocks.mutate')).toEqual({
+      version: 1,
+      screen: 'clocks',
+      operation: 'clocks.mutate',
+      code: 'INVALID_CLOCK_STATE',
+    });
+    expect(
+      presentUserFacingError({ code: 'CLOCK_CREATE_IDEMPOTENCY_CONFLICT' }, 'clocks.mutate'),
+    ).toMatchObject({
+      code: 'CLOCK_CREATE_IDEMPOTENCY_CONFLICT',
+      canRetry: false,
+    });
+  });
+
   it('produz diagnósticos estritos sem stack trace, segredos ou caminhos', () => {
     const error = presentUserFacingError({ code: 'SESSION_NOT_FOUND' }, 'sessions.list');
     const diagnostic = createUserFacingDiagnostic(error, 'sessions.list');

@@ -36,10 +36,11 @@ Fase 2](docs/development/phase-2-refinement.md).
 
 ## Estado e limites
 
-O produto disponível inclui o escopo concluído até a Fase 2 e a implementação técnica aprovada
-pelo QA da 3A.3, além da implementação 3A.4 pendente de QA: necessidades textuais explícitas e
-possíveis contradições estruturais exatas entre afirmações.
-Isso não representa conclusão da Fase 3. Ainda não inclui Relógios, Demandas, Consequências, outros
+O produto disponível inclui o escopo concluído até a Fase 2, a etapa 3A aprovada técnica e
+manualmente pelo usuário, e Fios Abertos/Relógios aprovados tecnicamente. Demandas Emergentes
+(3B.3, schema v29) estão implementadas e aguardam QA independente; veja
+[decisões e limites](docs/development/phase-3-3b3.md). A UX conjunta de toda a 3B permanece pendente.
+Isso não representa conclusão da Fase 3. Ainda não inclui Mundo em Movimento, Consequências, outros
 tipos de sinais ou transformação de Intenção em Evento por sinais; histórico geral,
 exportação, importação, restauração ou backup de campanha (Fase 4); Biblioteca/PDFs (Fase 5); nem IA
 ou provedores (Fases 6+). A infraestrutura FTS5 criada na Fase 0 permanece reservada para a futura

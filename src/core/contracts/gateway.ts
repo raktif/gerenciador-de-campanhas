@@ -3,6 +3,8 @@ import type { AppearanceGateway } from './appearance';
 import type { CampaignGateway } from './campaigns';
 import type { CampaignCoverGateway } from './campaign-covers';
 import type { CampaignSignalGateway } from './campaign-signal-engine';
+import type { ClockGateway } from './clocks';
+import type { DemandGateway } from './demands';
 import type { DiagnosticsGateway } from './diagnostics';
 import type { EntityGateway } from './entities';
 import type { EntityReferenceImageGateway } from './entity-reference-images';
@@ -18,6 +20,7 @@ import type { RelationshipTypeGateway } from './relationship-types';
 import type { RelationshipGateway } from './relationships';
 import type { RelationshipViewGateway } from './relationship-views';
 import type { TimelineGateway } from './timeline';
+import type { StoryThreadGateway } from './story-threads';
 import type {
   SessionGateway,
   SessionIntentionsGateway,
@@ -39,7 +42,10 @@ export interface CampaignManagerGateway {
   entities: EntityGateway;
   assertions: AssertionGateway;
   campaignSignals: CampaignSignalGateway;
+  clocks: ClockGateway;
+  demands: DemandGateway;
   notes: NoteGateway;
+  storyThreads: StoryThreadGateway;
   inbox: InboxGateway;
   events: EventGateway;
   timeline: TimelineGateway;

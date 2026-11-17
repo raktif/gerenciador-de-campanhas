@@ -49,16 +49,56 @@ Registros selecionados são recarregados ao restaurar uma tela, para usar sua re
 Conversões de Intenção concluídas são retiradas do histórico e retornam à sessão de origem,
 sem permitir reabrir o formulário concluído pelo avanço.
 
-A implementação pendente de QA da 3A.3 persiste e apresenta sinais determinísticos apenas para
-campos textuais de necessidade já preenchidos em entidades ativas. O renderer usa gateway IPC
-tipado; o motor e o SQLite permanecem no processo principal. Essa detecção não cria Eventos,
-Demandas ou fatos nem altera o cânone. Relógios, Demandas, Consequências, outros tipos de sinais,
-portabilidade, Biblioteca/PDFs e IA continuam fora do escopo entregue.
+As subtarefas 3A.1–3A.4 receberam aprovação técnica do QA, e o usuário confirmou aprovação manual
+de UX de toda a etapa 3A em 2026-11-16; essa aprovação manual é do usuário, não do implementador.
+Os sinais persistidos continuam determinísticos e não criam Eventos, Demandas ou fatos nem alteram
+o cânone.
 O recálculo adquire transação SQLite imediata antes de ler as fontes e mantém leitura, detecção,
 reconciliação e evidências no mesmo snapshot; contenção `SQLITE_BUSY`/`SQLITE_LOCKED` retorna erro
 explícito, sem gravar parcialmente nem repetir a ação silenciosamente.
+
+Migração 24 adiciona Fios Abertos (`story_threads`, vínculos e transições), aprovada tecnicamente
+pelo QA independente. Os alvos permitidos são Entidades, Relações, Afirmações, Notas, Eventos e
+Sessões; exclusão de alvo vinculado é restrita, vínculos históricos sobrevivem ao arquivamento do
+alvo e Sessões concluídas não são consideradas arquivadas. Reabertura e arquivamento são ações
+explícitas, com estado anterior preservado e transições específicas do fio. Por decisão do
+responsável em 2026-11-16, a UX da 3B.1 permanece pendente e será testada pelo usuário junto das
+demais subtarefas 3B ao final da etapa; a aprovação técnica não é aprovação de UX. Detalhes estão em
+[`phase-3-3b1.md`](../development/phase-3-3b1.md).
+Migrações 25–28 adicionam Relógios, a proteção contra substituição de concluídos com
+`INSERT OR REPLACE`/`UPDATE OR REPLACE`, inclusive com `recursive_triggers=0`. O modelo permanece
+com divisões limitadas a 4/6/8/10/12, avanço somente por comando
+explícito do narrador e estados atuais `active`/`completed`. Preenchimento total conclui na mesma
+transação; conclusão manual parcial ou vazia preserva o progresso. Relógios concluídos são
+imutáveis, sem reabertura ou arquivamento, mas permanecem consultáveis. Não há histórico de
+transições, vínculo de avanço com Sessão ou automação por tempo/tipo/recálculo. As decisões
+autoritativas de produto e o estado de QA/UX estão em
+[`phase-3-3b2.md`](../development/phase-3-3b2.md).
+A v27 exige entidade única da mesma campanha, consequência e metadados narrativos. Conclusão pede
+decisão explícita prévia e, se autorizado, cria Evento `draft`/`possibility` relacionado à entidade
+na mesma transação; arquivar a entidade preserva o vínculo e destaca o relógio, sem gerar Evento.
+v28 registra chave idempotente e payload de cada criação para que retries após resposta perdida ou
+reinício retornem o mesmo relógio/Evento; reutilização com payload/campanha diferente é recusada.
+Upgrade vazio v25/v26/v27 é suportado; se já houver relógios incompatíveis sem entidade/consequência, a
+migração falha explicitamente e reverte o lote, preservando dados/versão/backup, sem reparar por
+inferência. Os dois novos achados da revalidação QA foram corrigidos e aprovados pelo QA independente;
+UX manual conjunta de 3B permanece pendente conforme decisão do responsável.
 Esses limites preservam o modo local sem IA e sem rede: não há servidor HTTP, provedor de IA, modelo
 ou chamada externa necessária aos fluxos atuais. O fechamento 2.10E foi aprovado em 2026-09-21 com
 verify, 12 E2E, pacote Windows x64 e smoke test de SQLite/FTS5.
+
+Migração **29** acrescenta Demandas Emergentes, pendentes de QA independente. Sugestões reutilizam
+somente sinais `explicit_need`; aceitação é transação idempotente sinal→Demanda, sem promover
+cânone. Vínculos são Entidades, Relógios e Sessões; transformação cria filha e arquiva pai
+atomicamente. Resolução manual, após encerrar filhas, cria obrigatoriamente Evento Rascunho com
+todas as entidades vinculadas. Evento gerado tem conteúdo/origem/vínculos congelados, permitindo
+somente promoção explícita a Aceito/Fato e arquivamento/restauração.
+Referências estruturadas e snapshots preservam a necessidade original: valor, papel/tipo da
+definição e tipo da entidade recebem guardas permanentes específicas, sem congelar atributos
+independentes nem valores de entidades irmãs. Serviços antecipam erros e SQLite repete as
+invariantes contra bypass/REPLACE. A entidade não pode ser arquivada enquanto houver Demanda
+pendente vinculada. Não há novo detector, causalidade, IA/rede ou histórico geral. Contratos,
+estados e limites estão em [phase-3-3b3.md](../development/phase-3-3b3.md); UX conjunta 3B permanece
+pendente para o final da etapa.
 
 Decisões detalhadas ficam em [docs/adr](../adr/README.md).

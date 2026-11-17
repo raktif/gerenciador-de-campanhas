@@ -30,6 +30,9 @@ import {
   type ContradictionReviewContext,
 } from '../features/signals/contradiction-review-manager';
 import { InboxManager } from '../features/inbox/inbox-manager';
+import { StoryThreadManager } from '../features/story-threads/story-thread-manager';
+import { ClockManager } from '../features/clocks/clock-manager';
+import { DemandManager } from '../features/demands/demand-manager';
 import { presentUserFacingError, type UserFacingError } from '../../core/errors/user-facing-error';
 import { UserFacingErrorNotice } from '../components/user-facing-error-notice';
 import { Button, ButtonGroup } from '../components/actions';
@@ -56,7 +59,11 @@ type Screen =
   | 'notes'
   | 'sessions'
   | 'timeline'
-  | 'inbox';
+  | 'inbox'
+  | 'threads'
+  | 'clocks'
+  | 'demands';
+
 type CampaignScreen = Exclude<Screen, 'campaigns' | 'create'>;
 type CampaignStatus = Campaign['status'];
 type LifecycleAction = 'archive' | 'restore' | 'moveToTrash';
@@ -678,6 +685,24 @@ export function CampaignApp(): React.JSX.Element {
                     },
                   })}
             />
+          ) : screen === 'threads' && selectedCampaign !== null ? (
+            <StoryThreadManager
+              key={selectedCampaign.id}
+              campaign={selectedCampaign}
+              onBack={() => goBack('edit')}
+            />
+          ) : screen === 'demands' && selectedCampaign !== null ? (
+            <DemandManager
+              key={selectedCampaign.id}
+              campaign={selectedCampaign}
+              onBack={() => goBack('edit')}
+            />
+          ) : screen === 'clocks' && selectedCampaign !== null ? (
+            <ClockManager
+              key={selectedCampaign.id}
+              campaign={selectedCampaign}
+              onBack={() => goBack('edit')}
+            />
           ) : screen === 'sessions' && selectedCampaign !== null ? (
             <SessionManager
               campaign={selectedCampaign}
@@ -869,6 +894,21 @@ export function CampaignNavigation({
             active={screen === 'notes'}
             label="Notas"
             onClick={() => onNavigate('notes')}
+          />
+          <CampaignNavigationItem
+            active={screen === 'threads'}
+            label="Fios Abertos"
+            onClick={() => onNavigate('threads')}
+          />
+          <CampaignNavigationItem
+            active={screen === 'clocks'}
+            label="Relógios"
+            onClick={() => onNavigate('clocks')}
+          />
+          <CampaignNavigationItem
+            active={screen === 'demands'}
+            label="Demandas emergentes"
+            onClick={() => onNavigate('demands')}
           />
         </CampaignNavigationGroup>
       ) : (

@@ -34,6 +34,16 @@ export interface EntityTypeLookupPort {
 }
 
 export interface FieldDefinitionServiceDependencies {
+  demandProtection?: {
+    assertDefinitionMutation(
+      id: string,
+      patch: {
+        dataType?: string | undefined;
+        semanticRole?: string | null | undefined;
+        isArchived?: boolean | undefined;
+      },
+    ): void;
+  };
   repository: FieldDefinitionRepositoryPort;
   entityTypes: EntityTypeLookupPort;
   relationshipTypes?: { findById(campaignId: string, id: string): RelationshipType | null };
@@ -97,6 +107,7 @@ export class FieldDefinitionService {
 
   public update(input: UpdateFieldDefinitionInput): FieldDefinition {
     const current = this.requireFieldDefinition(input);
+    this.dependencies.demandProtection?.assertDefinitionMutation(input.id, input.patch);
     this.validateImageConfiguration({
       dataType: input.patch.dataType ?? current.dataType,
       required: input.patch.required ?? current.required,
@@ -152,6 +163,7 @@ export class FieldDefinitionService {
 
   public archive(input: FieldDefinitionLifecycleInput): FieldDefinition {
     const current = this.requireFieldDefinition(input);
+    this.dependencies.demandProtection?.assertDefinitionMutation(input.id, { isArchived: true });
     this.requireRevision(current, input.revision);
     if (current.isArchived) {
       throw new AppError(

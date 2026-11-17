@@ -23,6 +23,12 @@ import imageFieldAltTextIntegrityMigration from './0020_image_field_alt_text_int
 import relationshipViewsMigration from './0021_relationship_views.sql?raw';
 import campaignSignalsMigration from './0022_campaign_signals.sql?raw';
 import campaignSignalPriorityAndContradictionExceptionsMigration from './0023_campaign_signal_priority_and_contradiction_exceptions.sql?raw';
+import storyThreadsMigration from './0024_story_threads.sql?raw';
+import clocksMigration from './0025_clocks.sql?raw';
+import clockCompletedReplaceGuardMigration from './0026_clock_completed_replace_guard.sql?raw';
+import clockEntityConsequenceMigration from './0027_clock_entity_consequence_and_generated_events.sql?raw';
+import clockCreateIdempotencyMigration from './0028_clock_create_idempotency.sql?raw';
+import demandsMigration from './0029_demands.sql?raw';
 
 export interface MigrationDefinition extends MigrationChecksums {
   version: number;
@@ -181,6 +187,42 @@ export const migrations: readonly MigrationDefinition[] = [
     sql: campaignSignalPriorityAndContradictionExceptionsMigration,
     requiresForeignKeysDisabled: true,
     requiresLegacyAlterTable: true,
+  },
+  {
+    version: 24,
+    name: 'phase-three-story-threads',
+    ...createMigrationChecksums(storyThreadsMigration),
+    sql: storyThreadsMigration,
+  },
+  {
+    version: 25,
+    name: 'phase-three-clocks',
+    ...createMigrationChecksums(clocksMigration),
+    sql: clocksMigration,
+  },
+  {
+    version: 26,
+    name: 'phase-three-clock-completed-replace-guard',
+    ...createMigrationChecksums(clockCompletedReplaceGuardMigration),
+    sql: clockCompletedReplaceGuardMigration,
+  },
+  {
+    version: 27,
+    name: 'phase-three-clock-entity-consequence-and-generated-events',
+    ...createMigrationChecksums(clockEntityConsequenceMigration),
+    sql: clockEntityConsequenceMigration,
+  },
+  {
+    version: 28,
+    name: 'clock-create-idempotency',
+    ...createMigrationChecksums(clockCreateIdempotencyMigration),
+    sql: clockCreateIdempotencyMigration,
+  },
+  {
+    version: 29,
+    name: 'phase-three-demands',
+    ...createMigrationChecksums(demandsMigration),
+    sql: demandsMigration,
   },
 ];
 

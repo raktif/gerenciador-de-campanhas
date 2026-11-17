@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigationState, useRestoredRecord } from '../../app/navigation-provider';
 import type { Campaign } from '../../../core/contracts/campaigns';
 import type { Entity } from '../../../core/contracts/entities';
@@ -130,6 +130,13 @@ export function EventManager({
   const [error, setError] = useState<EventError | null>(null);
   const [announcement, setAnnouncement] = useState<string | null>(null);
   const [pending, setPending] = useState<PendingLifecycle | null>(null);
+  const demandPromotionRequest = useRef(0);
+  useEffect(
+    () => () => {
+      demandPromotionRequest.current += 1;
+    },
+    [campaign.id],
+  );
   useRestoredRecord(
     view === 'edit' ? editing?.event.id : undefined,
     (id) => window.campaignManager.events.get({ campaignId: campaign.id, id }),
@@ -275,6 +282,63 @@ export function EventManager({
       setBusy(false);
     }
   }
+
+  if (view === 'edit' && editing?.demandGenerated)
+    return (
+      <section className="grid gap-4">
+        <h1>{editing.event.title}</h1>
+        <p>
+          Evento gerado por Demanda: conteúdo, origem e vínculos congelados. Somente promoção
+          explícita para Aceito/Fato e arquivamento/restauração são permitidos.
+        </p>
+        <p className="whitespace-pre-wrap">{editing.event.descriptionMarkdown}</p>
+        <p>
+          {canonLabel(editing.event.canonState)} · {knowledgeLabel(editing.event.knowledgeState)}
+        </p>
+        {error && <UserFacingErrorNotice error={error} operation="events.mutate" />}
+        {editing.event.canonState === 'draft' && editing.event.archivedAt === null && (
+          <Button
+            disabled={busy}
+            onClick={() => {
+              setBusy(true);
+              setError(null);
+              const request = ++demandPromotionRequest.current;
+              void window.campaignManager.events
+                .update({
+                  campaignId: campaign.id,
+                  id: editing.event.id,
+                  revision: editing.event.revision,
+                  patch: { canonState: 'accepted', knowledgeState: 'fact' },
+                })
+                .then((result) => {
+                  if (request !== demandPromotionRequest.current) return;
+                  if (result.ok) setEditing(result.data);
+                  else setError(eventFailure(result.error));
+                })
+                .catch((reason: unknown) => {
+                  if (request === demandPromotionRequest.current)
+                    setError(presentUserFacingError(reason, 'events.mutate'));
+                })
+                .finally(() => {
+                  if (request === demandPromotionRequest.current) setBusy(false);
+                });
+            }}
+          >
+            Promover explicitamente a Aceito / Fato
+          </Button>
+        )}
+        <Button
+          disabled={busy}
+          onClick={() => {
+            setEditing(null);
+            setView('list');
+            void load(false);
+          }}
+        >
+          Voltar aos Eventos
+        </Button>
+      </section>
+    );
 
   if (view !== 'list')
     return (

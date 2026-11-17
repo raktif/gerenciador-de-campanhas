@@ -26,6 +26,8 @@ describe('gateway do preload', () => {
       'assertions',
       'campaignSignals',
       'campaigns',
+      'clocks',
+      'demands',
       'diagnostics',
       'entities',
       'entityTypes',
@@ -42,6 +44,7 @@ describe('gateway do preload', () => {
       'sessionIntentions',
       'sessionParticipants',
       'sessions',
+      'storyThreads',
       'timeline',
     ]);
     expect(Object.keys(gateway.campaigns).sort()).toEqual([

@@ -101,6 +101,47 @@ export class EventService {
   public update(input: UpdateEventInput): EventDetails {
     const current = this.requireEvent(input.campaignId, input.id);
     this.requireRevision(current.event, input.revision);
+    if (current.demandGenerated) {
+      const campaign = this.requireCampaign(input.campaignId);
+      if (campaign.status !== 'active')
+        throw new AppError(
+          'INVALID_CAMPAIGN_STATE',
+          'Restaure a campanha antes de promover o Evento.',
+        );
+      const patch = input.patch ?? {};
+      const changes = Object.entries(patch).filter(
+        ([key, value]) => value !== current.event[key as keyof Event],
+      );
+      const sameLinks =
+        input.links === undefined ||
+        (input.links.length === current.links.length &&
+          input.links.every((link) =>
+            current.links.some((old) => old.entityId === link.entityId && old.role === link.role),
+          ));
+      if (
+        !sameLinks ||
+        input.sourceSessionId !== undefined ||
+        current.event.archivedAt !== null ||
+        changes.some(([key]) => key !== 'canonState' && key !== 'knowledgeState') ||
+        current.event.canonState !== 'draft' ||
+        current.event.knowledgeState !== 'possibility' ||
+        patch.canonState !== 'accepted' ||
+        patch.knowledgeState !== 'fact'
+      )
+        throw new AppError(
+          'DEMAND_EVENT_IMMUTABLE',
+          'Somente a promoção explícita para Aceito/Fato é permitida.',
+        );
+      return this.dependencies.repository.update(
+        {
+          campaignId: input.campaignId,
+          id: input.id,
+          revision: input.revision,
+          patch: { canonState: 'accepted', knowledgeState: 'fact' },
+        },
+        this.now(),
+      );
+    }
     const patch = input.patch ?? {};
     const merged = {
       sessionId: patch.sessionId === undefined ? current.event.sessionId : patch.sessionId,

@@ -100,7 +100,15 @@ export class EventRepository {
       )
       .all()
       .map((link) => eventEntityLinkSchema.parse(link));
-    return eventDetailsSchema.parse({ event, links });
+    const generated =
+      this.database.all<{ id: string }>(
+        sql`SELECT id FROM demands WHERE generated_event_id = ${id} LIMIT 1`,
+      ).length > 0;
+    return eventDetailsSchema.parse({
+      event,
+      links,
+      ...(generated ? { demandGenerated: true } : {}),
+    });
   }
 
   public findSourceContext(id: string): EventSourceContext | null {

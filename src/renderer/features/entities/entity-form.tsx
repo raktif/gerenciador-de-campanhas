@@ -60,6 +60,12 @@ export function EntityForm(props: EntityFormProps): React.JSX.Element {
   const sourceId = props.mode === 'edit' ? props.entity.sourceId : null;
   const [fields, setFields] = useState<FieldDefinition[]>([]);
   const [fieldsLoading, setFieldsLoading] = useState(true);
+  const [fieldsError, setFieldsError] = useState(false);
+  const [fieldsRetry, setFieldsRetry] = useState(0);
+  const [lockedFields, setLockedFields] = useState<string[]>([]);
+  const [locksLoading, setLocksLoading] = useState(props.mode === 'edit');
+  const [locksError, setLocksError] = useState(false);
+  const [locksRetry, setLocksRetry] = useState(0);
   const [values, setValues] = useState<Record<string, string>>(() =>
     props.mode === 'edit' ? toFieldValueTexts(props.fieldValues) : {},
   );
@@ -71,6 +77,29 @@ export function EntityForm(props: EntityFormProps): React.JSX.Element {
   const continueEditingRef = useRef<HTMLButtonElement>(null);
   const discardDialogRef = useRef<HTMLElement>(null);
   const cancelInvokerRef = useRef<HTMLButtonElement>(null);
+  const lockEntityId = props.mode === 'edit' ? props.entity.id : null;
+  useEffect(() => {
+    let active = true;
+    if (lockEntityId === null) return;
+    setLocksLoading(true);
+    setLocksError(false);
+    void window.campaignManager.demands
+      .sourceLocks({ campaignId: props.campaign.id, id: lockEntityId })
+      .then((result) => {
+        if (!active) return;
+        if (result.ok) setLockedFields(result.data);
+        else setLocksError(true);
+      })
+      .catch(() => {
+        if (active) setLocksError(true);
+      })
+      .finally(() => {
+        if (active) setLocksLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [lockEntityId, props.campaign.id, locksRetry]);
 
   useEffect(() => {
     let cancelled = false;
@@ -80,17 +109,36 @@ export function EntityForm(props: EntityFormProps): React.JSX.Element {
       return;
     }
     setFieldsLoading(true);
-    void window.campaignManager.fieldDefinitions
-      .list({ campaignId: props.campaign.id, entityTypeId, filters: { isArchived: false } })
-      .then((result) => {
-        if (cancelled) return;
-        if (result.ok) setFields(result.data.items);
-        setFieldsLoading(false);
-      });
+    setFieldsError(false);
+    async function loadFields(): Promise<void> {
+      try {
+        const all: FieldDefinition[] = [];
+        let cursor: string | null = null;
+        do {
+          const result = await window.campaignManager.fieldDefinitions.list({
+            campaignId: props.campaign.id,
+            entityTypeId,
+            filters: { isArchived: false },
+            limit: 100,
+            ...(cursor ? { cursor } : {}),
+          });
+          if (cancelled) return;
+          if (!result.ok) throw new Error('fields');
+          all.push(...result.data.items);
+          cursor = result.data.nextCursor;
+        } while (cursor);
+        setFields(all);
+      } catch {
+        if (!cancelled) setFieldsError(true);
+      } finally {
+        if (!cancelled) setFieldsLoading(false);
+      }
+    }
+    void loadFields();
     return () => {
       cancelled = true;
     };
-  }, [entityTypeId, props.campaign.id]);
+  }, [entityTypeId, props.campaign.id, fieldsRetry]);
 
   useEffect(() => {
     let cancelled = false;
@@ -451,7 +499,9 @@ export function EntityForm(props: EntityFormProps): React.JSX.Element {
                   />
                 ) : (
                   <FieldValueInputControl
-                    disabled={props.busy}
+                    disabled={
+                      props.busy || locksLoading || locksError || lockedFields.includes(field.id)
+                    }
                     field={field}
                     key={field.id}
                     onChange={(value) => {
@@ -461,6 +511,30 @@ export function EntityForm(props: EntityFormProps): React.JSX.Element {
                     value={values[field.id] ?? ''}
                   />
                 ),
+              )}
+              {lockedFields.length > 0 && (
+                <p role="note">
+                  Campo usado por Demanda: a necessidade original está protegida permanentemente.
+                  Crie outro campo de Need para uma nova necessidade. Outros atributos continuam
+                  editáveis.
+                </p>
+              )}
+              {locksLoading && <p role="status">Conferindo campos usados por Demandas…</p>}
+              {fieldsError && (
+                <p role="alert">
+                  Não foi possível carregar todos os campos.{' '}
+                  <Button onClick={() => setFieldsRetry((value) => value + 1)}>
+                    Carregar campos novamente
+                  </Button>
+                </p>
+              )}
+              {locksError && (
+                <p role="alert">
+                  Não foi possível conferir os campos protegidos.{' '}
+                  <Button onClick={() => setLocksRetry((value) => value + 1)}>
+                    Conferir proteção novamente
+                  </Button>
+                </p>
               )}
             </fieldset>
           )}
@@ -478,7 +552,12 @@ export function EntityForm(props: EntityFormProps): React.JSX.Element {
             <Button disabled={props.busy} onClick={requestCancel}>
               Cancelar
             </Button>
-            <Button busy={props.busy} type="submit" variant="primary">
+            <Button
+              busy={props.busy}
+              disabled={fieldsLoading || fieldsError || locksLoading || locksError}
+              type="submit"
+              variant="primary"
+            >
               {props.busy
                 ? 'Salvando…'
                 : props.mode === 'create'

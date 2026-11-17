@@ -18,6 +18,8 @@ import { ensureDataDirectories, getDataDirectories } from '../../core/storage/da
 import { openApplicationDatabase, type DatabaseContext } from '../../db/connection';
 import { AssertionRepository } from '../../db/repositories/assertion-repository';
 import { CampaignSignalRepository } from '../../db/repositories/campaign-signal-repository';
+import { StoryThreadRepository } from '../../db/repositories/story-thread-repository';
+import { ClockRepository } from '../../db/repositories/clock-repository';
 import { AppearanceRepository } from '../../db/repositories/appearance-repository';
 import { CampaignRepository } from '../../db/repositories/campaign-repository';
 import { AttachmentRepository } from '../../db/repositories/attachment-repository';
@@ -44,6 +46,8 @@ import { registerAppearanceIpcHandlers } from '../ipc/appearance-handlers';
 import { registerDiagnosticsIpcHandlers } from '../ipc/diagnostics-handlers';
 import { registerAssertionIpcHandlers } from '../ipc/assertion-handlers';
 import { registerCampaignSignalIpcHandlers } from '../ipc/campaign-signal-handlers';
+import { registerStoryThreadIpcHandlers } from '../ipc/story-thread-handlers';
+import { registerClockIpcHandlers } from '../ipc/clock-handlers';
 import { registerEntityIpcHandlers } from '../ipc/entity-handlers';
 import { registerEntityTypeIpcHandlers } from '../ipc/entity-type-handlers';
 import { registerEventIpcHandlers } from '../ipc/event-handlers';
@@ -71,6 +75,11 @@ import { AppearanceService } from '../services/appearance-service';
 import { StartupDiagnosticsService } from '../services/startup-diagnostics-service';
 import { AssertionService } from '../services/assertion-service';
 import { CampaignSignalService } from '../services/campaign-signal-service';
+import { StoryThreadService } from '../services/story-thread-service';
+import { ClockService } from '../services/clock-service';
+import { DemandRepository } from '../../db/repositories/demand-repository';
+import { DemandService } from '../services/demand-service';
+import { registerDemandIpcHandlers } from '../ipc/demand-handlers';
 import { createAssertionRegistryTestHooks } from './assertion-registry-test-hooks';
 import { EntityService } from '../services/entity-service';
 import { EntityTypeService } from '../services/entity-type-service';
@@ -147,6 +156,9 @@ export async function bootstrapApplication(): Promise<RunningApplication> {
   const timelineRepository = new TimelineRepository(database.orm);
   const assertionRepository = new AssertionRepository(database.orm);
   const campaignSignalRepository = new CampaignSignalRepository(database.native);
+  const storyThreadRepository = new StoryThreadRepository(database.native);
+  const clockRepository = new ClockRepository(database.native);
+  const demandRepository = new DemandRepository(database.native);
   const noteRepository = new NoteRepository(database.orm);
   const inboxRepository = new InboxRepository(database.orm);
   const sessionRepository = new SessionRepository(database.orm);
@@ -271,6 +283,7 @@ export async function bootstrapApplication(): Promise<RunningApplication> {
     authorizedWebContentsId: window.webContents.id,
   });
   const entityTypeService = new EntityTypeService({
+    demandProtection: demandRepository,
     repository: entityTypeRepository,
     campaigns: campaignRepository,
   });
@@ -280,6 +293,7 @@ export async function bootstrapApplication(): Promise<RunningApplication> {
     authorizedWebContentsId: window.webContents.id,
   });
   const fieldDefinitionService = new FieldDefinitionService({
+    demandProtection: demandRepository,
     repository: fieldDefinitionRepository,
     entityTypes: entityTypeRepository,
     relationshipTypes: relationshipTypeRepository,
@@ -290,6 +304,7 @@ export async function bootstrapApplication(): Promise<RunningApplication> {
     authorizedWebContentsId: window.webContents.id,
   });
   const entityService = new EntityService({
+    demandProtection: demandRepository,
     repository: entityRepository,
     entityTypes: entityTypeRepository,
     fieldDefinitions: fieldDefinitionRepository,
@@ -355,6 +370,29 @@ export async function bootstrapApplication(): Promise<RunningApplication> {
   });
   const unregisterCampaignSignalIpc = registerCampaignSignalIpcHandlers(ipcMain, {
     service: campaignSignalService,
+    logger,
+    authorizedWebContentsId: window.webContents.id,
+  });
+  const storyThreadService = new StoryThreadService({
+    repository: storyThreadRepository,
+    campaigns: campaignRepository,
+  });
+  const unregisterStoryThreadIpc = registerStoryThreadIpcHandlers(ipcMain, {
+    service: storyThreadService,
+    logger,
+    authorizedWebContentsId: window.webContents.id,
+  });
+  const clockService = new ClockService({
+    repository: clockRepository,
+    campaigns: campaignRepository,
+  });
+  const unregisterDemandIpc = registerDemandIpcHandlers(ipcMain, {
+    service: new DemandService(demandRepository),
+    logger,
+    authorizedWebContentsId: window.webContents.id,
+  });
+  const unregisterClockIpc = registerClockIpcHandlers(ipcMain, {
+    service: clockService,
     logger,
     authorizedWebContentsId: window.webContents.id,
   });
@@ -452,6 +490,9 @@ export async function bootstrapApplication(): Promise<RunningApplication> {
       unregisterRelationshipViewIpc();
       unregisterAssertionIpc();
       unregisterCampaignSignalIpc();
+      unregisterStoryThreadIpc();
+      unregisterClockIpc();
+      unregisterDemandIpc();
       unregisterNoteIpc();
       unregisterInboxIpc();
       unregisterEventIpc();
