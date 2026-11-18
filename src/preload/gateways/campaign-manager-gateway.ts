@@ -239,12 +239,14 @@ import {
 } from '../../core/contracts/story-threads';
 import {
   clockPageRequestSchema,
+  clockSourceOptionsRequestSchema,
   completeClockInputSchema,
   createClockInputSchema,
   getClockInputSchema,
   updateClockInputSchema,
   type Clock,
   type ClockPageResult,
+  type ClockSourceOption,
 } from '../../core/contracts/clocks';
 import type { CampaignSignal } from '../../core/contracts/campaign-signals';
 import {
@@ -332,6 +334,12 @@ export function createCampaignManagerGateway(
       create: (input) => invoke<Clock>(clockChannels.create, input, createClockInputSchema),
       get: (input) => invoke<Clock>(clockChannels.get, input, getClockInputSchema),
       list: (input) => invoke<ClockPageResult>(clockChannels.list, input, clockPageRequestSchema),
+      sourceOptions: (input) =>
+        invoke<ClockSourceOption[]>(
+          clockChannels.sourceOptions,
+          input,
+          clockSourceOptionsRequestSchema,
+        ),
       update: (input) => invoke<Clock>(clockChannels.update, input, updateClockInputSchema),
       complete: (input) => invoke<Clock>(clockChannels.complete, input, completeClockInputSchema),
     },

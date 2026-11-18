@@ -21,6 +21,7 @@ import {
   type NarrativeMetadataValues,
 } from '../narrative/narrative-metadata-fields';
 import { useSessionSourceOptions } from '../narrative/session-source-options';
+import { useClockSourceOptions } from './clock-source-options';
 
 type View = 'list' | 'detail' | 'create' | 'edit';
 type Filter = '' | ClockStatus;
@@ -91,6 +92,9 @@ export function ClockManager({
   );
   const [notice, setNotice] = useState('');
   const sessionSource = useSessionSourceOptions(campaign.id);
+  const clockSourceOptions = useClockSourceOptions(campaign.id, form.metadata.originKind);
+  const registeredSourceRequired =
+    form.metadata.originKind !== 'manual' && form.metadata.originKind !== 'session';
   const listRequest = useRef(0);
   const detailRequest = useRef(0);
   const entityRequest = useRef(0);
@@ -491,7 +495,7 @@ export function ClockManager({
               <li key={clock.id}>
                 <button
                   type="button"
-                  className="w-full rounded-xl border semantic-border p-4 text-left hover:semantic-surface"
+                  className="w-full cursor-pointer rounded-xl border semantic-border p-4 text-left hover:semantic-surface"
                   onClick={() => void openClock(clock)}
                 >
                   <span className="flex flex-wrap items-center justify-between gap-2">
@@ -663,6 +667,15 @@ export function ClockManager({
               value: form.sessionId,
               onChange: (sourceId) => setForm((current) => ({ ...current, sessionId: sourceId })),
             }}
+            registeredSource={{
+              ...clockSourceOptions,
+              value: form.metadata.sourceId ?? '',
+              onChange: (sourceId) =>
+                setForm((current) => ({
+                  ...current,
+                  metadata: { ...current.metadata, sourceId: sourceId || null },
+                })),
+            }}
           />
           <label className="grid gap-1 text-sm font-medium">
             Tipo
@@ -734,7 +747,17 @@ export function ClockManager({
             poderá concluí-lo com o progresso atual, inclusive sem divisões preenchidas.
           </p>
           <ButtonGroup aria-label="Ações do formulário">
-            <Button disabled={busy || form.segmentsFilled > form.segmentsTotal} type="submit">
+            <Button
+              disabled={
+                busy ||
+                form.segmentsFilled > form.segmentsTotal ||
+                (registeredSourceRequired &&
+                  (clockSourceOptions.loading ||
+                    !clockSourceOptions.available ||
+                    form.metadata.sourceId === null))
+              }
+              type="submit"
+            >
               {busy ? 'Salvando…' : view === 'create' ? 'Criar relógio' : 'Salvar alterações'}
             </Button>
             <Button

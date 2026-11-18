@@ -2,6 +2,8 @@ import type { IpcMain, IpcMainInvokeEvent } from 'electron';
 import {
   clockPageRequestSchema,
   clockPageResultSchema,
+  clockSourceOptionsRequestSchema,
+  clockSourceOptionsSchema,
   clockSchema,
   completeClockInputSchema,
   createClockInputSchema,
@@ -44,6 +46,12 @@ export function registerClockIpcHandlers(
   );
   register(clockChannels.list, clockPageRequestSchema, clockPageResultSchema, (value) =>
     dependencies.service.list(value),
+  );
+  register(
+    clockChannels.sourceOptions,
+    clockSourceOptionsRequestSchema,
+    clockSourceOptionsSchema,
+    (value) => dependencies.service.sourceOptions(value),
   );
   register(clockChannels.update, updateClockInputSchema, clockSchema, (value) =>
     dependencies.service.update(value),

@@ -510,6 +510,17 @@ select {
   font: inherit;
 }
 
+select {
+  background-color: var(--surface);
+  color: var(--text-primary);
+  color-scheme: inherit;
+}
+
+option {
+  background-color: var(--surface);
+  color: var(--text-primary);
+}
+
 .relationship-canvas {
   width: 100%;
   height: clamp(28rem, 60vh, 42rem);
@@ -610,11 +621,49 @@ select {
   }
 }
 .rich-text-content p,
+.rich-text-content h1,
+.rich-text-content h2,
+.rich-text-content h3,
 .rich-text-content ul,
 .rich-text-content ol,
 .rich-text-content blockquote,
 .rich-text-content table {
   margin-block: 0.75rem;
+}
+
+.rich-text-content h1,
+.rich-text-editor h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.rich-text-content h2,
+.rich-text-editor h2 {
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.rich-text-content h3,
+.rich-text-editor h3 {
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+.rich-text-content blockquote,
+.rich-text-editor blockquote {
+  border-inline-start: 3px solid currentColor;
+  padding-inline-start: 1rem;
+}
+
+.rich-text-content,
+.rich-text-editor {
+  overflow-wrap: anywhere;
+}
+
+.rich-text-content img,
+.rich-text-editor img {
+  height: auto;
+  max-width: 100%;
 }
 
 .rich-text-content ul {
@@ -640,6 +689,9 @@ select {
 }
 
 .rich-text-editor p,
+.rich-text-editor h1,
+.rich-text-editor h2,
+.rich-text-editor h3,
 .rich-text-editor ul,
 .rich-text-editor ol,
 .rich-text-editor blockquote,
@@ -668,4 +720,81 @@ select {
   min-width: 4rem;
   padding: 0.35rem 0.6rem;
   vertical-align: top;
+}
+
+.rich-text-toolbar {
+  border: 1px solid currentColor;
+  border-bottom: 0;
+  border-radius: 0.75rem 0.75rem 0 0;
+  padding: 0.375rem;
+}
+
+.rich-text-editor:empty::before {
+  color: currentColor;
+  content: attr(data-placeholder);
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.rich-text-toolbar-button,
+.rich-text-toolbar-select,
+.rich-text-color-control {
+  display: inline-flex;
+  min-width: 2rem;
+  min-height: 2rem;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 0.25rem;
+  background: transparent;
+  color: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.rich-text-toolbar-button {
+  padding-inline: 0.5rem;
+}
+
+.rich-text-toolbar-button:hover,
+.rich-text-toolbar-select:hover,
+.rich-text-color-control:hover {
+  background: color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.rich-text-toolbar-button:focus-visible,
+.rich-text-toolbar-select:focus-visible,
+.rich-text-color-control:focus-within {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.rich-text-toolbar-select {
+  max-width: 7rem;
+  padding-inline: 0.5rem;
+}
+
+.rich-text-color-control {
+  position: relative;
+  cursor: pointer;
+  padding-inline: 0.5rem;
+}
+
+.rich-text-color-control select {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  cursor: pointer;
+  opacity: 0;
+}
+
+.rich-text-color-control > span {
+  border-block-end: 2px solid currentColor;
+  line-height: 1;
+}
+
+.rich-text-content hr,
+.rich-text-editor hr {
+  margin-block: 0.75rem;
+  border-top: 1px solid currentColor;
 }

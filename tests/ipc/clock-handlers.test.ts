@@ -58,12 +58,13 @@ describe('fronteira IPC de Relógios', () => {
       ],
       [clockChannels.get, { campaignId, id }],
       [clockChannels.list, { campaignId }],
+      [clockChannels.sourceOptions, { campaignId, originKind: 'document' }],
       [clockChannels.update, { ...base, patch: { segmentsFilled: 2 } }],
       [clockChannels.complete, { ...base, generateEvent: false }],
     ] as const)
-      expect(await invoke(channel)(event(42), input)).toMatchObject({ ok: true });
+      expect(await invoke(channel)(event(42), input), channel).toMatchObject({ ok: true });
 
-    expect(service.calls).toEqual(['create', 'get', 'list', 'update', 'complete']);
+    expect(service.calls).toEqual(['create', 'get', 'list', 'sourceOptions', 'update', 'complete']);
     service.failure = new AppError('INVALID_CLOCK_STATE', 'Relógio concluído.');
     expect(
       await invoke(clockChannels.update)(event(42), {
@@ -97,6 +98,10 @@ class FakeClockService {
     this.calls.push('list');
     return { items: [], nextCursor: null, total: 0 };
   }
+  public sourceOptions() {
+    this.calls.push('sourceOptions');
+    return [];
+  }
   public update() {
     return this.value('update');
   }
@@ -124,6 +129,7 @@ class FakeClockService {
       visibility: 'gm',
       originKind: 'manual',
       sourceId: null,
+      sessionId: null,
       generatedEventId: null,
       createdAt: now,
       updatedAt: now,

@@ -22,9 +22,11 @@ export const clockTypes = [
 ] as const;
 export const clockStatuses = ['active', 'completed'] as const;
 export const clockDivisionCounts = [4, 6, 8, 10, 12] as const;
+export const clockSourceOptionKinds = ['import', 'document', 'ruleset', 'ai', 'generator'] as const;
 
 export const clockTypeSchema = z.enum(clockTypes);
 export const clockStatusSchema = z.enum(clockStatuses);
+export const clockSourceOptionKindSchema = z.enum(clockSourceOptionKinds);
 export const clockDivisionCountSchema = z.union([
   z.literal(4),
   z.literal(6),
@@ -204,10 +206,25 @@ export const clockPageResultSchema = z
   })
   .strict();
 
+export const clockSourceOptionsRequestSchema = z
+  .object({
+    campaignId: identifierSchema,
+    originKind: clockSourceOptionKindSchema,
+  })
+  .strict();
+
+export const clockSourceOptionSchema = z
+  .object({ id: identifierSchema, label: z.string().trim().min(1).max(2000) })
+  .strict();
+
+export const clockSourceOptionsSchema = z.array(clockSourceOptionSchema);
+
 export type Clock = z.infer<typeof clockSchema>;
 export type ClockType = (typeof clockTypes)[number];
 export type ClockStatus = (typeof clockStatuses)[number];
 export type ClockDivisionCount = (typeof clockDivisionCounts)[number];
+export type ClockSourceOptionKind = (typeof clockSourceOptionKinds)[number];
+export type ClockSourceOption = z.infer<typeof clockSourceOptionSchema>;
 export type CreateClockInput = z.input<typeof createClockInputSchema>;
 export type CreateClockRequest = z.infer<typeof createClockInputSchema>;
 export type UpdateClockInput = z.infer<typeof updateClockInputSchema>;
@@ -216,11 +233,13 @@ export type CompleteClockInput = z.infer<typeof completeClockInputSchema>;
 export type ClockPageRequestInput = z.input<typeof clockPageRequestSchema>;
 export type ClockPageRequest = z.infer<typeof clockPageRequestSchema>;
 export type ClockPageResult = z.infer<typeof clockPageResultSchema>;
+export type ClockSourceOptionsRequest = z.infer<typeof clockSourceOptionsRequestSchema>;
 
 export interface ClockGateway {
   create(input: CreateClockInput): Promise<Result<Clock>>;
   get(input: GetClockInput): Promise<Result<Clock>>;
   list(input: ClockPageRequestInput): Promise<Result<ClockPageResult>>;
+  sourceOptions(input: ClockSourceOptionsRequest): Promise<Result<ClockSourceOption[]>>;
   update(input: UpdateClockInput): Promise<Result<Clock>>;
   complete(input: CompleteClockInput): Promise<Result<Clock>>;
 }

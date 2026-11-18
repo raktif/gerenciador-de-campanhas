@@ -24,6 +24,7 @@ describe('gateway tipado de Relógios', () => {
     });
     await gateway.clocks.get({ campaignId, id });
     await gateway.clocks.list({ campaignId, status: 'completed' });
+    await gateway.clocks.sourceOptions({ campaignId, originKind: 'document' });
     await gateway.clocks.update({
       campaignId,
       id,
@@ -50,6 +51,6 @@ describe('gateway tipado de Relógios', () => {
         patch: { status: 'inactive' },
       } as never),
     ).toThrow();
-    expect(calls).toHaveLength(5);
+    expect(calls).toHaveLength(6);
   });
 });

@@ -97,6 +97,9 @@ test('3B.3 revisão, links N, filha/pai, resolução confirmada e Need protegido
     });
     await page.getByRole('button', { name: 'Abrir campanha Demandas de teste' }).click();
     await page.getByRole('button', { name: 'Demandas emergentes', exact: true }).click();
+    await expect(
+      page.getByRole('button', { name: '← Voltar para detalhes da campanha' }),
+    ).toBeVisible();
     await page.getByRole('button', { name: 'Revisar para aceitar' }).click();
     await expect(page.getByLabel('Necessidade obrigatória')).toHaveValue('Investigar os cabos');
     await expect(page.getByRole('button', { name: 'Aceitar Demanda' })).toBeDisabled();
@@ -115,7 +118,7 @@ test('3B.3 revisão, links N, filha/pai, resolução confirmada e Need protegido
       page.getByRole('heading', { name: 'Necessidade de Gorel', exact: true }),
     ).toBeVisible();
     await expect(page.getByText('Sessão — Sessão da descoberta · Relacionada')).toBeVisible();
-    await page.getByRole('button', { name: 'Voltar à lista' }).click();
+    await page.getByRole('button', { name: '← Voltar para Demandas emergentes' }).click();
     await expect(page.getByText('Nenhuma necessidade explícita disponível.')).toBeVisible();
     await page.getByRole('button', { name: 'Necessidade de Gorel — Disponível' }).click();
     const protectedSource = await page.evaluate(async (ids) => {
@@ -131,6 +134,12 @@ test('3B.3 revisão, links N, filha/pai, resolução confirmada e Need protegido
       });
     }, ids);
     expect(protectedSource).toMatchObject({ ok: false, error: { code: 'DEMAND_NEED_LOCKED' } });
+    await page.getByRole('button', { name: 'Editar Demanda', exact: true }).click();
+    await page.getByRole('button', { name: '← Voltar para Demandas emergentes' }).click();
+    await expect(
+      page.getByRole('button', { name: 'Necessidade de Gorel — Disponível' }),
+    ).toBeVisible();
+    await page.getByRole('button', { name: 'Necessidade de Gorel — Disponível' }).click();
     await page.getByRole('button', { name: 'Criar subdemanda', exact: true }).click();
     await expect(page.getByText('Relógio — Pressão da mina · Relacionada')).toBeVisible();
     await expect(page.getByText('Sessão — Sessão da descoberta · Relacionada')).toBeVisible();

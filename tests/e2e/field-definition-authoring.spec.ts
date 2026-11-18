@@ -43,6 +43,20 @@ test('autoria ajuda e referências por nomes sem expor UUIDs', async () => {
       .getByRole('combobox', { name: 'Tipo de dado' })
       .selectOption('entity_reference_list');
 
+    const dataType = window.getByRole('combobox', { name: 'Tipo de dado' });
+    const semanticRole = window.getByRole('combobox', { name: 'Papel semântico' });
+    const dataTypeBounds = await dataType.boundingBox();
+    const semanticRoleBounds = await semanticRole.boundingBox();
+    if (dataTypeBounds === null || semanticRoleBounds === null)
+      throw new Error('Os seletores do formulário precisam estar visíveis.');
+    expect(
+      Math.abs(
+        dataTypeBounds.y +
+          dataTypeBounds.height -
+          (semanticRoleBounds.y + semanticRoleBounds.height),
+      ),
+    ).toBeLessThan(3);
+
     const relationshipType = window.getByLabel('Tipo de relacionamento');
     const allowedTypes = window.getByRole('group', { name: 'Tipos de entidade permitidos' });
     await expect(relationshipType).toBeEnabled();
@@ -55,6 +69,9 @@ test('autoria ajuda e referências por nomes sem expor UUIDs', async () => {
 
     await relationshipType.selectOption({ label: 'Aliado de' });
     await window.getByLabel('Direção').selectOption('outgoing');
+    await expect(
+      window.getByRole('option', { name: 'Esta entidade → entidade referenciada' }),
+    ).toBeAttached();
     await allowedTypes.getByRole('checkbox', { name: 'Personagens' }).check();
     await allowedTypes.getByRole('checkbox', { name: 'Locais' }).check();
     await window.getByLabel('Ao excluir').selectOption('unlink');

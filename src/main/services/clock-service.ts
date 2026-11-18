@@ -6,6 +6,7 @@ import {
   createClockInputSchema,
   getClockInputSchema,
   updateClockInputSchema,
+  clockSourceOptionsRequestSchema,
   type Clock,
   type ClockPageRequestInput,
   type ClockPageResult,
@@ -13,6 +14,8 @@ import {
   type CreateClockInput,
   type GetClockInput,
   type UpdateClockInput,
+  type ClockSourceOption,
+  type ClockSourceOptionsRequest,
 } from '../../core/contracts/clocks';
 import { AppError } from '../../core/errors/app-error';
 import type { ClockRepository } from '../../db/repositories/clock-repository';
@@ -76,6 +79,12 @@ export class ClockService {
     const input = clockPageRequestSchema.parse(request);
     this.requireActiveCampaign(input.campaignId);
     return this.dependencies.repository.list(input);
+  }
+
+  public sourceOptions(request: ClockSourceOptionsRequest): ClockSourceOption[] {
+    const input = clockSourceOptionsRequestSchema.parse(request);
+    this.requireActiveCampaign(input.campaignId);
+    return this.dependencies.repository.listSourceOptions(input);
   }
 
   public update(request: UpdateClockInput): Clock {

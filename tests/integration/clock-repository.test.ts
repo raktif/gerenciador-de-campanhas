@@ -24,6 +24,47 @@ afterEach(async () => {
 });
 
 describe('persistência SQLite de Relógios', () => {
+  it('lista referências da mesma origem vinculadas à campanha solicitada', async () => {
+    const { context, ids, service, repository } = await setup();
+    const campaignSourceId = randomUUID();
+    const otherCampaignSourceId = randomUUID();
+    context.native
+      .prepare(
+        `INSERT INTO sources (id, kind, import_batch_id, description, created_at)
+         VALUES (@id, 'import', @batchId, @description, @createdAt)`,
+      )
+      .run({
+        id: campaignSourceId,
+        batchId: randomUUID(),
+        description: 'Importação desta campanha',
+        createdAt: now,
+      });
+    context.native
+      .prepare(
+        `INSERT INTO sources (id, kind, import_batch_id, description, created_at)
+         VALUES (@id, 'import', @batchId, @description, @createdAt)`,
+      )
+      .run({
+        id: otherCampaignSourceId,
+        batchId: randomUUID(),
+        description: 'Importação de outra campanha',
+        createdAt: now,
+      });
+    context.native
+      .prepare('UPDATE entities SET source_id = @sourceId WHERE id = @entityId')
+      .run({ sourceId: campaignSourceId, entityId: ids.entity });
+    context.native
+      .prepare('UPDATE entities SET source_id = @sourceId WHERE id = @entityId')
+      .run({ sourceId: otherCampaignSourceId, entityId: ids.otherEntity });
+
+    expect(service.sourceOptions({ campaignId: ids.campaign, originKind: 'import' })).toEqual([
+      { id: campaignSourceId, label: 'Importação desta campanha' },
+    ]);
+    expect(repository.listSourceOptions({ campaignId: ids.campaign, originKind: 'ai' })).toEqual(
+      [],
+    );
+  });
+
   it('deduplica reenvio da mesma criação/evento, rejeita reuso divergente e preserva novas criações intencionais', async () => {
     const { context, directories, ids, service } = await setup();
     const idempotencyKey = randomUUID();
@@ -1139,6 +1180,7 @@ async function setup(): Promise<{
       }),
     get: instance.get.bind(instance),
     list: instance.list.bind(instance),
+    sourceOptions: instance.sourceOptions.bind(instance),
     update: instance.update.bind(instance),
     complete: instance.complete.bind(instance),
   };

@@ -56,6 +56,20 @@ describe('serviço de Relógios', () => {
     expect(repository.createCalls).toBe(1);
   });
 
+  it('lista apenas referências cadastradas do tipo solicitado em campanha ativa', () => {
+    const repository = new FakeClockRepository();
+    repository.sourceOptionItems = [{ id, label: 'Fonte documental' }];
+    const service = createService(repository);
+
+    expect(service.sourceOptions({ campaignId, originKind: 'document' })).toEqual([
+      { id, label: 'Fonte documental' },
+    ]);
+    expect(repository.sourceOptionsRequest).toEqual({ campaignId, originKind: 'document' });
+    expect(() =>
+      createService(repository, 'archived').sourceOptions({ campaignId, originKind: 'document' }),
+    ).toThrow('A campanha não está ativa para relógios.');
+  });
+
   it('encaminha alteração de preenchimento e conclusão parcial como comandos explícitos revisionados', () => {
     const repository = new FakeClockRepository();
     const service = createService(repository);
@@ -90,6 +104,8 @@ class FakeClockRepository {
   public created: unknown;
   public updateInput: unknown;
   public completed: unknown;
+  public sourceOptionsRequest: unknown;
+  public sourceOptionItems: { id: string; label: string }[] = [];
   public create(input: unknown): Clock {
     this.createCalls += 1;
     this.created = input;
@@ -100,6 +116,10 @@ class FakeClockRepository {
   }
   public list() {
     return { items: [], nextCursor: null, total: 0 };
+  }
+  public listSourceOptions(request: unknown) {
+    this.sourceOptionsRequest = request;
+    return this.sourceOptionItems;
   }
   public update(input: unknown): Clock {
     this.updateInput = input;

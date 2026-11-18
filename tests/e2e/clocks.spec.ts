@@ -123,6 +123,10 @@ test('cria, avança explicitamente, conclui parcialmente e consulta relógios ap
     });
 
     await window.getByRole('button', { name: 'Voltar à lista' }).click();
+    await expect(window.getByRole('button', { name: /Objetivo da expedição/ })).toHaveCSS(
+      'cursor',
+      'pointer',
+    );
     await window.getByRole('button', { name: 'Novo relógio' }).click();
     await window.getByLabel('Nome', { exact: true }).fill('Acontecimento opcional');
     await window.getByLabel('Entidade vinculada').selectOption(entity.id);

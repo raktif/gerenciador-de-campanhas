@@ -3,7 +3,13 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import Database from 'better-sqlite3';
-import { _electron as electron, expect, test, type ElectronApplication } from '@playwright/test';
+import {
+  _electron as electron,
+  expect,
+  test,
+  type ElectronApplication,
+  type Locator,
+} from '@playwright/test';
 import {
   legacyStructuredJsonToRichText,
   structuredJsonToRichText,
@@ -19,6 +25,11 @@ test('campos de seleção, progresso e Rich Text funcionam na criação e consul
   try {
     application = await launch(dataDirectory);
     const window = await application.firstWindow();
+    await window.getByRole('switch', { name: 'Modo noturno' }).click();
+    await expect(window.getByRole('switch', { name: 'Modo noturno' })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    );
     await window.getByRole('button', { name: 'Criar primeira campanha' }).click();
     await window.getByLabel('Nome da campanha').fill('Campos visuais');
     await window.getByRole('button', { name: 'Criar campanha', exact: true }).click();
@@ -35,6 +46,7 @@ test('campos de seleção, progresso e Rich Text funcionam na criação e consul
     await createField(window, 'Especialidades', 'multi_select', 'Feiticeira, Ladina');
     await createField(window, 'Avanço', 'progress');
     await createField(window, 'Histórico', 'rich_text');
+    await createField(window, 'Biografia', 'long_text');
     await window.getByRole('button', { name: 'Editar campo Estado' }).click();
     await expect(window.getByRole('textbox', { name: 'Valores para seleção' })).toHaveValue(
       'Árvore, Zebra',
@@ -49,6 +61,7 @@ test('campos de seleção, progresso e Rich Text funcionam na criação e consul
     await window.getByRole('button', { name: 'Voltar para tipos de entidade' }).click();
     await window.getByRole('button', { name: 'Voltar para detalhes da campanha' }).click();
     await window.getByRole('button', { name: 'Ver entidades' }).click();
+    await expectSemanticSelectUsesTheme(window.getByLabel('Filtrar por tipo'));
     await window.getByRole('button', { name: 'Nova entidade', exact: true }).click();
     await window.getByLabel('Nome *').fill('Nara');
     await expect(window.getByText('Exemplos de progresso: 2/4 e 75/100.')).toBeVisible();
@@ -72,6 +85,8 @@ test('campos de seleção, progresso e Rich Text funcionam na criação e consul
     await expect(window.getByText(/Este valor legado não tinha total/)).toHaveCount(0);
     await window.getByLabel('Valor atual').fill('2.5');
     await window.getByLabel('Valor final *').fill('4.5');
+    const longTextValue = 'Z'.repeat(240);
+    await window.getByLabel('Biografia', { exact: true }).fill(longTextValue);
     const editor = window.getByRole('textbox', { name: 'Histórico' });
     await editor.fill('Texto em destaque');
     await editor.evaluate((element) => {
@@ -85,18 +100,130 @@ test('campos de seleção, progresso e Rich Text funcionam na criação e consul
     });
     await window.getByRole('button', { name: 'Negrito' }).click();
     await expect(editor.locator('strong')).toHaveText('Texto em destaque');
+    await window.getByRole('button', { name: 'Negrito' }).click();
+    await expect(editor.locator('strong')).toHaveCount(0);
+    await selectEditorContents(editor);
+    await window.getByRole('button', { name: 'Negrito' }).click();
+    await expect(editor.locator('strong')).toHaveText('Texto em destaque');
+    await selectEditorContents(editor);
+    await window.getByRole('button', { name: 'Itálico' }).click();
+    await expect(editor.locator('em')).toHaveText('Texto em destaque');
+    await window.getByRole('button', { name: 'Itálico' }).click();
+    await expect(editor.locator('em')).toHaveCount(0);
+    await selectEditorContents(editor);
+    await window.getByRole('button', { name: 'Sublinhado' }).click();
+    await expect(editor.locator('u')).toHaveText('Texto em destaque');
+    await window.getByRole('button', { name: 'Sublinhado' }).click();
+    await expect(editor.locator('u')).toHaveCount(0);
+    await selectEditorContents(editor);
+    await window.getByRole('button', { name: 'Tachado' }).click();
+    await expect(editor.locator('s')).toHaveText('Texto em destaque');
+    await window.getByRole('button', { name: 'Tachado' }).click();
+    await expect(editor.locator('s')).toHaveCount(0);
+    await expect(window.getByRole('button', { name: 'Negrito' })).toHaveAttribute(
+      'title',
+      'Negrito',
+    );
+    await expect(
+      window.locator('[role="toolbar"] button:not([title]), [role="toolbar"] select:not([title])'),
+    ).toHaveCount(0);
+    await window.getByLabel('Tamanho da fonte').selectOption('24px');
+    await expect(editor.locator('span[style*="font-size: 24px"]')).toContainText(
+      'Texto em destaque',
+    );
+    const textColor = window.getByLabel('Cor do texto');
+    await expect(textColor.locator('option')).toContainText([
+      'Cor do texto',
+      'Preto',
+      'Branco',
+      'Vinho',
+      'Vermelho',
+      'Laranja',
+      'Ocre',
+      'Verde',
+      'Turquesa',
+      'Azul',
+      'Roxo',
+    ]);
+    await selectEditorContents(editor);
+    await textColor.selectOption('#1d4ed8');
+    await expect(editor.locator('span[style*="color: rgb(29, 78, 216)"]')).toContainText(
+      'Texto em destaque',
+    );
+    const highlightColor = window.getByLabel('Cor de destaque');
+    await expect(highlightColor.locator('option')).toContainText([
+      'Destaque',
+      'Branco',
+      'Amarelo',
+      'Verde',
+      'Azul',
+      'Vermelho',
+    ]);
+    await selectEditorContents(editor);
+    await highlightColor.selectOption('#fef08a');
+    await expect(editor.locator('span[style*="background-color: rgb(254, 240, 138)"]')).toHaveCount(
+      1,
+    );
+    await selectEditorContents(editor);
+    await window.getByRole('button', { name: 'Limpar formatação' }).click();
+    await expect(editor.locator('strong, em, u, s, span')).toHaveCount(0);
+    await expect(editor).toContainText('Texto em destaque');
+    await editor.evaluate((element) => {
+      element.innerHTML = '<a href="https://example.org">Texto importado</a>';
+      element.dispatchEvent(new InputEvent('input', { bubbles: true }));
+    });
+    await expect(editor.locator('a')).toHaveCount(0);
+    await expect(editor).toContainText('Texto importado');
+    await expect(window.getByRole('button', { name: 'Inserir link' })).toHaveCount(0);
+    await expect(window.getByRole('button', { name: 'Remover link' })).toHaveCount(0);
+    await editor.fill('Texto em destaque');
+    await selectEditorContents(editor);
+    await window.getByLabel('Alinhamento do texto').selectOption('center');
+    await expect(editor.locator('p[style*="text-align: center"]')).toHaveCount(1);
     await editor.press('End');
     await editor.press('ArrowRight');
     await editor.press('Enter');
     await window.getByRole('button', { name: 'Inserir tabela' }).click();
+    await expect(editor.locator('tr')).toHaveCount(2);
+    await expect(editor.locator('td')).toHaveCount(4);
+    await window.getByRole('button', { name: 'Adicionar linha abaixo' }).click();
+    await expect(editor.locator('tr')).toHaveCount(3);
+    await window.getByRole('button', { name: 'Desfazer' }).click();
+    await expect(editor.locator('tr')).toHaveCount(2);
+    await window.getByRole('button', { name: 'Refazer' }).click();
+    await expect(editor.locator('tr')).toHaveCount(3);
+    await window.getByRole('button', { name: 'Adicionar coluna à direita' }).click();
+    await expect(editor.locator('tr').nth(1).locator('td')).toHaveCount(3);
+    await expect(editor.locator('tr').nth(2).locator('td')).toHaveCount(3);
+    await editor.locator('tr').nth(2).locator('td').nth(2).click();
+    await window
+      .getByRole('toolbar', { name: 'Formatação do texto' })
+      .getByRole('button', { name: 'Inserir imagem' })
+      .click();
+    await window.locator('input[type="file"]').setInputFiles({
+      name: 'mapa.png',
+      mimeType: 'image/png',
+      buffer: Buffer.from(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l3sAAAAASUVORK5CYII=',
+        'base64',
+      ),
+    });
+    await expect(editor.getByRole('img', { name: 'mapa.png' })).toHaveCount(1);
     await editor.locator('td').nth(0).fill('Marco "Sol"');
+    await expect(editor.locator('img[alt="mapa.png"]')).toHaveCount(1);
     await editor.locator('td').nth(1).fill('Descoberta');
+    await expect(editor.locator('img[alt="mapa.png"]')).toHaveCount(1);
     await window.getByRole('button', { name: 'Criar entidade' }).click();
     await expect(window.getByRole('status')).toContainText('Entidade “Nara” criada.');
     await window.getByRole('button', { name: 'Abrir detalhes de Nara' }).first().click();
     await expect(window.getByText('Árvore', { exact: true })).toBeVisible();
     await expect(window.getByText('Feiticeira, Ladina', { exact: true })).toBeVisible();
     await expect(window.getByText('2.5/4.5', { exact: true })).toBeVisible();
+    const longTextDetail = window.locator('dd').filter({ hasText: longTextValue });
+    await expect(longTextDetail).toHaveClass(/break-words/);
+    expect(await longTextDetail.evaluate((element) => element.scrollWidth)).toBeLessThanOrEqual(
+      await longTextDetail.evaluate((element) => element.clientWidth),
+    );
     await expect(window.getByText('Texto em destaque', { exact: true })).toBeVisible();
     await expect(window.getByRole('table')).toContainText('Descoberta');
     const savedRichText = new Database(path.join(dataDirectory, 'database', 'app.db'));
@@ -109,11 +236,14 @@ test('campos de seleção, progresso e Rich Text funcionam na criação e consul
            WHERE e.name='Nara' AND f.label='Histórico'`,
         )
         .get() as { value_text: string };
+      expect(savedHtml.value_text).toContain('<img');
+      expect(savedHtml.value_text).toContain('alt="mapa.png"');
       expect(savedHtml.value_text).toContain('Marco "Sol"');
       expect(savedHtml.value_text).not.toContain('Marco &quot;Sol&quot;');
     } finally {
       savedRichText.close();
     }
+    await expect(window.locator('img[alt="mapa.png"]')).toBeVisible();
 
     await application.close();
     application = null;
@@ -359,18 +489,62 @@ function seedLegacyProgress(dataDirectory: string): void {
 async function createField(
   window: Awaited<ReturnType<ElectronApplication['firstWindow']>>,
   label: string,
-  dataType: 'single_select' | 'multi_select' | 'progress' | 'rich_text',
+  dataType: 'single_select' | 'multi_select' | 'progress' | 'rich_text' | 'long_text',
   options?: string,
 ): Promise<void> {
   const firstFieldButton = window.getByRole('button', { name: 'Criar primeiro campo' });
   if ((await firstFieldButton.count()) > 0) await firstFieldButton.click();
   else await window.getByRole('button', { name: 'Novo campo' }).click();
   await window.getByLabel('Rótulo *').fill(label);
-  await window.getByRole('combobox', { name: 'Tipo de dado' }).selectOption(dataType);
+  const dataTypeSelect = window.getByRole('combobox', { name: 'Tipo de dado' });
+  await expectSemanticSelectUsesTheme(dataTypeSelect);
+  await dataTypeSelect.selectOption(dataType);
   if (options !== undefined)
     await window.getByRole('textbox', { name: 'Valores para seleção' }).fill(options);
   await window.getByRole('button', { name: 'Criar definição de campo' }).click();
   await expect(window.getByRole('status')).toContainText(`Campo “${label}” criado.`);
+}
+
+async function expectSemanticSelectUsesTheme(select: Locator): Promise<void> {
+  const colors = await select.evaluate((element) => {
+    const option = element.querySelector('option');
+    const reference = document.createElement('span');
+    const rootStyle = getComputedStyle(document.documentElement);
+    reference.style.color = rootStyle.getPropertyValue('--text-primary');
+    reference.style.backgroundColor = rootStyle.getPropertyValue('--surface');
+    document.body.append(reference);
+    const referenceStyle = getComputedStyle(reference);
+    const selectStyle = getComputedStyle(element);
+    const optionStyle = option === null ? null : getComputedStyle(option);
+    const result = {
+      selectBackground: selectStyle.backgroundColor,
+      selectColor: selectStyle.color,
+      colorScheme: selectStyle.colorScheme,
+      optionBackground: optionStyle?.backgroundColor,
+      optionColor: optionStyle?.color,
+      expectedBackground: referenceStyle.backgroundColor,
+      expectedColor: referenceStyle.color,
+      expectedColorScheme: rootStyle.colorScheme,
+    };
+    reference.remove();
+    return result;
+  });
+  expect(colors.selectBackground).toBe(colors.expectedBackground);
+  expect(colors.selectColor).toBe(colors.expectedColor);
+  expect(colors.optionBackground).toBe(colors.expectedBackground);
+  expect(colors.optionColor).toBe(colors.expectedColor);
+  expect(colors.colorScheme).toBe(colors.expectedColorScheme);
+}
+
+async function selectEditorContents(editor: Locator): Promise<void> {
+  await editor.evaluate((element) => {
+    const range = document.createRange();
+    range.selectNodeContents(element);
+    const selection = document.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    element.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+  });
 }
 
 async function launch(dataDirectory: string): Promise<ElectronApplication> {

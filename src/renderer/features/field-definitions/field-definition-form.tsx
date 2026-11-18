@@ -237,7 +237,7 @@ export function FieldDefinitionForm(props: FormProps): React.JSX.Element {
               onChange={(v) => update('exampleText', v)}
             />
           </div>
-          <div className="grid items-stretch gap-6 md:grid-cols-2">
+          <div className="grid items-end gap-6 md:grid-cols-2">
             <Select
               help={contextualHelpCatalog['fieldDefinition.dataType']}
               label="Tipo de dado"
@@ -356,8 +356,8 @@ export function FieldDefinitionForm(props: FormProps): React.JSX.Element {
                 }}
                 options={[
                   ['', 'Nenhuma'],
-                  ['outgoing', 'Saída'],
-                  ['incoming', 'Entrada'],
+                  ['outgoing', 'Esta entidade → entidade referenciada'],
+                  ['incoming', 'Entidade referenciada → esta entidade'],
                 ]}
               />
               <EntityTypeChoices

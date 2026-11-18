@@ -23,6 +23,7 @@ export function NarrativeMetadataFields({
   onChange,
   sessionSource,
   hideSourceIdentifier = false,
+  registeredSource,
 }: {
   values: NarrativeMetadataValues;
   disabled: boolean;
@@ -37,6 +38,15 @@ export function NarrativeMetadataFields({
     retry?: (() => void) | undefined;
   };
   hideSourceIdentifier?: boolean;
+  registeredSource?: {
+    options: readonly SessionSourceOption[];
+    value: string;
+    onChange: (sourceId: string) => void;
+    error?: UserFacingError | undefined;
+    loading?: boolean | undefined;
+    available?: boolean | undefined;
+    retry?: (() => void) | undefined;
+  };
 }): React.JSX.Element {
   const originSelectRef = useRef<HTMLSelectElement>(null);
   const sessionSelectRef = useRef<HTMLSelectElement>(null);
@@ -112,7 +122,7 @@ export function NarrativeMetadataFields({
           onChange({
             ...values,
             originKind: value as NarrativeMetadata['originKind'],
-            sourceId: value === 'manual' ? null : values.sourceId,
+            sourceId: value === values.originKind ? values.sourceId : null,
           })
         }
         options={originOptions}
@@ -205,7 +215,55 @@ export function NarrativeMetadataFields({
             </div>
           )}
         </div>
-      ) : values.originKind === 'manual' || hideSourceIdentifier ? null : (
+      ) : values.originKind === 'manual' || hideSourceIdentifier ? null : registeredSource ? (
+        <div className={labelClass}>
+          <label htmlFor="narrative-source-reference">Referência cadastrada *</label>
+          <select
+            className={inputClass}
+            disabled={
+              disabled ||
+              (registeredSource.loading ?? false) ||
+              registeredSource.error !== undefined ||
+              registeredSource.available === false
+            }
+            id="narrative-source-reference"
+            onChange={(event) => registeredSource.onChange(event.target.value)}
+            required
+            value={registeredSource.value}
+          >
+            <option value="">Selecione uma referência…</option>
+            {registeredSource.options.map((source) => (
+              <option key={source.id} value={source.id}>
+                {source.label}
+              </option>
+            ))}
+          </select>
+          {registeredSource.loading ? (
+            <span className="mt-1 block text-sm font-normal semantic-text-secondary" role="status">
+              Carregando referências…
+            </span>
+          ) : null}
+          {!registeredSource.loading &&
+          registeredSource.error === undefined &&
+          registeredSource.available === false ? (
+            <span className="mt-1 block text-sm font-normal semantic-text-secondary" role="status">
+              Nenhuma referência desta origem está cadastrada nesta campanha.
+            </span>
+          ) : null}
+          {registeredSource.error === undefined ? null : (
+            <div className="mt-1 text-sm font-normal semantic-error-text">
+              <span className="sr-only">{registeredSource.error.title}</span>
+              <UserFacingErrorNotice
+                compact
+                error={registeredSource.error}
+                operation="clocks.list"
+                onRetry={registeredSource.retry}
+                retryLabel="Tentar carregar referências novamente"
+              />
+            </div>
+          )}
+        </div>
+      ) : (
         <label className={labelClass}>
           Identificador da fonte *
           <input

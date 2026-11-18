@@ -274,6 +274,13 @@ export function DemandManager({
     setNotice('Operação confirmada. Nenhum cânone foi promovido automaticamente.');
     void load();
   }
+  function returnToList(): void {
+    setDetails(null);
+    setForm(null);
+    setSuggestion(null);
+    setEvent(null);
+    setConfirm(null);
+  }
   function save(): void {
     if (!form) return;
     if (mode === 'accept' && suggestion) {
@@ -351,10 +358,19 @@ export function DemandManager({
   }
   const d = details?.demand;
   const editable = d && ['available', 'active'].includes(d.status);
+  const returningToList = details !== null || (form !== null && mode === 'edit');
   return (
     <section aria-labelledby="demands-title" className="grid gap-5">
-      <Button onClick={onBack} disabled={busy}>
-        Voltar à campanha
+      <Button
+        className="w-fit"
+        onClick={returningToList ? returnToList : onBack}
+        disabled={busy}
+        size="small"
+        variant="ghost"
+      >
+        {returningToList
+          ? '← Voltar para Demandas emergentes'
+          : '← Voltar para detalhes da campanha'}
       </Button>
       <h1 id="demands-title" className="text-3xl font-semibold">
         Demandas emergentes

@@ -174,6 +174,7 @@ export const clockChannels = {
   create: 'clocks:create',
   get: 'clocks:get',
   list: 'clocks:list',
+  sourceOptions: 'clocks:source-options',
   update: 'clocks:update',
   complete: 'clocks:complete',
 } as const;

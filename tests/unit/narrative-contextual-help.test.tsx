@@ -56,4 +56,35 @@ describe('ajuda contextual dos metadados narrativos', () => {
     expect(markup).toContain('Sessão 12 — A Mina de Kabotya');
     expect(markup).not.toContain('UUID da fonte');
   });
+
+  it('mostra referências cadastradas por rótulo em vez de pedir um identificador', () => {
+    const markup = renderToStaticMarkup(
+      <NarrativeMetadataFields
+        disabled={false}
+        onChange={() => undefined}
+        registeredSource={{
+          available: true,
+          onChange: () => undefined,
+          options: [
+            {
+              id: '10000000-0000-4000-8000-000000000001',
+              label: 'Documento de campanha',
+            },
+          ],
+          value: '10000000-0000-4000-8000-000000000001',
+        }}
+        values={{
+          canonState: 'accepted',
+          knowledgeState: 'fact',
+          visibility: 'gm',
+          originKind: 'document',
+          sourceId: '10000000-0000-4000-8000-000000000001',
+        }}
+      />,
+    );
+
+    expect(markup).toContain('Referência cadastrada');
+    expect(markup).toContain('Documento de campanha');
+    expect(markup).not.toContain('UUID da fonte');
+  });
 });

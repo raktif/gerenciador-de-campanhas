@@ -79,6 +79,11 @@ describe('tokens semânticos de aparência', () => {
     expect(styles).toContain('background: var(--background);');
     expect(styles).toContain('color: var(--text-primary);');
     expect(styles).toContain('background: var(--surface);');
+    expect(styles).toMatch(/select\s*\{[^}]*background-color:\s*var\(--surface\)/s);
+    expect(styles).toMatch(/select\s*\{[^}]*color:\s*var\(--text-primary\)/s);
+    expect(styles).toMatch(/select\s*\{[^}]*color-scheme:\s*inherit/s);
+    expect(styles).toMatch(/option\s*\{[^}]*background-color:\s*var\(--surface\)/s);
+    expect(styles).toMatch(/option\s*\{[^}]*color:\s*var\(--text-primary\)/s);
     expect(styles).toContain('outline-color: var(--focus);');
     expect(styles).toContain('@media (prefers-reduced-motion: reduce)');
   });

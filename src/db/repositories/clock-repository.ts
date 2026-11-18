@@ -7,6 +7,8 @@ import {
   type ClockPageRequest,
   type ClockPageResult,
   type ClockStatus,
+  type ClockSourceOption,
+  type ClockSourceOptionsRequest,
   type ClockType,
 } from '../../core/contracts/clocks';
 import type {
@@ -74,6 +76,36 @@ export interface ClockUpdateRecord {
 
 export class ClockRepository {
   public constructor(private readonly database: Database.Database) {}
+
+  public listSourceOptions(request: ClockSourceOptionsRequest): ClockSourceOption[] {
+    const rows = this.database
+      .prepare(
+        `SELECT DISTINCT s.id,
+                COALESCE(
+                  NULLIF(trim(s.description), ''),
+                  NULLIF(substr(trim(i.raw_text), 1, 2000), ''),
+                  NULLIF(trim(session.title), ''),
+                  'Fonte registrada — ' || substr(s.id, 1, 8)
+                ) AS label
+         FROM sources s
+         LEFT JOIN inbox_items i ON i.id = s.inbox_item_id
+         LEFT JOIN sessions session ON session.id = s.session_id
+         WHERE s.kind = @originKind
+           AND (
+             EXISTS (SELECT 1 FROM entities WHERE source_id = s.id AND campaign_id = @campaignId)
+             OR EXISTS (SELECT 1 FROM assertions WHERE source_id = s.id AND campaign_id = @campaignId)
+             OR EXISTS (SELECT 1 FROM relationships WHERE source_id = s.id AND campaign_id = @campaignId)
+             OR EXISTS (SELECT 1 FROM notes WHERE source_id = s.id AND campaign_id = @campaignId)
+             OR EXISTS (SELECT 1 FROM events WHERE source_id = s.id AND campaign_id = @campaignId)
+             OR EXISTS (SELECT 1 FROM clocks WHERE source_id = s.id AND campaign_id = @campaignId)
+             OR EXISTS (SELECT 1 FROM sessions WHERE id = s.session_id AND campaign_id = @campaignId)
+             OR EXISTS (SELECT 1 FROM inbox_items WHERE id = s.inbox_item_id AND campaign_id = @campaignId)
+           )
+         ORDER BY label COLLATE NOCASE ASC, s.id ASC`,
+      )
+      .all(request) as { id: string; label: string }[];
+    return rows;
+  }
 
   public create(record: ClockCreateRecord): Clock {
     return this.immediate(() => {

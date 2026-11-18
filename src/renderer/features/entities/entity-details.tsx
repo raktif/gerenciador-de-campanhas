@@ -347,7 +347,7 @@ function Detail({
         {resolvedLabel}
         {help === null ? null : <ContextualHelp content={help} label={resolvedLabel} />}
       </dt>
-      <dd className="mt-1 whitespace-pre-wrap semantic-text-secondary">
+      <dd className="mt-1 break-words whitespace-pre-wrap semantic-text-secondary">
         {richText ? <RichTextDisplay html={value} /> : value}
       </dd>
     </div>

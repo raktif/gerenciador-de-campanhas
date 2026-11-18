@@ -22,6 +22,17 @@ da UX manual; a avaliação de UX de toda a 3B permanece pendente para o usuári
 - Relógios com origem Sessão usam o seletor paginado de sessões existente. A sessão escolhida é
   mantida separada do identificador interno de fonte; o repositório cria/reutiliza a fonte de sessão
   na mesma transação e devolve a sessão associada para edição.
+- Relógios com outras origens usam uma lista de fontes do tipo escolhido já vinculadas à campanha;
+  identificadores não são mais digitados manualmente. Os campos de Referência de entidade descrevem
+  explicitamente a direção entre a entidade atual e a referenciada.
+- O editor Rich Text oferece barra compacta de ferramentas com estilos de parágrafo, ênfase,
+  sobrescrito/subscrito, alinhamento, cor e destaque, listas, linha horizontal e tabelas,
+  mantendo a sanitização dos elementos permitidos. Links de conteúdos antigos são convertidos em
+  texto simples. Textos longos quebram palavras ao serem exibidos na ficha da Entidade.
+- Itens clicáveis de Relógios indicam essa ação com o cursor de ponteiro. A navegação em Demandas
+  mantém o retorno alinhado ao conteúdo, permitindo voltar à lista tanto do detalhe quanto da edição.
+- A navegação de Demandas usa links de retorno textuais para detalhes da campanha e, durante a
+  edição de uma Demanda, para a lista de Demandas emergentes.
 - Identificadores de domínio e persistência continuam estáveis em inglês; os rótulos destinados ao
   usuário são apresentados em pt-BR.
 
@@ -134,3 +145,12 @@ este documento.
 - Formulários de Entidades mantêm os controles alinhados pela base, com texto longo e Rich Text
   no fim. A apresentação de Demandas mantém regras/papéis em pt-BR, e o erro de JSON inválido em
   Afirmações não expõe o texto do parser. O editor Rich Text mantém estilos de tabelas e listas.
+- A criação de tabela Rich Text começa com 2 linhas e 2 colunas; com o cursor em uma célula, os
+  controles da barra acrescentam uma linha abaixo e uma coluna à direita, estendendo a estrutura
+  da tabela existente.
+- A barra do Rich Text segue o padrão compacto da referência, mantém o valor controlado pelo
+  formulário e oferece ajuda curta via `title` em cada botão e seletor. Tamanho de fonte limitado,
+  contagem de palavras/caracteres e histórico local de desfazer/refazer acompanham a edição; os
+  tamanhos de fonte permitidos também são filtrados pela sanitização. Imagens são incorporadas como
+  dados locais, com formatos raster permitidos e limite de 1 MB por arquivo, sem carregar URLs
+  remotas ao consultar o conteúdo.
