@@ -320,7 +320,7 @@ export function SignalCard({
         </div>
         {signal.status === 'snoozed' && signal.dismissedUntil !== null ? (
           <p className="text-sm semantic-text-secondary">
-            Adiado até {new Date(signal.dismissedUntil).toLocaleString()}
+            Adiado até {new Date(signal.dismissedUntil).toLocaleString('pt-BR')}
           </p>
         ) : null}
       </div>
@@ -328,7 +328,7 @@ export function SignalCard({
       <p className="mt-2 text-xs semantic-text-secondary">
         Última detecção:{' '}
         <time dateTime={signal.lastDetectedAt}>
-          {new Date(signal.lastDetectedAt).toLocaleString()}
+          {new Date(signal.lastDetectedAt).toLocaleString('pt-BR')}
         </time>
       </p>
       {signal.status === 'stale' ? (

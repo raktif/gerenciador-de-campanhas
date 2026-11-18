@@ -161,6 +161,7 @@ function clock(): Clock {
     visibility: 'gm',
     originKind: 'manual',
     sourceId: null,
+    sessionId: null,
     generatedEventId: null,
     createdAt: now,
     updatedAt: now,

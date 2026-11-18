@@ -15,6 +15,7 @@ import {
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
 import { z } from 'zod';
 import {
+  canonicalizeFieldOptions,
   fieldDefinitionSchema,
   type FieldDefinition,
   type FieldDefinitionPageRequest,
@@ -78,9 +79,13 @@ export class FieldDefinitionRepository {
   public constructor(private readonly database: BetterSQLite3Database<typeof schema>) {}
 
   public insert(fieldDefinition: FieldDefinition): FieldDefinition {
+    const canonical = fieldDefinitionSchema.parse({
+      ...fieldDefinition,
+      options: canonicalizeSelectionOptions(fieldDefinition.dataType, fieldDefinition.options),
+    });
     try {
-      this.database.insert(fieldDefinitions).values(fieldDefinition).run();
-      return fieldDefinition;
+      this.database.insert(fieldDefinitions).values(canonical).run();
+      return canonical;
     } catch (error) {
       throw translateConstraintError(error, fieldDefinition.entityTypeId, fieldDefinition.key);
     }
@@ -90,6 +95,7 @@ export class FieldDefinitionRepository {
     fieldDefinition: Omit<FieldDefinition, 'key'>,
     baseKey: string,
   ): FieldDefinition {
+    const options = canonicalizeSelectionOptions(fieldDefinition.dataType, fieldDefinition.options);
     return this.database.transaction((transaction) => {
       const occupiedKeys = new Set(
         transaction
@@ -119,6 +125,7 @@ export class FieldDefinitionRepository {
         .get();
       const generated = fieldDefinitionSchema.parse({
         ...fieldDefinition,
+        options,
         key,
         sortOrder: (last?.sortOrder ?? -1) + 1,
       });
@@ -218,12 +225,32 @@ export class FieldDefinitionRepository {
   public update(input: FieldDefinitionRepositoryUpdate, updatedAt: string): FieldDefinition {
     const scopedCurrent = this.findById(input.campaignId, input.entityTypeId, input.id);
     if (scopedCurrent === null) throw fieldDefinitionNotFound(input);
+    if (
+      input.patch.options !== undefined ||
+      input.patch.dataType !== undefined ||
+      (scopedCurrent.dataType !== 'single_select' && scopedCurrent.dataType !== 'multi_select')
+    )
+      assertValidSelectionOptions(
+        input.patch.dataType ?? scopedCurrent.dataType,
+        input.patch.options === undefined ? scopedCurrent.options : input.patch.options,
+        true,
+      );
 
     try {
+      const mergedOptions =
+        input.patch.options === undefined ? scopedCurrent.options : input.patch.options;
+      const targetDataType = input.patch.dataType ?? scopedCurrent.dataType;
+      const options =
+        input.patch.options !== undefined || input.patch.dataType !== undefined
+          ? canonicalizeSelectionOptions(targetDataType, mergedOptions)
+          : mergedOptions;
       const result = this.database
         .update(fieldDefinitions)
         .set({
           ...input.patch,
+          ...(input.patch.options !== undefined || input.patch.dataType !== undefined
+            ? { options }
+            : {}),
           updatedAt,
           revision: sql`${fieldDefinitions.revision} + 1`,
         })
@@ -442,6 +469,29 @@ function decodeCursor(value: string, request: FieldDefinitionPageRequest): Field
   } catch {
     throw new AppError('INVALID_CURSOR', 'O cursor de paginação é inválido.');
   }
+}
+
+function assertValidSelectionOptions(dataType: string, options: unknown, required: boolean): void {
+  if (dataType !== 'single_select' && dataType !== 'multi_select') return;
+  const valid =
+    Array.isArray(options) &&
+    options.every((option) => typeof option === 'string' && option.trim().length > 0) &&
+    !(options as string[]).some((option) => option.includes(',')) &&
+    new Set(options.map((option: string) => option.trim())).size === options.length;
+  if (!valid || (required && (options as unknown[]).length === 0))
+    throw new AppError(
+      'INVALID_FIELD_OPTIONS',
+      'Informe opções de seleção não vazias, sem repetições e sem vírgulas.',
+    );
+}
+
+function canonicalizeSelectionOptions(dataType: string, options: unknown): unknown {
+  assertValidSelectionOptions(dataType, options, true);
+  return (dataType === 'single_select' || dataType === 'multi_select') &&
+    Array.isArray(options) &&
+    options.every((option) => typeof option === 'string')
+    ? canonicalizeFieldOptions(options)
+    : options;
 }
 
 function translateConstraintError(error: unknown, entityTypeId: string, key?: string): Error {

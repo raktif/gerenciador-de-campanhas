@@ -29,6 +29,14 @@ import clockCompletedReplaceGuardMigration from './0026_clock_completed_replace_
 import clockEntityConsequenceMigration from './0027_clock_entity_consequence_and_generated_events.sql?raw';
 import clockCreateIdempotencyMigration from './0028_clock_create_idempotency.sql?raw';
 import demandsMigration from './0029_demands.sql?raw';
+import richTextFieldsMigration from './0030_rich_text_fields.sql?raw';
+import structuredValueSnapshotsMigration from './0031_structured_value_migration_snapshots.sql?raw';
+import restoreStructuredValueSnapshotsMigration from './0032_restore_structured_value_snapshots.sql?raw';
+import clearEntityJsonFieldValuesMigration from './0033_clear_entity_json_field_values.sql?raw';
+import clearDerivedEntityFieldCopiesMigration from './0034_clear_derived_entity_field_copies.sql?raw';
+
+export const clearEntityJsonFieldValuesVersion = 33;
+export const clearDerivedEntityFieldCopiesVersion = 34;
 
 export interface MigrationDefinition extends MigrationChecksums {
   version: number;
@@ -223,6 +231,38 @@ export const migrations: readonly MigrationDefinition[] = [
     name: 'phase-three-demands',
     ...createMigrationChecksums(demandsMigration),
     sql: demandsMigration,
+  },
+  {
+    version: 30,
+    name: 'phase-three-rich-text-fields',
+    ...createMigrationChecksums(richTextFieldsMigration),
+    sql: richTextFieldsMigration,
+    requiresForeignKeysDisabled: true,
+    requiresLegacyAlterTable: true,
+  },
+  {
+    version: 31,
+    name: 'phase-three-structured-value-migration-snapshots',
+    ...createMigrationChecksums(structuredValueSnapshotsMigration),
+    sql: structuredValueSnapshotsMigration,
+  },
+  {
+    version: 32,
+    name: 'phase-three-restore-structured-value-snapshots',
+    ...createMigrationChecksums(restoreStructuredValueSnapshotsMigration),
+    sql: restoreStructuredValueSnapshotsMigration,
+  },
+  {
+    version: clearEntityJsonFieldValuesVersion,
+    name: 'phase-three-clear-entity-json-field-values',
+    ...createMigrationChecksums(clearEntityJsonFieldValuesMigration),
+    sql: clearEntityJsonFieldValuesMigration,
+  },
+  {
+    version: clearDerivedEntityFieldCopiesVersion,
+    name: 'phase-three-clear-derived-entity-field-copies',
+    ...createMigrationChecksums(clearDerivedEntityFieldCopiesMigration),
+    sql: clearDerivedEntityFieldCopiesMigration,
   },
 ];
 

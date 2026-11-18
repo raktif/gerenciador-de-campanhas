@@ -10,7 +10,11 @@ import {
   type DataDirectories,
 } from '../../src/core/storage/data-directories';
 import { openApplicationDatabase, type DatabaseContext } from '../../src/db/connection';
-import { migrations, latestMigrationVersion } from '../../src/db/migrations/registry';
+import {
+  migrations,
+  latestMigrationVersion,
+  type MigrationDefinition,
+} from '../../src/db/migrations/registry';
 import { TestLogger } from '../helpers/test-logger';
 
 const roots: string[] = [];
@@ -27,7 +31,7 @@ afterEach(async () => {
 
 describe('compatibilidade de checksums no bootstrap SQLite', () => {
   it.each(['LF', 'CRLF'] as const)(
-    'abre fixture schema21 %s, preserva registros/dados e cria backup antes do upgrade',
+    'abre fixture schema21 %s, preserva registros/dados e não cria backup no lote da v33',
     async (ending) => {
       const directories = await createDirectories();
       const native = new Database(path.join(directories.database, 'app.db'));
@@ -84,9 +88,38 @@ describe('compatibilidade de checksums no bootstrap SQLite', () => {
       const backups = (await readdir(directories.automaticBackups)).filter((file) =>
         file.endsWith('.db'),
       );
+      expect(backups).toEqual([]);
+      const reopened = await openTestDatabase(directories);
+      expect(readRegistry(reopened.native, 21)).toEqual(applied);
+      expectCampaign(reopened.native);
+      expect(
+        (await readdir(directories.automaticBackups)).filter((file) => file.endsWith('.db')),
+      ).toEqual(backups);
+    },
+  );
+
+  it('mantém o backup verificado de upgrades que não incluem a limpeza v33', async () => {
+    const directories = await createDirectories();
+    const before = await openTestDatabase(directories);
+    insertCampaign(before.native);
+    const applied = readRegistry(before.native);
+    before.close();
+
+    // Simulate a future migration while exercising the same production runner.
+    const testRegistry = migrations as MigrationDefinition[];
+    const sql = 'CREATE TABLE future_migration_fixture (id INTEGER PRIMARY KEY);';
+    const version = latestMigrationVersion + 1;
+    testRegistry.push({ version, name: 'future-migration-fixture', sql, checksum: hash(sql) });
+    try {
+      const after = await openTestDatabase(directories);
+      expect(after.schemaVersion).toBe(version);
+      expect(readRegistry(after.native, latestMigrationVersion)).toEqual(applied);
+      const backups = (await readdir(directories.automaticBackups)).filter((file) =>
+        file.endsWith('.db'),
+      );
       expect(backups).toHaveLength(1);
-      const backupName = backups[0];
-      if (!backupName) throw new Error('Backup pré-migração ausente.');
+      const [backupName] = backups;
+      if (backupName === undefined) throw new Error('Backup pré-migração ausente.');
       const backup = new Database(path.join(directories.automaticBackups, backupName), {
         readonly: true,
       });
@@ -97,14 +130,10 @@ describe('compatibilidade de checksums no bootstrap SQLite', () => {
       } finally {
         backup.close();
       }
-      const reopened = await openTestDatabase(directories);
-      expect(readRegistry(reopened.native, 21)).toEqual(applied);
-      expectCampaign(reopened.native);
-      expect(
-        (await readdir(directories.automaticBackups)).filter((file) => file.endsWith('.db')),
-      ).toEqual(backups);
-    },
-  );
+    } finally {
+      testRegistry.pop();
+    }
+  });
 
   it('registra checksums canônicos em banco novo e reabre sem alterar o registro', async () => {
     const directories = await createDirectories();

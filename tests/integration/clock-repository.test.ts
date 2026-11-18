@@ -537,6 +537,12 @@ describe('persistência SQLite de Relógios', () => {
     context.native
       .prepare('INSERT INTO sources (id, kind, session_id, created_at) VALUES (?, ?, ?, ?)')
       .run(campaignSourceId, 'session', sessionId, now);
+    const pickerSessionId = randomUUID();
+    context.native
+      .prepare(
+        'INSERT INTO sessions (id, campaign_id, sequence_number, title, created_at, updated_at) VALUES (?, ?, 2, ?, ?, ?)',
+      )
+      .run(pickerSessionId, ids.campaign, 'Sessão escolhida', now, now);
     const otherSessionId = randomUUID();
     context.native
       .prepare(
@@ -566,7 +572,28 @@ describe('persistência SQLite de Relógios', () => {
       visibility: 'gm',
       originKind: 'session',
       sourceId: campaignSourceId,
+      sessionId,
     });
+    const pickerClock = service.create({
+      campaignId: ids.campaign,
+      name: 'Relógio ligado à sessão escolhida',
+      clockType: 'progress',
+      segmentsTotal: 4,
+      entityId: ids.entity,
+      consequence: 'A sessão foi associada.',
+      originKind: 'session',
+      sessionId: pickerSessionId,
+    });
+    expect(pickerClock).toMatchObject({
+      originKind: 'session',
+      sourceId: pickerSessionId,
+      sessionId: pickerSessionId,
+    });
+    expect(
+      context.native
+        .prepare('SELECT kind, session_id FROM sources WHERE id = ?')
+        .get(pickerSessionId),
+    ).toEqual({ kind: 'session', session_id: pickerSessionId });
     expect(
       context.native
         .prepare('SELECT clock_id, entity_id FROM clock_entity_links WHERE clock_id = ?')
@@ -613,6 +640,18 @@ describe('persistência SQLite de Relógios', () => {
         sourceId: otherCampaignSourceId,
       }),
     ).toThrow(expect.objectContaining({ code: 'CLOCK_SOURCE_INVALID' }));
+    expect(() =>
+      service.create({
+        campaignId: ids.campaign,
+        name: 'Sessão de outra campanha',
+        clockType: 'progress',
+        segmentsTotal: 4,
+        entityId: ids.entity,
+        consequence: 'Não deve ser criado.',
+        originKind: 'session',
+        sessionId: otherSessionId,
+      }),
+    ).toThrow(expect.objectContaining({ code: 'SESSION_NOT_FOUND' }));
     expect(() =>
       service.create({
         campaignId: ids.campaign,
@@ -824,7 +863,7 @@ describe('persistência SQLite de Relógios', () => {
     });
   });
 
-  it('preserva estado após reabrir o banco e aplica as migrações aditivas v25-v27 sobre v24 vazio com backup', async () => {
+  it('atualiza a v24 sem backup no lote da v33 e preserva estado após reabrir', async () => {
     const root = await makeRoot();
     const directories = getDataDirectories(root);
     await ensureDataDirectories(directories);
@@ -872,14 +911,12 @@ describe('persistência SQLite de Relógios', () => {
 
     const migrated = await openApplicationDatabase(directories, new TestLogger());
     contexts.push(migrated);
-    expect(migrated.schemaVersion).toBe(28);
+    expect(migrated.schemaVersion).toBe(migrations.at(-1)?.version);
     expect(migrated.native.prepare('SELECT count(*) AS total FROM clocks').get()).toEqual({
       total: 0,
     });
     expect(migrated.native.pragma('foreign_key_check')).toEqual([]);
-    expect((await readdir(directories.automaticBackups)).some((name) => name.endsWith('.db'))).toBe(
-      true,
-    );
+    expect(await readdir(directories.automaticBackups)).toEqual([]);
     const repo = new ClockRepository(migrated.native);
     const service = new ClockService({
       repository: repo,
@@ -907,7 +944,7 @@ describe('persistência SQLite de Relógios', () => {
 
     const reopened = await openApplicationDatabase(directories, new TestLogger());
     contexts.push(reopened);
-    expect(reopened.schemaVersion).toBe(28);
+    expect(reopened.schemaVersion).toBe(migrations.at(-1)?.version);
     expect(new ClockRepository(reopened.native).findById(campaignId, clock.id)).toMatchObject({
       name: 'Persistente',
       segmentsTotal: 10,
@@ -918,7 +955,7 @@ describe('persistência SQLite de Relógios', () => {
   });
 
   it.each([25, 26])(
-    'falha atomicamente ao atualizar instalação v%s com relógio sem entidade, preservando banco e backup',
+    'falha atomicamente ao atualizar instalação v%s com relógio sem entidade e não cria backup',
     async (version) => {
       const { directories, file, database } = await createDatabaseAtMigrationVersion(version);
       const campaignId = randomUUID();
@@ -943,26 +980,7 @@ describe('persistência SQLite de Relógios', () => {
       await expect(openApplicationDatabase(directories, new TestLogger())).rejects.toThrow(
         'CLOCKS_V27_INCOMPATIBLE_LEGACY_CLOCKS',
       );
-      const backupName = (await readdir(directories.automaticBackups)).find((name) =>
-        name.endsWith('.db'),
-      );
-      expect(backupName).toBeDefined();
-      if (backupName === undefined) throw new Error('Backup pré-migração ausente.');
-      const backup = new Database(path.join(directories.automaticBackups, backupName), {
-        readonly: true,
-        fileMustExist: true,
-      });
-      try {
-        expect(
-          backup.prepare('SELECT max(version) AS version FROM schema_migrations').get(),
-        ).toEqual({ version });
-        expect(
-          backup.prepare('SELECT id, name, status FROM clocks WHERE id = ?').get(clockId),
-        ).toEqual({ id: clockId, name: 'Legado sem entidade', status: 'active' });
-        expect(backup.pragma('integrity_check', { simple: true })).toBe('ok');
-      } finally {
-        backup.close();
-      }
+      expect(await readdir(directories.automaticBackups)).toEqual([]);
       const preserved = new Database(file);
       expect(
         preserved.prepare('SELECT max(version) AS version FROM schema_migrations').get(),
@@ -988,7 +1006,7 @@ describe('persistência SQLite de Relógios', () => {
       database.close();
       const upgraded = await openApplicationDatabase(directories, new TestLogger());
       contexts.push(upgraded);
-      expect(upgraded.schemaVersion).toBe(28);
+      expect(upgraded.schemaVersion).toBe(migrations.at(-1)?.version);
       expect(upgraded.native.prepare('SELECT count(*) AS total FROM clocks').get()).toEqual({
         total: 0,
       });

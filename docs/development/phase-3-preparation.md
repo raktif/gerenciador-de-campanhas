@@ -19,6 +19,12 @@ fora da atividade explicitamente atribuída.
   realizados pelo usuário ao final de toda a etapa 3B. A 3B.1 recebeu aprovação técnica
   independente do QA, mas sua UX permanece legitimamente pendente; não solicitar nem alegar
   aprovação manual intermediária.
+- Em 2026-11-17, as correções transversais solicitadas pelo responsável para os formulários de
+  campos, Entidades, Relógios, Demandas e Fios Abertos, incluindo a limpeza v33/v34, receberam
+  aprovação técnica independente para UX manual. O checksum v30 foi verificado; a impossibilidade
+  de comparar historicamente v31–v33 foi aceita como limitação explícita, sem alegar verificação.
+  A UX manual permanece pendente para a rodada conjunta ao final da 3B; detalhes em
+  [manual-ux-feedback-3b.md](manual-ux-feedback-3b.md).
 - Esta etapa não autoriza por si só o início da implementação de qualquer subtarefa da Fase 3.
 
 ## Base técnica verificada

@@ -20,6 +20,7 @@ import {
   NarrativeMetadataFields,
   type NarrativeMetadataValues,
 } from '../narrative/narrative-metadata-fields';
+import { useSessionSourceOptions } from '../narrative/session-source-options';
 
 type View = 'list' | 'detail' | 'create' | 'edit';
 type Filter = '' | ClockStatus;
@@ -32,6 +33,7 @@ interface ClockForm {
   segmentsTotal: number;
   segmentsFilled: number;
   entityId: string;
+  sessionId: string;
   metadata: NarrativeMetadataValues;
 }
 type PendingConclusion = 'create' | 'edit' | 'complete' | null;
@@ -57,6 +59,7 @@ const emptyForm: ClockForm = {
   segmentsTotal: 4,
   segmentsFilled: 0,
   entityId: '',
+  sessionId: '',
   metadata: {
     ...manualNarrativeDefaults,
     sourceId: null,
@@ -87,6 +90,7 @@ export function ClockManager({
     globalThis.crypto.randomUUID(),
   );
   const [notice, setNotice] = useState('');
+  const sessionSource = useSessionSourceOptions(campaign.id);
   const listRequest = useRef(0);
   const detailRequest = useRef(0);
   const entityRequest = useRef(0);
@@ -246,6 +250,7 @@ export function ClockManager({
       segmentsTotal: selected.segmentsTotal,
       segmentsFilled: selected.segmentsFilled,
       entityId: selected.entityId,
+      sessionId: selected.sessionId ?? '',
       metadata: {
         canonState: selected.canonState,
         knowledgeState: selected.knowledgeState,
@@ -297,6 +302,10 @@ export function ClockManager({
               segmentsFilled: form.segmentsFilled,
               entityId: form.entityId,
               ...form.metadata,
+              sourceId: form.metadata.originKind === 'session' ? null : form.metadata.sourceId,
+              ...(form.metadata.originKind === 'session' && form.sessionId !== ''
+                ? { sessionId: form.sessionId }
+                : {}),
               ...(generateEvent === undefined ? {} : { generateEvent }),
             })
           : selected === null
@@ -314,6 +323,7 @@ export function ClockManager({
                   segmentsFilled: form.segmentsFilled,
                   entityId: form.entityId,
                   ...form.metadata,
+                  ...(form.metadata.originKind === 'session' ? { sessionId: form.sessionId } : {}),
                 },
                 ...(generateEvent === undefined ? {} : { generateEvent }),
               });
@@ -641,7 +651,18 @@ export function ClockManager({
           <NarrativeMetadataFields
             values={form.metadata}
             disabled={busy}
-            onChange={(metadata) => setForm((current) => ({ ...current, metadata }))}
+            onChange={(metadata) =>
+              setForm((current) => ({
+                ...current,
+                metadata,
+                sessionId: metadata.originKind === 'session' ? current.sessionId : '',
+              }))
+            }
+            sessionSource={{
+              ...sessionSource,
+              value: form.sessionId,
+              onChange: (sourceId) => setForm((current) => ({ ...current, sessionId: sourceId })),
+            }}
           />
           <label className="grid gap-1 text-sm font-medium">
             Tipo

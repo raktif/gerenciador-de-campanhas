@@ -42,6 +42,7 @@ export interface ClockCreateRecord {
   visibility: VisibilityState;
   originKind: OriginKind;
   sourceId: string | null;
+  sessionId?: string;
   generateEvent: boolean;
   generatedEventId: string | null;
   now: string;
@@ -64,6 +65,7 @@ export interface ClockUpdateRecord {
     visibility?: VisibilityState;
     originKind?: OriginKind;
     sourceId?: string | null;
+    sessionId?: string | null;
   };
   generateEvent?: boolean;
   generatedEventId?: string;
@@ -96,7 +98,11 @@ export class ClockRepository {
       }
       this.requireActiveCampaign(record.campaignId);
       this.requireEntity(record.campaignId, record.entityId, true);
-      this.validateSource(record.campaignId, record.originKind, record.sourceId);
+      const sourceId =
+        record.sessionId === undefined
+          ? record.sourceId
+          : this.ensureSessionSourceId(record.campaignId, record.sessionId, record.now);
+      this.validateSource(record.campaignId, record.originKind, sourceId);
       const status: ClockStatus =
         record.segmentsFilled === record.segmentsTotal ? 'completed' : 'active';
       const generatedEventId =
@@ -135,7 +141,7 @@ export class ClockRepository {
           record.knowledgeState,
           record.visibility,
           record.originKind,
-          record.sourceId,
+          sourceId,
           generatedEventId,
           record.now,
           record.now,
@@ -154,8 +160,10 @@ export class ClockRepository {
   public findById(campaignId: string, id: string): Clock | null {
     const row = this.database
       .prepare(
-        `SELECT c.*, e.name AS entity_name, e.archived_at AS entity_archived_at
+        `SELECT c.*, e.name AS entity_name, e.archived_at AS entity_archived_at,
+                src.session_id AS source_session_id
          FROM clocks c JOIN entities e ON e.id = c.entity_id
+         LEFT JOIN sources src ON src.id = c.source_id
          WHERE c.campaign_id = ? AND c.id = ?`,
       )
       .get(campaignId, id) as ClockRow | undefined;
@@ -183,8 +191,10 @@ export class ClockRepository {
     const filter = where.join(' AND ');
     const rows = this.database
       .prepare(
-        `SELECT c.*, e.name AS entity_name, e.archived_at AS entity_archived_at
+        `SELECT c.*, e.name AS entity_name, e.archived_at AS entity_archived_at,
+                src.session_id AS source_session_id
          FROM clocks c JOIN entities e ON e.id = c.entity_id
+         LEFT JOIN sources src ON src.id = c.source_id
          WHERE ${filter}
          ORDER BY c.updated_at DESC, c.id DESC LIMIT @limit`,
       )
@@ -244,7 +254,14 @@ export class ClockRepository {
       if (entityId !== current.entityId || current.entityArchivedAt === null)
         this.requireEntity(input.campaignId, entityId, true);
       const originKind = input.patch.originKind ?? current.originKind;
-      const sourceId = input.patch.sourceId === undefined ? current.sourceId : input.patch.sourceId;
+      const sourceId =
+        input.patch.sessionId !== undefined
+          ? input.patch.sessionId === null
+            ? null
+            : this.ensureSessionSourceId(input.campaignId, input.patch.sessionId, input.now)
+          : input.patch.sourceId === undefined
+            ? current.sourceId
+            : input.patch.sourceId;
       this.validateSource(input.campaignId, originKind, sourceId);
       let generatedEventId: string | null = null;
       if (isCompleting && input.generateEvent) {
@@ -414,6 +431,36 @@ export class ClockRepository {
       );
   }
 
+  private ensureSessionSourceId(campaignId: string, sessionId: string, now: string): string {
+    const session = this.database
+      .prepare('SELECT id FROM sessions WHERE id = ? AND campaign_id = ?')
+      .get(sessionId, campaignId) as { id: string } | undefined;
+    if (session === undefined)
+      throw new AppError('SESSION_NOT_FOUND', 'Sessão não encontrada nesta campanha.');
+    const existing = this.database
+      .prepare(
+        `SELECT id FROM sources
+         WHERE kind = 'session' AND session_id = ? AND inbox_item_id IS NULL`,
+      )
+      .get(session.id) as { id: string } | undefined;
+    if (existing !== undefined) return existing.id;
+    this.database
+      .prepare(
+        `INSERT OR IGNORE INTO sources (id, kind, session_id, created_at)
+         VALUES (?, 'session', ?, ?)`,
+      )
+      .run(session.id, session.id, now);
+    const created = this.database
+      .prepare(
+        `SELECT id FROM sources
+         WHERE kind = 'session' AND session_id = ? AND inbox_item_id IS NULL`,
+      )
+      .get(session.id) as { id: string } | undefined;
+    if (created === undefined)
+      throw new AppError('CLOCK_SOURCE_INVALID', 'Não foi possível vincular a sessão de origem.');
+    return created.id;
+  }
+
   private insertGeneratedEvent(
     clock: {
       id: string;
@@ -500,6 +547,7 @@ export class ClockRepository {
       visibility: row.visibility,
       originKind: row.origin_kind,
       sourceId: row.source_id,
+      sessionId: row.source_session_id ?? null,
       generatedEventId: row.generated_event_id,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
@@ -556,6 +604,7 @@ function hashClockCreatePayload(record: ClockCreateRecord): string {
     visibility: record.visibility,
     originKind: record.originKind,
     sourceId: record.sourceId,
+    sessionId: record.sessionId,
     generateEvent: record.generateEvent,
   });
   return createHash('sha256').update(canonicalPayload).digest('hex');

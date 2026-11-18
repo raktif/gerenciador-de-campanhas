@@ -24,6 +24,9 @@ const entityId = '20000000-0000-4000-8000-000000000001';
 const textFieldId = '30000000-0000-4000-8000-000000000001';
 const numberFieldId = '30000000-0000-4000-8000-000000000002';
 const referenceFieldId = '30000000-0000-4000-8000-000000000003';
+const selectFieldId = '30000000-0000-4000-8000-000000000004';
+const progressFieldId = '30000000-0000-4000-8000-000000000005';
+const richTextFieldId = '30000000-0000-4000-8000-000000000006';
 const timestamp = '2026-08-28T12:00:00.000Z';
 
 describe('EntityService', () => {
@@ -58,6 +61,202 @@ describe('EntityService', () => {
       { fieldDefinitionId: textFieldId, valueText: 'Capitã', valueNumber: null },
       { fieldDefinitionId: numberFieldId, valueText: null, valueNumber: 7.5 },
     ]);
+  });
+
+  it('valida opções de picklist no backend e armazena valores selecionados', () => {
+    const repository = new MemoryRepository();
+    const service = createService(repository);
+    service.create(
+      createEntityInputSchema.parse({
+        campaignId,
+        entityTypeId,
+        name: 'Aris',
+        fieldValues: [{ fieldDefinitionId: selectFieldId, value: 'Aliada' }],
+      }),
+    );
+    expect(repository.lastValues[0]).toMatchObject({
+      fieldDefinitionId: selectFieldId,
+      valueText: 'Aliada',
+    });
+    expect(
+      capture(() =>
+        createService(new MemoryRepository()).create(
+          createEntityInputSchema.parse({
+            campaignId,
+            entityTypeId,
+            name: 'Borin',
+            fieldValues: [{ fieldDefinitionId: selectFieldId, value: 'Desconhecida' }],
+          }),
+        ),
+      ).code,
+    ).toBe('INVALID_FIELD_VALUE');
+  });
+
+  it('armazena pares de progresso como JSON e rich text como texto', () => {
+    const repository = new MemoryRepository();
+    createService(repository).create(
+      createEntityInputSchema.parse({
+        campaignId,
+        entityTypeId,
+        name: 'Aris',
+        fieldValues: [
+          { fieldDefinitionId: progressFieldId, value: { current: 2.5, final: 4.75 } },
+          { fieldDefinitionId: richTextFieldId, value: '<p><strong>Texto</strong></p>' },
+        ],
+      }),
+    );
+    expect(repository.lastValues).toMatchObject([
+      { fieldDefinitionId: progressFieldId, valueJson: { current: 2.5, final: 4.75 } },
+      { fieldDefinitionId: richTextFieldId, valueText: '<p><strong>Texto</strong></p>' },
+    ]);
+    expect(
+      capture(() =>
+        createService(new MemoryRepository()).create(
+          createEntityInputSchema.parse({
+            campaignId,
+            entityTypeId,
+            name: 'Borin',
+            fieldValues: [{ fieldDefinitionId: progressFieldId, value: { current: 5, final: 4 } }],
+          }),
+        ),
+      ).code,
+    ).toBe('INVALID_FIELD_VALUE');
+  });
+
+  it('exige pares para novos progressos e preserva exatamente o atual numérico legado na edição', () => {
+    const repository = new MemoryRepository([createEntity()]);
+    repository.existingFieldValues = [
+      {
+        id: '40000000-0000-4000-8000-000000000010',
+        entityId,
+        fieldDefinitionId: progressFieldId,
+        value: -2.5,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        revision: 1,
+      },
+    ];
+    const service = createService(repository);
+
+    expect(
+      capture(() =>
+        createService(new MemoryRepository()).create(
+          createEntityInputSchema.parse({
+            campaignId,
+            entityTypeId,
+            name: 'Novo progresso',
+            fieldValues: [{ fieldDefinitionId: progressFieldId, value: -2.5 }],
+          }),
+        ),
+      ).code,
+    ).toBe('INVALID_FIELD_VALUE');
+    expect(
+      service.update({
+        campaignId,
+        id: entityId,
+        revision: 1,
+        patch: { summary: 'Edição independente' },
+        fieldValues: [{ fieldDefinitionId: progressFieldId, value: -2.5 }],
+      }),
+    ).toMatchObject({ entity: { summary: 'Edição independente' } });
+    expect(repository.lastValues[0]).toMatchObject({
+      fieldDefinitionId: progressFieldId,
+      valueNumber: -2.5,
+    });
+
+    service.update({
+      campaignId,
+      id: entityId,
+      revision: 2,
+      fieldValues: [
+        {
+          fieldDefinitionId: progressFieldId,
+          value: { current: -2.5, final: 10, legacyCurrent: true },
+        },
+      ],
+    });
+    expect(repository.lastValues[0]).toMatchObject({
+      fieldDefinitionId: progressFieldId,
+      valueJson: { current: -2.5, final: 10, legacyCurrent: true },
+    });
+    expect(
+      capture(() =>
+        service.update({
+          campaignId,
+          id: entityId,
+          revision: 3,
+          fieldValues: [
+            {
+              fieldDefinitionId: progressFieldId,
+              value: { current: -3, final: 10, legacyCurrent: true },
+            },
+          ],
+        }),
+      ).code,
+    ).toBe('INVALID_FIELD_VALUE');
+    repository.existingFieldValues = [
+      {
+        id: '40000000-0000-4000-8000-000000000010',
+        entityId,
+        fieldDefinitionId: progressFieldId,
+        value: { current: -2.5, final: 10, legacyCurrent: true },
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        revision: 2,
+      },
+    ];
+    expect(
+      service.update({
+        campaignId,
+        id: entityId,
+        revision: 3,
+        fieldValues: [
+          {
+            fieldDefinitionId: progressFieldId,
+            value: { current: -2.5, final: 12, legacyCurrent: true },
+          },
+        ],
+      }).entity.revision,
+    ).toBe(4);
+  });
+
+  it('aceita os menores totais positivos permitidos pela regra do domínio', () => {
+    const repository = new MemoryRepository();
+    createService(repository).create(
+      createEntityInputSchema.parse({
+        campaignId,
+        entityTypeId,
+        name: 'Limite',
+        fieldValues: [{ fieldDefinitionId: progressFieldId, value: { current: 0, final: 1e-8 } }],
+      }),
+    );
+    expect(repository.lastValues[0]?.valueJson).toEqual({ current: 0, final: 1e-8 });
+  });
+
+  it('permite trocar explicitamente o atual legado negativo por um par atual/final válido', () => {
+    const repository = new MemoryRepository([createEntity()]);
+    repository.existingFieldValues = [
+      {
+        id: '40000000-0000-4000-8000-000000000010',
+        entityId,
+        fieldDefinitionId: progressFieldId,
+        value: -2.5,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        revision: 1,
+      },
+    ];
+    createService(repository).update({
+      campaignId,
+      id: entityId,
+      revision: 1,
+      patch: { name: 'Nome alterado' },
+      fieldValues: [{ fieldDefinitionId: progressFieldId, value: { current: 2, final: 10 } }],
+    });
+    expect(repository.lastValues[0]).toMatchObject({
+      fieldDefinitionId: progressFieldId,
+      valueJson: { current: 2, final: 10 },
+    });
   });
 
   it('rejeita tipo incorreto, duplicidade e referência fora da tabela de relações', () => {
@@ -147,6 +346,7 @@ describe('EntityService', () => {
 class MemoryRepository implements EntityRepositoryPort {
   private records = new Map<string, Entity>();
   public lastValues: FieldValuePersistence[] = [];
+  public existingFieldValues: EntityDetails['fieldValues'] = [];
   public constructor(items: Entity[] = []) {
     for (const item of items) this.records.set(item.id, item);
   }
@@ -161,7 +361,7 @@ class MemoryRepository implements EntityRepositoryPort {
   }
   public getDetails(requestCampaignId: string, id: string): EntityDetails | null {
     const entity = this.findById(requestCampaignId, id);
-    return entity === null ? null : { entity, fieldValues: [] };
+    return entity === null ? null : { entity, fieldValues: this.existingFieldValues };
   }
   public list(request: EntityPageRequest): EntityPageResult {
     const items = [...this.records.values()].filter(
@@ -258,7 +458,13 @@ function createField(id: string): FieldDefinition | null {
         ? 'number'
         : id === referenceFieldId
           ? 'entity_reference'
-          : null;
+          : id === selectFieldId
+            ? 'single_select'
+            : id === progressFieldId
+              ? 'progress'
+              : id === richTextFieldId
+                ? 'rich_text'
+                : null;
   if (dataType === null) return null;
   return {
     id,
@@ -275,7 +481,7 @@ function createField(id: string): FieldDefinition | null {
     searchable: false,
     secretByDefault: false,
     defaultValue: null,
-    options: null,
+    options: dataType === 'single_select' ? ['Aliada', 'Rival'] : null,
     validation: null,
     referenceRelationshipTypeId: null,
     referenceDirection: null,

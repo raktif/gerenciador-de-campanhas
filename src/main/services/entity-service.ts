@@ -14,6 +14,7 @@ import type {
   UpdateEntityInput,
 } from '../../core/contracts/entities';
 import { AppError } from '../../core/errors/app-error';
+import { isProgressValue } from '../../core/domain/field-values';
 import type {
   EntityPersistencePatch,
   EntityRepositoryUpdate,
@@ -122,10 +123,19 @@ export class EntityService {
         'Ao alterar o tipo, informe novamente os valores de campo.',
       );
     this.requireActiveEntityType(input.campaignId, targetTypeId);
+    const existingDetails =
+      input.fieldValues === undefined
+        ? undefined
+        : this.dependencies.repository.getDetails(input.campaignId, input.id);
     const values =
       input.fieldValues === undefined
         ? undefined
-        : this.prepareValues(input.campaignId, targetTypeId, input.fieldValues);
+        : this.prepareValues(
+            input.campaignId,
+            targetTypeId,
+            input.fieldValues,
+            existingDetails?.fieldValues,
+          );
     const references =
       input.referenceValues === undefined
         ? undefined
@@ -209,6 +219,7 @@ export class EntityService {
     campaignId: string,
     entityTypeId: string,
     inputs: FieldValueInput[],
+    existingValues?: EntityDetails['fieldValues'],
   ): FieldValuePersistence[] {
     const seen = new Set<string>();
     const prepared = inputs.map((input) => {
@@ -236,7 +247,28 @@ export class EntityService {
           'Não é possível preencher uma definição de campo arquivada.',
           { fieldDefinitionId: definition.id },
         );
-      return toPersistenceValue(this.createId(), definition, input.value);
+      let allowLegacyProgressNumber = false;
+      if (definition.dataType === 'progress') {
+        const existing = existingValues?.find(
+          (fieldValue) => fieldValue.fieldDefinitionId === definition.id,
+        );
+        if (typeof input.value === 'number') {
+          if (existing?.value !== input.value)
+            throw invalidValue(definition, 'Informe o progresso atual e um total válido.');
+          allowLegacyProgressNumber = true;
+        } else if (
+          isLegacyProgressValue(input.value) &&
+          !matchesStoredLegacyProgress(existing?.value, input.value.current)
+        ) {
+          throw invalidValue(definition, 'O valor legado do progresso não corresponde ao salvo.');
+        }
+      }
+      return toPersistenceValue(
+        this.createId(),
+        definition,
+        input.value,
+        allowLegacyProgressNumber,
+      );
     });
     return prepared;
   }
@@ -363,6 +395,7 @@ function toPersistenceValue(
   id: string,
   definition: FieldDefinition,
   value: FieldValueInput['value'],
+  allowLegacyProgressNumber = false,
 ): FieldValuePersistence {
   if (value === null)
     throw invalidValue(definition, 'Valores nulos devem ser representados pela ausência do campo.');
@@ -380,19 +413,28 @@ function toPersistenceValue(
       'REFERENCE_FIELD_REQUIRES_RELATIONSHIP',
       'Campos de referência devem ser gravados como relações.',
     );
-  if (
-    definition.dataType === 'short_text' ||
-    definition.dataType === 'long_text' ||
-    definition.dataType === 'single_select'
-  ) {
+  if (definition.dataType === 'short_text' || definition.dataType === 'long_text') {
     if (typeof value !== 'string') throw invalidValue(definition, 'Informe um texto.');
     return { ...base, valueText: value };
   }
-  if (definition.dataType === 'number' || definition.dataType === 'progress') {
+  if (definition.dataType === 'single_select') {
+    if (typeof value !== 'string') throw invalidValue(definition, 'Escolha uma opção.');
+    validateOption(value, definition);
+    return { ...base, valueText: value };
+  }
+  if (definition.dataType === 'number') {
     if (typeof value !== 'number' || !Number.isFinite(value))
       throw invalidValue(definition, 'Informe um número finito.');
     return { ...base, valueNumber: value };
   }
+  if (definition.dataType === 'progress') {
+    if (allowLegacyProgressNumber && typeof value === 'number' && Number.isFinite(value))
+      return { ...base, valueNumber: value };
+    if (!isProgressValue(value))
+      throw invalidValue(definition, 'Informe o progresso atual e um total válido.');
+    return { ...base, valueJson: value };
+  }
+
   if (definition.dataType === 'boolean') {
     if (typeof value !== 'boolean') throw invalidValue(definition, 'Informe verdadeiro ou falso.');
     return { ...base, valueBoolean: value };
@@ -405,12 +447,42 @@ function toPersistenceValue(
   if (definition.dataType === 'multi_select') {
     if (!Array.isArray(value) || !value.every((item) => typeof item === 'string'))
       throw invalidValue(definition, 'Informe uma lista de textos.');
+    if (value.length === 0 || new Set(value).size !== value.length)
+      throw invalidValue(definition, 'Escolha uma ou mais opções sem repetições.');
+    value.forEach((item) => validateOption(item, definition));
     return { ...base, valueJson: value };
+  }
+  if (definition.dataType === 'rich_text') {
+    if (typeof value !== 'string') throw invalidValue(definition, 'Informe o texto formatado.');
+    return { ...base, valueText: value };
   }
   if (typeof value !== 'object' || Array.isArray(value))
     throw invalidValue(definition, 'Informe um objeto JSON.');
   return { ...base, valueJson: value };
 }
+function validateOption(value: string, definition: FieldDefinition): void {
+  if (!Array.isArray(definition.options) || !definition.options.includes(value))
+    throw invalidValue(definition, 'Escolha uma das opções configuradas para este campo.');
+}
+
+function isLegacyProgressValue(
+  value: unknown,
+): value is { current: number; final: number; legacyCurrent: true } {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    !Array.isArray(value) &&
+    'legacyCurrent' in value &&
+    value.legacyCurrent === true &&
+    isProgressValue(value)
+  );
+}
+
+function matchesStoredLegacyProgress(value: unknown, current: number): boolean {
+  if (typeof value === 'number') return value === current;
+  return isLegacyProgressValue(value) && value.current === current;
+}
+
 function invalidValue(definition: FieldDefinition, message: string): AppError {
   return new AppError('INVALID_FIELD_VALUE', message, {
     fieldDefinitionId: definition.id,

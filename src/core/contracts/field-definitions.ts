@@ -15,7 +15,7 @@ export const fieldDataTypes = [
   'entity_reference_list',
   'image',
   'progress',
-  'structured',
+  'rich_text',
 ] as const;
 
 export const fieldSemanticRoles = [
@@ -55,6 +55,20 @@ const helpArticleIdSchema = z
   .max(120)
   .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Use letras minúsculas, números e hífens simples.');
 const jsonValueSchema = z.json();
+export function canonicalizeFieldOptions(options: readonly string[]): string[] {
+  return options
+    .map((option) => option.trim())
+    .sort((left, right) => left.localeCompare(right, 'pt-BR'));
+}
+
+const optionsSchema = z
+  .array(z.string().trim().min(1))
+  .nullable()
+  .refine(
+    (value) => value === null || new Set(value).size === value.length,
+    'As opções não podem se repetir.',
+  );
+const storedOptionsSchema = jsonValueSchema.nullable();
 
 export const fieldDefinitionSchema = z
   .object({
@@ -72,7 +86,7 @@ export const fieldDefinitionSchema = z
     searchable: z.boolean(),
     secretByDefault: z.boolean(),
     defaultValue: jsonValueSchema.nullable(),
-    options: jsonValueSchema.nullable(),
+    options: storedOptionsSchema,
     validation: jsonValueSchema.nullable(),
     referenceRelationshipTypeId: z.uuid().nullable(),
     referenceDirection: z.enum(referenceDirections).nullable(),
@@ -85,6 +99,15 @@ export const fieldDefinitionSchema = z
     revision: z.number().int().positive(),
   })
   .strict()
+  .transform((field) => ({
+    ...field,
+    options:
+      (field.dataType === 'single_select' || field.dataType === 'multi_select') &&
+      Array.isArray(field.options) &&
+      field.options.every((option) => typeof option === 'string')
+        ? canonicalizeFieldOptions(field.options)
+        : field.options,
+  }))
   .superRefine(validateImageFieldConfiguration);
 export type FieldDefinition = z.infer<typeof fieldDefinitionSchema>;
 
@@ -100,7 +123,7 @@ const editableFieldsSchema = z.object({
   searchable: z.boolean(),
   secretByDefault: z.boolean(),
   defaultValue: jsonValueSchema.nullable(),
-  options: jsonValueSchema.nullable(),
+  options: optionsSchema,
   validation: jsonValueSchema.nullable(),
   referenceRelationshipTypeId: z.uuid().nullable(),
   referenceDirection: z.enum(referenceDirections).nullable(),
@@ -123,7 +146,7 @@ export const createFieldDefinitionInputSchema = z
     searchable: z.boolean().default(false),
     secretByDefault: z.boolean().default(false),
     defaultValue: jsonValueSchema.nullable().default(null),
-    options: jsonValueSchema.nullable().default(null),
+    options: optionsSchema.default(null),
     validation: jsonValueSchema.nullable().default(null),
     referenceRelationshipTypeId: z.uuid().nullable().default(null),
     referenceDirection: z.enum(referenceDirections).nullable().default(null),
@@ -131,15 +154,43 @@ export const createFieldDefinitionInputSchema = z
     onDeleteBehavior: z.enum(referenceDeleteBehaviors).nullable().default(null),
   })
   .strict()
-  .superRefine(validateImageFieldConfiguration)
-  .transform((input) => ({ ...input, sortOrder: 0 }));
+  .superRefine((input, ctx) => {
+    validateImageFieldConfiguration(input, ctx);
+    if (
+      (input.dataType === 'single_select' || input.dataType === 'multi_select') &&
+      input.options?.some((option) => option.includes(','))
+    )
+      ctx.addIssue({
+        code: 'custom',
+        path: ['options'],
+        message: 'As opções não podem conter vírgulas; cada valor é separado por vírgula.',
+      });
+  })
+  .transform((input) => ({
+    ...input,
+    options:
+      (input.dataType === 'single_select' || input.dataType === 'multi_select') &&
+      input.options !== null
+        ? canonicalizeFieldOptions(input.options)
+        : input.options,
+    sortOrder: 0,
+  }));
 export type CreateFieldDefinitionInput = z.output<typeof createFieldDefinitionInputSchema>;
 export type CreateFieldDefinitionInputRequest = z.input<typeof createFieldDefinitionInputSchema>;
 
 export const fieldDefinitionPatchSchema = editableFieldsSchema
   .partial()
   .strict()
-  .refine((patch) => Object.keys(patch).length > 0, 'Informe ao menos uma alteração.');
+  .superRefine((patch, ctx) => {
+    if (Object.keys(patch).length === 0)
+      ctx.addIssue({ code: 'custom', message: 'Informe ao menos uma alteração.' });
+    if (patch.options?.some((option) => option.includes(',')))
+      ctx.addIssue({
+        code: 'custom',
+        path: ['options'],
+        message: 'As opções não podem conter vírgulas; cada valor é separado por vírgula.',
+      });
+  });
 export type FieldDefinitionPatch = z.infer<typeof fieldDefinitionPatchSchema>;
 
 export const updateFieldDefinitionInputSchema = z
@@ -226,9 +277,9 @@ function validateImageFieldConfiguration(
     dataType: (typeof fieldDataTypes)[number];
     required: boolean;
     searchable: boolean;
-    defaultValue: unknown | null;
-    options: unknown | null;
-    validation: unknown | null;
+    defaultValue: unknown;
+    options: unknown;
+    validation: unknown;
     referenceRelationshipTypeId: string | null;
     referenceDirection: (typeof referenceDirections)[number] | null;
     allowedTargetTypeIds: string[] | null;

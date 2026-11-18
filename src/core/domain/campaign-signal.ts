@@ -35,7 +35,7 @@ export function detectExplicitNeeds(inputs: readonly ExplicitNeedInput[]): Expli
       const evidenceDescription = truncateCodePoints(value, 2000);
       return {
         ...input,
-        signalId: stableSignalId(input),
+        signalId: stableExplicitNeedSignalId(input),
         signalType: 'explicit_need',
         title: `Necessidade explícita: ${entityName}`,
         summary: value,
@@ -53,7 +53,9 @@ function truncateCodePoints(value: string, maximum: number): string {
   return `${points.slice(0, maximum - 1).join('')}…`;
 }
 
-function stableSignalId(input: ExplicitNeedInput): string {
+export function stableExplicitNeedSignalId(
+  input: Pick<ExplicitNeedInput, 'campaignId' | 'entityId' | 'fieldDefinitionId'>,
+): string {
   const hash = createHash('sha256')
     .update(
       JSON.stringify([

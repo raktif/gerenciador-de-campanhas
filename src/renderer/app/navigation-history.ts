@@ -32,7 +32,7 @@ export class NavigationHistory {
 
   private get currentEntry(): NavigationEntry {
     const entry = this.entries[this.position];
-    if (entry === undefined) throw new Error('Invalid navigation history position.');
+    if (entry === undefined) throw new Error('Posição inválida no histórico de navegação.');
     return entry;
   }
 

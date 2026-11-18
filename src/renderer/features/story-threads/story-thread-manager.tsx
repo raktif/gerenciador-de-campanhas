@@ -415,8 +415,11 @@ export function StoryThreadManager({
             />
           </h1>
           <p className="mt-2 max-w-3xl text-sm semantic-text-secondary">
-            Fios não decidem acontecimentos nem alteram afirmações canônicas. Cada mudança de estado
-            é registrada no histórico específico do fio.
+            Registre aqui pontas soltas da história que você quer acompanhar e talvez retomar em
+            sessões futuras — como mistérios, promessas, ameaças e objetivos inacabados. Vincule
+            personagens ou registros relacionados e atualize o estado conforme a história avança. Um
+            fio é um lembrete para o narrador: ele não cria acontecimentos nem os resolve
+            automaticamente.
           </p>
         </div>
         <ButtonGroup aria-label="Navegação dos fios">
@@ -511,7 +514,7 @@ export function StoryThreadManager({
             {items.map((item) => (
               <li key={item.id}>
                 <button
-                  className="w-full rounded-2xl border semantic-border p-4 text-left transition hover:semantic-navigation-surface"
+                  className="w-full cursor-pointer rounded-2xl border semantic-border p-4 text-left transition hover:semantic-navigation-surface"
                   disabled={busy}
                   onClick={() => void openThread(item)}
                   type="button"
@@ -767,7 +770,7 @@ function TargetEditor({
   onRemove: (index: number) => void;
 }): React.JSX.Element {
   return (
-    <fieldset className="grid gap-3 rounded-2xl border semantic-border p-4">
+    <fieldset className="grid max-w-full gap-3 overflow-hidden rounded-2xl border semantic-border p-4">
       <legend className="px-2 font-semibold semantic-text-primary">
         Vínculos com registros existentes
       </legend>
@@ -775,11 +778,11 @@ function TargetEditor({
         Só é possível adicionar registros ativos. Vínculos já existentes com registros
         posteriormente arquivados são preservados.
       </p>
-      <div className="flex flex-wrap gap-2">
-        <label className="grid min-w-40 flex-1 gap-1 text-sm semantic-text-secondary">
+      <div className="grid min-w-0 max-w-full gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_auto]">
+        <label className="grid min-w-0 gap-1 text-sm semantic-text-secondary">
           Tipo de registro
           <select
-            className={textClass}
+            className={`${textClass} w-full min-w-0`}
             onChange={(event) => setTargetType(event.currentTarget.value as StoryThreadTargetTypes)}
             value={targetType}
           >
@@ -790,10 +793,10 @@ function TargetEditor({
             ))}
           </select>
         </label>
-        <label className="grid min-w-48 flex-[2] gap-1 text-sm semantic-text-secondary">
+        <label className="grid min-w-0 gap-1 text-sm semantic-text-secondary">
           Registro
           <select
-            className={textClass}
+            className={`${textClass} w-full min-w-0 truncate`}
             disabled={loading || targets.length === 0}
             onChange={(event) => setTargetId(event.currentTarget.value)}
             value={targetId}
@@ -806,7 +809,11 @@ function TargetEditor({
             ))}
           </select>
         </label>
-        <Button className="self-end" disabled={targetId === '' || loading} onClick={onAdd}>
+        <Button
+          className="self-end justify-self-start"
+          disabled={targetId === '' || loading}
+          onClick={onAdd}
+        >
           Vincular
         </Button>
       </div>

@@ -7,11 +7,14 @@ import {
   imageRemovalFocusTarget,
   imageMetadataDraftKey,
 } from '../../src/renderer/features/entities/image-field-gallery';
-import { toFieldValueInputs } from '../../src/renderer/features/entities/entity-form';
+import {
+  toFieldValueInputs,
+  toFieldValueTexts,
+} from '../../src/renderer/features/entities/entity-form';
 import { FieldDefinitionForm } from '../../src/renderer/features/field-definitions/field-definition-form';
 
 describe('interface de campos personalizados de imagem', () => {
-  it('oferece o dataType image e desabilita configuracoes incompatveis', () => {
+  it('oferece o dataType image sem expor configuracoes JSON', () => {
     const html = renderToStaticMarkup(
       <FieldDefinitionForm
         busy={false}
@@ -28,7 +31,10 @@ describe('interface de campos personalizados de imagem', () => {
     expect(html).toContain('Campos de imagem são sempre opcionais');
     expect(html).toContain('Secreto por padrão');
     expect(html).toContain('não se aplica a este tipo');
-    expect(html.match(/disabled=""/gu)?.length).toBeGreaterThanOrEqual(6);
+    expect(html).not.toContain('Valor padrão (JSON)');
+    expect(html).not.toContain('Opções (JSON)');
+    expect(html).not.toContain('Validação (JSON)');
+    expect(html.match(/disabled=""/gu)?.length).toBeGreaterThanOrEqual(3);
   });
 
   it('nunca converte campos image em fieldValues da entidade', () => {
@@ -39,6 +45,87 @@ describe('interface de campos personalizados de imagem', () => {
         [textField.id]: 'Capataz',
       }),
     ).toEqual([{ fieldDefinitionId: textFieldId, value: 'Capataz' }]);
+  });
+
+  it('mantém progresso legado negativo ao editar outros campos e aceita total positivo decimal', () => {
+    const progressField = {
+      ...imageField,
+      id: '30000000-0000-4000-8000-000000000003',
+      dataType: 'progress' as const,
+    };
+    expect(toFieldValueInputs([progressField], { [progressField.id]: '-2.5' })).toEqual([
+      { fieldDefinitionId: progressField.id, value: -2.5 },
+    ]);
+    expect(
+      toFieldValueInputs([progressField], {
+        [progressField.id]: '{"current":-2.5,"final":10,"legacyCurrent":true}',
+      }),
+    ).toEqual([
+      {
+        fieldDefinitionId: progressField.id,
+        value: { current: -2.5, final: 10, legacyCurrent: true },
+      },
+    ]);
+    expect(
+      toFieldValueInputs([progressField], {
+        [progressField.id]: '{"current":0,"final":0.00000001}',
+      }),
+    ).toEqual([{ fieldDefinitionId: progressField.id, value: { current: 0, final: 1e-8 } }]);
+    expect(
+      toFieldValueInputs([progressField], {
+        [progressField.id]: '{"current":2,"final":10}',
+      }),
+    ).toEqual([{ fieldDefinitionId: progressField.id, value: { current: 2, final: 10 } }]);
+    expect(() =>
+      toFieldValueInputs([progressField], {
+        [progressField.id]: '{"current":-2.5,"final":10}',
+      }),
+    ).toThrow('valor atual não negativo');
+  });
+
+  it('mantém uma opção legada com vírgula como escolha única no formulário de entidade', () => {
+    const multiSelectField = {
+      ...imageField,
+      id: '30000000-0000-4000-8000-000000000004',
+      dataType: 'multi_select' as const,
+      options: ['Norte, Sul', 'Oeste'],
+    };
+    const persistedValue = {
+      id: '40000000-0000-4000-8000-000000000004',
+      entityId,
+      fieldDefinitionId: multiSelectField.id,
+      value: ['Norte, Sul'],
+      createdAt: '2026-11-04T10:00:00.000Z',
+      updatedAt: '2026-11-04T10:00:00.000Z',
+      revision: 1,
+    };
+    const formValues = toFieldValueTexts([persistedValue]);
+    expect(formValues[multiSelectField.id]).toBe('["Norte, Sul"]');
+    expect(toFieldValueInputs([multiSelectField], formValues)).toEqual([
+      { fieldDefinitionId: multiSelectField.id, value: ['Norte, Sul'] },
+    ]);
+  });
+
+  it('exibe opção legada com vírgula como item individual na configuração de campo', () => {
+    const multiSelectField = {
+      ...imageField,
+      dataType: 'multi_select' as const,
+      options: ['Norte, Sul', 'Oeste'],
+    };
+    const markup = renderToStaticMarkup(
+      <FieldDefinitionForm
+        busy={false}
+        campaignId={campaignId}
+        error={null}
+        field={multiSelectField}
+        mode="edit"
+        onCancel={() => undefined}
+        onSubmit={() => Promise.resolve()}
+      />,
+    );
+    expect(markup).toContain('Esta definição contém valores antigos com vírgulas');
+    expect(markup).toContain('<li>Norte, Sul</li>');
+    expect(markup).toContain('<li>Oeste</li>');
   });
 
   it('exige texto alternativo descritivo no contrato de importacao', () => {

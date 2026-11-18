@@ -64,6 +64,7 @@ export function FieldDefinitionForm(props: FormProps): React.JSX.Element {
   >('idle');
   const [referenceOptionsAttempt, setReferenceOptionsAttempt] = useState(0);
   const referenceOptionsRequest = useRef(0);
+  const selectionOptionsId = useId();
 
   function update<Field extends keyof FormValues>(field: Field, value: FormValues[Field]): void {
     setValidationError(null);
@@ -73,7 +74,7 @@ export function FieldDefinitionForm(props: FormProps): React.JSX.Element {
   function submit(event: React.SyntheticEvent<HTMLFormElement, SubmitEvent>): void {
     event.preventDefault();
     try {
-      const normalized = normalize(values);
+      const normalized = normalize(values, props.mode === 'edit' ? props.field : undefined);
       if (props.mode === 'create') {
         void props.onSubmit(normalized);
         return;
@@ -94,6 +95,9 @@ export function FieldDefinitionForm(props: FormProps): React.JSX.Element {
     setValues((current) => ({
       ...current,
       dataType: value,
+      ...(isSelectionDataType(current.dataType) && !isSelectionDataType(value)
+        ? { options: '' }
+        : {}),
       ...(value === 'image'
         ? {
             required: false,
@@ -233,7 +237,7 @@ export function FieldDefinitionForm(props: FormProps): React.JSX.Element {
               onChange={(v) => update('exampleText', v)}
             />
           </div>
-          <div className="grid gap-6 md:grid-cols-3">
+          <div className="grid items-stretch gap-6 md:grid-cols-2">
             <Select
               help={contextualHelpCatalog['fieldDefinition.dataType']}
               label="Tipo de dado"
@@ -247,15 +251,15 @@ export function FieldDefinitionForm(props: FormProps): React.JSX.Element {
               onChange={(v) => update('semanticRole', v)}
               options={[
                 ['', 'Nenhum'],
-                ...fieldSemanticRoles.map((value) => [value, value] as const),
+                ...fieldSemanticRoles.map((value) => [value, semanticRoleLabel(value)] as const),
               ]}
             />
           </div>
           {isImage ? (
             <p className="rounded-xl semantic-surface-muted p-4 text-sm semantic-text-secondary">
-              Campos de imagem são sempre opcionais e não pesquisáveis; valor padrão, opções e
-              validação JSON ficam desativados. “Secreto por padrão” não se aplica a este tipo; as
-              imagens permanecem privadas e são servidas somente pelo canal seguro.
+              Campos de imagem são sempre opcionais e não pesquisáveis. “Secreto por padrão” não se
+              aplica a este tipo; as imagens permanecem privadas e são servidas somente pelo canal
+              seguro.
             </p>
           ) : null}
           <div className="flex flex-wrap gap-6 rounded-2xl semantic-surface-muted p-5">
@@ -278,26 +282,54 @@ export function FieldDefinitionForm(props: FormProps): React.JSX.Element {
               onChange={(v) => update('secretByDefault', v)}
             />
           </div>
-          <div className="grid gap-6 md:grid-cols-3">
-            <JsonInput
-              label="Valor padrão (JSON)"
-              disabled={isImage}
-              value={values.defaultValue}
-              onChange={(v) => update('defaultValue', v)}
-            />
-            <JsonInput
-              label="Opções (JSON)"
-              disabled={isImage}
-              value={values.options}
-              onChange={(v) => update('options', v)}
-            />
-            <JsonInput
-              label="Validação (JSON)"
-              disabled={isImage}
-              value={values.validation}
-              onChange={(v) => update('validation', v)}
-            />
-          </div>
+          {isSelectionDataType(values.dataType) ? (
+            <div>
+              <div className="flex items-center gap-1">
+                <label className={labelClass} htmlFor={selectionOptionsId}>
+                  Valores para seleção
+                </label>
+                <ContextualHelp
+                  content={{
+                    description: 'Informe as opções que poderão ser escolhidas neste campo.',
+                    purpose: 'A lista será apresentada como menu de seleção na entidade.',
+                    example: 'Aliada, Neutra, Rival',
+                    consequence:
+                      'Separe cada opção com vírgula; não use vírgula dentro de uma opção. Valores vazios ou repetidos não são aceitos.',
+                  }}
+                  label="Valores para seleção"
+                />
+              </div>
+              {props.mode === 'edit' &&
+              props.field.dataType === values.dataType &&
+              Array.isArray(props.field.options) &&
+              props.field.options.some(
+                (option) => typeof option === 'string' && option.includes(','),
+              ) &&
+              values.options === displayOptions(props.field.options) ? (
+                <div className="mb-2 rounded-xl border semantic-border p-3 text-sm">
+                  <p>
+                    Esta definição contém valores antigos com vírgulas. Eles serão preservados
+                    enquanto a lista não for alterada:
+                  </p>
+                  <ul className="mt-2 list-inside list-disc">
+                    {props.field.options
+                      .filter((option): option is string => typeof option === 'string')
+                      .map((option, index) => (
+                        <li key={`${option}-${String(index)}`}>{option}</li>
+                      ))}
+                  </ul>
+                </div>
+              ) : null}
+              <input
+                className={inputClass}
+                disabled={props.busy}
+                id={selectionOptionsId}
+                onChange={(event) => update('options', event.target.value)}
+                placeholder="Ex.: Aliado, Neutro, Rival"
+                value={values.options}
+              />
+            </div>
+          ) : null}
           {isReference ? (
             <fieldset className="grid gap-6 rounded-2xl border semantic-border p-5 md:grid-cols-2">
               <legend className="px-2 font-semibold">Configuração da referência</legend>
@@ -399,7 +431,8 @@ export function FieldDefinitionForm(props: FormProps): React.JSX.Element {
   );
 }
 
-function normalize(values: FormValues): FieldDefinitionCreateValues {
+function normalize(values: FormValues, current?: FieldDefinition): FieldDefinitionCreateValues {
+  const isSelection = isSelectionDataType(values.dataType);
   return {
     label: values.label.trim(),
     description: nullable(values.description),
@@ -411,9 +444,15 @@ function normalize(values: FormValues): FieldDefinitionCreateValues {
     required: values.required,
     searchable: values.searchable,
     secretByDefault: values.secretByDefault,
-    defaultValue: json(values.defaultValue, 'Valor padrão'),
-    options: json(values.options, 'Opções'),
-    validation: json(values.validation, 'Validação'),
+    defaultValue: current?.defaultValue ?? null,
+    options: isSelection
+      ? current?.dataType === values.dataType && values.options === displayOptions(current.options)
+        ? Array.isArray(current.options)
+          ? current.options.filter((item): item is string => typeof item === 'string')
+          : null
+        : parseSelectionOptions(values.options)
+      : null,
+    validation: current?.validation ?? null,
     referenceRelationshipTypeId: nullable(values.referenceRelationshipTypeId),
     referenceDirection:
       values.referenceDirection === ''
@@ -434,6 +473,20 @@ function createPatch(
 ): FieldDefinitionPatch {
   const patch: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(values)) {
+    if (key === 'defaultValue' || key === 'validation') continue;
+    if (
+      key === 'options' &&
+      !isSelectionDataType(values.dataType) &&
+      !isSelectionDataType(current.dataType)
+    )
+      continue;
+    if (
+      key === 'options' &&
+      isSelectionDataType(values.dataType) &&
+      values.dataType === current.dataType &&
+      JSON.stringify(values.options) === JSON.stringify(current.options)
+    )
+      continue;
     if (JSON.stringify(value) !== JSON.stringify(current[key as keyof FieldDefinition]))
       patch[key] = value;
   }
@@ -452,7 +505,7 @@ function toFormValues(field: FieldDefinition): FormValues {
     searchable: field.searchable,
     secretByDefault: field.secretByDefault,
     defaultValue: displayJson(field.defaultValue),
-    options: displayJson(field.options),
+    options: displayOptions(field.options),
     validation: displayJson(field.validation),
     referenceRelationshipTypeId: field.referenceRelationshipTypeId ?? '',
     referenceDirection: field.referenceDirection ?? '',
@@ -483,16 +536,27 @@ function nullable(value: string): string | null {
   const trimmed = value.trim();
   return trimmed === '' ? null : trimmed;
 }
-function json(value: string, label: string): FieldDefinition['defaultValue'] {
-  if (value.trim() === '') return null;
-  try {
-    return JSON.parse(value) as FieldDefinition['defaultValue'];
-  } catch {
-    throw new Error(`${label} deve conter JSON válido.`);
-  }
-}
 function displayJson(value: unknown): string {
   return value === null ? '' : JSON.stringify(value);
+}
+function displayOptions(value: unknown): string {
+  if (value === null) return '';
+  if (Array.isArray(value) && value.every((item) => typeof item === 'string'))
+    return value.join(', ');
+  return JSON.stringify(value);
+}
+function isSelectionDataType(value: FieldDefinition['dataType']): boolean {
+  return value === 'single_select' || value === 'multi_select';
+}
+function parseSelectionOptions(value: string): string[] {
+  if (value.trim() === '') throw new Error('Informe pelo menos um valor para seleção.');
+  const options = value.split(',').map((item) => item.trim());
+  if (options.some((item) => item === ''))
+    throw new Error('Remova valores vazios entre as vírgulas.');
+  const sorted = [...options].sort((left, right) => left.localeCompare(right, 'pt-BR'));
+  if (new Set(sorted).size !== sorted.length)
+    throw new Error('Remova os valores repetidos da lista de seleção.');
+  return sorted;
 }
 function dataTypeLabel(value: string): string {
   return (
@@ -506,11 +570,30 @@ function dataTypeLabel(value: string): string {
       multi_select: 'Seleção múltipla',
       entity_reference: 'Referência de entidade',
       entity_reference_list: 'Lista de referências',
-      structured: 'Estruturado',
+      rich_text: 'Texto formatado',
       progress: 'Progresso',
       image: 'Imagem',
     }[value] ?? value.replaceAll('_', ' ')
   );
+}
+function semanticRoleLabel(value: (typeof fieldSemanticRoles)[number]): string {
+  return {
+    name: 'Nome',
+    description: 'Descrição',
+    goal: 'Objetivo',
+    need: 'Necessidade',
+    fear: 'Medo',
+    resource: 'Recurso',
+    obstacle: 'Obstáculo',
+    status: 'Estado',
+    secret: 'Segredo',
+    location: 'Local',
+    owner: 'Responsável',
+    motivation: 'Motivação',
+    stakes: 'Consequências em jogo',
+    clue: 'Pista',
+    reward: 'Recompensa',
+  }[value];
 }
 
 function TextInput({
@@ -569,25 +652,6 @@ function TextArea({
         maxLength={maxLength}
         onChange={(event) => onChange(event.target.value)}
         value={value}
-      />
-    </label>
-  );
-}
-function JsonInput(props: {
-  disabled?: boolean;
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-}): React.JSX.Element {
-  return (
-    <label className={labelClass}>
-      {props.label}
-      <textarea
-        className={`${inputClass} min-h-24 font-mono text-sm`}
-        disabled={props.disabled}
-        onChange={(e) => props.onChange(e.target.value)}
-        placeholder='{"exemplo": true}'
-        value={props.value}
       />
     </label>
   );

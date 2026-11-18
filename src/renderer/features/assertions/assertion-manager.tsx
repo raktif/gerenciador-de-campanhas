@@ -748,8 +748,7 @@ function AssertionForm({
       if (!structured && statement.trim().length > 10000)
         throw new Error('A afirmação textual deve ter no máximo 10000 caracteres.');
       let parsed: CreateAssertionInput['value'] = null;
-      if (structured && value.trim() !== '')
-        parsed = JSON.parse(value) as CreateAssertionInput['value'];
+      if (structured && value.trim() !== '') parsed = parseStructuredAssertionValue(value);
       const metadataInput = {
         canonState: metadata.canonState,
         knowledgeState: metadata.knowledgeState,
@@ -885,6 +884,14 @@ function AssertionForm({
       </div>
     </section>
   );
+}
+
+export function parseStructuredAssertionValue(raw: string): CreateAssertionInput['value'] {
+  try {
+    return JSON.parse(raw) as CreateAssertionInput['value'];
+  } catch {
+    throw new Error('JSON inválido. Verifique a estrutura e tente novamente.');
+  }
 }
 
 async function loadAllEntities(campaignId: string): Promise<Entity[]> {

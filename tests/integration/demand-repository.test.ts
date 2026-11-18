@@ -6,7 +6,7 @@ import Database from 'better-sqlite3';
 import { afterEach, describe, expect, it } from 'vitest';
 import { ensureDataDirectories, getDataDirectories } from '../../src/core/storage/data-directories';
 import { openApplicationDatabase, type DatabaseContext } from '../../src/db/connection';
-import { migrations } from '../../src/db/migrations/registry';
+import { latestMigrationVersion, migrations } from '../../src/db/migrations/registry';
 import { DemandRepository } from '../../src/db/repositories/demand-repository';
 import { CampaignSignalRepository } from '../../src/db/repositories/campaign-signal-repository';
 import type { DemandContent, DemandDetails } from '../../src/core/contracts/demands';
@@ -24,7 +24,7 @@ afterEach(async () => {
   for (const context of contexts.splice(0)) if (context.native.open) context.close();
   await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
 });
-async function setup() {
+async function setup(needText = 'Investigar os cabos') {
   const root = await mkdtemp(path.join(os.tmpdir(), 'demand-test-'));
   roots.push(root);
   const dirs = getDataDirectories(root);
@@ -59,7 +59,7 @@ async function setup() {
   ).run(field, type, now, now);
   db.prepare(
     'INSERT INTO field_values(id,entity_id,field_definition_id,value_text,created_at,updated_at) VALUES(?,?,?,?,?,?)',
-  ).run(value, entity, field, 'Investigar os cabos', now, now);
+  ).run(value, entity, field, needText, now, now);
   const signals = new CampaignSignalRepository(db);
   const firstSignal = signals.recalculate(campaignId, now).items[0];
   if (!firstSignal) throw new Error('Sinal ausente');
@@ -67,7 +67,7 @@ async function setup() {
   const repo = new DemandRepository(db, () => now);
   const content: DemandContent = {
     title: 'Investigar cabos',
-    need: 'Investigar os cabos',
+    need: needText,
     summary: 'Revisado',
     obstacle: '',
     risks: '',
@@ -260,7 +260,11 @@ describe('3B.3 Demandas — SQLite real', () => {
   });
   it('aceita somente necessidade atual; conversão idempotente preserva fonte e não promove cânone', async () => {
     const s = await setup();
-    expect(s.repo.suggestion(s.campaignId, s.signal.id).need).toBe(s.content.need);
+    expect(s.repo.suggestion(s.campaignId, s.signal.id)).toMatchObject({
+      need: s.content.need,
+      rationale:
+        'Necessidade explícita: o campo “Necessidade” está preenchido. Nenhuma urgência, risco ou obstáculo foi inferido.',
+    });
     const first = s.accept();
     expect(first.demand).toMatchObject({
       status: 'available',
@@ -280,6 +284,38 @@ describe('3B.3 Demandas — SQLite real', () => {
       need: 'Investigar os cabos',
       signal: { rule_version: 'explicit-need-v1' },
     });
+  });
+
+  it('reverte juntos a limpeza do campo e das cópias se a v34 falhar', async () => {
+    const original = '{"necessidade":"Investigar"}';
+    const s = await setup(original);
+    const accepted = s.accept();
+    const demandSql = 'SELECT * FROM demands WHERE id=?';
+    const demandId = accepted.demand.id;
+    const before = s.db.prepare(demandSql).get(demandId);
+    s.db.exec(`DELETE FROM schema_migrations WHERE version IN (33,34);
+        CREATE TRIGGER reject_v34 BEFORE INSERT ON schema_migrations WHEN NEW.version=34
+        BEGIN SELECT RAISE(ABORT, 'falha controlada v34'); END;`);
+    s.context.close();
+    await expect(openApplicationDatabase(s.dirs, new TestLogger())).rejects.toThrow(
+      'falha controlada v34',
+    );
+    const failed = new Database(path.join(s.dirs.database, 'app.db'), { readonly: true });
+    try {
+      expect(failed.prepare(demandSql).get(demandId)).toEqual(before);
+      expect(failed.prepare('SELECT value_text FROM field_values WHERE id=?').get(s.value)).toEqual(
+        { value_text: original },
+      );
+      expect(
+        failed.prepare('SELECT summary FROM campaign_signals WHERE id=?').get(s.signal.id),
+      ).toEqual({ summary: original });
+      expect(failed.prepare('SELECT MAX(version) AS version FROM schema_migrations').get()).toEqual(
+        { version: 32 },
+      );
+    } finally {
+      failed.close();
+    }
+    expect(await readdir(s.dirs.automaticBackups)).toEqual([]);
   });
   it('bloqueia stale/adiado, fonte alterada e revisão obsoleta sem criar dados parciais', async () => {
     const s = await setup();
@@ -496,10 +532,10 @@ describe('3B.3 Demandas — SQLite real', () => {
         .run(resolved.demand.generatedEventId),
     ).toThrow();
   });
-  it('upgrade v28 preserva checksums/dados e produz backup íntegro; banco vazio chega à v29', async () => {
+  it('upgrade v28 preserva checksums e dados sem backup no lote da v33; banco vazio chega à versão atual', async () => {
     const s = await setup();
     expect(s.db.prepare('SELECT max(version) AS version FROM schema_migrations').get()).toEqual({
-      version: 29,
+      version: latestMigrationVersion,
     });
     const root = await mkdtemp(path.join(os.tmpdir(), 'demand-upgrade-'));
     roots.push(root);
@@ -535,15 +571,109 @@ describe('3B.3 Demandas — SQLite real', () => {
     ).toEqual({ name: 'Preservada' });
     expect(upgraded.native.pragma('integrity_check', { simple: true })).toBe('ok');
     expect(upgraded.native.pragma('foreign_key_check')).toEqual([]);
-    const backups = await readdir(dirs.automaticBackups);
-    expect(backups.length).toBeGreaterThan(0);
-    const backupName = backups[0];
-    if (!backupName) throw new Error('Backup ausente');
-    const backup = new Database(path.join(dirs.automaticBackups, backupName), { readonly: true });
-    expect(backup.pragma('integrity_check', { simple: true })).toBe('ok');
-    expect(backup.prepare('SELECT max(version) AS version FROM schema_migrations').get()).toEqual({
-      version: 28,
-    });
-    backup.close();
+    expect(await readdir(dirs.automaticBackups)).toEqual([]);
   });
+
+  it.each([32, 33])(
+    'v%i: limpa cópias com proveniência exata sem alterar identidade ou histórico',
+    async (version) => {
+      const original = '{"necessidade":"Investigar"}';
+      const notice = 'Conteúdo removido pela limpeza de campos.';
+      const s = await setup(original);
+      const accepted = s.accept();
+      const demandId = accepted.demand.id;
+      const signalId = s.signal.id;
+      const queryDemand = 'SELECT * FROM demands WHERE id=?';
+      const queryLinks =
+        'SELECT * FROM demand_entity_links WHERE demand_id=? ORDER BY entity_id, role';
+      const querySignal = 'SELECT * FROM campaign_signals WHERE id=?';
+      const queryEvidence = 'SELECT * FROM signal_evidence WHERE signal_id=? ORDER BY id';
+      const before = s.db.prepare(queryDemand).get(demandId) as {
+        source_snapshot: string;
+        need: string;
+      };
+      const links = s.db.prepare(queryLinks).all(demandId);
+      const unrelatedId = randomUUID();
+      s.db
+        .prepare(
+          `INSERT INTO campaign_signals
+      SELECT ?,campaign_id,signal_type,title,summary,priority,status,generated_at,last_detected_at,
+      dismissed_until,rule_version,generator_kind,created_at,updated_at,revision
+      FROM campaign_signals WHERE id=?`,
+        )
+        .run(unrelatedId, signalId);
+      const originalSignal = s.db.prepare(querySignal).get(signalId) as { summary: string };
+      const evidence = s.db.prepare(queryEvidence).all(signalId) as { description: string }[];
+      expect(evidence).toHaveLength(1);
+      s.db
+        .prepare(
+          'INSERT INTO field_values(id,entity_id,field_definition_id,value_text,created_at,updated_at) VALUES(?,?,?,?,?,?)',
+        )
+        .run(randomUUID(), s.other, s.field, original, now, now);
+      const standalone = s.signals
+        .recalculate(s.campaignId, now)
+        .items.find(
+          ({ signal }) =>
+            signal.id !== signalId && signal.id !== unrelatedId && signal.summary === original,
+        )?.signal;
+      if (!standalone) throw new Error('Sinal avulso ausente.');
+      if (version === 33) {
+        const cleanup = migrations.find((m) => m.version === 33);
+        if (!cleanup) throw new Error('Migração v33 ausente.');
+        s.db.function('is_json_container_text', (value) => Number(value === original));
+        s.db.exec(cleanup.sql);
+      } else {
+        s.db.prepare('DELETE FROM schema_migrations WHERE version=33').run();
+      }
+      s.db.prepare('DELETE FROM schema_migrations WHERE version=34').run();
+      s.context.close();
+      const upgraded = await openApplicationDatabase(s.dirs, new TestLogger());
+      contexts.push(upgraded);
+      expect(
+        upgraded.native.prepare('SELECT value_text FROM field_values WHERE id=?').get(s.value),
+      ).toEqual({ value_text: '' });
+      const after = upgraded.native.prepare(queryDemand).get(demandId) as typeof before;
+      const snapshot = JSON.parse(after.source_snapshot) as {
+        need: string;
+        acceptedPayload: string;
+        signal: { id: string; rule_version: string; summary: string };
+        evidence: { description: string }[];
+      };
+      expect(after).toEqual({ ...before, need: notice, source_snapshot: after.source_snapshot });
+      expect(snapshot).toMatchObject({
+        need: notice,
+        signal: { id: signalId, rule_version: 'explicit-need-v1', summary: notice },
+        evidence: [{ description: notice }],
+      });
+      expect(JSON.parse(snapshot.acceptedPayload)).toEqual({ ...s.content, need: notice });
+      expect(Object.values(after)).not.toContain(original);
+      expect(after.source_snapshot).not.toContain('necessidade');
+      expect(upgraded.native.prepare(queryLinks).all(demandId)).toEqual(links);
+      expect(upgraded.native.prepare(querySignal).get(signalId)).toEqual({
+        ...originalSignal,
+        summary: notice,
+      });
+      expect(upgraded.native.prepare(queryEvidence).all(signalId)).toEqual(
+        evidence.map((entry) => ({ ...entry, description: notice })),
+      );
+      expect(upgraded.native.prepare(querySignal).get(unrelatedId)).toMatchObject({
+        summary: original,
+      });
+      expect(upgraded.native.prepare(querySignal).get(standalone.id)).toMatchObject({
+        summary: version === 32 ? notice : original,
+      });
+      expect(
+        upgraded.native
+          .prepare('SELECT count(*) AS total FROM structured_value_migration_snapshots')
+          .get(),
+      ).toEqual({ total: 0 });
+      expect(() =>
+        upgraded.native
+          .prepare('UPDATE field_values SET value_text=? WHERE id=?')
+          .run('Outro valor', s.value),
+      ).toThrow('DEMAND_NEED_LOCKED');
+      expect(upgraded.native.pragma('foreign_key_check')).toEqual([]);
+      expect(await readdir(s.dirs.automaticBackups)).toEqual([]);
+    },
+  );
 });

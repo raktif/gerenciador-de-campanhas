@@ -17,7 +17,6 @@ import type { Result } from '../../../core/contracts/result';
 import {
   campaignSignalChannels,
   demandChannels,
-  entityChannels,
   eventChannels,
 } from '../../../core/contracts/ipc-channels';
 import {
@@ -41,6 +40,12 @@ const labels: Record<Demand['status'], string> = {
   ignored: 'Ignorada',
   archived: 'Arquivada',
 };
+const urgencyLabels: Record<Demand['urgency'], string> = {
+  low: 'Baixa',
+  medium: 'Média',
+  high: 'Alta',
+  critical: 'Crítica',
+};
 const roles: Record<DemandLink['role'], string> = {
   requester: 'Solicitante',
   affected: 'Afetada',
@@ -53,6 +58,15 @@ const roles: Record<DemandLink['role'], string> = {
   related: 'Relacionada',
 };
 const targetLabels = { entity: 'Entidade', clock: 'Relógio', session: 'Sessão' };
+const signalStatusLabels: Record<string, string> = {
+  new: 'Nova',
+  viewed: 'Vista',
+  dismissed: 'Ignorada',
+  snoozed: 'Adiada',
+  converted: 'Convertida',
+  resolved: 'Resolvida',
+  stale: 'Desatualizada',
+};
 const inputClass = 'rounded-lg border semantic-border semantic-input p-2';
 type FormMode = 'accept' | 'edit' | 'child';
 interface Failure {
@@ -100,7 +114,6 @@ export function DemandManager({
   const [notice, setNotice] = useState('');
   const [confirm, setConfirm] = useState<'resolve' | 'child' | null>(null);
   const [event, setEvent] = useState<EventDetails | null>(null);
-  const [sourceText, setSourceText] = useState('');
   const [until, setUntil] = useState('');
   const operation = useRef(0);
   const listGeneration = useRef(0);
@@ -163,7 +176,12 @@ export function DemandManager({
       const review = await window.campaignManager.campaignSignals.list({ campaignId: campaign.id });
       if (!alive.current || generation !== signalsGeneration.current) return;
       if (!review.ok) throw new AppError(review.error.code, review.error.message);
-      setSignals(review.data.items.filter((item) => item.signal.signalType === 'explicit_need'));
+      setSignals(
+        review.data.items.filter(
+          (item) =>
+            item.signal.signalType === 'explicit_need' && item.signal.status !== 'converted',
+        ),
+      );
       setSignalsState('success');
     } catch (reason) {
       if (alive.current && generation === signalsGeneration.current) {
@@ -218,7 +236,6 @@ export function DemandManager({
     setDetails(null);
     setSuggestion(null);
     setEvent(null);
-    setSourceText('');
     void run(
       () => window.campaignManager.demands.get({ campaignId: campaign.id, id }),
       setDetails,
@@ -414,9 +431,10 @@ export function DemandManager({
         <>
           <h2 className="text-2xl">{d.title}</h2>
           <p>
-            {labels[d.status]} · Rascunho / Possibilidade · Urgência: {d.urgency}
+            {labels[d.status]} · Rascunho / Possibilidade · Urgência: {urgencyLabels[d.urgency]}
           </p>
           <p className="whitespace-pre-wrap">{d.need}</p>
+          <SourceSnapshot snapshot={d.sourceSnapshot} />
           <p className="whitespace-pre-wrap">{d.summary}</p>
           {d.obstacle && <p>Obstáculo: {d.obstacle}</p>}
           {d.risks && <p>Riscos: {d.risks}</p>}
@@ -455,31 +473,6 @@ export function DemandManager({
               estavam encerradas.
             </p>
           )}
-          <SourceSnapshot snapshot={d.sourceSnapshot} />
-          <Button
-            disabled={busy}
-            onClick={() =>
-              void run(
-                () =>
-                  window.campaignManager.entities.get({
-                    campaignId: campaign.id,
-                    id: d.sourceEntityId,
-                  }),
-                (value) => {
-                  const need = value.fieldValues.find(
-                    (field) => field.fieldDefinitionId === d.sourceFieldDefinitionId,
-                  )?.value;
-                  setSourceText(
-                    `${value.entity.name}: ${typeof need === 'string' ? need : 'Fonte indisponível'}`,
-                  );
-                },
-                entityChannels.get,
-              )
-            }
-          >
-            Ver entidade e campo Need de origem
-          </Button>
-          {sourceText && <p className="whitespace-pre-wrap">{sourceText}</p>}
           <ButtonGroup aria-label="Ações da Demanda">
             {editable && (
               <>
@@ -660,8 +653,8 @@ export function DemandManager({
           {signalsState === 'loading' && <p role="status">Carregando sugestões…</p>}
           {signalsState === 'success' && signals.length === 0 && (
             <p>
-              Nenhuma necessidade explícita disponível. Preencha um campo de papel Need e recalcule
-              os sinais.
+              Nenhuma necessidade explícita disponível. Preencha um campo de papel Necessidade e
+              recalcule os sinais.
             </p>
           )}
           <ul className="grid gap-4">
@@ -670,7 +663,8 @@ export function DemandManager({
                 <h3>{item.signal.title}</h3>
                 <p className="whitespace-pre-wrap">{item.signal.summary}</p>
                 <p>
-                  Estado do sinal: {item.signal.status}. Regra: {item.signal.ruleVersion}
+                  Estado do sinal: {signalStatusLabels[item.signal.status]}. Origem da sugestão:{' '}
+                  {signalRuleLabel(item.signal.ruleVersion)}
                 </p>
                 <ul>
                   {item.evidence.map((e, index) => (
@@ -800,21 +794,12 @@ export function DemandManager({
 }
 
 function SourceSnapshot({ snapshot }: { snapshot: string }): React.JSX.Element {
-  const source = JSON.parse(snapshot) as {
-    entityName: string;
-    fieldLabel: string;
-    need: string;
-    rationale: string;
-    signal: { rule_version: string };
-    evidence: { role: string; description: string | null }[];
-  };
+  const source = formatDemandSourceSnapshot(snapshot);
   return (
     <aside className="border rounded p-4">
-      <h3>Por que estou vendo isto? — proveniência preservada</h3>
-      <p>
-        {source.entityName} — {source.fieldLabel} · Regra {source.signal.rule_version}
-      </p>
-      <p className="whitespace-pre-wrap">{source.need}</p>
+      <h3>Necessidade explícita na origem</h3>
+      <p>{source.sourceLabel}</p>
+      <p className="text-sm semantic-text-secondary">Origem da sugestão: {source.originLabel}</p>
       <p>{source.rationale}</p>
       <ul>
         {source.evidence.map((item, index) => (
@@ -825,6 +810,50 @@ function SourceSnapshot({ snapshot }: { snapshot: string }): React.JSX.Element {
       </ul>
     </aside>
   );
+}
+export function formatDemandSourceSnapshot(snapshot: string): {
+  sourceLabel: string;
+  originLabel: string;
+  rationale: string;
+  evidence: { role: string; description: string | null }[];
+} {
+  const source = JSON.parse(snapshot) as {
+    entityName: string;
+    fieldLabel: string;
+    signal: { rule_version: string };
+    evidence: { role: string; description: string | null }[];
+  };
+  return {
+    sourceLabel: `${source.entityName} — ${source.fieldLabel}`,
+    originLabel: signalRuleLabel(source.signal.rule_version),
+    rationale: signalRationale(source.signal.rule_version, source.fieldLabel),
+    evidence: source.evidence
+      .filter(
+        (item) =>
+          source.signal.rule_version !== 'explicit-need-v1' ||
+          !item.role.startsWith('Necessidade explícita no campo'),
+      )
+      .map((item) => ({
+        role: evidenceRoleLabel(item.role),
+        description: item.description,
+      })),
+  };
+}
+function signalRuleLabel(version: string): string {
+  if (version === 'explicit-need-v1') return 'Necessidade explícita';
+  return 'Regra da sugestão';
+}
+function signalRationale(version: string, fieldLabel: string): string {
+  if (version === 'explicit-need-v1')
+    return `Necessidade explícita: o campo “${fieldLabel}” está preenchido. Nenhuma urgência, risco ou obstáculo foi inferido.`;
+  return 'Sugestão gerada por regra; nenhuma urgência, risco ou obstáculo foi inferido.';
+}
+function evidenceRoleLabel(role: string): string {
+  if (role === 'need') return 'Necessidade';
+  if (role.startsWith('Necessidade explícita no campo')) return 'Necessidade';
+  if (role === 'requester') return 'Solicitante';
+  if (role === 'affected') return 'Afetado';
+  return 'Relacionado';
 }
 
 function DemandForm({
@@ -912,56 +941,59 @@ function DemandForm({
     onChange({ ...value, [key]: next });
   }
   return (
-    <fieldset disabled={disabled} className="grid gap-4 border rounded p-4">
+    <fieldset
+      disabled={disabled}
+      className="grid gap-4 rounded border p-4 md:grid-cols-2 md:items-start"
+    >
       <legend>Dados da Demanda</legend>
-      <label>
-        Título obrigatório{' '}
+      <label className="grid min-w-0 gap-1">
+        Título obrigatório
         <input
           required
-          className={inputClass}
+          className={`${inputClass} h-11 w-full min-w-0`}
           value={value.title}
           maxLength={200}
           onChange={(e) => patch('title', e.target.value)}
         />
       </label>
-      <label>
-        Necessidade obrigatória{' '}
+      <label className="grid min-w-0 gap-1">
+        Necessidade obrigatória
         <textarea
           required
           readOnly={sourceLocked}
-          className={inputClass}
+          className={`${inputClass} h-32 w-full min-w-0 resize-none overflow-auto`}
           value={value.need}
           onChange={(e) => patch('need', e.target.value)}
         />
       </label>
-      <label>
-        Resumo{' '}
+      <label className="grid min-w-0 gap-1">
+        Resumo
         <textarea
-          className={inputClass}
+          className={`${inputClass} h-32 w-full min-w-0 resize-none overflow-auto`}
           value={value.summary}
           onChange={(e) => patch('summary', e.target.value)}
         />
       </label>
-      <label>
-        Obstáculo{' '}
+      <label className="grid min-w-0 gap-1">
+        Obstáculo
         <textarea
-          className={inputClass}
+          className={`${inputClass} h-32 w-full min-w-0 resize-none overflow-auto`}
           value={value.obstacle}
           onChange={(e) => patch('obstacle', e.target.value)}
         />
       </label>
-      <label>
-        Riscos{' '}
+      <label className="grid min-w-0 gap-1">
+        Riscos
         <textarea
-          className={inputClass}
+          className={`${inputClass} h-32 w-full min-w-0 resize-none overflow-auto`}
           value={value.risks}
           onChange={(e) => patch('risks', e.target.value)}
         />
       </label>
-      <label>
+      <label className="grid min-w-0 gap-1">
         Urgência (escolha manual){' '}
         <select
-          className={inputClass}
+          className={`${inputClass} h-11 w-full min-w-0`}
           value={urgencySelected ? value.urgency : ''}
           onChange={(e) => {
             onUrgencySelect();
@@ -977,11 +1009,11 @@ function DemandForm({
           <option value="critical">Crítica</option>
         </select>
       </label>
-      <label>
-        Solicitante obrigatório{' '}
+      <label className="grid min-w-0 gap-1">
+        Solicitante obrigatório
         <select
           aria-label="Solicitante obrigatório"
-          className={inputClass}
+          className={`${inputClass} h-11 w-full min-w-0`}
           value={value.requesterEntityId}
           disabled={sourceLocked || loading}
           onChange={(e) => patch('requesterEntityId', e.target.value)}
@@ -994,97 +1026,105 @@ function DemandForm({
           ))}
         </select>
       </label>
-      <p>O solicitante é sempre uma entidade vinculada. Outros vínculos são opcionais.</p>
-      <label>
-        Tipo de vínculo{' '}
-        <select
-          aria-label="Tipo de vínculo"
-          className={inputClass}
-          value={type}
-          onChange={(e) => setType(e.target.value as typeof type)}
-        >
-          <option value="entity">Entidade</option>
-          <option value="clock">Relógio</option>
-          <option value="session">Sessão</option>
-        </select>
-      </label>
-      {loading ? (
-        <p role="status">Carregando alvos…</p>
-      ) : error ? (
-        <UserFacingErrorNotice
-          error={error}
-          operation={demandScreenDiagnosticOperations[demandChannels.targets]}
-          onRetry={() => setRetry((n) => n + 1)}
-          retryLabel="Tentar carregar alvos novamente"
-        />
-      ) : (
-        <>
-          <label>
-            Alvo{' '}
-            <select
-              aria-label="Alvo"
-              className={inputClass}
-              value={target}
-              onChange={(e) => setTarget(e.target.value)}
-            >
-              <option value="">Selecione</option>
-              {targets.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          {type === 'entity' && (
-            <label>
-              Papel{' '}
+      <p className="md:col-span-2">
+        O solicitante é sempre uma entidade vinculada. Outros vínculos são opcionais.
+      </p>
+      <div className="grid min-w-0 items-end gap-3 md:col-span-2 md:grid-cols-4">
+        <label className="grid min-w-0 gap-1">
+          Tipo de vínculo
+          <select
+            aria-label="Tipo de vínculo"
+            className={`${inputClass} h-11 w-full min-w-0`}
+            value={type}
+            onChange={(e) => setType(e.target.value as typeof type)}
+          >
+            <option value="entity">Entidade</option>
+            <option value="clock">Relógio</option>
+            <option value="session">Sessão</option>
+          </select>
+        </label>
+        {loading ? (
+          <p role="status">Carregando alvos…</p>
+        ) : error ? (
+          <UserFacingErrorNotice
+            error={error}
+            operation={demandScreenDiagnosticOperations[demandChannels.targets]}
+            onRetry={() => setRetry((n) => n + 1)}
+            retryLabel="Tentar carregar alvos novamente"
+          />
+        ) : (
+          <>
+            <label className="grid min-w-0 gap-1 md:col-span-2">
+              Alvo
               <select
-                aria-label="Papel"
-                className={inputClass}
-                value={role}
-                onChange={(e) => setRole(e.target.value as typeof role)}
+                aria-label="Alvo"
+                className={`${inputClass} h-11 w-full min-w-0`}
+                value={target}
+                onChange={(e) => setTarget(e.target.value)}
               >
-                {demandRoles
-                  .filter((r) => r !== 'requester')
-                  .map((r) => (
-                    <option value={r} key={r}>
-                      {roles[r]}
-                    </option>
-                  ))}
+                <option value="">Selecione</option>
+                {targets.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.label}
+                  </option>
+                ))}
               </select>
             </label>
-          )}
-          <Button
-            disabled={!target}
-            aria-label="Adicionar vínculo"
-            onClick={() => {
-              const link = {
-                targetType: type,
-                targetId: target,
-                role: type === 'entity' ? role : ('related' as const),
-              };
-              if (
-                !value.links.some(
-                  (l) =>
-                    l.targetType === link.targetType &&
-                    l.targetId === link.targetId &&
-                    l.role === link.role,
-                )
-              )
-                patch('links', [...value.links, link]);
-            }}
-          >
-            + Adicionar
-          </Button>
-        </>
-      )}
-      <ul>
-        {value.links.map((link, index) => (
-          <li key={index}>
-            {targetLabels[link.targetType]} —{' '}
-            {linkLabels[`${link.targetType}:${link.targetId}`] ?? 'Vínculo preservado'} ·{' '}
-            {roles[link.role]}{' '}
+            {type === 'entity' && (
+              <label className="grid min-w-0 gap-1">
+                Papel
+                <select
+                  aria-label="Papel"
+                  className={`${inputClass} h-11 w-full min-w-0`}
+                  value={role}
+                  onChange={(e) => setRole(e.target.value as typeof role)}
+                >
+                  {demandRoles
+                    .filter((r) => r !== 'requester')
+                    .map((r) => (
+                      <option value={r} key={r}>
+                        {roles[r]}
+                      </option>
+                    ))}
+                </select>
+              </label>
+            )}
             <Button
+              disabled={!target}
+              aria-label="Adicionar vínculo"
+              className="md:col-start-4"
+              onClick={() => {
+                const link = {
+                  targetType: type,
+                  targetId: target,
+                  role: type === 'entity' ? role : ('related' as const),
+                };
+                if (
+                  !value.links.some(
+                    (l) =>
+                      l.targetType === link.targetType &&
+                      l.targetId === link.targetId &&
+                      l.role === link.role,
+                  )
+                )
+                  patch('links', [...value.links, link]);
+              }}
+            >
+              + Adicionar
+            </Button>
+          </>
+        )}
+      </div>
+      <ul className="min-w-0 md:col-span-2">
+        {value.links.map((link, index) => (
+          <li className="flex items-center justify-between gap-3 border-b py-2" key={index}>
+            <span className="min-w-0 break-words">
+              {targetLabels[link.targetType]} —{' '}
+              {linkLabels[`${link.targetType}:${link.targetId}`] ?? 'Vínculo preservado'} ·{' '}
+              {roles[link.role]}
+            </span>
+            <Button
+              className="shrink-0"
               onClick={() =>
                 patch(
                   'links',

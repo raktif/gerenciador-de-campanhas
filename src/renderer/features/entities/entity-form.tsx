@@ -9,6 +9,7 @@ import type {
 import type { EntityType } from '../../../core/contracts/entity-types';
 import type { FieldDefinition } from '../../../core/contracts/field-definitions';
 import { ContextualHelp } from '../../components/contextual-help';
+import { RichTextEditor } from '../../components/rich-text';
 import { contextualHelpCatalog, fieldDefinitionHelpContent } from '../../content/contextual-help';
 
 export interface EntityFormSubmitValues {
@@ -361,7 +362,7 @@ export function EntityForm(props: EntityFormProps): React.JSX.Element {
             />
           </label>
 
-          <fieldset className="grid gap-6 rounded-2xl border semantic-border p-5 md:grid-cols-2">
+          <fieldset className="grid items-end gap-6 rounded-2xl border semantic-border p-5 md:grid-cols-2">
             <legend className="px-2 font-semibold">Metadados narrativos</legend>
             <div className={labelClass}>
               <div className="flex items-center gap-1">
@@ -468,14 +469,14 @@ export function EntityForm(props: EntityFormProps): React.JSX.Element {
           {fieldsLoading ? (
             <p className="text-sm semantic-text-secondary">Carregando campos do tipo…</p>
           ) : fields.length === 0 ? null : (
-            <fieldset className="grid gap-6 rounded-2xl border semantic-border p-5 md:grid-cols-2">
+            <fieldset className="grid items-end gap-6 rounded-2xl border semantic-border p-5 md:grid-cols-2">
               <legend className="px-2 font-semibold">
                 Campos de {entityTypeLabel(props.entityTypes, entityTypeId)}
               </legend>
               <p className="text-sm semantic-text-secondary md:col-span-2">
                 Os campos personalizados podem ficar em branco; apenas nome e tipo são obrigatórios.
               </p>
-              {fields.map((field) =>
+              {orderedEntityFields(fields).map((field) =>
                 field.dataType === 'image' ? (
                   <p className="text-sm semantic-text-secondary md:col-span-2" key={field.id}>
                     {field.label}: imagens são gerenciadas nos detalhes da entidade após salvar.
@@ -515,8 +516,8 @@ export function EntityForm(props: EntityFormProps): React.JSX.Element {
               {lockedFields.length > 0 && (
                 <p role="note">
                   Campo usado por Demanda: a necessidade original está protegida permanentemente.
-                  Crie outro campo de Need para uma nova necessidade. Outros atributos continuam
-                  editáveis.
+                  Crie outro campo de Necessidade para uma nova necessidade. Outros atributos
+                  continuam editáveis.
                 </p>
               )}
               {locksLoading && <p role="status">Conferindo campos usados por Demandas…</p>}
@@ -638,9 +639,9 @@ function FieldValueInputControl({
       </div>
     );
   }
-  if (field.dataType === 'long_text' || field.dataType === 'structured') {
+  if (field.dataType === 'long_text') {
     return (
-      <div>
+      <div className="md:col-span-2">
         <FieldLabel controlId={controlId} field={field} label={label} />
         <textarea
           className={`${inputClass} min-h-24`}
@@ -652,7 +653,79 @@ function FieldValueInputControl({
       </div>
     );
   }
-  if (field.dataType === 'number' || field.dataType === 'progress') {
+  if (field.dataType === 'rich_text') {
+    return (
+      <div className="md:col-span-2">
+        <FieldLabel controlId={controlId} field={field} label={label} />
+        <RichTextEditor
+          disabled={disabled}
+          id={controlId}
+          label={`${field.label}${field.required ? ' (definido como obrigatório)' : ''}`}
+          onChange={onChange}
+          value={value}
+        />
+      </div>
+    );
+  }
+  if (field.dataType === 'progress') {
+    const progress = parseProgressFormValue(value);
+    return (
+      <div>
+        <FieldLabel controlId={controlId} field={field} label={label} />
+        <div className="grid grid-cols-2 gap-2">
+          <label className="grid gap-1 text-sm">
+            Valor atual
+            <input
+              className={inputClass}
+              disabled={disabled}
+              id={controlId}
+              step="any"
+              onChange={(event) =>
+                onChange(
+                  JSON.stringify({
+                    current: event.target.value === '' ? null : Number(event.target.value),
+                    final: progress.final,
+                    ...(progress.legacyCurrent && Number(event.target.value) === progress.current
+                      ? { legacyCurrent: true }
+                      : {}),
+                  }),
+                )
+              }
+              type="number"
+              value={progress.current ?? ''}
+            />
+          </label>
+          <label className="grid gap-1 text-sm">
+            Valor final *
+            <input
+              className={inputClass}
+              disabled={disabled}
+              step="any"
+              onChange={(event) =>
+                onChange(
+                  JSON.stringify({
+                    current: progress.current,
+                    final: event.target.value === '' ? null : Number(event.target.value),
+                    ...(progress.legacyCurrent ? { legacyCurrent: true } : {}),
+                  }),
+                )
+              }
+              type="number"
+              value={progress.final ?? ''}
+            />
+          </label>
+        </div>
+        {progress.final === null && progress.legacyCurrent ? (
+          <p className="mt-1 text-xs semantic-text-secondary">
+            Este valor legado não tinha total. Informe o valor final ao atualizar este progresso; os
+            demais campos podem ser salvos sem denominador.
+          </p>
+        ) : null}
+        <p className="mt-1 text-xs semantic-text-secondary">Exemplos de progresso: 2/4 e 75/100.</p>
+      </div>
+    );
+  }
+  if (field.dataType === 'number') {
     return (
       <div>
         <FieldLabel controlId={controlId} field={field} label={label} />
@@ -683,20 +756,58 @@ function FieldValueInputControl({
     );
   }
   if (field.dataType === 'multi_select') {
+    const choices = selectionOptions(field);
+    const selected = parseMultiSelectValue(value);
     return (
       <div>
-        <FieldLabel
-          controlId={controlId}
-          field={field}
-          label={`${label} (separados por vírgula)`}
-        />
-        <input
+        <FieldLabel controlId={controlId} field={field} label={label} />
+        <select
+          aria-label={label}
+          className={inputClass}
+          disabled={disabled}
+          id={controlId}
+          multiple
+          onChange={(event) =>
+            onChange(
+              JSON.stringify(
+                Array.from(event.currentTarget.selectedOptions, (option) => option.value),
+              ),
+            )
+          }
+          size={Math.min(Math.max(choices.length, 2), 6)}
+          value={selected}
+        >
+          {choices.map((option) => (
+            <option key={option} value={option}>
+              {option}
+            </option>
+          ))}
+        </select>
+      </div>
+    );
+  }
+  if (field.dataType === 'single_select') {
+    const choices = selectionOptions(field);
+    return (
+      <div>
+        <FieldLabel controlId={controlId} field={field} label={label} />
+        <select
           className={inputClass}
           disabled={disabled}
           id={controlId}
           onChange={(event) => onChange(event.target.value)}
           value={value}
-        />
+        >
+          <option value="">Selecione…</option>
+          {value !== '' && !choices.includes(value) ? (
+            <option value={value}>{value} (opção não configurada)</option>
+          ) : null}
+          {choices.map((option) => (
+            <option key={option} value={option}>
+              {option}
+            </option>
+          ))}
+        </select>
       </div>
     );
   }
@@ -803,7 +914,7 @@ function FieldHelp({ field }: { field: FieldDefinition }): React.JSX.Element | n
   return content === null ? null : <ContextualHelp content={content} label={field.label} />;
 }
 
-function toFieldValueTexts(fieldValues: FieldValue[]): Record<string, string> {
+export function toFieldValueTexts(fieldValues: FieldValue[]): Record<string, string> {
   const result: Record<string, string> = {};
   for (const fieldValue of fieldValues) {
     const value = fieldValue.value;
@@ -811,7 +922,7 @@ function toFieldValueTexts(fieldValues: FieldValue[]): Record<string, string> {
       typeof value === 'boolean'
         ? String(value)
         : Array.isArray(value)
-          ? value.map((item) => (typeof item === 'string' ? item : JSON.stringify(item))).join(', ')
+          ? JSON.stringify(value)
           : typeof value === 'object' && value !== null
             ? JSON.stringify(value)
             : String(value);
@@ -835,32 +946,100 @@ export function toFieldValueInputs(
     if (raw === undefined || raw.trim() === '') continue;
     if (field.dataType === 'boolean') {
       result.push({ fieldDefinitionId: field.id, value: raw === 'true' });
-    } else if (field.dataType === 'number' || field.dataType === 'progress') {
+    } else if (field.dataType === 'number') {
       const parsed = Number(raw);
       if (!Number.isFinite(parsed)) throw new Error(`${field.label} deve ser um número válido.`);
       result.push({ fieldDefinitionId: field.id, value: parsed });
-    } else if (field.dataType === 'multi_select') {
+    } else if (field.dataType === 'progress') {
+      const progress = parseProgressFormValue(raw);
+      if (progress.current === null && progress.final === null) continue;
+      if (progress.current === null)
+        throw new Error(`${field.label}: informe os valores atual e final.`);
+      if (progress.final === null) {
+        if (!progress.legacyCurrent)
+          throw new Error(`${field.label}: informe os valores atual e final.`);
+        result.push({ fieldDefinitionId: field.id, value: progress.current });
+        continue;
+      }
+      if (
+        progress.final <= 0 ||
+        progress.current > progress.final ||
+        (progress.current < 0 && !progress.legacyCurrent)
+      )
+        throw new Error(`${field.label}: use valor atual não negativo e final maior que zero.`);
       result.push({
         fieldDefinitionId: field.id,
-        value: raw
-          .split(',')
-          .map((item) => item.trim())
-          .filter((item) => item.length > 0),
+        value: {
+          current: progress.current,
+          final: progress.final,
+          ...(progress.legacyCurrent ? { legacyCurrent: true } : {}),
+        },
       });
-    } else if (field.dataType === 'structured') {
-      try {
-        result.push({
-          fieldDefinitionId: field.id,
-          value: JSON.parse(raw) as FieldValueInput['value'],
-        });
-      } catch {
-        throw new Error(`${field.label} deve conter JSON válido.`);
-      }
+    } else if (field.dataType === 'multi_select') {
+      const selected = parseMultiSelectValue(raw);
+      if (selected.length === 0) continue;
+      if (new Set(selected).size !== selected.length)
+        throw new Error(`${field.label}: escolha opções sem repetições.`);
+      result.push({
+        fieldDefinitionId: field.id,
+        value: selected,
+      });
     } else {
       result.push({ fieldDefinitionId: field.id, value: raw });
     }
   }
   return result;
+}
+
+function parseProgressFormValue(raw: string): {
+  current: number | null;
+  final: number | null;
+  legacyCurrent: boolean;
+} {
+  if (raw === '') return { current: null, final: null, legacyCurrent: false };
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+      const value = parsed as { current?: unknown; final?: unknown; legacyCurrent?: unknown };
+      return {
+        current: typeof value.current === 'number' ? value.current : null,
+        final: typeof value.final === 'number' ? value.final : null,
+        legacyCurrent: value.legacyCurrent === true,
+      };
+    }
+  } catch {
+    // Legacy values are normalized as numeric current values before editing.
+  }
+  const current = Number(raw);
+  return {
+    current: Number.isFinite(current) ? current : null,
+    final: null,
+    legacyCurrent: Number.isFinite(current),
+  };
+}
+function selectionOptions(field: FieldDefinition): string[] {
+  return Array.isArray(field.options)
+    ? field.options.filter((option): option is string => typeof option === 'string')
+    : [];
+}
+function parseMultiSelectValue(raw: string): string[] {
+  if (raw === '') return [];
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (Array.isArray(parsed) && parsed.every((item) => typeof item === 'string')) return parsed;
+  } catch {
+    // Valores antigos do formulário eram separados por vírgula.
+  }
+  return raw
+    .split(',')
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+}
+function orderedEntityFields(fields: FieldDefinition[]): FieldDefinition[] {
+  return [
+    ...fields.filter((field) => field.dataType !== 'long_text' && field.dataType !== 'rich_text'),
+    ...fields.filter((field) => field.dataType === 'long_text' || field.dataType === 'rich_text'),
+  ];
 }
 
 function entityTypeLabel(entityTypes: EntityType[], id: string): string {

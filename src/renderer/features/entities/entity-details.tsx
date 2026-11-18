@@ -10,6 +10,7 @@ import { ContextualHelp } from '../../components/contextual-help';
 import { fieldDefinitionHelpContent } from '../../content/contextual-help';
 import { EntityReferenceImageManager } from './entity-reference-image';
 import { ImageFieldGallery } from './image-field-gallery';
+import { RichTextDisplay } from '../../components/rich-text';
 
 export function EntityDetailsView({
   campaign,
@@ -193,7 +194,8 @@ export function EntityDetailsView({
                   <Detail
                     field={field}
                     key={field.id}
-                    value={formatFieldValue(valuesByField.get(field.id))}
+                    value={formatFieldValue(valuesByField.get(field.id), field.dataType)}
+                    richText={field.dataType === 'rich_text'}
                   />
                 ))}
                 {referenceFields.map(({ field, entityIds }) => (
@@ -329,10 +331,12 @@ function Detail({
   field,
   label,
   value,
+  richText = false,
 }: {
   field?: FieldDefinition;
   label?: string;
   value: string;
+  richText?: boolean;
 }): React.JSX.Element {
   const resolvedLabel = field?.label ?? label;
   if (resolvedLabel === undefined) throw new Error('Detalhe sem rótulo.');
@@ -343,15 +347,24 @@ function Detail({
         {resolvedLabel}
         {help === null ? null : <ContextualHelp content={help} label={resolvedLabel} />}
       </dt>
-      <dd className="mt-1 whitespace-pre-wrap semantic-text-secondary">{value}</dd>
+      <dd className="mt-1 whitespace-pre-wrap semantic-text-secondary">
+        {richText ? <RichTextDisplay html={value} /> : value}
+      </dd>
     </div>
   );
 }
 
-function formatFieldValue(value: unknown): string {
+function formatFieldValue(value: unknown, dataType?: FieldDefinition['dataType']): string {
+  if (dataType === 'progress') {
+    if (typeof value === 'number') return `${String(value)} / valor final não definido`;
+    if (typeof value === 'object' && value !== null && 'current' in value && 'final' in value) {
+      const progress = value as { current: number; final: number };
+      return `${String(progress.current)}/${String(progress.final)}`;
+    }
+  }
   if (typeof value === 'boolean') return value ? 'Sim' : 'Não';
   if (typeof value === 'string' || typeof value === 'number') return String(value);
-  if (Array.isArray(value)) return value.map(formatFieldValue).join(', ');
+  if (Array.isArray(value)) return value.map((item) => formatFieldValue(item)).join(', ');
   return JSON.stringify(value);
 }
 

@@ -55,6 +55,72 @@ describe('FieldDefinitionService', () => {
     });
   });
 
+  it('exige opções de seleção não vazias e preserva valores únicos', () => {
+    const repository = new MemoryFieldDefinitionRepository();
+    const service = createService(repository);
+    expect(
+      captureAppError(() =>
+        service.create(
+          createFieldDefinitionInputSchema.parse({
+            campaignId,
+            entityTypeId,
+            label: 'Estado',
+            dataType: 'single_select',
+            options: [],
+          }),
+        ),
+      ).code,
+    ).toBe('INVALID_FIELD_OPTIONS');
+    const created = service.create(
+      createFieldDefinitionInputSchema.parse({
+        campaignId,
+        entityTypeId,
+        label: 'Estado',
+        dataType: 'single_select',
+        options: ['Ativa', 'Inativa'],
+      }),
+    );
+    expect(created.options).toEqual(['Ativa', 'Inativa']);
+    expect(() =>
+      createFieldDefinitionInputSchema.parse({
+        campaignId,
+        entityTypeId,
+        label: 'Direção',
+        dataType: 'multi_select',
+        options: ['Norte, Sul'],
+      }),
+    ).toThrow('As opções não podem conter vírgulas');
+    expect(
+      captureAppError(() =>
+        service.create({
+          ...createFieldDefinitionInputSchema.parse({
+            campaignId,
+            entityTypeId,
+            label: 'Direção',
+            dataType: 'multi_select',
+            options: ['Norte', 'Sul'],
+          }),
+          options: ['Norte, Sul'],
+        }),
+      ).code,
+    ).toBe('INVALID_FIELD_OPTIONS');
+  });
+
+  it('ordena opções pela localidade pt-BR na validação e também ao receber input direto no serviço', () => {
+    const repository = new MemoryFieldDefinitionRepository();
+    const service = createService(repository);
+    const parsed = createFieldDefinitionInputSchema.parse({
+      campaignId,
+      entityTypeId,
+      label: 'Estado',
+      dataType: 'single_select',
+      options: ['Zebra', 'Árvore', 'Aldeia'],
+    });
+    expect(parsed.options).toEqual(['Aldeia', 'Árvore', 'Zebra']);
+    const created = service.create({ ...parsed, options: ['Zebra', 'Árvore', 'Aldeia'] });
+    expect(created.options).toEqual(['Aldeia', 'Árvore', 'Zebra']);
+  });
+
   it('valida o tipo pai antes de listar', () => {
     const repository = new MemoryFieldDefinitionRepository([createField()]);
     const service = createService(repository);

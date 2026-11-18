@@ -64,6 +64,7 @@ export const clockSchema = z
     visibility: z.enum(visibilityStates),
     originKind: z.enum(originKinds),
     sourceId: nullableSourceIdSchema,
+    sessionId: nullableSourceIdSchema,
     generatedEventId: nullableSourceIdSchema,
     createdAt: timestampSchema,
     updatedAt: timestampSchema,
@@ -97,6 +98,7 @@ export const createClockInputSchema = z
     segmentsFilled: z.number().int().min(0).max(12).default(0),
     entityId: identifierSchema,
     ...clockNarrativeFields,
+    sessionId: identifierSchema.optional(),
     generateEvent: z.boolean().optional(),
   })
   .strict()
@@ -112,6 +114,12 @@ export const createClockInputSchema = z
         code: 'custom',
         message: 'Informe se deseja gerar um Evento antes de criar um relógio já concluído.',
         path: ['generateEvent'],
+      });
+    if (clock.originKind !== 'session' && clock.sessionId !== undefined)
+      context.addIssue({
+        code: 'custom',
+        message: 'A sessão de origem só pode ser informada quando a origem for Sessão.',
+        path: ['sessionId'],
       });
   });
 
@@ -129,9 +137,19 @@ export const clockPatchSchema = z
     visibility: z.enum(visibilityStates).optional(),
     originKind: z.enum(originKinds).optional(),
     sourceId: nullableSourceIdSchema.optional(),
+    sessionId: identifierSchema.nullable().optional(),
   })
   .strict()
-  .refine((patch) => Object.keys(patch).length > 0, 'Informe ao menos um campo para atualizar.');
+  .superRefine((patch, context) => {
+    if (Object.keys(patch).length === 0)
+      context.addIssue({ code: 'custom', message: 'Informe ao menos um campo para atualizar.' });
+    if (patch.sessionId !== undefined && patch.originKind !== 'session')
+      context.addIssue({
+        code: 'custom',
+        message: 'A sessão de origem só pode ser alterada quando a origem for Sessão.',
+        path: ['sessionId'],
+      });
+  });
 
 export const updateClockInputSchema = z
   .object({

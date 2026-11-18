@@ -232,7 +232,7 @@ export class DemandRepository {
       fieldLabel: source.fieldLabel,
       need: source.value,
       title: `Necessidade de ${source.entityName}`.slice(0, 200),
-      rationale: `Regra ${signal.rule_version}: campo “${source.fieldLabel}” com papel Need preenchido. Nenhuma urgência, risco ou obstáculo foi inferido.`,
+      rationale: `Necessidade explícita: o campo “${source.fieldLabel}” está preenchido. Nenhuma urgência, risco ou obstáculo foi inferido.`,
     };
   }
   public accept(input: AcceptDemand): DemandDetails {

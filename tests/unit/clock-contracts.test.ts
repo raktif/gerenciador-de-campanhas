@@ -111,6 +111,7 @@ describe('contratos de Relógios', () => {
       visibility: 'gm',
       originKind: 'manual',
       sourceId: null,
+      sessionId: null,
       generatedEventId: null,
       createdAt: timestamp,
       updatedAt: timestamp,

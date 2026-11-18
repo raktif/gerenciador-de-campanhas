@@ -35,6 +35,21 @@ test('cria, avança explicitamente, conclui parcialmente e consulta relógios ap
     await window.getByLabel('Nome da campanha').fill('Campanha de relógios');
     await window.getByRole('button', { name: 'Criar campanha', exact: true }).click();
     const entity = await createTestEntity(window, 'Campanha de relógios');
+    const sourceSessionId = await window.evaluate(async () => {
+      const gateway = (globalThis as { campaignManager?: CampaignManagerGateway }).campaignManager;
+      if (gateway === undefined) throw new Error('Gateway indisponível.');
+      const campaigns = await gateway.campaigns.list({});
+      if (!campaigns.ok) throw new Error('Falha ao consultar campanha.');
+      const campaign = campaigns.data.items.find((item) => item.name === 'Campanha de relógios');
+      if (campaign === undefined) throw new Error('Campanha ausente.');
+      const session = await gateway.sessions.create({
+        campaignId: campaign.id,
+        sequenceNumber: 1,
+        title: 'Sessão de origem',
+      });
+      if (!session.ok) throw new Error('Falha ao criar sessão de origem.');
+      return session.data.id;
+    });
     await window.getByRole('button', { name: 'Abrir campanha Campanha de relógios' }).click();
     await window.getByRole('button', { name: 'Relógios', exact: true }).click();
     await expect(window.getByText('Ainda não há relógios')).toBeVisible();
@@ -42,14 +57,34 @@ test('cria, avança explicitamente, conclui parcialmente e consulta relógios ap
     await window.getByLabel('Nome', { exact: true }).fill('Objetivo da expedição');
     await window.getByLabel('Entidade vinculada').selectOption(entity.id);
     await window.getByLabel('Consequência').fill('A expedição alcançará seu destino.');
+    await window.getByLabel('Origem', { exact: true }).selectOption('session');
+    await window.getByLabel('Sessão de origem *').selectOption(sourceSessionId);
     await window.getByLabel('Tipo').selectOption('countdown');
     await window.getByLabel('Total de divisões').selectOption('4');
     await window.getByLabel('Divisões preenchidas').selectOption('3');
     await window.getByRole('button', { name: 'Criar relógio' }).click();
     await expect(window.getByText('Contagem regressiva · Ativo')).toBeVisible();
     await expect(window.getByText('Progresso: 3 de 4 divisões')).toBeVisible();
+    const savedClockSource = await window.evaluate(async () => {
+      const gateway = (globalThis as { campaignManager?: CampaignManagerGateway }).campaignManager;
+      if (gateway === undefined) throw new Error('Gateway indisponível.');
+      const campaigns = await gateway.campaigns.list({});
+      if (!campaigns.ok) throw new Error('Falha ao consultar campanha.');
+      const campaign = campaigns.data.items.find((item) => item.name === 'Campanha de relógios');
+      if (campaign === undefined) throw new Error('Campanha ausente.');
+      const clocks = await gateway.clocks.list({ campaignId: campaign.id });
+      if (!clocks.ok) throw new Error('Falha ao consultar relógios.');
+      const clock = clocks.data.items.find((item) => item.name === 'Objetivo da expedição');
+      if (clock === undefined) throw new Error('Relógio ausente.');
+      return { originKind: clock.originKind, sessionId: clock.sessionId, sourceId: clock.sourceId };
+    });
+    expect(savedClockSource).toMatchObject({
+      originKind: 'session',
+      sessionId: sourceSessionId,
+    });
 
     await window.getByRole('button', { name: 'Editar' }).click();
+    await expect(window.getByLabel('Sessão de origem *')).toHaveValue(sourceSessionId);
     await window.getByLabel('Divisões preenchidas').selectOption('4');
     await window.getByRole('button', { name: 'Salvar alterações' }).click();
     await expect(window.getByRole('dialog')).toBeVisible();

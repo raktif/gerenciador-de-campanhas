@@ -11,6 +11,7 @@ import type {
   MoveFieldDefinitionInput,
   UpdateFieldDefinitionInput,
 } from '../../core/contracts/field-definitions';
+import { canonicalizeFieldOptions } from '../../core/contracts/field-definitions';
 import { AppError } from '../../core/errors/app-error';
 import { createTechnicalKeyBase } from '../../core/identifiers/technical-key';
 import type { FieldDefinitionRepositoryUpdate } from '../../db/repositories/field-definition-repository';
@@ -62,6 +63,7 @@ export class FieldDefinitionService {
 
   public create(input: CreateFieldDefinitionInput): FieldDefinition {
     const entityType = this.requireEntityType(input.campaignId, input.entityTypeId);
+    const options = this.canonicalOptions(input.dataType, input.options);
     this.validateImageConfiguration(input);
     this.validateReferenceConfiguration(input.campaignId, input.entityTypeId, input);
     const timestamp = this.now();
@@ -80,7 +82,7 @@ export class FieldDefinitionService {
         searchable: input.searchable,
         secretByDefault: input.secretByDefault,
         defaultValue: input.defaultValue,
-        options: input.options,
+        options,
         validation: input.validation,
         referenceRelationshipTypeId: input.referenceRelationshipTypeId,
         referenceDirection: input.referenceDirection,
@@ -107,6 +109,19 @@ export class FieldDefinitionService {
 
   public update(input: UpdateFieldDefinitionInput): FieldDefinition {
     const current = this.requireFieldDefinition(input);
+    const options =
+      input.patch.options === undefined
+        ? undefined
+        : this.canonicalOptions(input.patch.dataType ?? current.dataType, input.patch.options);
+    if (
+      input.patch.options !== undefined ||
+      input.patch.dataType !== undefined ||
+      (current.dataType !== 'single_select' && current.dataType !== 'multi_select')
+    )
+      this.canonicalOptions(
+        input.patch.dataType ?? current.dataType,
+        options === undefined ? current.options : options,
+      );
     this.dependencies.demandProtection?.assertDefinitionMutation(input.id, input.patch);
     this.validateImageConfiguration({
       dataType: input.patch.dataType ?? current.dataType,
@@ -114,7 +129,7 @@ export class FieldDefinitionService {
       searchable: input.patch.searchable ?? current.searchable,
       defaultValue:
         input.patch.defaultValue === undefined ? current.defaultValue : input.patch.defaultValue,
-      options: input.patch.options === undefined ? current.options : input.patch.options,
+      options: options === undefined ? current.options : options,
       validation:
         input.patch.validation === undefined ? current.validation : input.patch.validation,
       referenceRelationshipTypeId:
@@ -153,7 +168,10 @@ export class FieldDefinitionService {
           ? current.onDeleteBehavior
           : input.patch.onDeleteBehavior,
     });
-    return this.dependencies.repository.update(input, this.now());
+    return this.dependencies.repository.update(
+      { ...input, patch: { ...input.patch, ...(options === undefined ? {} : { options }) } },
+      this.now(),
+    );
   }
 
   public move(input: MoveFieldDefinitionInput): FieldDefinition[] {
@@ -234,6 +252,25 @@ export class FieldDefinitionService {
         },
       );
     }
+  }
+
+  private canonicalOptions(
+    dataType: string,
+    options: FieldDefinition['options'],
+  ): FieldDefinition['options'] {
+    if (dataType !== 'single_select' && dataType !== 'multi_select') return options;
+    if (
+      !Array.isArray(options) ||
+      options.length === 0 ||
+      !options.every((option) => typeof option === 'string' && option.trim().length > 0) ||
+      (options as string[]).some((option) => option.includes(',')) ||
+      new Set(options.map((option) => (option as string).trim())).size !== options.length
+    )
+      throw new AppError(
+        'INVALID_FIELD_OPTIONS',
+        'Informe opções de seleção não vazias, sem repetições e sem vírgulas.',
+      );
+    return canonicalizeFieldOptions(options as string[]);
   }
 
   private validateReferenceConfiguration(

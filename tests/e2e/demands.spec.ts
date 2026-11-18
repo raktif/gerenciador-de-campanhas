@@ -115,6 +115,9 @@ test('3B.3 revisão, links N, filha/pai, resolução confirmada e Need protegido
       page.getByRole('heading', { name: 'Necessidade de Gorel', exact: true }),
     ).toBeVisible();
     await expect(page.getByText('Sessão — Sessão da descoberta · Relacionada')).toBeVisible();
+    await page.getByRole('button', { name: 'Voltar à lista' }).click();
+    await expect(page.getByText('Nenhuma necessidade explícita disponível.')).toBeVisible();
+    await page.getByRole('button', { name: 'Necessidade de Gorel — Disponível' }).click();
     const protectedSource = await page.evaluate(async (ids) => {
       const g = (globalThis as unknown as { campaignManager: CampaignManagerGateway })
         .campaignManager;
@@ -254,8 +257,17 @@ test('3B.3 revisão, links N, filha/pai, resolução confirmada e Need protegido
       .getByRole('button', { name: 'Necessidade de Gorel — Resolvida', exact: true })
       .click();
     await expect(
-      page.getByRole('heading', { name: 'Por que estou vendo isto? — proveniência preservada' }),
+      page.getByRole('heading', { name: 'Necessidade explícita na origem' }),
     ).toBeVisible();
+    await expect(
+      page.locator('body').getByText('Investigar os cabos', { exact: true }),
+    ).toHaveCount(1);
+    const sourcePanel = page
+      .getByRole('heading', { name: 'Necessidade explícita na origem' })
+      .locator('xpath=..');
+    await expect(sourcePanel).not.toContainText('Investigar os cabos');
+    await expect(sourcePanel).not.toContainText('explicit-need-v1');
+    await expect(page.getByText(/Origem da sugestão: Necessidade explícita/)).toBeVisible();
     await page.getByRole('button', { name: 'Ver Evento gerado' }).click();
     await expect(
       page.getByText('Evento Aceito / Fato. Conteúdo e vínculos congelados.'),

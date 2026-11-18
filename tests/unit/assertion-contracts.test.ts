@@ -7,6 +7,7 @@ import {
   promoteAssertionPossibilityInputSchema,
   updateAssertionInputSchema,
 } from '../../src/core/contracts/assertions';
+import { parseStructuredAssertionValue } from '../../src/renderer/features/assertions/assertion-manager';
 
 const campaignId = '00000000-0000-4000-8000-000000000001';
 const subjectEntityId = '30000000-0000-4000-8000-000000000001';
@@ -14,6 +15,14 @@ const assertionId = '50000000-0000-4000-8000-000000000001';
 const timestamp = '2026-09-02T12:00:00.000Z';
 
 describe('contratos de afirmações', () => {
+  it('substitui detalhes do parser por mensagem localizada de JSON inválido', () => {
+    for (const raw of ['{', '{"valor":,}']) {
+      expect(() => parseStructuredAssertionValue(raw)).toThrow(
+        'JSON inválido. Verifique a estrutura e tente novamente.',
+      );
+    }
+  });
+
   it('normaliza texto e aplica metadados manuais e paginação seguros', () => {
     expect(
       createAssertionInputSchema.parse({

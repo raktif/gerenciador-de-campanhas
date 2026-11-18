@@ -68,6 +68,79 @@ describe('FieldDefinitionRepository', () => {
     context.close();
   });
 
+  it('persiste opções de seleção em ordem pt-BR mesmo no caminho direto do repositório', async () => {
+    const { context, fields } = await createRepositories();
+    const nonSelectionField = createField(
+      '20000000-0000-4000-8000-000000000006',
+      entityTypeId,
+      'texto-com-config',
+      { dataType: 'short_text', options: ['Zebra', 'Árvore'] },
+    );
+    fields.insert(nonSelectionField);
+    expect(
+      context.native
+        .prepare('SELECT options_json FROM field_definitions WHERE id=?')
+        .get(nonSelectionField.id),
+    ).toEqual({ options_json: '["Zebra","Árvore"]' });
+
+    const field = createField('20000000-0000-4000-8000-000000000005', entityTypeId, 'estado', {
+      dataType: 'single_select',
+      options: ['Zebra', 'Árvore', 'Aldeia'],
+    });
+    const inserted = fields.insert(field);
+    expect(inserted.options).toEqual(['Aldeia', 'Árvore', 'Zebra']);
+    expect(
+      context.native.prepare('SELECT options_json FROM field_definitions WHERE id=?').get(field.id),
+    ).toEqual({ options_json: '["Aldeia","Árvore","Zebra"]' });
+    context.native
+      .prepare('UPDATE field_definitions SET options_json=? WHERE id=?')
+      .run('["Zebra","Árvore","Aldeia"]', field.id);
+    fields.update(
+      { campaignId, entityTypeId, id: field.id, revision: 1, patch: { label: 'Estado revisado' } },
+      '2026-08-28T13:00:00.000Z',
+    );
+    expect(
+      context.native.prepare('SELECT options_json FROM field_definitions WHERE id=?').get(field.id),
+    ).toEqual({ options_json: '["Zebra","Árvore","Aldeia"]' });
+    fields.update(
+      {
+        campaignId,
+        entityTypeId,
+        id: field.id,
+        revision: 2,
+        patch: { options: ['Zebra', 'Árvore', 'Aldeia'] },
+      },
+      '2026-08-28T13:30:00.000Z',
+    );
+    expect(
+      context.native.prepare('SELECT options_json FROM field_definitions WHERE id=?').get(field.id),
+    ).toEqual({ options_json: '["Aldeia","Árvore","Zebra"]' });
+    context.native
+      .prepare('UPDATE field_definitions SET options_json=? WHERE id=?')
+      .run('["Norte, Sul","Oeste"]', field.id);
+    const updatedLegacy = fields.update(
+      { campaignId, entityTypeId, id: field.id, revision: 3, patch: { label: 'Estado legado' } },
+      '2026-08-28T14:00:00.000Z',
+    );
+    expect(updatedLegacy.options).toContain('Norte, Sul');
+    expect(
+      context.native.prepare('SELECT options_json FROM field_definitions WHERE id=?').get(field.id),
+    ).toEqual({ options_json: '["Norte, Sul","Oeste"]' });
+    expect(() =>
+      fields.update(
+        {
+          campaignId,
+          entityTypeId,
+          id: field.id,
+          revision: 4,
+          patch: { options: ['Norte, Sul', 'Oeste'] },
+        },
+        '2026-08-28T15:00:00.000Z',
+      ),
+    ).toThrow('vírgulas');
+    context.close();
+  });
+
   it('aloca colisões atomicamente incluindo campos arquivados e isolando o tipo pai', async () => {
     const { context, fields } = await createRepositories();
     const first = withoutKey(
