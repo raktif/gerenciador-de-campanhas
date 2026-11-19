@@ -694,6 +694,7 @@ export function CampaignApp(): React.JSX.Element {
               key={selectedCampaign.id}
               campaign={selectedCampaign}
               onNavigate={setScreen}
+              onBack={() => goBack('edit')}
             />
           ) : screen === 'causality' && selectedCampaign !== null ? (
             <CausalityManager

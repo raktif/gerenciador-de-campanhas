@@ -98,9 +98,11 @@ const demandUrgencyLabels = {
 export function WorldInMotionPanel({
   campaign,
   onNavigate,
+  onBack,
 }: {
   campaign: Campaign;
   onNavigate: (destination: Destination) => void;
+  onBack?: () => void;
 }): React.JSX.Element {
   const [state, setState] = useState<WorldInMotionPanelState>({ kind: 'loading' });
   const request = useRef(0);
@@ -135,6 +137,7 @@ export function WorldInMotionPanel({
     <WorldInMotionPanelView
       campaign={campaign}
       onNavigate={onNavigate}
+      {...(onBack === undefined ? {} : { onBack })}
       onRetry={() => void load(true)}
       state={state}
     />
@@ -145,17 +148,24 @@ export function WorldInMotionPanelView({
   campaign,
   state,
   onNavigate,
+  onBack,
   onRetry,
 }: {
   campaign: Campaign;
   state: WorldInMotionPanelState;
   onNavigate: (destination: Destination) => void;
+  onBack?: () => void;
   onRetry: () => void;
 }): React.JSX.Element {
   const headingRef = useRef<HTMLHeadingElement>(null);
   return (
     <section aria-labelledby="world-in-motion-heading" className="mx-auto max-w-5xl">
       <header className="mb-8">
+        {onBack === undefined ? null : (
+          <Button onClick={onBack} size="small" variant="ghost">
+            ← Voltar para detalhes da campanha
+          </Button>
+        )}
         <p className="text-sm font-semibold semantic-text-secondary">{campaign.name}</p>
         <h1
           className="semantic-focus-outline mt-1 text-3xl font-bold"

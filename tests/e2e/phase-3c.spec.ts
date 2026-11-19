@@ -86,20 +86,27 @@ test('integra encerramento incremental, preparacao explicita e mapa causal', asy
     const causalForm = page.getByRole('form', { name: /Adicionar.*v.nculo causal/ });
     await expect(causalForm).toBeVisible();
     const causalSelects = causalForm.getByRole('combobox');
-    await expect(causalSelects).toHaveCount(3);
+    await expect(causalSelects).toHaveCount(5);
     await causalSelects.nth(0).selectOption('entity');
-    await causalForm
-      .getByRole('textbox', { name: 'Identificador da causa', exact: true })
-      .fill(ids.firstId);
-    await causalSelects.nth(1).selectOption('entity');
-    await causalForm
-      .getByRole('textbox', { name: 'Identificador do efeito', exact: true })
-      .fill(ids.secondId);
-    await causalSelects.nth(2).selectOption('causes');
+    await causalSelects.nth(1).selectOption(ids.firstId);
+    await causalSelects.nth(2).selectOption('entity');
+    await causalSelects.nth(3).selectOption(ids.secondId);
+    await expect(causalSelects.nth(4).locator('option')).toHaveText([
+      'Causa',
+      'Contribui para',
+      'Permite',
+      'Bloqueia',
+      'Agrava',
+      'Melhora',
+      'Transforma',
+      'Resolve',
+      'Revela',
+    ]);
+    await causalSelects.nth(4).selectOption('causes');
     await causalForm.getByRole('button', { name: /Criar v.nculo/ }).click();
     await expect(page.getByText(/V.nculo causal criado\./)).toBeVisible();
     await page.getByLabel('Tipo do registro').selectOption('entity');
-    await page.getByLabel('Identificador do registro').fill(ids.firstId);
+    await page.getByLabel('Identificador do registro').selectOption(ids.firstId);
     await page.getByRole('button', { name: 'Ver mapa' }).click();
     await expect(page.getByRole('heading', { name: 'Cadeia causal' })).toBeVisible();
     await expect(page.getByText('Primeiro')).toBeVisible();
