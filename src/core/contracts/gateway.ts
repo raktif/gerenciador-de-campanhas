@@ -21,11 +21,13 @@ import type { RelationshipGateway } from './relationships';
 import type { RelationshipViewGateway } from './relationship-views';
 import type { TimelineGateway } from './timeline';
 import type { StoryThreadGateway } from './story-threads';
+import type { CausalityGateway } from './causality';
 import type {
   SessionGateway,
   SessionIntentionsGateway,
   SessionParticipantsGateway,
 } from './sessions';
+import type { SessionClosingGateway } from './session-closing';
 
 export interface CampaignManagerGateway {
   appearance: AppearanceGateway;
@@ -46,10 +48,12 @@ export interface CampaignManagerGateway {
   demands: DemandGateway;
   notes: NoteGateway;
   storyThreads: StoryThreadGateway;
+  causality: CausalityGateway;
   inbox: InboxGateway;
   events: EventGateway;
   timeline: TimelineGateway;
   sessions: SessionGateway;
   sessionParticipants: SessionParticipantsGateway;
   sessionIntentions: SessionIntentionsGateway;
+  sessionClosing: SessionClosingGateway;
 }

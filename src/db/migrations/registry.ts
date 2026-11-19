@@ -34,6 +34,8 @@ import structuredValueSnapshotsMigration from './0031_structured_value_migration
 import restoreStructuredValueSnapshotsMigration from './0032_restore_structured_value_snapshots.sql?raw';
 import clearEntityJsonFieldValuesMigration from './0033_clear_entity_json_field_values.sql?raw';
 import clearDerivedEntityFieldCopiesMigration from './0034_clear_derived_entity_field_copies.sql?raw';
+import causalityMigration from './0035_causality.sql?raw';
+import sessionClosingMigration from './0036_session_closing.sql?raw';
 
 export const clearEntityJsonFieldValuesVersion = 33;
 export const clearDerivedEntityFieldCopiesVersion = 34;
@@ -263,6 +265,18 @@ export const migrations: readonly MigrationDefinition[] = [
     name: 'phase-three-clear-derived-entity-field-copies',
     ...createMigrationChecksums(clearDerivedEntityFieldCopiesMigration),
     sql: clearDerivedEntityFieldCopiesMigration,
+  },
+  {
+    version: 35,
+    name: 'phase-three-causality',
+    ...createMigrationChecksums(causalityMigration),
+    sql: causalityMigration,
+  },
+  {
+    version: 36,
+    name: 'phase-three-session-closing-and-preparation',
+    ...createMigrationChecksums(sessionClosingMigration),
+    sql: sessionClosingMigration,
   },
 ];
 

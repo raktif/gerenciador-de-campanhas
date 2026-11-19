@@ -89,7 +89,7 @@ intencionais.
 | 3B.3 | 3B                                   | Demandas emergentes                 | Sugestões derivadas apenas de sinais/dados disponíveis; fontes e justificativas visíveis; sugestão não é demanda aceita até revisão explícita; suportar ignorar/adiar/aceitar conforme contrato.                                                                                                                                                                            | 3A.3, 3B.1, 3B.2      |
 | 3B.4 | 3B                                   | Painel Mundo em Movimento           | Agrega mudanças e sugestões disponíveis sem inventar dados; mostra evidências e ação “por que estou vendo isto?”; carregamento, vazio, erro e recuperação cobertos; funciona offline e sem IA.                                                                                                                                                                              | 3A.3, 3A.4, 3B.1–3B.3 |
 | 3C.1 | 3C — Consequências e ciclo de sessão | Consequências e mapa causal         | Representa eventos/objetos narrativos e vínculos causais distintos das Relações comuns; operações preservam campanha, revisão e histórico narrativo aplicável; cadeias e ciclos têm comportamento delimitado e testado.                                                                                                                                                     | 3A.1, 3B.2            |
-| 3C.2 | 3C                                   | Encerramento de sessão e preparação | Fluxo reúne capturas, eventos, mudanças, relógios, consequências, fios e recálculo; etapas opcionais e encerramento rápido; falhas ou interrupções não perdem silenciosamente progresso já confirmado.                                                                                                                                                                      | 3A.3, 3B.1–3B.4, 3C.1 |
+| 3C.2 | 3C                                   | Encerramento de sessão e preparação | Implementação técnica registrada em [phase-3-3c2.md](phase-3-3c2.md); fluxo reúne capturas, eventos, mudanças, relógios, consequências, fios e recálculo; etapas opcionais e encerramento rápido; falhas ou interrupções não perdem silenciosamente progresso já confirmado. A validação independente do QA e a UX manual continuam pendentes. | 3A.3, 3B.1–3B.4, 3C.1 |
 | 3C.3 | 3C                                   | Integração e fechamento da Fase 3   | QA independente confirma critérios, regressões, migração, fluxo completo e verificações de pacote; documentação/estado atualizados; teste manual de UX aprovado pelo responsável; nenhuma pendência bloqueadora aberta.                                                                                                                                                     | Todas as anteriores   |
 
 ## Decisões registradas e questões pendentes de produto
@@ -197,6 +197,15 @@ O QA não deve editar a implementação nem substituir o teste manual do usuári
 deve aprovar o próprio trabalho. Uma subtarefa não autoriza automaticamente a seguinte.
 
 ## Validação de encerramento
+
+### Atualização de integração 3C.3 (2026-11-19)
+
+A integração técnica da 3C.3 foi implementada e encaminhada para validação independente do QA.
+Foi acrescentado um teste E2E do fluxo combinado de sessão, encerramento incremental, seleção de
+preparação e mapa causal. Também foi corrigido o encadeamento da interface causal para recarregar a
+raiz recém-criada e preservar a mensagem de sucesso após a recarga. Esta atualização não constitui
+aprovação de QA nem aprovação manual de UX; o checklist consolidado e as limitações estão em
+`docs/development/phase-3-closeout.md`. A Fase 4 não foi iniciada.
 
 No fechamento da Fase 3, executar e registrar:
 

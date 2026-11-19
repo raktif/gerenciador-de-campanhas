@@ -16,6 +16,7 @@ import {
   type UserFacingErrorOperation,
 } from '../../../core/errors/user-facing-error';
 import { UserFacingErrorNotice } from '../../components/user-facing-error-notice';
+import { SessionClosingManager } from './session-closing-manager';
 import { ReorderableList } from '../../components/reorderable-list';
 import {
   Button,
@@ -757,6 +758,7 @@ function SessionEditor({
       </form>
       {session === null ? null : (
         <>
+          <SessionClosingManager campaign={campaign} session={session} />
           <ParticipantEditor
             entities={entities}
             participants={participants}

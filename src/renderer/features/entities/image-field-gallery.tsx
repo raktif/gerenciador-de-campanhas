@@ -591,7 +591,7 @@ function ImageFieldCard({
   setBusy: (busy: boolean) => void;
 }): React.JSX.Element {
   const [caption, setCaption] = useState(item.value.caption ?? '');
-  const [altText, setAltText] = useState(item.value.altText ?? '');
+  const [altText, setAltText] = useState(item.value.altText);
   const [preview, setPreview] = useState<{ loading: boolean; url: string | null; error: boolean }>({
     loading: true,
     url: null,
@@ -676,7 +676,7 @@ function ImageFieldCard({
           </div>
         ) : (
           <button
-            aria-label={`Ampliar imagem ${index + 1} de ${fieldLabel}`}
+            aria-label={`Ampliar imagem ${String(index + 1)} de ${fieldLabel}`}
             className="size-full cursor-zoom-in"
             onClick={() => setLightboxOpen(true)}
             ref={lightboxTriggerRef}
@@ -720,7 +720,7 @@ function ImageFieldCard({
         <Button disabled={busy} onClick={() => void saveMetadata()} size="small">
           Salvar metadados da imagem {index + 1}
         </Button>
-        <ButtonGroup aria-label={`Ordenar imagem ${index + 1}`}>
+        <ButtonGroup aria-label={`Ordenar imagem ${String(index + 1)}`}>
           <Button disabled={busy || index === 0} onClick={() => onMove(-1)} size="small">
             Mover imagem {index + 1} acima
           </Button>

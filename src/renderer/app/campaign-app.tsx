@@ -34,6 +34,7 @@ import { StoryThreadManager } from '../features/story-threads/story-thread-manag
 import { ClockManager } from '../features/clocks/clock-manager';
 import { DemandManager } from '../features/demands/demand-manager';
 import { WorldInMotionPanel } from '../features/world-in-motion/world-in-motion-panel';
+import { CausalityManager } from '../features/causality/causality-manager';
 import { presentUserFacingError, type UserFacingError } from '../../core/errors/user-facing-error';
 import { UserFacingErrorNotice } from '../components/user-facing-error-notice';
 import { Button, ButtonGroup } from '../components/actions';
@@ -64,7 +65,8 @@ type Screen =
   | 'threads'
   | 'clocks'
   | 'demands'
-  | 'movement';
+  | 'movement'
+  | 'causality';
 
 type CampaignScreen = Exclude<Screen, 'campaigns' | 'create'>;
 type CampaignStatus = Campaign['status'];
@@ -693,6 +695,12 @@ export function CampaignApp(): React.JSX.Element {
               campaign={selectedCampaign}
               onNavigate={setScreen}
             />
+          ) : screen === 'causality' && selectedCampaign !== null ? (
+            <CausalityManager
+              key={selectedCampaign.id}
+              campaign={selectedCampaign}
+              onBack={() => goBack('edit')}
+            />
           ) : screen === 'threads' && selectedCampaign !== null ? (
             <StoryThreadManager
               key={selectedCampaign.id}
@@ -867,6 +875,11 @@ export function CampaignNavigation({
             active={screen === 'movement'}
             label="Mundo em Movimento"
             onClick={() => onNavigate('movement')}
+          />
+          <CampaignNavigationItem
+            active={screen === 'causality'}
+            label="Mapa causal"
+            onClick={() => onNavigate('causality')}
           />
           <CampaignNavigationItem
             active={screen === 'entityTypes'}

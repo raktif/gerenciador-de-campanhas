@@ -118,7 +118,7 @@ export class ImageFieldValueRepository {
       )
       .run(
         input.patch.caption === undefined ? current.value.caption : input.patch.caption,
-        input.patch.altText === undefined ? current.value.altText : input.patch.altText,
+        input.patch.altText ?? current.value.altText,
         updatedAt,
         input.id,
         input.revision,

@@ -11,16 +11,15 @@ export const maximumRelationshipViewNodes = 250;
 
 const coordinateSchema = z
   .number()
-  .finite()
   .min(-maximumRelationshipViewCoordinate)
   .max(maximumRelationshipViewCoordinate);
-const nodeSizeSchema = z.number().finite().positive().max(maximumRelationshipViewNodeSize);
+const nodeSizeSchema = z.number().positive().max(maximumRelationshipViewNodeSize);
 
 export const relationshipViewportSchema = z
   .object({
     x: coordinateSchema,
     y: coordinateSchema,
-    zoom: z.number().finite().min(minimumRelationshipViewZoom).max(maximumRelationshipViewZoom),
+    zoom: z.number().min(minimumRelationshipViewZoom).max(maximumRelationshipViewZoom),
   })
   .strict();
 export type RelationshipViewport = z.infer<typeof relationshipViewportSchema>;

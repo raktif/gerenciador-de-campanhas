@@ -217,6 +217,7 @@ import {
   sessionIntentionChannels,
   storyThreadChannels,
   sessionParticipantChannels,
+  sessionClosingChannels,
 } from '../../core/contracts/ipc-channels';
 import {
   emptyInputSchema,
@@ -237,6 +238,8 @@ import {
   type StoryThreadPageResult,
   type StoryThreadTargetPageResult,
 } from '../../core/contracts/story-threads';
+import { causalityChannels } from '../../core/contracts/ipc-channels';
+import { createCausalLinkInputSchema, getCausalChainInputSchema, updateCausalLinkInputSchema, type CausalChain, type CausalLink } from '../../core/contracts/causality';
 import {
   clockPageRequestSchema,
   clockSourceOptionsRequestSchema,
@@ -249,6 +252,7 @@ import {
   type ClockSourceOption,
 } from '../../core/contracts/clocks';
 import type { CampaignSignal } from '../../core/contracts/campaign-signals';
+import { getSessionClosingInputSchema, getSessionPreparationInputSchema, quickCloseSessionInputSchema, selectSessionPreparationItemInputSchema, updateSessionClosingStepInputSchema, type SessionClosingWorkflow, type SessionPreparation } from '../../core/contracts/session-closing';
 import {
   createSessionInputSchema,
   createSessionIntentionInputSchema,
@@ -398,6 +402,11 @@ export function createCampaignManagerGateway(
           input,
           storyThreadLifecycleInputSchema,
         ),
+    },
+    causality: {
+      createLink: (input) => invoke<CausalLink>(causalityChannels.createLink, input, createCausalLinkInputSchema),
+      updateLink: (input) => invoke<CausalLink>(causalityChannels.updateLink, input, updateCausalLinkInputSchema),
+      getChain: (input) => invoke<CausalChain>(causalityChannels.getChain, input, getCausalChainInputSchema),
     },
     diagnostics: {
       copyStartupDiagnostic: (input) =>
@@ -955,6 +964,13 @@ export function createCampaignManagerGateway(
           input,
           updateSessionIntentionInputSchema,
         ),
+    },
+    sessionClosing: {
+      get: (input) => invoke<SessionClosingWorkflow>(sessionClosingChannels.get, input, getSessionClosingInputSchema),
+      updateStep: (input) => invoke<SessionClosingWorkflow>(sessionClosingChannels.updateStep, input, updateSessionClosingStepInputSchema),
+      quickClose: (input) => invoke<SessionClosingWorkflow>(sessionClosingChannels.quickClose, input, quickCloseSessionInputSchema),
+      getPreparation: (input) => invoke<SessionPreparation>(sessionClosingChannels.getPreparation, input, getSessionPreparationInputSchema),
+      selectPreparationItem: (input) => invoke<SessionPreparation>(sessionClosingChannels.selectPreparationItem, input, selectSessionPreparationItemInputSchema),
     },
   };
 }

@@ -159,6 +159,12 @@ export const storyThreadChannels = {
   restore: 'threads:restore',
 } as const;
 
+export const causalityChannels = {
+  createLink: 'causality:create-link',
+  updateLink: 'causality:update-link',
+  getChain: 'causality:get-chain',
+} as const;
+
 export const demandChannels = {
   suggestion: 'demands:suggestion',
   get: 'demands:get',
@@ -226,4 +232,12 @@ export const sessionIntentionChannels = {
   get: 'session-intentions:get',
   list: 'session-intentions:list',
   update: 'session-intentions:update',
+} as const;
+
+export const sessionClosingChannels = {
+  get: 'session-closing:get',
+  updateStep: 'session-closing:update-step',
+  quickClose: 'session-closing:quick-close',
+  getPreparation: 'session-closing:get-preparation',
+  selectPreparationItem: 'session-closing:select-preparation-item',
 } as const;

@@ -12,6 +12,7 @@ export default tseslint.config(
       'eslint.config.mjs',
       'scripts/build-e2e.mjs',
       'scripts/package-smoke.mjs',
+      'scripts/package-native-smoke.cjs',
     ],
   },
   eslint.configs.recommended,

@@ -19,6 +19,7 @@ import { openApplicationDatabase, type DatabaseContext } from '../../db/connecti
 import { AssertionRepository } from '../../db/repositories/assertion-repository';
 import { CampaignSignalRepository } from '../../db/repositories/campaign-signal-repository';
 import { StoryThreadRepository } from '../../db/repositories/story-thread-repository';
+import { CausalityRepository } from '../../db/repositories/causality-repository';
 import { ClockRepository } from '../../db/repositories/clock-repository';
 import { AppearanceRepository } from '../../db/repositories/appearance-repository';
 import { CampaignRepository } from '../../db/repositories/campaign-repository';
@@ -37,6 +38,7 @@ import { RelationshipViewRepository } from '../../db/repositories/relationship-v
 import { TimelineRepository } from '../../db/repositories/timeline-repository';
 import { SessionIntentionRepository } from '../../db/repositories/session-intention-repository';
 import { SessionRepository } from '../../db/repositories/session-repository';
+import { SessionClosingRepository } from '../../db/repositories/session-closing-repository';
 import { registerCampaignIpcHandlers } from '../ipc/campaign-handlers';
 import { registerCampaignCoverIpcHandlers } from '../ipc/campaign-cover-handlers';
 import { registerImageImportIpcHandlers } from '../ipc/image-import-handlers';
@@ -47,6 +49,7 @@ import { registerDiagnosticsIpcHandlers } from '../ipc/diagnostics-handlers';
 import { registerAssertionIpcHandlers } from '../ipc/assertion-handlers';
 import { registerCampaignSignalIpcHandlers } from '../ipc/campaign-signal-handlers';
 import { registerStoryThreadIpcHandlers } from '../ipc/story-thread-handlers';
+import { registerCausalityIpcHandlers } from '../ipc/causality-handlers';
 import { registerClockIpcHandlers } from '../ipc/clock-handlers';
 import { registerEntityIpcHandlers } from '../ipc/entity-handlers';
 import { registerEntityTypeIpcHandlers } from '../ipc/entity-type-handlers';
@@ -62,6 +65,7 @@ import {
   registerSessionIpcHandlers,
   type SessionHandlerDependencies,
 } from '../ipc/session-handlers';
+import { registerSessionClosingIpcHandlers } from '../ipc/session-closing-handlers';
 import { registerTimelineIpcHandlers } from '../ipc/timeline-handlers';
 import { CampaignService } from '../services/campaign-service';
 import { CampaignCoverService } from '../services/campaign-cover-service';
@@ -76,6 +80,7 @@ import { StartupDiagnosticsService } from '../services/startup-diagnostics-servi
 import { AssertionService } from '../services/assertion-service';
 import { CampaignSignalService } from '../services/campaign-signal-service';
 import { StoryThreadService } from '../services/story-thread-service';
+import { CausalityService } from '../services/causality-service';
 import { ClockService } from '../services/clock-service';
 import { DemandRepository } from '../../db/repositories/demand-repository';
 import { DemandService } from '../services/demand-service';
@@ -94,6 +99,7 @@ import { RelationshipViewService } from '../services/relationship-view-service';
 import { SessionIntentionService } from '../services/session-intention-service';
 import { SessionParticipantService } from '../services/session-participant-service';
 import { SessionService } from '../services/session-service';
+import { SessionClosingService } from '../services/session-closing-service';
 import { TimelineService } from '../services/timeline-service';
 import {
   AppearanceController,
@@ -157,12 +163,14 @@ export async function bootstrapApplication(): Promise<RunningApplication> {
   const assertionRepository = new AssertionRepository(database.orm);
   const campaignSignalRepository = new CampaignSignalRepository(database.native);
   const storyThreadRepository = new StoryThreadRepository(database.native);
+  const causalityRepository = new CausalityRepository(database.native);
   const clockRepository = new ClockRepository(database.native);
   const demandRepository = new DemandRepository(database.native);
   const noteRepository = new NoteRepository(database.orm);
   const inboxRepository = new InboxRepository(database.orm);
   const sessionRepository = new SessionRepository(database.orm);
   const sessionIntentionRepository = new SessionIntentionRepository(database.orm);
+  const sessionClosingRepository = new SessionClosingRepository(database.native);
   const appearanceService = new AppearanceService({ repository: appearanceRepository });
   const initialAppearance = appearanceService.get();
   const window = createWindowWithInitialTheme(
@@ -377,6 +385,12 @@ export async function bootstrapApplication(): Promise<RunningApplication> {
     repository: storyThreadRepository,
     campaigns: campaignRepository,
   });
+  const causalityService = new CausalityService({ repository: causalityRepository, campaigns: campaignRepository });
+  const unregisterCausalityIpc = registerCausalityIpcHandlers(ipcMain, {
+    service: causalityService,
+    logger,
+    authorizedWebContentsId: window.webContents.id,
+  });
   const unregisterStoryThreadIpc = registerStoryThreadIpcHandlers(ipcMain, {
     service: storyThreadService,
     logger,
@@ -464,6 +478,12 @@ export async function bootstrapApplication(): Promise<RunningApplication> {
     logger,
     authorizedWebContentsId: window.webContents.id,
   });
+  const sessionClosingService = new SessionClosingService({ repository: sessionClosingRepository, campaigns: campaignRepository, signals: campaignSignalService });
+  const unregisterSessionClosingIpc = registerSessionClosingIpcHandlers(ipcMain, {
+    service: sessionClosingService,
+    logger,
+    authorizedWebContentsId: window.webContents.id,
+  });
   await logger.info('Aplicação inicializada.', { applicationVersion: app.getVersion() });
   await loadMainWindow(window);
   let disposed = false;
@@ -491,6 +511,7 @@ export async function bootstrapApplication(): Promise<RunningApplication> {
       unregisterAssertionIpc();
       unregisterCampaignSignalIpc();
       unregisterStoryThreadIpc();
+      unregisterCausalityIpc();
       unregisterClockIpc();
       unregisterDemandIpc();
       unregisterNoteIpc();
@@ -498,6 +519,7 @@ export async function bootstrapApplication(): Promise<RunningApplication> {
       unregisterEventIpc();
       unregisterTimelineIpc();
       unregisterSessionIpc();
+      unregisterSessionClosingIpc();
       appearanceMenu.dispose();
       database.close();
     },
