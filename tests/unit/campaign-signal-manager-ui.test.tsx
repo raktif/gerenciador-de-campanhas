@@ -7,7 +7,7 @@ import { CampaignNavigation } from '../../src/renderer/app/campaign-app';
 import { SignalManager, SignalCard } from '../../src/renderer/features/signals/signal-manager';
 
 describe('interface mínima de revisão de sinais', () => {
-  it('inclui acesso à tela sem construir o painel futuro Mundo em Movimento', () => {
+  it('inclui acesso ao painel Mundo em Movimento e marca os Sinais da campanha ativos', () => {
     const markup = renderToStaticMarkup(
       <CampaignNavigation
         campaign={campaign}
@@ -19,7 +19,7 @@ describe('interface mínima de revisão de sinais', () => {
 
     expect(markup).toContain('Sinais da campanha');
     expect(markup).toContain('aria-current="page"');
-    expect(markup).not.toContain('Mundo em Movimento');
+    expect(markup).toContain('Mundo em Movimento');
   });
 
   it('explica o escopo do motor e oferece recálculo sem expor IDs ou controles futuros', () => {

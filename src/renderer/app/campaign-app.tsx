@@ -33,6 +33,7 @@ import { InboxManager } from '../features/inbox/inbox-manager';
 import { StoryThreadManager } from '../features/story-threads/story-thread-manager';
 import { ClockManager } from '../features/clocks/clock-manager';
 import { DemandManager } from '../features/demands/demand-manager';
+import { WorldInMotionPanel } from '../features/world-in-motion/world-in-motion-panel';
 import { presentUserFacingError, type UserFacingError } from '../../core/errors/user-facing-error';
 import { UserFacingErrorNotice } from '../components/user-facing-error-notice';
 import { Button, ButtonGroup } from '../components/actions';
@@ -62,7 +63,8 @@ type Screen =
   | 'inbox'
   | 'threads'
   | 'clocks'
-  | 'demands';
+  | 'demands'
+  | 'movement';
 
 type CampaignScreen = Exclude<Screen, 'campaigns' | 'create'>;
 type CampaignStatus = Campaign['status'];
@@ -685,6 +687,12 @@ export function CampaignApp(): React.JSX.Element {
                     },
                   })}
             />
+          ) : screen === 'movement' && selectedCampaign !== null ? (
+            <WorldInMotionPanel
+              key={selectedCampaign.id}
+              campaign={selectedCampaign}
+              onNavigate={setScreen}
+            />
           ) : screen === 'threads' && selectedCampaign !== null ? (
             <StoryThreadManager
               key={selectedCampaign.id}
@@ -855,6 +863,11 @@ export function CampaignNavigation({
 
       {campaign.status === 'active' ? (
         <CampaignNavigationGroup label="Mundo">
+          <CampaignNavigationItem
+            active={screen === 'movement'}
+            label="Mundo em Movimento"
+            onClick={() => onNavigate('movement')}
+          />
           <CampaignNavigationItem
             active={screen === 'entityTypes'}
             label="Gerenciar tipos de entidade"

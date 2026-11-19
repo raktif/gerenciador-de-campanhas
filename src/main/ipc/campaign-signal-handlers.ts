@@ -56,6 +56,18 @@ export function registerCampaignSignalIpcHandlers(
         ),
     },
     {
+      channel: campaignSignalChannels.listForWorldInMotion,
+      handler: (event, input) =>
+        executeIpcHandler(
+          event,
+          input,
+          campaignSignalCampaignInputSchema,
+          campaignSignalListResultSchema,
+          dependencies,
+          (value) => dependencies.service.listForWorldInMotion(value),
+        ),
+    },
+    {
       channel: campaignSignalChannels.recalculate,
       handler: (event, input) =>
         executeIpcHandler(

@@ -78,7 +78,7 @@ describe('handlers IPC de sinais da campanha', () => {
       error: { code: 'INTERNAL_ERROR' },
     });
   });
-  it('valida as entradas, encaminha os sete canais e remove as inscrições', async () => {
+  it('encaminha os canais registrados e remove as inscrições', async () => {
     const handlers = new Map<string, CapturedHandler>();
     const service = new FakeSignalService();
     const unregister = registerCampaignSignalIpcHandlers(ipc(handlers), {
@@ -89,6 +89,7 @@ describe('handlers IPC de sinais da campanha', () => {
     expect([...handlers.keys()].sort()).toEqual(Object.values(campaignSignalChannels).sort());
 
     await handler(handlers, campaignSignalChannels.list)(event(42), { campaignId });
+    await handler(handlers, campaignSignalChannels.listForWorldInMotion)(event(42), { campaignId });
     await handler(handlers, campaignSignalChannels.recalculate)(event(42), { campaignId });
     await handler(handlers, campaignSignalChannels.review)(event(42), {
       campaignId,
@@ -118,6 +119,7 @@ describe('handlers IPC de sinais da campanha', () => {
     });
     expect(service.calls).toEqual([
       'list',
+      'listForWorldInMotion',
       'recalculate',
       'review',
       'dismiss',
@@ -140,6 +142,36 @@ describe('handlers IPC de sinais da campanha', () => {
 
     unregister();
     expect(handlers.size).toBe(0);
+  });
+
+  it('valida remetente, entrada e saída da leitura exclusiva do painel', async () => {
+    const handlers = new Map<string, CapturedHandler>();
+    const service = new FakeSignalService();
+    registerCampaignSignalIpcHandlers(ipc(handlers), {
+      service: service as never,
+      logger: new TestLogger(),
+      authorizedWebContentsId: 42,
+    });
+    const invoke = handler(handlers, campaignSignalChannels.listForWorldInMotion);
+    expect(await invoke(event(99), { campaignId })).toMatchObject({
+      ok: false,
+      error: { code: 'IPC_SENDER_NOT_ALLOWED' },
+    });
+    expect(await invoke(event(42), { campaignId, expire: true })).toMatchObject({
+      ok: false,
+      error: { code: 'VALIDATION_ERROR' },
+    });
+    expect(service.calls).toEqual([]);
+    expect(await invoke(event(42), { campaignId })).toMatchObject({
+      ok: true,
+      data: { items: [] },
+    });
+    service.invalidOutput = true;
+    expect(await invoke(event(42), { campaignId })).toMatchObject({
+      ok: false,
+      error: { code: 'INTERNAL_ERROR' },
+    });
+    expect(service.calls).toEqual(['listForWorldInMotion', 'listForWorldInMotion']);
   });
 
   it('normaliza erros do serviço e rejeita saídas que violem o contrato', async () => {
@@ -217,6 +249,10 @@ class FakeSignalService {
 
   public list() {
     this.calls.push('list');
+    return this.invalidOutput ? { invalid: true } : { items: [] };
+  }
+  public listForWorldInMotion() {
+    this.calls.push('listForWorldInMotion');
     return this.invalidOutput ? { invalid: true } : { items: [] };
   }
   public recalculate() {

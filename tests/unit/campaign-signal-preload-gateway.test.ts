@@ -17,6 +17,7 @@ describe('gateway de sinais do preload', () => {
       'dismiss',
       'getContradictionReview',
       'list',
+      'listForWorldInMotion',
       'markContradictionException',
       'reactivate',
       'recalculate',
@@ -24,6 +25,7 @@ describe('gateway de sinais do preload', () => {
       'snooze',
     ]);
     await gateway.campaignSignals.list({ campaignId });
+    await gateway.campaignSignals.listForWorldInMotion({ campaignId });
     await gateway.campaignSignals.recalculate({ campaignId });
     await gateway.campaignSignals.review({ campaignId, id, revision: 1 });
     await gateway.campaignSignals.dismiss({ campaignId, id, revision: 1 });
@@ -61,6 +63,9 @@ describe('gateway de sinais do preload', () => {
         extra: true,
       } as never),
     ).toThrow();
-    expect(calls).toHaveLength(8);
+    expect(() =>
+      gateway.campaignSignals.listForWorldInMotion({ campaignId: 'inválido' }),
+    ).toThrow();
+    expect(calls).toHaveLength(Object.keys(campaignSignalChannels).length);
   });
 });

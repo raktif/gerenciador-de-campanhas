@@ -30,8 +30,13 @@ fora da atividade explicitamente atribuída.
 ## Base técnica verificada
 
 A 3B.3 acrescenta a migração aditiva v29 após a base v28 abaixo, preservando SQL/checksums
-anteriores. Está implementada e aguarda QA independente; veja
+anteriores. Está implementada e aprovada tecnicamente pelo QA; veja
 [phase-3-3b3.md](phase-3-3b3.md).
+
+Em 2026-11-18, o responsável autorizou exclusivamente a 3B.4. O Painel Mundo em Movimento está
+implementado sem migração e aguarda revalidação independente; sua UX permanece pendente para a avaliação
+conjunta de toda a 3B pelo usuário. O relatório técnico e os limites de suporte estão em
+[phase-3-3b4.md](phase-3-3b4.md).
 
 | Área             | Estado atual                                                                                                                                                                                                                              | Implicação para a Fase 3                                                                                                                                   |
 | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |

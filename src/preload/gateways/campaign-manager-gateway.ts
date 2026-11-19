@@ -792,6 +792,12 @@ export function createCampaignManagerGateway(
           input,
           campaignSignalCampaignInputSchema,
         ),
+      listForWorldInMotion: (input) =>
+        invoke<CampaignSignalListResult>(
+          campaignSignalChannels.listForWorldInMotion,
+          input,
+          campaignSignalCampaignInputSchema,
+        ),
       recalculate: (input) =>
         invoke<CampaignSignalRecalculationResult>(
           campaignSignalChannels.recalculate,

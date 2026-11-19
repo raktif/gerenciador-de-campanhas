@@ -126,6 +126,7 @@ export const assertionChannels = {
 
 export const campaignSignalChannels = {
   list: 'campaign-signals:list',
+  listForWorldInMotion: 'campaign-signals:list-for-world-in-motion',
   recalculate: 'campaign-signals:recalculate',
   review: 'campaign-signals:review',
   dismiss: 'campaign-signals:dismiss',

@@ -110,6 +110,9 @@ export type MarkContradictionExceptionInput = z.infer<typeof markContradictionEx
 export interface CampaignSignalGateway {
   getContradictionReview(input: ReviewCampaignSignalInput): Promise<Result<ContradictionReview>>;
   list(input: CampaignSignalCampaignInput): Promise<Result<CampaignSignalListResult>>;
+  listForWorldInMotion(
+    input: CampaignSignalCampaignInput,
+  ): Promise<Result<CampaignSignalListResult>>;
   recalculate(
     input: CampaignSignalCampaignInput,
   ): Promise<Result<CampaignSignalRecalculationResult>>;

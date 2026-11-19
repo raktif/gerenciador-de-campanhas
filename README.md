@@ -37,11 +37,11 @@ Fase 2](docs/development/phase-2-refinement.md).
 ## Estado e limites
 
 O produto disponível inclui o escopo concluído até a Fase 2, a etapa 3A aprovada técnica e
-manualmente pelo usuário, e Fios Abertos/Relógios aprovados tecnicamente. Demandas Emergentes
-(3B.3, schema v29) estão implementadas e aguardam QA independente; veja
-[decisões e limites](docs/development/phase-3-3b3.md). A UX conjunta de toda a 3B permanece pendente.
-Isso não representa conclusão da Fase 3. Ainda não inclui Mundo em Movimento, Consequências, outros
-tipos de sinais ou transformação de Intenção em Evento por sinais; histórico geral,
+manualmente pelo usuário, Fios Abertos, Relógios e Demandas Emergentes (3B.1–3B.3) aprovados
+tecnicamente. O Painel Mundo em Movimento (3B.4) aguarda revalidação independente; veja
+[decisões e limites](docs/development/phase-3-3b4.md). A UX conjunta de toda a 3B permanece pendente.
+Isso não representa conclusão da Fase 3. Ainda não inclui Consequências, outros tipos de sinais ou
+transformação de Intenção em Evento por sinais; histórico geral,
 exportação, importação, restauração ou backup de campanha (Fase 4); Biblioteca/PDFs (Fase 5); nem IA
 ou provedores (Fases 6+). A infraestrutura FTS5 criada na Fase 0 permanece reservada para a futura
 busca. Assinatura de código, notarização e publicação automática dependem de certificados e

@@ -87,7 +87,8 @@ Esses limites preservam o modo local sem IA e sem rede: não há servidor HTTP, 
 ou chamada externa necessária aos fluxos atuais. O fechamento 2.10E foi aprovado em 2026-09-21 com
 verify, 12 E2E, pacote Windows x64 e smoke test de SQLite/FTS5.
 
-Migração **29** acrescenta Demandas Emergentes, pendentes de QA independente. Sugestões reutilizam
+Migração **29** acrescenta Demandas Emergentes, aprovadas tecnicamente pelo QA independente.
+Sugestões reutilizam
 somente sinais `explicit_need`; aceitação é transação idempotente sinal→Demanda, sem promover
 cânone. Vínculos são Entidades, Relógios e Sessões; transformação cria filha e arquiva pai
 atomicamente. Resolução manual, após encerrar filhas, cria obrigatoriamente Evento Rascunho com
@@ -100,5 +101,16 @@ invariantes contra bypass/REPLACE. A entidade não pode ser arquivada enquanto h
 pendente vinculada. Não há novo detector, causalidade, IA/rede ou histórico geral. Contratos,
 estados e limites estão em [phase-3-3b3.md](../development/phase-3-3b3.md); UX conjunta 3B permanece
 pendente para o final da etapa.
+
+O Painel Mundo em Movimento (3B.4) agrega, sem mutações, sinais persistidos novos/em revisão,
+Fios em estado Aberto/Ativo/Adormecido, Relógios Ativos e Demandas Disponíveis/Ativas por suas
+APIs tipadas existentes. Todas as listas paginadas são lidas com o `campaignId` atual; erro em
+qualquer fonte é explícito e recuperável, sem renderização parcial. Categorias sem detector são
+marcadas como indisponíveis nesta versão. Mudanças desde a última Sessão não são inferidas por
+`updatedAt`: sem proveniência explícita, a seção explica a limitação. Sem migração, IA ou rede.
+A consulta IPC específica do painel reutiliza a leitura de sinais persistidos do repositório,
+sem expirar adiamentos. A listagem original de Sinais conserva sua expiração de adiamentos
+vencidos. A 3B.4 aguarda revalidação independente; a UX manual conjunta continua pendente.
+Detalhes em [`phase-3-3b4.md`](../development/phase-3-3b4.md).
 
 Decisões detalhadas ficam em [docs/adr](../adr/README.md).

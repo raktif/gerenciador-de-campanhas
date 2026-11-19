@@ -62,6 +62,12 @@ export class CampaignSignalService {
     return { items: result.items };
   }
 
+  public listForWorldInMotion(input: CampaignSignalCampaignInput): CampaignSignalListResult {
+    this.requireCampaign(input.campaignId);
+    // The dashboard reads persisted signals without reconciling snoozes.
+    return { items: this.dependencies.repository.list(input.campaignId) };
+  }
+
   public recalculate(input: CampaignSignalCampaignInput): CampaignSignalRecalculationResult {
     this.requireActiveCampaign(input.campaignId);
     return this.dependencies.repository.recalculate(input.campaignId, this.now());

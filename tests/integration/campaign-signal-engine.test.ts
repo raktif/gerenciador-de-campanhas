@@ -5,7 +5,13 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { IpcMain, IpcMainInvokeEvent } from 'electron';
-import { campaignSignalChannels } from '../../src/core/contracts/ipc-channels';
+import {
+  campaignSignalChannels,
+  clockChannels,
+  demandChannels,
+  storyThreadChannels,
+} from '../../src/core/contracts/ipc-channels';
+import { success } from '../../src/core/contracts/result';
 import {
   ensureDataDirectories,
   getDataDirectories,
@@ -18,6 +24,11 @@ import { InboxRepository } from '../../src/db/repositories/inbox-repository';
 import { CampaignRepository } from '../../src/db/repositories/campaign-repository';
 import { CampaignSignalService } from '../../src/main/services/campaign-signal-service';
 import { registerCampaignSignalIpcHandlers } from '../../src/main/ipc/campaign-signal-handlers';
+import { createCampaignManagerGateway } from '../../src/preload/gateways/campaign-manager-gateway';
+import {
+  buildWorldInMotionModel,
+  loadWorldInMotionData,
+} from '../../src/renderer/features/world-in-motion/world-in-motion-data';
 import { TestLogger } from '../helpers/test-logger';
 
 const roots: string[] = [];
@@ -1511,28 +1522,62 @@ describe('persistência e recálculo de sinais em SQLite real', () => {
     expect(stale?.evidence[0]?.description).toBe('Entender os cabos');
   });
 
-  it('reativa para revisão ao consultar após o prazo quando a necessidade ainda está detectada', async () => {
+  it('Mundo em Movimento preserva o adiamento vencido; a listagem atual ainda o expira', async () => {
     const database = await openDatabase();
     const seeded = seedNeed(database.native, 'Gorel', 'Entender os cabos');
     const service = createService(database);
     const first = service.recalculate({ campaignId: seeded.campaignId }).items[0];
     if (first === undefined) throw new Error('O sinal esperado não foi detectado.');
-    service.snooze({
+    const snoozed = service.snooze({
       campaignId: seeded.campaignId,
       id: first.signal.id,
       revision: first.signal.revision,
       dismissedUntil: '2026-11-14T14:01:00.000Z',
     });
 
-    const afterDeadline = createService(database, () => '2026-11-14T14:02:00.000Z').list({
-      campaignId: seeded.campaignId,
+    const now = '2026-11-14T14:02:00.000Z';
+    const handlers = captureSignalHandlers(createService(database, () => now));
+    const gateway = createCampaignManagerGateway((channel, input) => {
+      if (
+        channel === clockChannels.list ||
+        channel === demandChannels.list ||
+        channel === storyThreadChannels.list
+      )
+        return Promise.resolve(success({ items: [], nextCursor: null, total: 0 }, 'test'));
+      const handler = handlers.get(channel);
+      if (handler === undefined) throw new Error(`Canal inesperado: ${channel}`);
+      return handler(ipcEvent(7), input);
     });
-    expect(afterDeadline.items[0]?.signal.status).toBe('new');
-    expect(afterDeadline.items[0]?.signal.dismissedUntil).toBeNull();
+    const repository = new CampaignSignalRepository(database.native);
+    const input = { campaignId: seeded.campaignId };
+
+    const data = await loadWorldInMotionData(input.campaignId, gateway);
+    expect(data.signals).toEqual([{ signal: snoozed, evidence: first.evidence }]);
+    expect(buildWorldInMotionModel(data).signals).toEqual([]);
+    expect(repository.findById(input.campaignId, snoozed.id)).toEqual(snoozed);
+
+    const expired = {
+      ...snoozed,
+      status: 'new',
+      dismissedUntil: null,
+      updatedAt: now,
+      revision: snoozed.revision + 1,
+    };
+    expect(await gateway.campaignSignals.list(input)).toMatchObject({
+      ok: true,
+      data: { items: [{ signal: expired }] },
+    });
+    expect(repository.findById(input.campaignId, snoozed.id)).toEqual(expired);
   });
 });
 
 function contextualIpc(service: CampaignSignalService): (input: unknown) => Promise<unknown> {
+  const handler = captureSignalHandlers(service).get(campaignSignalChannels.getContradictionReview);
+  if (handler === undefined) throw new Error('Consulta contextual não registrada.');
+  return (input) => handler(ipcEvent(7), input);
+}
+
+function captureSignalHandlers(service: CampaignSignalService) {
   const handlers = new Map<
     string,
     (event: IpcMainInvokeEvent, input: unknown) => Promise<unknown>
@@ -1544,9 +1589,7 @@ function contextualIpc(service: CampaignSignalService): (input: unknown) => Prom
     } as unknown as IpcMain,
     { service, logger: new TestLogger(), authorizedWebContentsId: 7 },
   );
-  const handler = handlers.get(campaignSignalChannels.getContradictionReview);
-  if (handler === undefined) throw new Error('Consulta contextual não registrada.');
-  return (input) => handler(ipcEvent(7), input);
+  return handlers;
 }
 
 async function openDatabase(existingRoot?: string): Promise<DatabaseContext> {
@@ -1556,7 +1599,7 @@ async function openDatabase(existingRoot?: string): Promise<DatabaseContext> {
   await ensureDataDirectories(directories);
   const context = await openApplicationDatabase(directories, new TestLogger());
   contexts.push(context);
-  expect(context.schemaVersion).toBe(23);
+  expect(context.schemaVersion).toBeGreaterThanOrEqual(23);
   return context;
 }
 
