@@ -43,6 +43,16 @@ sem IA/rede e sem alteração automática de cânone.
 - Após a correção desse erro, o lint global do `verify` passou. A execução avançou até
   `prettier --check .`, que falhou com 313 arquivos preexistentes fora do padrão de formatação;
   nenhuma formatação global foi aplicada nesta entrega.
+- Foram corrigidos os seis achados funcionais observados no verify: expectativa do preload para
+  `causality`/`sessionClosing`, fixture de entidade da conversão IPC, tradução do erro de preview de
+  capa, mensagem pública de Need e tokens/classes semânticos do `clock-manager`. O teste Vitest
+  direcionado permaneceu bloqueado antes da coleta por `spawn EPERM` no Vite/Rolldown.
+- Na rodada de integração final, foram ajustados harnesses de migração para usar
+  `latestMigrationVersion` nas verificações do schema atual, registrar
+  `structured_json_to_rich_text` em bancos legados, corrigir os parâmetros do fixture de sessão e
+  alinhar a mensagem do trigger de capa. A suíte elevada reproduziu 24 falhas em 12 arquivos antes
+  dessas correções; a rerodada pós-correção foi interrompida por duração, portanto a quantidade
+  residual ainda não foi determinada.
 - Testes Vitest direcionados de causalidade e encerramento: inconclusivos. O processo falhou antes
   da coleta ao carregar `vitest.config.mts`, com `Error: Build failed with 1 error` e
   `[plugin externalize-deps] Error: spawn EPERM` no Vite/Rolldown.

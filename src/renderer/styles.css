@@ -316,6 +316,10 @@
   color: var(--text-primary);
 }
 
+.semantic-text {
+  color: var(--text-primary);
+}
+
 .semantic-text-secondary,
 .semantic-disabled-text {
   color: var(--text-secondary);
@@ -369,7 +373,15 @@
   color: var(--success);
 }
 
+.semantic-text-success {
+  color: var(--success);
+}
+
 .semantic-danger-text {
+  color: var(--danger);
+}
+
+.semantic-text-danger {
   color: var(--danger);
 }
 

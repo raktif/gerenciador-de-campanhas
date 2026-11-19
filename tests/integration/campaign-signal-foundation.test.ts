@@ -11,7 +11,7 @@ import {
   type DataDirectories,
 } from '../../src/core/storage/data-directories';
 import { openApplicationDatabase, type DatabaseContext } from '../../src/db/connection';
-import { migrations } from '../../src/db/migrations/registry';
+import { latestMigrationVersion, migrations } from '../../src/db/migrations/registry';
 import { campaignSignals, signalEvidence } from '../../src/db/schema';
 import { TestLogger } from '../helpers/test-logger';
 
@@ -435,7 +435,7 @@ describe('fundação persistente de sinais de campanha', () => {
     const directories = await createDirectories();
     const context = await openTestDatabase(directories);
 
-    expect(context.schemaVersion).toBe(23);
+    expect(context.schemaVersion).toBe(latestMigrationVersion);
     expect(
       context.native
         .prepare(
@@ -464,7 +464,7 @@ describe('fundação persistente de sinais de campanha', () => {
     legacy.close();
 
     const context = await openTestDatabase(directories);
-    expect(context.schemaVersion).toBe(23);
+    expect(context.schemaVersion).toBe(latestMigrationVersion);
     expect(
       context.native.prepare('SELECT name FROM campaigns WHERE id = ?').get(campaignId),
     ).toEqual({ name: 'Campanha preservada' });

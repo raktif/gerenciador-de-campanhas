@@ -10,7 +10,7 @@ import {
   structuredJsonToRichText,
 } from '../../src/core/domain/field-values';
 import { openApplicationDatabase } from '../../src/db/connection';
-import { migrations } from '../../src/db/migrations/registry';
+import { latestMigrationVersion, migrations } from '../../src/db/migrations/registry';
 import { TestLogger } from '../helpers/test-logger';
 
 const roots: string[] = [];
@@ -242,7 +242,7 @@ describe('limpeza v33 dos valores JSON dos campos de Entidades', () => {
       db.close();
       const context = await openApplicationDatabase(directories, new TestLogger());
       handles.push(context);
-      expect(context.schemaVersion).toBe(34);
+      expect(context.schemaVersion).toBe(latestMigrationVersion);
       expect(registry(context.native, version)).toEqual(previous);
       expect(context.native.prepare('SELECT id FROM field_values ORDER BY id').all()).toEqual(
         [23, 24, 25, 26, 41, 42, 43, 44, 45, 46, 47, 48].map((n) => ({ id: id(n) })),
@@ -270,7 +270,9 @@ describe('limpeza v33 dos valores JSON dos campos de Entidades', () => {
           .all(),
       ).toEqual([]);
       expect(context.native.pragma('foreign_key_check')).toEqual([]);
-      expect(await readdir(directories.automaticBackups)).toEqual([]);
+      expect(
+        (await readdir(directories.automaticBackups)).filter((name) => name.endsWith('.db')),
+      ).toHaveLength(1);
       expect(await readdir(directories.manualBackups)).toEqual([]);
     },
   );
@@ -342,7 +344,7 @@ describe('limpeza v33 dos valores JSON dos campos de Entidades', () => {
 
       const context = await openApplicationDatabase(directories, new TestLogger());
       handles.push(context);
-      expect(context.schemaVersion).toBe(34);
+      expect(context.schemaVersion).toBe(latestMigrationVersion);
       expect(registry(context.native, version)).toEqual(previous);
       expect(context.native.prepare('SELECT id FROM field_values ORDER BY id').all()).toEqual(
         [23, 24, 25, 26, 41, 42, 43, 44, 45, 46, 47, 48].map((n) => ({ id: id(n) })),
@@ -357,7 +359,11 @@ describe('limpeza v33 dos valores JSON dos campos de Entidades', () => {
           .all(),
       ).toEqual([]);
       expect(await Promise.all(backups.map(digest))).toEqual(hashes);
-      expect(await readdir(directories.automaticBackups)).toEqual(['a.db']);
+      const automaticBackups = (await readdir(directories.automaticBackups)).filter((name) =>
+        name.endsWith('.db'),
+      );
+      expect(automaticBackups).toHaveLength(2);
+      expect(automaticBackups).toContain('a.db');
       expect(await readdir(directories.manualBackups)).toEqual(['b.db']);
     },
   );
@@ -373,7 +379,7 @@ describe('limpeza v33 dos valores JSON dos campos de Entidades', () => {
     db.close();
     const context = await openApplicationDatabase(directories, new TestLogger());
     handles.push(context);
-    expect(context.schemaVersion).toBe(34);
+    expect(context.schemaVersion).toBe(latestMigrationVersion);
     expect(
       context.native.prepare('SELECT id FROM field_values WHERE id IN (?,?)').all(id(20), id(28)),
     ).toEqual([]);
@@ -391,7 +397,9 @@ describe('limpeza v33 dos valores JSON dos campos de Entidades', () => {
     expect(
       reopened.native.prepare('SELECT value_text FROM field_values WHERE id=?').get(id(20)),
     ).toEqual({ value_text: newText });
-    expect(await readdir(directories.automaticBackups)).toEqual([]);
+    expect(
+      (await readdir(directories.automaticBackups)).filter((name) => name.endsWith('.db')),
+    ).toHaveLength(1);
   });
 
   it('reverte a limpeza e todo o lote se o registro da v33 falhar', async () => {
@@ -421,7 +429,9 @@ describe('limpeza v33 dos valores JSON dos campos de Entidades', () => {
     } finally {
       failed.close();
     }
-    expect(await readdir(directories.automaticBackups)).toEqual([]);
+    expect(
+      (await readdir(directories.automaticBackups)).filter((name) => name.endsWith('.db')),
+    ).toHaveLength(1);
   });
 
   it('reverte também a exclusão de snapshots se a v33 falhar em uma base v32', async () => {
@@ -453,6 +463,8 @@ describe('limpeza v33 dos valores JSON dos campos de Entidades', () => {
     } finally {
       failed.close();
     }
-    expect(await readdir(directories.automaticBackups)).toEqual([]);
+    expect(
+      (await readdir(directories.automaticBackups)).filter((name) => name.endsWith('.db')),
+    ).toHaveLength(1);
   });
 });

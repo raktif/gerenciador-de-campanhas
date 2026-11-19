@@ -10,7 +10,7 @@ import {
   type DataDirectories,
 } from '../../src/core/storage/data-directories';
 import { openApplicationDatabase, type DatabaseContext } from '../../src/db/connection';
-import { migrations } from '../../src/db/migrations/registry';
+import { latestMigrationVersion, migrations } from '../../src/db/migrations/registry';
 import { TestLogger } from '../helpers/test-logger';
 
 const roots: string[] = [];
@@ -37,7 +37,7 @@ describe('fundação persistente do canvas de Relações', () => {
 
     const context = await openTestDatabase(directories);
 
-    expect(context.schemaVersion).toBe(22);
+    expect(context.schemaVersion).toBe(latestMigrationVersion);
     expect(
       context.native.prepare('SELECT name FROM campaigns WHERE id = ?').get(seeded.campaignId),
     ).toEqual({ name: 'Ethéria' });

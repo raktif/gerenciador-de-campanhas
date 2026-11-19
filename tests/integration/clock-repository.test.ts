@@ -957,7 +957,9 @@ describe('persistência SQLite de Relógios', () => {
       total: 0,
     });
     expect(migrated.native.pragma('foreign_key_check')).toEqual([]);
-    expect(await readdir(directories.automaticBackups)).toEqual([]);
+    expect(
+      (await readdir(directories.automaticBackups)).filter((name) => name.endsWith('.db')),
+    ).toHaveLength(1);
     const repo = new ClockRepository(migrated.native);
     const service = new ClockService({
       repository: repo,
@@ -1021,7 +1023,9 @@ describe('persistência SQLite de Relógios', () => {
       await expect(openApplicationDatabase(directories, new TestLogger())).rejects.toThrow(
         'CLOCKS_V27_INCOMPATIBLE_LEGACY_CLOCKS',
       );
-      expect(await readdir(directories.automaticBackups)).toEqual([]);
+      expect(
+        (await readdir(directories.automaticBackups)).filter((name) => name.endsWith('.db')),
+      ).toHaveLength(1);
       const preserved = new Database(file);
       expect(
         preserved.prepare('SELECT max(version) AS version FROM schema_migrations').get(),

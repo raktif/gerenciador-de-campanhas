@@ -88,7 +88,7 @@ describe('compatibilidade de checksums no bootstrap SQLite', () => {
       const backups = (await readdir(directories.automaticBackups)).filter((file) =>
         file.endsWith('.db'),
       );
-      expect(backups).toEqual([]);
+      expect(backups).toHaveLength(1);
       const reopened = await openTestDatabase(directories);
       expect(readRegistry(reopened.native, 21)).toEqual(applied);
       expectCampaign(reopened.native);

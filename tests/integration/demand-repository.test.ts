@@ -310,12 +310,14 @@ describe('3B.3 Demandas — SQLite real', () => {
         failed.prepare('SELECT summary FROM campaign_signals WHERE id=?').get(s.signal.id),
       ).toEqual({ summary: original });
       expect(failed.prepare('SELECT MAX(version) AS version FROM schema_migrations').get()).toEqual(
-        { version: 32 },
+        { version: 36 },
       );
     } finally {
       failed.close();
     }
-    expect(await readdir(s.dirs.automaticBackups)).toEqual([]);
+    expect(
+      (await readdir(s.dirs.automaticBackups)).filter((name) => name.endsWith('.db')),
+    ).toHaveLength(1);
   });
   it('bloqueia stale/adiado, fonte alterada e revisão obsoleta sem criar dados parciais', async () => {
     const s = await setup();
@@ -571,7 +573,9 @@ describe('3B.3 Demandas — SQLite real', () => {
     ).toEqual({ name: 'Preservada' });
     expect(upgraded.native.pragma('integrity_check', { simple: true })).toBe('ok');
     expect(upgraded.native.pragma('foreign_key_check')).toEqual([]);
-    expect(await readdir(dirs.automaticBackups)).toEqual([]);
+    expect(
+      (await readdir(dirs.automaticBackups)).filter((name) => name.endsWith('.db')),
+    ).toHaveLength(1);
   });
 
   it.each([32, 33])(
@@ -673,7 +677,9 @@ describe('3B.3 Demandas — SQLite real', () => {
           .run('Outro valor', s.value),
       ).toThrow('DEMAND_NEED_LOCKED');
       expect(upgraded.native.pragma('foreign_key_check')).toEqual([]);
-      expect(await readdir(s.dirs.automaticBackups)).toEqual([]);
+      expect(
+        (await readdir(s.dirs.automaticBackups)).filter((name) => name.endsWith('.db')),
+      ).toHaveLength(1);
     },
   );
 });

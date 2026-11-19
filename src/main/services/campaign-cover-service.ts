@@ -64,9 +64,18 @@ export class CampaignCoverService {
     ) {
       throw new AppError('CAMPAIGN_COVER_INVALID', 'A capa da campanha é inválida.');
     }
-    return campaignCoverPreviewSchema.parse(
-      await readAttachmentThumbnailPreview(this.dependencies.directories.thumbnails, identity),
-    );
+    try {
+      return campaignCoverPreviewSchema.parse(
+        await readAttachmentThumbnailPreview(this.dependencies.directories.thumbnails, identity),
+      );
+    } catch (error) {
+      if (error instanceof AppError && error.code === 'ATTACHMENT_PREVIEW_INVALID')
+        throw new AppError(
+          'CAMPAIGN_COVER_PREVIEW_INVALID',
+          'A miniatura da capa da campanha Ã© invÃ¡lida ou ultrapassa 2 MB.',
+        );
+      throw error;
+    }
   }
 
   public set(input: SetCampaignCoverInput): CampaignCover {

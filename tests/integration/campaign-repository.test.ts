@@ -213,7 +213,7 @@ describe('CampaignRepository', () => {
       context.native
         .prepare('UPDATE attachments SET processing_status = ? WHERE id = ?')
         .run('failed', firstAttachmentId),
-    ).toThrow(/a campaign cover attachment must remain ready/);
+    ).toThrow(/a referenced attachment must remain ready/u);
     expect(repository.findById(first.id)).toEqual(updated);
     context.close();
   });

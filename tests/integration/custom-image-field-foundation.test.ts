@@ -10,7 +10,7 @@ import {
   type DataDirectories,
 } from '../../src/core/storage/data-directories';
 import { openApplicationDatabase, type DatabaseContext } from '../../src/db/connection';
-import { migrations } from '../../src/db/migrations/registry';
+import { latestMigrationVersion, migrations } from '../../src/db/migrations/registry';
 import { AttachmentRepository } from '../../src/db/repositories/attachment-repository';
 import { TestLogger } from '../helpers/test-logger';
 
@@ -58,7 +58,7 @@ describe('fundação dos campos personalizados de imagem', () => {
     legacy.close();
 
     const context = await openTestDatabase(directories);
-    expect(context.schemaVersion).toBe(22);
+    expect(context.schemaVersion).toBe(latestMigrationVersion);
     expect(
       context.native
         .prepare(
@@ -140,7 +140,7 @@ describe('fundação dos campos personalizados de imagem', () => {
     legacy.close();
 
     const context = await openTestDatabase(directories);
-    expect(context.schemaVersion).toBe(22);
+    expect(context.schemaVersion).toBe(latestMigrationVersion);
     expect(
       context.native
         .prepare('SELECT id, alt_text, revision FROM image_field_values WHERE id = ?')

@@ -3,6 +3,7 @@ import Database from 'better-sqlite3';
 import { getTableConfig, SQLiteSyncDialect } from 'drizzle-orm/sqlite-core';
 import { describe, expect, it } from 'vitest';
 import { migrations } from '../../src/db/migrations/registry';
+import { registerMigrationFunctions } from '../../src/db/connection';
 import { signalEvidence } from '../../src/db/schema';
 
 describe('limites Unicode persistentes de evidência', () => {
@@ -10,6 +11,7 @@ describe('limites Unicode persistentes de evidência', () => {
     it(`${mode}: boundary e overflow por pontos de código, após trim`, () => {
       const db = new Database(':memory:');
       try {
+        registerMigrationFunctions(db);
         const now = '2026-11-13T12:00:00.000Z';
         const campaignId = randomUUID();
         const signalId = randomUUID();
@@ -19,6 +21,18 @@ describe('limites Unicode persistentes de evidência', () => {
           db.pragma('foreign_keys = ON');
           db.pragma('recursive_triggers = OFF');
           for (const migration of migrations) {
+            if (migration.version === 31) {
+              db.exec(`CREATE TEMP TABLE structured_value_snapshot_v31 (
+                field_value_id TEXT PRIMARY KEY, field_definition_id TEXT NOT NULL, entity_id TEXT NOT NULL,
+                source_json TEXT NOT NULL, legacy_rich_text TEXT NOT NULL, lossless_rich_text TEXT NOT NULL,
+                created_at TEXT NOT NULL, updated_at TEXT NOT NULL, revision INTEGER NOT NULL
+              )`);
+            }
+            if (migration.version === 34) {
+              db.exec(
+                'CREATE TEMP TABLE cleared_explicit_need_signals (signal_id TEXT NOT NULL, entity_id TEXT NOT NULL)',
+              );
+            }
             if (migration.requiresForeignKeysDisabled) {
               db.pragma('foreign_keys = OFF');
               if (migration.requiresLegacyAlterTable) db.pragma('legacy_alter_table = ON');

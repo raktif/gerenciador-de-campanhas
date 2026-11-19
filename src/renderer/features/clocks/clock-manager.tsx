@@ -503,7 +503,7 @@ export function ClockManager({
                     <span>{statusLabels[clock.status]}</span>
                   </span>
                   {clock.entityArchivedAt !== null ? (
-                    <span className="mt-1 block font-semibold text-amber-700 dark:text-amber-300">
+                    <span className="mt-1 block font-semibold semantic-warning-text">
                       Entidade arquivada — encerre o relógio manualmente
                     </span>
                   ) : null}
@@ -549,7 +549,7 @@ export function ClockManager({
             <p>Consequência: {selected.consequence}</p>
             {selected.entityArchivedAt !== null ? (
               <p
-                className="rounded-lg border border-amber-600 p-3 font-semibold text-amber-800 dark:text-amber-200"
+                className="rounded-lg border semantic-warning-border p-3 font-semibold semantic-warning-text"
                 role="status"
               >
                 Entidade arquivada — encerre o relógio manualmente. Não é possível gerar Evento
@@ -775,7 +775,7 @@ export function ClockManager({
         <div
           aria-labelledby="clock-conclusion-title"
           aria-modal="true"
-          className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4"
+          className="fixed inset-0 z-50 grid place-items-center semantic-overlay p-4"
           role="dialog"
         >
           <div className="w-full max-w-lg space-y-4 rounded-xl border semantic-border semantic-surface p-5">
@@ -787,7 +787,7 @@ export function ClockManager({
               título do relógio e a consequência informada?
             </p>
             {selected?.entityArchivedAt !== null && selected !== null ? (
-              <p className="rounded-lg border border-amber-600 p-3" role="status">
+              <p className="rounded-lg border semantic-warning-border p-3" role="status">
                 A entidade está arquivada; não é possível gerar Evento. Você ainda pode concluir o
                 relógio sem Evento ou cancelar.
               </p>

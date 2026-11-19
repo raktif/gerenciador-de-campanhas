@@ -6,7 +6,7 @@ import Database from 'better-sqlite3';
 import { afterEach, describe, expect, it } from 'vitest';
 import { ensureDataDirectories, getDataDirectories } from '../../src/core/storage/data-directories';
 import { openApplicationDatabase, type DatabaseContext } from '../../src/db/connection';
-import { migrations } from '../../src/db/migrations/registry';
+import { latestMigrationVersion, migrations } from '../../src/db/migrations/registry';
 import { CampaignRepository } from '../../src/db/repositories/campaign-repository';
 import { StoryThreadRepository } from '../../src/db/repositories/story-thread-repository';
 import { StoryThreadService } from '../../src/main/services/story-thread-service';
@@ -554,7 +554,7 @@ describe('persistência SQLite de Fios Abertos', () => {
 
     const migrated = await openApplicationDatabase(directories, new TestLogger());
     contexts.push(migrated);
-    expect(migrated.schemaVersion).toBe(28);
+    expect(migrated.schemaVersion).toBe(latestMigrationVersion);
     expect(
       migrated.native.prepare('SELECT name FROM campaigns WHERE id = ?').get(campaignId),
     ).toEqual({
@@ -571,7 +571,7 @@ describe('persistência SQLite de Fios Abertos', () => {
     await ensureDataDirectories(emptyDirectories);
     const empty = await openApplicationDatabase(emptyDirectories, new TestLogger());
     contexts.push(empty);
-    expect(empty.schemaVersion).toBe(28);
+    expect(empty.schemaVersion).toBe(latestMigrationVersion);
     expect(empty.native.prepare('SELECT count(*) AS total FROM story_threads').get()).toEqual({
       total: 0,
     });

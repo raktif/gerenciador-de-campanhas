@@ -4,7 +4,10 @@ import { defaultPageLimit, maximumPageLimit, type PageResult } from './paginatio
 import type { Result } from './result';
 import { hexColorSchema, nullableHexColorSchema } from './colors';
 import { iconIdSchema } from './icons';
-import { createTechnicalKeyCandidate, normalizeTechnicalKeyPart } from '../identifiers/technical-key';
+import {
+  createTechnicalKeyCandidate,
+  normalizeTechnicalKeyPart,
+} from '../identifiers/technical-key';
 
 const nameSchema = z.string().trim().min(1).max(120);
 export function entityTypeSlug(name: string): string {

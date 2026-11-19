@@ -385,7 +385,10 @@ export async function bootstrapApplication(): Promise<RunningApplication> {
     repository: storyThreadRepository,
     campaigns: campaignRepository,
   });
-  const causalityService = new CausalityService({ repository: causalityRepository, campaigns: campaignRepository });
+  const causalityService = new CausalityService({
+    repository: causalityRepository,
+    campaigns: campaignRepository,
+  });
   const unregisterCausalityIpc = registerCausalityIpcHandlers(ipcMain, {
     service: causalityService,
     logger,
@@ -478,7 +481,11 @@ export async function bootstrapApplication(): Promise<RunningApplication> {
     logger,
     authorizedWebContentsId: window.webContents.id,
   });
-  const sessionClosingService = new SessionClosingService({ repository: sessionClosingRepository, campaigns: campaignRepository, signals: campaignSignalService });
+  const sessionClosingService = new SessionClosingService({
+    repository: sessionClosingRepository,
+    campaigns: campaignRepository,
+    signals: campaignSignalService,
+  });
   const unregisterSessionClosingIpc = registerSessionClosingIpcHandlers(ipcMain, {
     service: sessionClosingService,
     logger,

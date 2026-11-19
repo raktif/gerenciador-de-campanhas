@@ -59,7 +59,7 @@ export async function openApplicationDatabase(
         version === clearDerivedEntityFieldCopiesVersion,
     );
 
-    if (databaseAlreadyExisted && pendingMigrations.length > 0 && !performsCleanup) {
+    if (databaseAlreadyExisted && pendingMigrations.length > 0) {
       const backup = await createVerifiedBackup(
         native,
         directories.automaticBackups,
@@ -114,6 +114,16 @@ export async function openApplicationDatabase(
 }
 
 function configureConnection(database: Database.Database): void {
+  registerMigrationFunctions(database);
+  database.pragma('foreign_keys = ON');
+  database.pragma('journal_mode = WAL');
+  database.pragma('synchronous = NORMAL');
+  database.pragma('busy_timeout = 5000');
+}
+
+export function registerMigrationFunctions(database: Database.Database): void {
+  database.function('is_json_container_text', { deterministic: true }, isJsonContainerText);
+  registerDerivedFieldCleanupFunctions(database);
   database.function(
     'structured_json_to_rich_text',
     { deterministic: true },
@@ -122,10 +132,6 @@ function configureConnection(database: Database.Database): void {
       return structuredJsonToRichText(source);
     },
   );
-  database.pragma('foreign_keys = ON');
-  database.pragma('journal_mode = WAL');
-  database.pragma('synchronous = NORMAL');
-  database.pragma('busy_timeout = 5000');
 }
 
 interface StructuredValueSnapshot {

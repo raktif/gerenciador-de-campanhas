@@ -55,7 +55,6 @@ describe('EntityTypeService', () => {
       updatedAt: secondTimestamp,
       revision: 1,
     });
-
   });
 
   it('atualiza o identificador gerado quando o nome do tipo muda', () => {

@@ -73,7 +73,7 @@ const definitions: Readonly<Record<string, ErrorDefinition>> = {
     message:
       'A necessidade original e sua definição estão protegidas, inclusive após arquivar a Demanda.',
     suggestedAction:
-      'Crie outro campo de Necessidade para uma nova necessidade. Os demais atributos continuam editáveis.',
+      'Crie outro campo de Need (Necessidade) para uma nova necessidade. Os demais atributos continuam editáveis.',
     helpArticleId: 'demands',
     canRetry: false,
   },

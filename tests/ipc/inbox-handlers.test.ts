@@ -460,6 +460,7 @@ function conversionResult() {
       id: '90000000-0000-4000-8000-000000000001',
       campaignId,
       entityTypeId: '60000000-0000-4000-8000-000000000001',
+      referenceImageAttachmentId: null,
       name: 'Iara',
       summary: null,
       canonState: 'accepted' as const,
